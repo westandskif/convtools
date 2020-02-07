@@ -1,0 +1,12 @@
+.cheatsheet-table {
+	font-size: 0.65em
+}
+table.cheatsheet-table {
+	width: 100%
+}
+table.cheatsheet-table td{
+	vertical-align: top
+}
+.cheatsheet-table pre {
+	padding: 7px
+}

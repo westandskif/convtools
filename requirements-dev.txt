@@ -1,0 +1,5 @@
+pytest
+pytest-cov
+towncrier
+sphinx
+flake8
