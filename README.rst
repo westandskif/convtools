@@ -7,13 +7,16 @@ convtools
 objects to python objects, including processing collections and doing complex
 aggregations.
 
-.. image:: https://readthedocs.org/projects/convtools/badge/?version=latest
-   :target: https://convtools.readthedocs.io/en/latest/?badge=latest
-   :alt: Documentation Status
-
 .. image:: https://github.com/itechart-almakov/convtools/workflows/tests/badge.svg
    :target: https://github.com/itechart-almakov/convtools/workflows/tests/badge.svg
    :alt: Tests Status
+
+.. image:: https://codecov.io/gh/itechart-almakov/convtools/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/itechart-almakov/convtools
+
+.. image:: https://readthedocs.org/projects/convtools/badge/?version=latest
+   :target: https://convtools.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
 
 Description
 ===========
