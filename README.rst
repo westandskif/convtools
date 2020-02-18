@@ -7,6 +7,9 @@ convtools
 objects to python objects, including processing collections and doing complex
 aggregations.
 
+.. image:: https://readthedocs.org/projects/convtools/badge/?version=latest
+   :target: https://convtools.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
 
 Description
 ===========
