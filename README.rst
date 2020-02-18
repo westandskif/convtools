@@ -12,11 +12,20 @@ aggregations.
    :alt: Tests Status
 
 .. image:: https://codecov.io/gh/itechart-almakov/convtools/branch/master/graph/badge.svg
-  :target: https://codecov.io/gh/itechart-almakov/convtools
+   :target: https://codecov.io/gh/itechart-almakov/convtools
 
 .. image:: https://readthedocs.org/projects/convtools/badge/?version=latest
    :target: https://convtools.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
+
+.. image:: https://badge.fury.io/py/convtools.svg
+   :target: https://badge.fury.io/py/convtools
+
+.. image:: https://img.shields.io/github/license/itechart-almakov/convtools.svg
+   :target: https://github.com/itechart-almakov/convtools/blob/master/LICENSE.txt
+
+.. image:: https://img.shields.io/github/release/itechart-almakov/convtools.js.svg
+   :target: https://GitHub.com/itechart-almakov/convtools/releases/
 
 Description
 ===========

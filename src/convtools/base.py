@@ -4,6 +4,7 @@ import sys
 from collections import OrderedDict
 from itertools import chain, count
 
+
 __all__ = [
     "ensure_conversion",
     "ConversionException",

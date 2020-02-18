@@ -6,3 +6,21 @@ directory = "CHANGES/"
 title_format = "{version} ({project_date})"
 template = "CHANGES/.TEMPLATE.rst"
 issue_format = "`#{issue} <https://github.com/itechart-almakov/convtools/issues/{issue}>`_"
+
+[tool.black]
+line-length = 80
+target-version = ['py37']
+
+[tool.isort]
+atomic = true
+force_grid_wrap = 0
+include_trailing_comma = true
+indent = '    '
+known_first_party = 'convtools'
+line_length = 80
+lines_after_imports = 2
+lines_between_types = 0
+multi_line_output = 3
+order_by_type = true
+use_parentheses = true
+

@@ -215,7 +215,7 @@ def test_naive_conversion_or_and():
 
 
 def test_escaped_string_conversion():
-    assert c.escaped_string("1 == 1").gen_converter()(1) == True
+    assert c.escaped_string("1 == 1").gen_converter()(1) is True
     assert c.escaped_string("'1 == 1'").gen_converter()(1) == "1 == 1"
 
 
@@ -415,9 +415,6 @@ def test_grouping():
         {"name": "Nick", "category": "Games", "debit": 18, "balance": 32},
         {"name": "Bill", "category": "Games", "debit": 18, "balance": 120},
     ]
-    reducer1 = c.reduce(max, c.item("debit"), default=0).filter(
-        c.call_func(lambda x: x < 0, c.item("balance"))
-    )
     result = (
         c.group_by(c.item("name"))
         .aggregate(
