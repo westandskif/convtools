@@ -1,4 +1,4 @@
-.PHONY: docs
+.PHONY: docs build
 docs:
 	python setup.py build_sphinx
 

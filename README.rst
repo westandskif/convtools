@@ -11,6 +11,10 @@ aggregations.
    :target: https://convtools.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
+.. image:: https://github.com/itechart-almakov/convtools/workflows/tests/badge.svg
+   :target: https://github.com/itechart-almakov/convtools/workflows/tests/badge.svg
+   :alt: Tests Status
+
 Description
 ===========
 
