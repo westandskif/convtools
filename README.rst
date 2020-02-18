@@ -21,11 +21,12 @@ aggregations.
 .. image:: https://badge.fury.io/py/convtools.svg
    :target: https://badge.fury.io/py/convtools
 
+.. image:: https://img.shields.io/github/tag/itechart-almakov/convtools.svg
+   :target: https://GitHub.com/itechart-almakov/convtools/tags/
+
 .. image:: https://img.shields.io/github/license/itechart-almakov/convtools.svg
    :target: https://github.com/itechart-almakov/convtools/blob/master/LICENSE.txt
 
-.. image:: https://img.shields.io/github/release/itechart-almakov/convtools.js.svg
-   :target: https://GitHub.com/itechart-almakov/convtools/releases/
 
 Description
 ===========
@@ -46,6 +47,12 @@ Every conversion:
    (no superflious loops, minimum number of function calls)
  * despite being compiled at runtime, is debuggable due to `linecache` populating.
 
+Installation:
+=============
+
+.. code-block:: bash
+
+   pip install convtools
 
 Documentation
 =============

@@ -23,6 +23,13 @@ Every conversion:
  * despite being compiled at runtime, is debuggable due to `linecache` populating.
 
 
+Installation:
+=============
+
+.. code-block:: bash
+
+   pip install convtools
+
 Next steps:
 ===========
 
