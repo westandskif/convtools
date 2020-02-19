@@ -35,14 +35,22 @@ def test_gen_converter():
         def __init__(self):
             self.x = 20
 
-        conv1 = (c.this() + c.input_arg("self").attr("x")).gen_converter(method=True)
-        conv2 = (c.this() + c.input_arg("cls").attr("x")).gen_converter(method=True)
+        conv1 = (c.this() + c.input_arg("self").attr("x")).gen_converter(
+            method=True
+        )
+        conv2 = (c.this() + c.input_arg("cls").attr("x")).gen_converter(
+            method=True
+        )
 
         conv3 = classmethod(
-            (c.this() + c.input_arg("cls").attr("x")).gen_converter(class_method=True)
+            (c.this() + c.input_arg("cls").attr("x")).gen_converter(
+                class_method=True
+            )
         )
         conv4 = classmethod(
-            (c.this() + c.input_arg("self").attr("x")).gen_converter(class_method=True)
+            (c.this() + c.input_arg("self").attr("x")).gen_converter(
+                class_method=True
+            )
         )
 
         conv5 = (
@@ -72,16 +80,21 @@ def test_gen_converter():
     assert A.conv6(20, 1, 2, 3) == 26
     assert A.conv6(20, 1, 2, 3, multiplicator=10) == 260
 
-    assert c.call_func(sum, c.this()).gen_converter(signature="*data_")(1, 2, 3) == 6
+    assert (
+        c.call_func(sum, c.this()).gen_converter(signature="*data_")(1, 2, 3)
+        == 6
+    )
     assert c(
         {
-            c.naive("-").call_method("join", c.this().call_method("keys")): c.call_func(
-                sum, c.this().call_method("values")
-            )
+            c.naive("-").call_method(
+                "join", c.this().call_method("keys")
+            ): c.call_func(sum, c.this().call_method("values"))
         }
     ).gen_converter(signature="**data_")(a=1, b=2, c=3,) == {"a-b-c": 6}
     with pytest.raises(c.ConversionException):
-        c.call_func(sum, c.input_arg("x")).gen_converter(signature="*data_")(1, 2, 3)
+        c.call_func(sum, c.input_arg("x")).gen_converter(signature="*data_")(
+            1, 2, 3
+        )
     with pytest.raises(c.ConversionException):
         c.this().gen_converter(method=True, class_method=True)
 
@@ -100,7 +113,9 @@ def test_naive_conversion_item():
     assert c.item(10, "test").gen_converter()(d) == 15
 
     assert c.item(11, "test", default=77).gen_converter()(d) == 77
-    assert c.item(11, "test", default=77).gen_converter(method=True)(None, d) == 77
+    assert (
+        c.item(11, "test", default=77).gen_converter(method=True)(None, d) == 77
+    )
     assert c.item(10, "testt", default=77).gen_converter()(d) == 77
 
     assert c.item(10, "testt", default=c.this()).gen_converter()(d) == d
@@ -115,8 +130,14 @@ def test_naive_conversion_item():
     with pytest.raises(TypeError):
         c.naive(None).item(11).gen_converter()(100)
 
-    assert c.naive(d).item(100).item("test2").gen_converter(debug=False)(100) == 200
-    assert c.naive(d).item(c.this(), "test2").gen_converter(debug=False)(100) == 200
+    assert (
+        c.naive(d).item(100).item("test2").gen_converter(debug=False)(100)
+        == 200
+    )
+    assert (
+        c.naive(d).item(c.this(), "test2").gen_converter(debug=False)(100)
+        == 200
+    )
     assert (
         c.naive(d)
         .item(100, default=30)
@@ -127,10 +148,15 @@ def test_naive_conversion_item():
 
     # testing defaults
     assert (
-        c.naive(d).item(100, default=30).item("test", default=30).gen_converter()(100)
+        c.naive(d)
+        .item(100, default=30)
+        .item("test", default=30)
+        .gen_converter()(100)
         == 30
     )
-    assert c.naive(d).item(10).item("test2", default=30).gen_converter()(100) == 30
+    assert (
+        c.naive(d).item(10).item("test2", default=30).gen_converter()(100) == 30
+    )
     assert c.naive(True).is_(True).execute(100) is True
     assert c.naive(True).is_not(True).execute(100) is False
     assert c.naive(1).in_({1, 2}).execute(100) is True
@@ -170,7 +196,7 @@ def test_item():
 def test_input_arg():
     assert c.input_arg("x").as_type(int).execute(None, x="10") == 10
     assert (
-        c.inline_expr('''"{{}}_{{}}".format(type({x}).__name__, {x})''')
+        c.inline_expr(""""{{}}_{{}}".format(type({x}).__name__, {x})""")
         .pass_args(x=c.item("value"))
         .gen_converter()
     )({"value": 123}) == "int_123"
@@ -191,7 +217,10 @@ def test_naive_conversion_attr():
 def test_naive_conversion_call():
     assert c.naive("TEST").attr("lower").call().gen_converter()(100) == "test"
     assert c.call_func(str.lower, c.this()).gen_converter()("TEST") == "test"
-    assert c.naive("TE ST").attr("replace").call(" ", "").gen_converter()(100) == "TEST"
+    assert (
+        c.naive("TE ST").attr("replace").call(" ", "").gen_converter()(100)
+        == "TEST"
+    )
 
     f = MagicMock(return_value=1)
     c.naive(f).call(1, 2, test1=True, test2="test3").gen_converter()(100)
@@ -236,25 +265,32 @@ def test_callfunc():
 
 def test_list():
     assert c.list(c.item(1), c.item(0), 3).gen_converter()([2, 1]) == [1, 2, 3]
-    assert c([[c.item(1), c.item(0), 3]]).gen_converter()([2, 1]) == [[1, 2, 3,]]
+    assert c([[c.item(1), c.item(0), 3]]).gen_converter()([2, 1]) == [
+        [1, 2, 3,]
+    ]
 
 
 def test_tuple():
     assert c.tuple(c.item(1), c.item(0), 3).gen_converter()([2, 1]) == (1, 2, 3)
-    assert c.tuple((c.item(1), c.item(0), 3)).gen_converter()([2, 1]) == ((1, 2, 3,),)
+    assert c.tuple((c.item(1), c.item(0), 3)).gen_converter()([2, 1]) == (
+        (1, 2, 3,),
+    )
 
 
 def test_set():
     assert c({c.item(1), c.item(0), 3}).gen_converter()([2, 1]) == {1, 2, 3}
-    assert c.set((c.item(1), c.item(0), 3)).gen_converter()([2, 1]) == {(1, 2, 3)}
-    assert c.set((c.item(1), c.item(0), 3)).gen_converter()([2, 1]) == {(1, 2, 3)}
+    assert c.set((c.item(1), c.item(0), 3)).gen_converter()([2, 1]) == {
+        (1, 2, 3)
+    }
+    assert c.set((c.item(1), c.item(0), 3)).gen_converter()([2, 1]) == {
+        (1, 2, 3)
+    }
 
 
 def test_dict():
-    assert c.dict((1, c.escaped_string("1+1")), (2, 3),).gen_converter()(100) == {
-        1: 2,
-        2: 3,
-    }
+    assert c.dict((1, c.escaped_string("1+1")), (2, 3),).gen_converter()(
+        100
+    ) == {1: 2, 2: 3,}
     assert c({1: c.escaped_string("1+1"), 2: 3}).gen_converter()(100) == {
         1: 2,
         2: 3,
@@ -264,11 +300,9 @@ def test_dict():
 def test_list_comprehension():
     assert c.list_comp(1).gen_converter()(range(5)) == [1] * 5
     data = [{"name": "John"}, {"name": "Bill"}, {"name": "Nick"}]
-    assert c.list_comp(c.item("name")).sort(key=lambda n: n).gen_converter()(data) == [
-        "Bill",
-        "John",
-        "Nick",
-    ]
+    assert c.list_comp(c.item("name")).sort(key=lambda n: n).gen_converter()(
+        data
+    ) == ["Bill", "John", "Nick",]
     assert c.list_comp(c.item("name")).sort().gen_converter()(data) == [
         "Bill",
         "John",
@@ -292,11 +326,9 @@ def test_list_comprehension():
 def test_tuple_comprehension():
     assert c.tuple_comp(1).gen_converter()(range(5)) == (1,) * 5
     data = [{"name": "John"}, {"name": "Bill"}, {"name": "Nick"}]
-    assert c.tuple_comp(c.item("name")).sort(key=lambda n: n).gen_converter()(data) == (
-        "Bill",
-        "John",
-        "Nick",
-    )
+    assert c.tuple_comp(c.item("name")).sort(key=lambda n: n).gen_converter()(
+        data
+    ) == ("Bill", "John", "Nick",)
     assert c.tuple_comp(c.item("name")).sort().gen_converter()(data) == (
         "Bill",
         "John",
@@ -376,12 +408,17 @@ def test_filter():
     assert c.filter(c.this().gt(1), cast=list).execute([1, 2, 3]) == [2, 3]
     assert c.filter(c.this().gt(1), cast=tuple).execute([1, 2, 3]) == (2, 3)
     assert c.filter(c.this().gt(1), cast=set).execute([1, 2, 3]) == {2, 3}
-    assert c.filter(c.this().gt(1), cast=lambda x: list(x)).execute([1, 2, 3]) == [2, 3]
+    assert c.filter(c.this().gt(1), cast=lambda x: list(x)).execute(
+        [1, 2, 3]
+    ) == [2, 3]
     assert c.list_comp(c.this()).filter(c.this().gt(1)).execute([1, 2, 3]) == [
         2,
         3,
     ]
-    assert c.this().filter(c.this().gt(1), cast=list).execute([1, 2, 3]) == [2, 3]
+    assert c.this().filter(c.this().gt(1), cast=list).execute([1, 2, 3]) == [
+        2,
+        3,
+    ]
 
 
 def test_manually_defined_reducers():
@@ -397,7 +434,9 @@ def test_manually_defined_reducers():
     grouper = (
         c.group_by(c.item("name"))
         .aggregate(
-            c.reduce(lambda a, b: a + b, c.item(c.input_arg("group_key")), initial=0)
+            c.reduce(
+                lambda a, b: a + b, c.item(c.input_arg("group_key")), initial=0
+            )
         )
         .gen_converter(signature="data_, group_key='debit'")
     )
@@ -423,14 +462,18 @@ def test_grouping():
                 c.item("name").call_method("lower"),
                 c.call_func(str.lower, c.item("name")),
                 c.reduce(
-                    lambda a, b: a + b, c.item("debit"), initial=c.input_arg("arg1"),
+                    lambda a, b: a + b,
+                    c.item("debit"),
+                    initial=c.input_arg("arg1"),
                 ),
                 c.reduce(
-                    c.inline_expr("{0} + {1}"), c.item("debit"), initial=lambda: 100,
+                    c.inline_expr("{0} + {1}"),
+                    c.item("debit"),
+                    initial=lambda: 100,
                 ),
-                c.reduce(max, c.item("debit"), default=c.input_arg("arg1")).filter(
-                    c.call_func(lambda x: x < 0, c.item("balance"))
-                ),
+                c.reduce(
+                    max, c.item("debit"), default=c.input_arg("arg1")
+                ).filter(c.call_func(lambda x: x < 0, c.item("balance"))),
                 c.call_func(
                     lambda max_debit, n: max_debit * n,
                     c.reduce(max, c.item("debit"), default=0).filter(
@@ -440,13 +483,19 @@ def test_grouping():
                 ),
                 c.call_func(
                     lambda max_debit, n: max_debit * n,
-                    c.reduce(c.ReduceFuncs.Max, c.item("debit"), default=1000,).filter(
+                    c.reduce(
+                        c.ReduceFuncs.Max, c.item("debit"), default=1000,
+                    ).filter(
                         c.inline_expr("{0} > 0").pass_args(c.item("balance"))
                     ),
                     -1,
                 ),
-                c.reduce(c.ReduceFuncs.MaxRow, c.item("debit"),).item("balance"),
-                c.reduce(c.ReduceFuncs.MinRow, c.item("debit"),).item("balance"),
+                c.reduce(c.ReduceFuncs.MaxRow, c.item("debit"),).item(
+                    "balance"
+                ),
+                c.reduce(c.ReduceFuncs.MinRow, c.item("debit"),).item(
+                    "balance"
+                ),
             )
         )
         .sort(key=lambda t: t[0].lower(), reverse=True)
@@ -464,11 +513,15 @@ def test_grouping():
         ): c.item("category").call_method("lower"),
         "count": c.reduce(c.ReduceFuncs.Count),
         "count_distinct": c.reduce(c.ReduceFuncs.CountDistinct, c.item("name")),
-        "array_agg_distinct": c.reduce(c.ReduceFuncs.ArrayDistinct, c.item("name"),),
+        "array_agg_distinct": c.reduce(
+            c.ReduceFuncs.ArrayDistinct, c.item("name"),
+        ),
         "dict": c.reduce(c.ReduceFuncs.Dict, (c.item("debit"), c.item("name"))),
     }
     result = (
-        c.group_by(c.item("category")).aggregate(aggregation).execute(data, debug=False)
+        c.group_by(c.item("category"))
+        .aggregate(aggregation)
+        .execute(data, debug=False)
     )
     result2 = (
         c.group_by(c.item("category"))
@@ -747,7 +800,9 @@ def test_base_reducer():
 
     assert c.aggregate(
         (
-            c.reduce(_ReducerExpression(lambda a, b: a + b, expr=c.this(), initial=0)),
+            c.reduce(
+                _ReducerExpression(lambda a, b: a + b, expr=c.this(), initial=0)
+            ),
             c.reduce(
                 _ReducerExpression(
                     c.naive(lambda a, b: a + b), expr=c.this(), initial=int
@@ -756,7 +811,10 @@ def test_base_reducer():
             c.reduce(_ReducerExpression("{0} + {1}", expr=c.this(), default=0)),
             c.reduce(
                 _ReducerExpression(
-                    "{0} + {1}", expr=c.this(), initial_from_first=int, default=0
+                    "{0} + {1}",
+                    expr=c.this(),
+                    initial_from_first=int,
+                    default=0,
                 )
             ),
             c.reduce(
@@ -774,7 +832,9 @@ def test_base_reducer():
                 c.this(),
             ),
             c.reduce(
-                _ReducerStatements(reduce="%(result)s = ({1} or 0)", initial=0,),
+                _ReducerStatements(
+                    reduce="%(result)s = ({1} or 0)", initial=0,
+                ),
                 c.this(),
             ),
         )

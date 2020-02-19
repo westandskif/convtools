@@ -153,7 +153,9 @@ class BaseConversion:
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         if self._predefined_input is not None:
-            code_input = self._predefined_input.gen_code_and_update_ctx(code_input, ctx)
+            code_input = self._predefined_input.gen_code_and_update_ctx(
+                code_input, ctx
+            )
         return self._gen_code_and_update_ctx(code_input, ctx)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
@@ -225,7 +227,9 @@ class BaseConversion:
             try:
                 import black
 
-                code = black.format_str(code, mode=black.FileMode(line_length=79))
+                code = black.format_str(
+                    code, mode=black.FileMode(line_length=79)
+                )
             except ImportError:
                 pass
             except black.InvalidInput:
@@ -265,15 +269,23 @@ class BaseConversion:
                 _pattern_word.findall(self._get_args_def_code({}))
             ) - set(_pattern_word.findall(signature))
             if missing_args:
-                raise ConversionException("bad signature, missing args", missing_args)
+                raise ConversionException(
+                    "bad signature, missing args", missing_args
+                )
         else:
             if method and class_method:
-                raise ConversionException("choose either method or a class_method")
+                raise ConversionException(
+                    "choose either method or a class_method"
+                )
             signature = (
                 ("self, " if method else "")
                 + ("cls, " if class_method else "")
                 + (initial_code_input)
-                + (self._get_args_def_code(ctx, as_kwargs=True, exclude_cls_self=True))
+                + (
+                    self._get_args_def_code(
+                        ctx, as_kwargs=True, exclude_cls_self=True
+                    )
+                )
             )
 
         if debug is not None:
@@ -475,10 +487,16 @@ class BaseConversion:
         """
         if callable(next_conversion):
             return (
-                ensure_conversion(next_conversion).clone().call(self, *args, **kwargs)
+                ensure_conversion(next_conversion)
+                .clone()
+                .call(self, *args, **kwargs)
             )
 
-        return ensure_conversion(next_conversion).clone().set_predefined_input(self)
+        return (
+            ensure_conversion(next_conversion)
+            .clone()
+            .set_predefined_input(self)
+        )
 
 
 class BaseMethodConversion(BaseConversion):
@@ -496,7 +514,9 @@ class BaseMethodConversion(BaseConversion):
         if self._predefined_self is None:
             code_self = code_input
         else:
-            code_self = self._predefined_self.gen_code_and_update_ctx(code_input, ctx)
+            code_self = self._predefined_self.gen_code_and_update_ctx(
+                code_input, ctx
+            )
         return code_self
 
 
@@ -589,7 +609,10 @@ class Or(BaseConversion):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return "({})".format(
             self.op.join(
-                [arg.gen_code_and_update_ctx(code_input, ctx) for arg in self.args]
+                [
+                    arg.gen_code_and_update_ctx(code_input, ctx)
+                    for arg in self.args
+                ]
             )
         )
 
@@ -604,7 +627,9 @@ class Not(BaseConversion):
         self.arg = self.ensure_conversion(arg)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return "(not {})".format(self.arg.gen_code_and_update_ctx(code_input, ctx))
+        return "(not {})".format(
+            self.arg.gen_code_and_update_ctx(code_input, ctx)
+        )
 
 
 class GetItem(BaseMethodConversion):
@@ -628,7 +653,9 @@ class GetItem(BaseMethodConversion):
         super(GetItem, self).__init__(kwargs)
         self.indexes = [self.ensure_conversion(index) for index in indexes]
         self.default = (
-            self.ensure_conversion(default) if default is not self._none else None
+            self.ensure_conversion(default)
+            if default is not self._none
+            else None
         )
 
     def wrap_path_item(self, code_input, path_item):
@@ -653,7 +680,9 @@ class GetItem(BaseMethodConversion):
         converter_name = self.gen_name("get_or_default", ctx)
         converter_code = get_or_default_template.format(
             code_args=(
-                "self_, obj_, default_" if self_is_overwritten else "obj_, default_"
+                "self_, obj_, default_"
+                if self_is_overwritten
+                else "obj_, default_"
             ),
             converter_name=converter_name,
             get_or_default_code=code_output,
@@ -696,12 +725,17 @@ class Call(BaseMethodConversion):
     def __init__(self, *args, **kwargs):
         super(Call, self).__init__(kwargs)
         self.args = [self.ensure_conversion(arg) for arg in args]
-        self.kwargs = {k: self.ensure_conversion(v) for k, v in (kwargs or {}).items()}
+        self.kwargs = {
+            k: self.ensure_conversion(v) for k, v in (kwargs or {}).items()
+        }
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         code_self = self.get_self_code(code_input, ctx)
 
-        params = [param.gen_code_and_update_ctx(code_input, ctx) for param in self.args]
+        params = [
+            param.gen_code_and_update_ctx(code_input, ctx)
+            for param in self.args
+        ]
         for k, v in self.kwargs.items():
             params.append(
                 "{}={}".format(k, v.gen_code_and_update_ctx(code_input, ctx),)
@@ -780,7 +814,10 @@ class InlineExpr(BaseConversion):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         code = self.code_str.format(
-            *(arg.gen_code_and_update_ctx(code_input, ctx) for arg in self.args),
+            *(
+                arg.gen_code_and_update_ctx(code_input, ctx)
+                for arg in self.args
+            ),
             **{
                 k: v.gen_code_and_update_ctx(code_input, ctx)
                 for k, v in self.kwargs.items()
@@ -846,9 +883,9 @@ class BaseComprehensionConversion(BaseConversion):
                 self.ensure_conversion(
                     None if self.sort_key is True else self.sort_key
                 ).gen_code_and_update_ctx(None, ctx),
-                self.ensure_conversion(self.sort_key_reverse).gen_code_and_update_ctx(
-                    None, ctx
-                ),
+                self.ensure_conversion(
+                    self.sort_key_reverse
+                ).gen_code_and_update_ctx(None, ctx),
             )
         return code_str
 
@@ -886,7 +923,9 @@ class ListComp(BaseComprehensionConversion):
         return f"[{generator_code}]"
 
     def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
-        return f"sorted({code_input}, key={sort_key_code}, reverse={reverse_code})"
+        return (
+            f"sorted({code_input}, key={sort_key_code}, reverse={reverse_code})"
+        )
 
 
 class TupleComp(BaseComprehensionConversion):
@@ -898,9 +937,7 @@ class TupleComp(BaseComprehensionConversion):
         return f"tuple({generator_code})"
 
     def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
-        return (
-            f"tuple(sorted({code_input}, key={sort_key_code}, reverse={reverse_code}))"
-        )
+        return f"tuple(sorted({code_input}, key={sort_key_code}, reverse={reverse_code}))"
 
 
 class SetComp(BaseComprehensionConversion):
@@ -956,35 +993,47 @@ class BaseCollectionConversion(BaseConversion):
         self.items = [self.ensure_conversion(item) for item in items]
 
     def gen_joined_items_code(self, code_input, ctx):
-        params = [item.gen_code_and_update_ctx(code_input, ctx) for item in self.items]
+        params = [
+            item.gen_code_and_update_ctx(code_input, ctx) for item in self.items
+        ]
         return ",".join(params)
 
-    def gen_collection_from_items_code(self, joined_items_code, code_input, ctx):
+    def gen_collection_from_items_code(
+        self, joined_items_code, code_input, ctx
+    ):
         raise NotImplementedError
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         joined_items_code = self.gen_joined_items_code(code_input, ctx)
-        return self.gen_collection_from_items_code(joined_items_code, code_input, ctx)
+        return self.gen_collection_from_items_code(
+            joined_items_code, code_input, ctx
+        )
 
 
 class Tuple(BaseCollectionConversion):
     """Gets compiled into the code which generates a tuple"""
 
-    def gen_collection_from_items_code(self, joined_items_code, code_input, ctx):
+    def gen_collection_from_items_code(
+        self, joined_items_code, code_input, ctx
+    ):
         return f"({joined_items_code},)"
 
 
 class List(BaseCollectionConversion):
     """Gets compiled into the code which generates a list"""
 
-    def gen_collection_from_items_code(self, joined_items_code, code_input, ctx):
+    def gen_collection_from_items_code(
+        self, joined_items_code, code_input, ctx
+    ):
         return f"[{joined_items_code}]"
 
 
 class Set(BaseCollectionConversion):
     """Gets compiled into the code which generates a set"""
 
-    def gen_collection_from_items_code(self, joined_items_code, code_input, ctx):
+    def gen_collection_from_items_code(
+        self, joined_items_code, code_input, ctx
+    ):
         return "{%s}" % joined_items_code
 
 
@@ -1014,5 +1063,7 @@ class Dict(BaseCollectionConversion):
         ]
         return ",".join(params)
 
-    def gen_collection_from_items_code(self, joined_items_code, code_input, ctx):
+    def gen_collection_from_items_code(
+        self, joined_items_code, code_input, ctx
+    ):
         return "{%s}" % joined_items_code

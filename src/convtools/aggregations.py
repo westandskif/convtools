@@ -105,7 +105,9 @@ class _ReducerExpression(_BaseReducer):
         if initial is BaseConversion._none:
             if self.initial_from_first:
                 reduce_initial = (
-                    call_with_params(self.initial_from_first, expr, *additional_args,)
+                    call_with_params(
+                        self.initial_from_first, expr, *additional_args,
+                    )
                     if additional_args
                     else call_with_params(self.initial_from_first, expr)
                 )
@@ -136,14 +138,23 @@ class _ReducerExpression(_BaseReducer):
             indent=" " * 4 * indentation_level,
             var_agg_data_value=var_agg_data_value,
             code=call_with_params(
-                self.reduce, EscapedString(var_agg_data_value), expr, *additional_args,
+                self.reduce,
+                EscapedString(var_agg_data_value),
+                expr,
+                *additional_args,
             ).gen_code_and_update_ctx(var_row, ctx),
         )
 
 
 class _ReducerStatements(_BaseReducer):
     def _format_statements(
-        self, var_agg_data_value, var_row, statements, indentation_level, args, ctx,
+        self,
+        var_agg_data_value,
+        var_row,
+        statements,
+        indentation_level,
+        args,
+        ctx,
     ):
         if isinstance(statements, str):
             statements = [statements]
@@ -159,7 +170,9 @@ class _ReducerStatements(_BaseReducer):
                 for statement in statements
             ]
         )
-        return code.format(*(arg.gen_code_and_update_ctx(var_row, ctx) for arg in args))
+        return code.format(
+            *(arg.gen_code_and_update_ctx(var_row, ctx) for arg in args)
+        )
 
     def gen_reduce_initial(
         self,
@@ -198,7 +211,12 @@ class _ReducerStatements(_BaseReducer):
                 *additional_args,
             )
             reduce_initial = self._format_statements(
-                var_agg_data_value, var_row, self.reduce, indentation_level, args, ctx,
+                var_agg_data_value,
+                var_row,
+                self.reduce,
+                indentation_level,
+                args,
+                ctx,
             )
         return reduce_initial
 
@@ -217,13 +235,20 @@ class _ReducerStatements(_BaseReducer):
             *additional_args,
         )
         return self._format_statements(
-            var_agg_data_value, var_row, self.reduce, indentation_level, args, ctx,
+            var_agg_data_value,
+            var_row,
+            self.reduce,
+            indentation_level,
+            args,
+            ctx,
         )
 
 
 class _DictReducerStatements(_ReducerStatements):
     def configure_parent_reduce_obj(self, reduce_obj):
-        super(_DictReducerStatements, self).configure_parent_reduce_obj(reduce_obj)
+        super(_DictReducerStatements, self).configure_parent_reduce_obj(
+            reduce_obj
+        )
         if reduce_obj.additional_args:
             raise AssertionError("dict agg doesn't support additional_args")
         if not isinstance(reduce_obj.expr, (Tuple, List)):
@@ -274,17 +299,25 @@ _First = _ReducerStatements(
     reduce=[], initial_from_first=["%(result)s = {0}"], default=None,
 )
 _Last = _ReducerStatements(
-    reduce=["%(result)s = {1}"], initial_from_first=["%(result)s = {0}"], default=None,
+    reduce=["%(result)s = {1}"],
+    initial_from_first=["%(result)s = {0}"],
+    default=None,
 )
 _MaxRow = _ReducerStatements(
-    reduce=["if {1} is not None and {0}[0] < {1}:", "    %(result)s = ({1}, {2})",],
+    reduce=[
+        "if {1} is not None and {0}[0] < {1}:",
+        "    %(result)s = ({1}, {2})",
+    ],
     initial_from_first=["if {0} is not None:", "    %(result)s = ({0}, {1})",],
     additional_args=(GetItem(),),
     post_conversion=GetItem(1),
     default=None,
 )
 _MinRow = _ReducerStatements(
-    reduce=["if {1} is not None and {0}[0] > {1}:", "    %(result)s = ({1}, {2})",],
+    reduce=[
+        "if {1} is not None and {0}[0] > {1}:",
+        "    %(result)s = ({1}, {2})",
+    ],
     initial_from_first=["if {0} is not None:", "    %(result)s = ({0}, {1})",],
     additional_args=(GetItem(),),
     post_conversion=GetItem(1),
@@ -310,13 +343,19 @@ _Dict = _DictReducerStatements(
 )
 _DictArray = _DictReducerStatements(
     reduce=["%(result)s[{1}].append({2})"],
-    initial_from_first=["%(result)s = _d = defaultdict(list)", "_d[{0}].append({1})",],
+    initial_from_first=[
+        "%(result)s = _d = defaultdict(list)",
+        "_d[{0}].append({1})",
+    ],
     post_conversion=CallFunc(dict, GetItem()),
     default=None,
 )
 _DictSum = _DictReducerStatements(
     reduce=["%(result)s[{1}] += {2} or 0"],
-    initial_from_first=["%(result)s = _d = defaultdict(int)", "_d[{0}] += {1} or 0",],
+    initial_from_first=[
+        "%(result)s = _d = defaultdict(int)",
+        "_d[{0}] += {1} or 0",
+    ],
     post_conversion=CallFunc(dict, GetItem()),
     default=None,
 )
@@ -336,7 +375,10 @@ _DictMax = _DictReducerStatements(
         "if {2} is not None and ({1} not in {0} or {2} > {0}[{1}]):",
         "    %(result)s[{1}] = {2}",
     ],
-    initial_from_first=["if {1} is not None:", "    %(result)s = {{ {0}: {1} }}",],
+    initial_from_first=[
+        "if {1} is not None:",
+        "    %(result)s = {{ {0}: {1} }}",
+    ],
     default=None,
 )
 _DictMin = _DictReducerStatements(
@@ -344,7 +386,10 @@ _DictMin = _DictReducerStatements(
         "if {2} is not None and ({1} not in {0} or {2} < {0}[{1}]):",
         "    %(result)s[{1}] = {2}",
     ],
-    initial_from_first=["if {1} is not None:", "    %(result)s = {{ {0}: {1} }}",],
+    initial_from_first=[
+        "if {1} is not None:",
+        "    %(result)s = {{ {0}: {1} }}",
+    ],
     default=None,
 )
 _DictCount = _DictReducerStatements(
@@ -523,7 +568,9 @@ class Reduce(BaseReduce):
         self.default = default
         self.condition = None
         self.post_conversion = None
-        self.additional_args = () if additional_args is self._none else additional_args
+        self.additional_args = (
+            () if additional_args is self._none else additional_args
+        )
         if isinstance(to_call_with_2_args, _BaseReducer):
             self.reducer = to_call_with_2_args
         else:
@@ -539,7 +586,9 @@ class Reduce(BaseReduce):
         if not isinstance(self.expr, BaseConversion):
             raise AssertionError("expr should be instance of BaseConversion")
         if self.initial is self._none and self.default is self._none:
-            raise AssertionError("either 'initial' or 'default' is to be provided")
+            raise AssertionError(
+                "either 'initial' or 'default' is to be provided"
+            )
         if self.initial is not self._none:
             self.initial = (
                 self.ensure_conversion(self.initial).call()
@@ -591,7 +640,9 @@ class Reduce(BaseReduce):
         )
 
         if self.condition is not None:
-            kwargs["filter_expr"] = self.condition.gen_code_and_update_ctx(var_row, ctx)
+            kwargs["filter_expr"] = self.condition.gen_code_and_update_ctx(
+                var_row, ctx
+            )
 
         return _reduce_template.format(**kwargs)
 
@@ -689,7 +740,9 @@ class GroupBy(BaseConversion):
                 agg_items.append(reduce_item)
             else:
                 agg_items.extend(
-                    dep for dep in reduce_item.depends_on if isinstance(dep, BaseReduce)
+                    dep
+                    for dep in reduce_item.depends_on
+                    if isinstance(dep, BaseReduce)
                 )
 
         return self_clone
@@ -716,7 +769,9 @@ class GroupBy(BaseConversion):
             if code_signature_item in code_item:
                 signature_item_getter = EscapedString(var_signature)
                 if len(signature_code_items) > 1:
-                    signature_item_getter = signature_item_getter.item(code_index)
+                    signature_item_getter = signature_item_getter.item(
+                        code_index
+                    )
                 code_item = code_item.replace(
                     code_signature_item,
                     signature_item_getter.gen_code_and_update_ctx("", ctx),
@@ -738,14 +793,18 @@ class GroupBy(BaseConversion):
                 new_key_value_pairs.append(
                     tuple(
                         self._gen_reducer_result_item(
-                            i, var_signature, var_row, signature_code_items, ctx,
+                            i,
+                            var_signature,
+                            var_row,
+                            signature_code_items,
+                            ctx,
                         )
                         for i in k_v
                     )
                 )
-            code_reducer_result = Dict(*new_key_value_pairs).gen_code_and_update_ctx(
-                "", ctx
-            )
+            code_reducer_result = Dict(
+                *new_key_value_pairs
+            ).gen_code_and_update_ctx("", ctx)
 
         elif isinstance(self.reducer_result, BaseCollectionConversion):
             code_reducer_result = self.reducer_result.__class__(
@@ -758,10 +817,16 @@ class GroupBy(BaseConversion):
             ).gen_code_and_update_ctx("", ctx)
         elif isinstance(self.reducer_result, BaseConversion):
             code_reducer_result = self._gen_reducer_result_item(
-                self.reducer_result, var_signature, var_row, signature_code_items, ctx,
+                self.reducer_result,
+                var_signature,
+                var_row,
+                signature_code_items,
+                ctx,
             ).gen_code_and_update_ctx("", ctx)
         else:
-            raise AssertionError("unsupported reducer result", self.reducer_result)
+            raise AssertionError(
+                "unsupported reducer result", self.reducer_result
+            )
         return EscapedString(
             f"[{code_reducer_result} "
             f"for {var_signature}, {var_agg_data} "
@@ -850,17 +915,23 @@ class GroupBy(BaseConversion):
         if self.sort_key is not False:
             code_sorting = (
                 EscapedString("result")
-                .call_method("sort", key=self.sort_key, reverse=self.sort_key_reverse)
+                .call_method(
+                    "sort", key=self.sort_key, reverse=self.sort_key_reverse
+                )
                 .gen_code_and_update_ctx("", ctx)
             )
         else:
             code_sorting = ""
-        code_none_joined_x_times = ",".join([var_none] * len(code_reduce_blocks))
+        code_none_joined_x_times = ",".join(
+            [var_none] * len(code_reduce_blocks)
+        )
 
         converter_name = "group_by"
         grouper_code = grouper_template.format(
             code_args=self._get_args_def_code(ctx, as_kwargs=False),
-            var_none=NaiveConversion(self._none).gen_code_and_update_ctx("", ctx),
+            var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
+                "", ctx
+            ),
             var_signature_to_agg_data=var_signature_to_agg_data,
             var_row=var_row,
             var_agg_data=var_agg_data,
