@@ -32,10 +32,8 @@ Conversions are not limited to simple data transformations, there are
 Every conversion:
  * contains the information of how to transform an input
  * can be piped into another conversion (same as wrapping)
- * has a method ``gen_converter`` returning a function compiled at runtime,
-   which benefits from being highly specialized for the particular need
-   (no superflious loops, minimum number of function calls)
- * despite being compiled at runtime, is debuggable due to `linecache` populating.
+ * has a method ``gen_converter`` returning a function compiled at runtime
+ * despite being compiled at runtime, is debuggable with `pdb` due to `linecache` populating.
 
 
 Installation:
