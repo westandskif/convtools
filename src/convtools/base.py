@@ -253,7 +253,7 @@ class BaseConversion:
           debug (bool): If `True`, prints the generated code (formats with black if
             available). By default: None
           signature (str): Defines the signature of the function to be compiled.
-            `data_` argument is what going to be used as the input data.
+            `data_` argument is what going to be used as the input.
             e.g. ``signature="self, dt, data_, **kwargs"``
           method (bool): `True` is a shortcut for: ``signature="self, data_"``
           class_method (bool): `True` is a shortcut for: ``signature="cls, data_"``
@@ -476,6 +476,8 @@ class BaseConversion:
         `next_conversion`.
         If `next_conversion` is callable, it gets called with self as the
         first param.
+        If piping is done at the top level of a resulting conversion (not nested),
+        then it's going to be represented as several statements.
 
         Args:
           next_conversion (object): to be wrapped with :py:obj:`ensure_conversion`
@@ -636,7 +638,7 @@ class GetItem(BaseMethodConversion):
     """``GetItem`` gets compiled into the code which does
     dictionary/index lookups.
 
-    If called without params, just returns the input data.
+    If called without params, just returns the input.
 
     If an index is a conversion itself, then it is being calculated
     against an input."""
@@ -706,7 +708,7 @@ class GetItem(BaseMethodConversion):
 
 class GetAttr(GetItem):
     """``GetAttr`` gets compiled into the code which runs getattr.
-    If called without params, just returns the input data.
+    If called without params, just returns the input.
 
     If an index is a conversion itself, then it is being calculated
     against an input."""

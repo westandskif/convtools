@@ -1,6 +1,8 @@
-=======================
-convtools Reference Doc
-=======================
+.. _convtools_api_doc:
+
+=================
+convtools API Doc
+=================
 
 For the sake of conciseness, let's assume the following import statement is in place:
 
@@ -10,11 +12,15 @@ For the sake of conciseness, let's assume the following import statement is in p
 
 This is an object which exposes public API.
 
+.. _ref_c_base_conversion:
+
 c.BaseConversion
 ================
 
  .. autoclass:: convtools.base.BaseConversion()
     :noindex:
+
+ .. _ref_c_gen_converter:
 
  .. automethod:: convtools.base.BaseConversion.gen_converter
     :noindex:
@@ -24,6 +30,7 @@ c.BaseConversion
   At first use ``.gen_converter(debug=True)`` everywhere to see the
   generated code
 
+.. _ref_c_this:
 
 c.this
 ======
@@ -37,6 +44,7 @@ c.this
   def converter36_998(data_):
       return data_
 
+.. _ref_c_input_arg:
 
 c.input_arg
 ===========
@@ -71,6 +79,7 @@ c.input_arg
   def converter37_306(x, data_):
       return (data_ and vint61_679(x)) or None
 
+.. _ref_c_naive:
 
 c.naive
 =======
@@ -99,6 +108,8 @@ c.naive
 
  converter({"error_code": "500"}) == "try again later"
 
+
+.. _ref_c_wrapper:
 
 c() wrapper
 ===========
@@ -176,6 +187,8 @@ c() wrapper
  converter(123) == "int_123"
 
 
+.. _ref_c_item:
+
 c.item
 ======
 
@@ -222,6 +235,8 @@ and generate same code, like:
      return data["key1"]["key2"][1]
 
 
+.. _ref_c_attr:
+
 c.attr
 ======
 
@@ -245,6 +260,9 @@ generates:
 
  def converter157_386(data_, *, field_name):
     return getattr(data_.user, field_name)
+
+
+.. _ref_c_calls:
 
 call_func, call and call_method
 ===============================
@@ -285,6 +303,8 @@ There are 3 different actions related to calling something:
  c.item("key1").attr("replace").call("abc", "").gen_converter()
 
 
+.. _ref_c_inline_expr:
+
 c.inline_expr
 =============
 
@@ -304,10 +324,16 @@ the code of resulting conversion, to avoid function call overhead.
 .. code-block:: python
 
  c.inline_expr("{0} + 1").pass_args(c.item("key1")).gen_converter()
- # is equivalent to
+ # same
+ c.inline_expr("{number} + 1").pass_args(number=c.item("key1")).gen_converter()
+
+ # gets compiled into
  def converter206_372(data):
     try:
         return data["key1"] + 1
+
+
+.. _ref_c_operators:
 
 Conversion methods/operators
 ============================
@@ -347,6 +373,8 @@ Wraps conversions with logical / math / comparison operators
  c.this().floor_div(conversion)    # OR c.this() // ...
 
 
+.. _ref_c_collections:
+ 
 Collections:
 ============
 Converts an input into a collection, same is achievable by using
@@ -426,6 +454,8 @@ Converts an input into a collection, same is achievable by using
      return {data[0]: data[1], data[1]: data[0], "3": data[0]}
 
 
+.. _ref_comprehensions:
+
 Comprehensions: 
 ===============
 
@@ -493,6 +523,8 @@ Comprehensions:
  )
 
 
+.. _ref_c_filter:
+
 c.filter
 ========
 
@@ -518,6 +550,8 @@ Iterate an input filtering out items where the conversion resolves to False
  def converter182_386(data_, *, age):
      return [i182_509 for i182_509 in data_ if (i182_509["age"] >= age)]
 
+
+.. _ref_pipes:
 
 Pipes
 =====
@@ -560,6 +594,25 @@ nested approach:
      ]
 
 
+Also it's often useful to pass the result to a callable (*of course you can 
+wrap any callable to make it a conversion and pass any parameters in any way
+you wish*), but there is some syntactic sugar:
+
+.. code-block:: python
+
+   c.item("date_str").pipe(datetime.strptime, "%Y-%m-%d")
+
+   # results in:
+
+   def converter397_422(data_):
+       return vstrptime396_498(data_["date_str"], "%Y-%m-%d")
+   # so in cases where you pipe to python callable, 
+   # the input will be passed as the first param and other params onward
+
+
+
+.. _ref_c_aggregations:
+
 c.group_by, c.aggregate & c.reduce
 ==================================
 
@@ -579,6 +632,9 @@ Example:
        ).item("date").pipe(datetime.strptime, "%Y-%m-%d"),
    }).gen_converter()
    converter(data)
+
+
+.. _ref_c_group_by:
 
 c.group_by
 __________
@@ -600,12 +656,18 @@ __________
   .. automethod:: convtools.aggregations.GroupBy.sort
      :noindex:
 
+
+.. _ref_c_aggregate:
+
 c.aggregate
 ___________
 
 .. autoattribute:: convtools.conversion.aggregate
 
    .. autofunction:: convtools.aggregations.Aggregate
+
+
+.. _ref_c_reduce:
 
 c.reduce
 ________
@@ -621,6 +683,8 @@ ________
   .. automethod:: convtools.aggregations.Reduce.filter
      :noindex:
 
+
+.. _ref_c_reduce_funcs:
 
 c.ReduceFuncs
 _____________
@@ -655,6 +719,8 @@ _____________
    * .. autoattribute:: convtools.aggregations.ReduceFuncs.Dict
         :noindex:
    * .. autoattribute:: convtools.aggregations.ReduceFuncs.DictArray
+        :noindex:
+   * .. autoattribute:: convtools.aggregations.ReduceFuncs.DictArrayDistinct
         :noindex:
    * .. autoattribute:: convtools.aggregations.ReduceFuncs.DictSum
         :noindex:

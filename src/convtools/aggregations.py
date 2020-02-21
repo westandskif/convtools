@@ -350,6 +350,19 @@ _DictArray = _DictReducerStatements(
     post_conversion=CallFunc(dict, GetItem()),
     default=None,
 )
+_DictArrayDistinct = _DictReducerStatements(
+    reduce=["%(result)s[{1}][{2}] = None"],
+    initial_from_first=[
+        "%(result)s = _d = defaultdict(dict)",
+        "_d[{0}][{1}] = None",
+    ],
+    post_conversion=(
+        GetItem()
+        .call_method("items")
+        .pipe(DictComp(GetItem(0), GetItem(1).call_method("keys").pipe(list)))
+    ),
+    default=None,
+)
 _DictSum = _DictReducerStatements(
     reduce=["%(result)s[{1}] += {2} or 0"],
     initial_from_first=[
@@ -466,6 +479,9 @@ class ReduceFuncs:
     Dict = _Dict
     #: Aggregates values into dict; dict values are lists of group values
     DictArray = _DictArray
+    #: Aggregates values into dict; dict values are lists of unique group values,
+    #: preserves order
+    DictArrayDistinct = _DictArrayDistinct
     #: Aggregates values into dict; dict values are sums of group values,
     #: skipping ``None``
     DictSum = _DictSum

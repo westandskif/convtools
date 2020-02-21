@@ -40,7 +40,7 @@ Conversions are not limited to simple data transformations, there are
    (for finding an object with max/min value and further processing)
 
 Every conversion:
- * contains the information of how to transform input data
+ * contains the information of how to transform an input
  * can be piped into another conversion (same as wrapping)
  * has a method ``gen_converter`` returning a function compiled at runtime,
    which benefits from being highly specialized for the particular need

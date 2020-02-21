@@ -721,6 +721,13 @@ reducers_in_out = [
     ),
     dict(
         groupby=True,
+        reduce=c.reduce(c.ReduceFuncs.DictArrayDistinct, (c.item("name"), c.item("debit"))),
+        data=reducer_data1 + reducer_data2 + reducer_data3,
+        output=[(True, {'Bill': [100, 50, None], 'Nick': [1, 2]})],
+        raises=None,
+    ),
+    dict(
+        groupby=True,
         reduce=c.reduce(c.ReduceFuncs.DictSum, (c.item("name"), c.item("debit"))),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': 200, 'Nick': 7})],
