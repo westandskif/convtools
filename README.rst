@@ -3,7 +3,7 @@ convtools
 =========
 
 
-**convtools** is a python library to declaratively define conversions from python
+**convtools** is a python library to declaratively define fast conversions from python
 objects to python objects, including processing collections and doing complex
 aggregations.
 
@@ -30,6 +30,18 @@ aggregations.
 
 Description
 ===========
+
+The speed of **convtools** comes from the approach of generating code & compiling
+conversion functions, which don't have any generic code like superfluous
+loops, ifs, etc.
+
+.. note::
+
+  So you can follow the DRY principle by storing and reusing the code on the
+  python expression level, but at the same time be able to run the
+  ``gen_converter`` and get the compiled code which doesn't care about being DRY
+  and is generated to be highly specialized for the specific need.
+
 
 Conversions are not limited to simple data transformations, there are
 ``GroupBy`` & ``Aggregate`` conversions with many useful reducers:
