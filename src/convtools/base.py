@@ -22,6 +22,7 @@ __all__ = [
     "Filter",
     "And",
     "Or",
+    "If",
     "Not",
     "Dict",
     "DictComp",
@@ -600,9 +601,14 @@ class InputArg(BaseConversion):
 
 
 class Or(BaseConversion):
+    """Takes any number of objects, each is to be wrapped with
+    :py:obj:`ensure_conversion` and generates the code
+    joining every argument with python ``or`` expression"""
+
     op = " or "
 
     def __init__(self, arg1, arg2, *other_args, **kwargs):
+        """"""
         super(Or, self).__init__(kwargs)
         args = [arg1, arg2]
         args.extend(other_args)
@@ -620,7 +626,91 @@ class Or(BaseConversion):
 
 
 class And(Or):
+    """Takes any number of objects, each is to be wrapped with
+    :py:obj:`ensure_conversion` and generates the code
+    joining every argument with python ``and`` expression"""
+
     op = " and "
+
+
+class If(BaseConversion):
+    """Generates the if expression code.
+
+    Checks the code of the input, if it
+    doesn't seem to be complex, then just proceeds with it as is.
+    If it's not simple (some index/attribute lookups or function calls are
+    in there), then it caches the input for further reuse in if_true and if_false
+    clauses."""
+
+    def __init__(
+        self,
+        condition=True,
+        if_true=BaseConversion._none,
+        if_false=BaseConversion._none,
+        no_input_caching=False,
+        **kwargs,
+    ):
+        """
+        Args:
+          condition (object): condition for the IF expression. If it is left as
+            True, then the input is used as the condition.
+          if_true (object): the result if the condition is true
+          if_false (object): the result if the condition is false
+          no_input_caching (bool): if True, disables automatic decision making
+            on whether result caching is needed
+        """
+        super(If, self).__init__(kwargs)
+        self.if_conv = (
+            None if condition is True else self.ensure_conversion(condition)
+        )
+        self.if_true = (
+            None if if_true is self._none else self.ensure_conversion(if_true)
+        )
+        self.if_false = (
+            None if if_false is self._none else self.ensure_conversion(if_false)
+        )
+        self.no_input_caching = no_input_caching
+
+    symbols_making_expr_complex = re.compile(r"[^\w\"']")
+
+    def input_is_simple(self, code_input):
+        if (
+            next(self.symbols_making_expr_complex.finditer(code_input), None)
+            is None
+        ):
+            return True
+        return False
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        _none = self._none
+
+        if self.no_input_caching or self.input_is_simple(code_input):
+            if_conv = if_true = if_false = EscapedString(code_input)
+
+        else:
+
+            def value_cache(value_to_cache=_none):
+                if value_to_cache is _none:
+                    return value_cache.cached_value
+                value_cache.cached_value = value_to_cache
+                return value_to_cache
+
+            caching_conv = NaiveConversion(value_cache)
+            if_conv = caching_conv.call(EscapedString(code_input))
+            if_true = if_false = caching_conv.call()
+
+        if self.if_conv is not None:
+            if_conv = if_conv.pipe(self.if_conv)
+        if self.if_true is not None:
+            if_true = if_true.pipe(self.if_true)
+        if self.if_false is not None:
+            if_false = if_false.pipe(self.if_false)
+
+        return "({code_if_true} if {code_if} else {code_if_false})".format(
+            code_if_true=(if_true.gen_code_and_update_ctx(code_input, ctx)),
+            code_if=(if_conv.gen_code_and_update_ctx(code_input, ctx)),
+            code_if_false=(if_false.gen_code_and_update_ctx(code_input, ctx)),
+        )
 
 
 class Not(BaseConversion):

@@ -303,8 +303,8 @@ Next:
            reverse=True,
        )
 
-6. Filters and pipes
-____________________
+6. Filters, pipes and conditions
+________________________________
 
 Points to learn:
 
@@ -314,8 +314,13 @@ Points to learn:
     the first one to the second one. If piping is done at the top level of a
     resulting conversion (not nested), then it's going to be represented as
     several statements.
+ 3. :ref:`c.if_<ref_c_conditions>` allows to build ``1 if a else 2`` expressions.
+    It's possible to pass not every parameter:
+    
+    * if a condition is not passed, then the input is used as a condition
+    * if any branch is not passed, then the input is passed untouched
  
-Let's use both on some input data:
+Let's use every thing on some input data:
 
 .. code-block:: python
 
@@ -328,40 +333,49 @@ Let's use both on some input data:
            c.this().as_type(str)
        )
    ).pipe(
-       c(",").call_method("join", c.this())
+       c.if_(
+           c.this().pipe(len) > 10, c(","), c(";")
+       ).call_method("join", c.this())
    ).gen_converter(debug=True)
 
    # prints:
 
-   def converter306_422(data_):
-       pipe306_527 = (i297_194 for i297_194 in data_ if ((i297_194 % 3) == 0))
-       pipe306_380 = (vstr299_274(i301_543) for i301_543 in pipe306_527)
-       return ",".join(pipe306_380)
+   def converter365_417(data_):
+       pipe365_801 = (i349_248 for i349_248 in data_ if ((i349_248 % 3) == 0))
+       pipe365_781 = (vstr351_159(i353_292) for i353_292 in pipe365_801)
+       return ("," if (vlen355_986(pipe365_781) > 10) else ";").join(
+           pipe365_781
+       )
 
-Of course this has been done for demonstrational purposes only.
+Of course one pipe above is not necessary here, it has been done
+for demonstrational purposes only.
 A more efficient way would be:
 
 .. code-block:: python
 
-   # probably c.list_comp will be faster, but it would allocate memory for the 
-   # whole list
-   c.generator_comp(
+   c.list_comp(
        c.this().as_type(str)
    ).filter(
+       # this is the filter method of a comprehension,
+       # so c.this() here is a collection item before casting to str
        c.this() % 3 == 0
    ).pipe(
-       c(",").call_method("join", c.this())
+       c.if_(
+           c.this().pipe(len) > 10, c(","), c(";")
+       ).call_method("join", c.this())
    ).gen_converter(debug=True)
 
    # prints:
 
    def converter320_422(data_):
-       pipe320_527 = (
-           vstr308_274(i310_194)
-           for i310_194 in data_
-           if ((i310_194 % 3) == 0)
+       pipe387_801 = [
+           vstr368_159(i370_248)
+           for i370_248 in data_
+           if ((i370_248 % 3) == 0)
+       ]
+       return ("," if (vlen377_986(pipe387_801) > 10) else ";").join(
+           pipe387_801
        )
-       return ",".join(pipe320_527)
 
 
 

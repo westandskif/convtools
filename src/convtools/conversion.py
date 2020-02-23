@@ -13,6 +13,7 @@ class _Conversion:
     and_ = And
     or_ = Or
     not_ = Not
+    if_ = If
 
     item = GetItem
     attr = GetAttr

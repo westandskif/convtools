@@ -363,7 +363,7 @@ Wraps conversions with logical / math / comparison operators
  c.this().lt(conversion)           # OR c.this() < ...
  c.this().lte(conversion)          # OR c.this() <= ...
 
- # maths
+ # math
  c.this().neg()                    # OR -c.this()
  c.this().add(conversion)          # OR c.this() + ...
  c.this().mul(conversion)          # OR c.this() * ...
@@ -375,8 +375,8 @@ Wraps conversions with logical / math / comparison operators
 
 .. _ref_c_collections:
  
-Collections:
-============
+Collections
+===========
 Converts an input into a collection, same is achievable by using
 `c() wrapper`_, see below:
 
@@ -456,8 +456,8 @@ Converts an input into a collection, same is achievable by using
 
 .. _ref_comprehensions:
 
-Comprehensions: 
-===============
+Comprehensions
+==============
 
 .. autoclass:: convtools.base.BaseComprehensionConversion()
 
@@ -608,6 +608,86 @@ you wish*), but there is some syntactic sugar:
        return vstrptime396_498(data_["date_str"], "%Y-%m-%d")
    # so in cases where you pipe to python callable, 
    # the input will be passed as the first param and other params onward
+
+
+
+.. _ref_c_conditions:
+
+Conditions
+==========
+
+ * **IF expressions**
+
+     .. autoattribute:: convtools.conversion.if_
+
+     .. autoclass:: convtools.base.If()
+        :noindex:
+
+     .. automethod:: convtools.base.If.__init__
+
+ * **AND/OR expressions**
+     .. autoattribute:: convtools.conversion.and_
+     .. autoattribute:: convtools.conversion.or_
+
+     .. autoclass:: convtools.base.And()
+        :noindex:
+
+     .. autoclass:: convtools.base.Or()
+        :noindex:
+
+     .. automethod:: convtools.base.And.__init__
+     .. automethod:: convtools.base.Or.__init__
+
+
+Examples:
+
+.. code-block:: python
+
+   f = c.list_comp(
+       c.if_(
+           c.this().is_(None),
+           -1,
+           c.this()
+       )
+   ).gen_converter(debug=True)
+
+   f([0, 1, None, 2]) == [0, 1, -1, 2]
+
+   # generates:
+
+   def converter66_417(data_):
+       return [(-1 if (i66_248 is None) else i66_248) for i66_248 in data_]
+
+
+**Imagine we pass something more complex than just a simple value:**
+
+.. code-block:: python
+
+   f = c.list_comp(
+       c.call_func(
+           lambda x: x, c.this()
+       ).pipe(
+           c.if_(if_true=c.this() + 2)
+       )
+   ).gen_converter(debug=True)
+
+   f([1, 0, 2]) == [3, 0, 4]
+
+   # generates:
+   # as you can see, it uses a function to cache the input data
+   def converter75_417(data_):
+       return [
+           (
+               (vvalue_cache76_824() + 2)
+               if vvalue_cache76_824(vlambda69_109(i75_248))
+               else vvalue_cache76_824()
+           )
+           for i75_248 in data_
+       ]
+
+It works as follows: if it finds any function calls, index/attribute lookups,
+it just caches the input, because the IF cannot be sure whether it's cheap or
+applicable to run the input code twice.
 
 
 

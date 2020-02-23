@@ -256,6 +256,64 @@ def test_or_and_not():
     assert c.naive(None).not_().execute(100) is True
 
 
+def test_debug_true():
+    assert c.this().gen_converter(debug=True)(1) == 1
+
+
+def test_if():
+    conv1 = c.if_(True, c.this() * 2, c.this() - 1000).gen_converter(
+        debug=False
+    )
+    assert conv1(0) == -1000
+    assert conv1(10) == 20
+
+    conv2 = c.list_comp(
+        c.if_(c.this() % 2 == 0, c.this() * 10, c.this() * 100)
+    ).gen_converter(debug=False)
+    conv3 = c.list_comp(
+        c.if_(
+            c.this() % 2 == 0,
+            c.this() * 10,
+            c.this() * 100,
+            no_input_caching=True,
+        )
+    ).gen_converter(debug=False)
+    assert conv2([1, 2, 3, 4]) == [100, 20, 300, 40]
+    assert conv3([1, 2, 3, 4]) == [100, 20, 300, 40]
+
+    conv4 = c.list_comp(
+        (c.this() - 5).pipe(
+            c.if_(c.this() % 2 == 0, c.this() * 10, c.this() * 100)
+        )
+    ).gen_converter(debug=True)
+    assert conv4([1, 2, 3, 4]) == [-40, -300, -20, -100]
+
+    conv5 = c.if_().gen_converter(debug=False)
+    assert conv5(0) == 0 and conv5(1) == 1
+
+    conv6 = c.list_comp(
+        c.if_(c.this(), None, c.this(), no_input_caching=True)
+    ).gen_converter(debug=True)
+    assert conv6([1, False, 2, None, 3, 0]) == [
+        None,
+        False,
+        None,
+        None,
+        None,
+        0,
+    ]
+
+    assert c.if_().input_is_simple("'abc'")
+    assert c.if_().input_is_simple("0")
+    assert c.if_().input_is_simple("None")
+    assert c.if_().input_is_simple("True")
+    assert c.if_().input_is_simple("False")
+    assert not c.if_().input_is_simple("1 + 1")
+    assert not c.if_().input_is_simple("x.a")
+    assert not c.if_().input_is_simple("x[0]")
+    assert not c.if_().input_is_simple("x()")
+
+
 def test_callfunc():
     def func(i, abc=None):
         assert i == 1 and abc == 2
@@ -393,11 +451,11 @@ def test_pipes():
     ]
     assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d",).pipe(
         c.call_func(lambda dt: dt.date(), c.this())
-    ).execute(["2019-01-01",], debug=True) == date(2019, 1, 1)
+    ).execute(["2019-01-01",], debug=False) == date(2019, 1, 1)
 
     assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d",).pipe(
         c.this().call_method("date")
-    ).execute(["2019-01-01",], debug=True) == date(2019, 1, 1)
+    ).execute(["2019-01-01",], debug=False) == date(2019, 1, 1)
 
     with pytest.raises(c.ConversionException):
         c.naive(True).pipe(c.item("key1", _predefined_input={"key1": 777}))
@@ -845,7 +903,7 @@ def test_base_reducer():
                 c.this(),
             ),
         )
-    ).filter(c.item(0) > 5).gen_converter(debug=True)([1, 2, 3]) == [
+    ).filter(c.item(0) > 5).gen_converter(debug=False)([1, 2, 3]) == [
         (6, 6, 6, 6, 6, 6, 3)
     ]
 
