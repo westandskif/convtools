@@ -3,6 +3,7 @@ docs:
 	python setup.py build_sphinx
 
 build:
+	rm -rf dist/*
 	python setup.py sdist
 
 upload:

@@ -60,11 +60,14 @@ Contents
    QuickStart <quick_start>
    Cheatsheet <cheatsheet>
    API doc <api_doc>
-   License <license>
-   Changelog <changelog>
-   Authors <authors>
-   Module Reference <api/modules>
 
+.. toctree::
+   :maxdepth: 1
+
+   License <license>
+   Authors <authors>
+   Changelog <changelog>
+   Module Reference <api/modules>
 
 Indices and tables
 ==================
