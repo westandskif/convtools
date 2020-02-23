@@ -94,8 +94,8 @@ ________________________________________________________________________
       ).gen_converter()
       converter(input_data)
    
-2. Operators
-____________
+2.1 Operators
+_____________
 
 .. list-table::
  :class: cheatsheet-table
@@ -142,6 +142,86 @@ ____________
 
       }).gen_converter()
       converter(input_data)
+
+2.2 Logical operators & conditions
+__________________________________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 25 40
+ :header-rows: 1
+
+ * - in
+   - out
+   - conversion
+ * - .. code-block:: python
+
+      input_data = [1, 2, 3]
+
+   - .. code-block:: python
+
+      # Iterate through the list
+      # filter out values less than 5
+      # If the result is empty, replace with None
+      result = None
+
+   - .. code-block:: python
+
+      converter = c.list_comp(
+          c.this()
+      ).filter(
+          c.this() >= 5
+      ).pipe(
+          c.if_(
+              if_true=c.this(),
+              if_false=None,
+          )
+      ).gen_converter(debug=True)
+      converter(input_data)
+
+ * - .. code-block:: python
+
+      input_data = [
+          ("Nick", "2020-01-01"),
+          ("Nick", "2020-01-02"),
+          ("John", "2020-01-03"),
+          ("John", "2020-01-03"),
+      ]
+
+   - .. code-block:: python
+
+      # Get a dict: mapping names to tuples
+      # of unique dates.
+      # Replace tuples with values where
+      # there's just one item inside
+      result = {
+          "Nick": ("2020-01-01", "2020-01-02"),
+          "John": "2020-01-03"
+      }
+
+   - .. code-block:: python
+
+      converter = c.aggregate(
+          c.reduce(
+              c.ReduceFuncs.DictArrayDistinct,
+              (c.item(0), c.item(1)),
+              default=dict,
+          )
+      ).item(0).call_method("items").pipe(
+          c.dict_comp(
+              c.item(0),
+              c.if_(
+                  c.item(1).pipe(len) > 1,
+                  c.item(1).pipe(tuple),
+                  c.item(1).item(0),
+              )
+          )
+      ).gen_converter(debug=True)
+
+      converter(input_data)
+
+
+
 
 3. Parametrized conversion with some baked in arguments
 _______________________________________________________

@@ -59,7 +59,7 @@ Contents
 
    QuickStart <quick_start>
    Cheatsheet <cheatsheet>
-   API doc <reference_doc>
+   API doc <api_doc>
    License <license>
    Changelog <changelog>
    Authors <authors>
