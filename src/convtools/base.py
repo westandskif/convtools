@@ -641,6 +641,7 @@ class If(BaseConversion):
     If it's not simple (some index/attribute lookups or function calls are
     in there), then it caches the input for further reuse in if_true and if_false
     clauses."""
+
     def __init__(
         self,
         condition=True,
