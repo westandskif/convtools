@@ -28,9 +28,4 @@ Workflow is pretty straightforward:
 
   8. Optionally make backport Pull Request(s) for landing a bug fix into released convtools versions.
 
-.. important::
-
-    Please open the "`contributing <https://docs.aiohttp.org/en/stable/contributing.html>`_"
-    documentation page to get detailed informations about all steps.
-
 .. _GitHub: https://github.com/aio-libs/aiohttp
