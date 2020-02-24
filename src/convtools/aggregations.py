@@ -969,5 +969,5 @@ class GroupBy(BaseConversion):
 
 
 def Aggregate(*args, **kwargs):
-    """Shortcut for ``GroupBy(True).aggregate(*args, **kwargs)``"""
-    return GroupBy(True).aggregate(*args, **kwargs)
+    """Shortcut for ``GroupBy(True).aggregate(*args, **kwargs).item(0)``"""
+    return GroupBy(True).aggregate(*args, **kwargs).item(0)

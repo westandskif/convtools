@@ -495,11 +495,11 @@ def test_manually_defined_reducers():
             c.reduce(
                 lambda a, b: a + b, c.item(c.input_arg("group_key")), initial=0
             )
-        )
+        ).filter(c.this() > 20)
         .gen_converter(signature="data_, group_key='debit'")
     )
-    assert grouper(data) == [540, 25, 18]
-    assert grouper(data, group_key="balance") == [-160, 82, 120]
+    assert grouper(data) == [540, 25]
+    assert grouper(data, group_key="balance") == [82, 120]
 
 
 def test_grouping():
@@ -600,7 +600,7 @@ def test_grouping():
     # fmt: on
     result3 = (
         c.aggregate(c.reduce(c.ReduceFuncs.Sum, c.item("debit")))
-        .pipe(c.inline_expr("{0} + {1}").pass_args(c.item(0), c.item(0)))
+        .pipe(c.inline_expr("{0} + {1}").pass_args(c.this(), c.this()))
         .execute(data, debug=False)
     )
     assert result3 == 583 * 2
@@ -903,9 +903,14 @@ def test_base_reducer():
                 c.this(),
             ),
         )
-    ).filter(c.item(0) > 5).gen_converter(debug=False)([1, 2, 3]) == [
-        (6, 6, 6, 6, 6, 6, 3)
-    ]
+    ).filter(c.this() > 5, cast=tuple).gen_converter(debug=False)([1, 2, 3]) == (
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+    )
 
     with pytest.raises(AssertionError):
         c.aggregate(
