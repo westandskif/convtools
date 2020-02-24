@@ -495,7 +495,8 @@ def test_manually_defined_reducers():
             c.reduce(
                 lambda a, b: a + b, c.item(c.input_arg("group_key")), initial=0
             )
-        ).filter(c.this() > 20)
+        )
+        .filter(c.this() > 20)
         .gen_converter(signature="data_, group_key='debit'")
     )
     assert grouper(data) == [540, 25]
@@ -903,7 +904,9 @@ def test_base_reducer():
                 c.this(),
             ),
         )
-    ).filter(c.this() > 5, cast=tuple).gen_converter(debug=False)([1, 2, 3]) == (
+    ).filter(c.this() > 5, cast=tuple).gen_converter(debug=False)(
+        [1, 2, 3]
+    ) == (
         6,
         6,
         6,

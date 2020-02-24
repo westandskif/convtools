@@ -1,1 +1,0 @@
-``c.aggregate`` now returns a single value (previously the result was a list of one item)

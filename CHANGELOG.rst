@@ -1,13 +1,6 @@
 0.2.1 (2020-02-24)
 ------------------
 
-Features
-++++++++
-
-- added ``c.if_`` conversion and introduced QuickStart docs
-  `#1 <https://github.com/itechart-almakov/convtools/issues/1>`_
-
-
 Bugfixes
 ++++++++
 
