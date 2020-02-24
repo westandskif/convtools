@@ -392,7 +392,7 @@ Points to learn:
       * :ref:`c.reduce<ref_c_reduce>` and further conversions
 
  2. :ref:`c.aggregate<ref_c_aggregate>` is a shortcut for
-    ``c.group_by(True).aggregate``
+    ``c.group_by(True).aggregate(...).item(0)``
 
  3. there are many :ref:`c.ReduceFuncs<ref_c_reduce_funcs>` available out of the
     box, please check the link. Also it's possible to pass a function of

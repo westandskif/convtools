@@ -696,23 +696,6 @@ applicable to run the input code twice.
 c.group_by, c.aggregate & c.reduce
 ==================================
 
-Example:
-
-.. code-block:: python
-
-   converter = c.group_by(c.item("category")).aggregate({
-       "category": c.item("category").call_method("upper"),
-       "earnings": c.reduce(
-           c.ReduceFuncs.Sum,
-           c.item("earnings").as_type(Decimal),
-       ),
-       "best_day": c.reduce(
-           c.ReduceFuncs.MaxRow,
-           c.item("earnings").as_type(float),
-       ).item("date").pipe(datetime.strptime, "%Y-%m-%d"),
-   }).gen_converter()
-   converter(data)
-
 
 .. _ref_c_group_by:
 
@@ -762,6 +745,41 @@ ________
 
   .. automethod:: convtools.aggregations.Reduce.filter
      :noindex:
+
+Examples:
+
+.. code-block:: python
+
+   converter = c.group_by(c.item("category")).aggregate({
+       "category": c.item("category").call_method("upper"),
+       "earnings": c.reduce(
+           c.ReduceFuncs.Sum,
+           c.item("earnings").as_type(Decimal),
+       ),
+       "best_day": c.reduce(
+           c.ReduceFuncs.MaxRow,
+           c.item("earnings").as_type(float),
+       ).item("date").pipe(datetime.strptime, "%Y-%m-%d"),
+   }).gen_converter(debug=True)
+   # list of dicts
+   converter(data)
+
+   converter = c.aggregate({
+       "category": c.reduce(
+           c.ReduceFuncs.ArrayDistinct,
+           c.item("category").call_method("upper"),
+       ),
+       "earnings": c.reduce(
+           c.ReduceFuncs.Sum,
+           c.item("earnings").as_type(Decimal),
+       ),
+       "best_day": c.reduce(
+           c.ReduceFuncs.MaxRow,
+           c.item("earnings").as_type(float),
+       ).item("date").pipe(datetime.strptime, "%Y-%m-%d"),
+   }).gen_converter(debug=True)
+   # a single dict
+   converter(data)
 
 
 .. _ref_c_reduce_funcs:

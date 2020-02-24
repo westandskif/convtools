@@ -1,3 +1,16 @@
+0.2.1 (2020-02-24)
+------------------
+
+Bugfixes
+++++++++
+
+- ``c.aggregate`` now returns a single value (previously the result was a list of one item)
+  `#2 <https://github.com/itechart-almakov/convtools/issues/2>`_
+
+
+----
+
+
 0.2.0 (2020-02-23)
 ------------------
 

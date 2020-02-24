@@ -207,7 +207,7 @@ __________________________________
               (c.item(0), c.item(1)),
               default=dict,
           )
-      ).item(0).call_method("items").pipe(
+      ).call_method("items").pipe(
           c.dict_comp(
               c.item(0),
               c.if_(
@@ -472,9 +472,7 @@ _____________________________
 
       # aggregate, take sum and max amounts
 
-      [
-          (35, 15),
-      ]
+      (35, 15)
       
    - .. code-block:: python
 
