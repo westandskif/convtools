@@ -13,7 +13,7 @@ For the sake of conciseness, let's assume the following import statement is in p
 
 .. code-block:: python
 
- from conversions import conversion as c
+ from convtools import conversion as c
 
 This is an object which exposes public API.
 

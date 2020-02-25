@@ -1,3 +1,16 @@
+0.2.2 (2020-02-25)
+------------------
+
+Bugfixes
+++++++++
+
+- fixed ``c.aggregate`` to return a single value for empty input
+  `#3 <https://github.com/itechart-almakov/convtools/issues/3>`_
+
+
+----
+
+
 0.2.1 (2020-02-24)
 ------------------
 

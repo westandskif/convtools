@@ -21,6 +21,13 @@ Workflow is pretty straightforward:
   4. Make sure all tests passed
 
   5. Add a file into the ``CHANGES`` folder, named after the ticket or PR number
+       towncrier has a few standard types of news fragments, signified by the file extension. These are:
+
+        * .feature: Signifying a new feature.
+        * .bugfix: Signifying a bug fix.
+        * .doc: Signifying a documentation improvement.
+        * .removal: Signifying a deprecation or removal of public API.
+        * .misc: A ticket has been closed, but it is not of interest to users.
 
   6. Commit changes to your own convtools clone
 
