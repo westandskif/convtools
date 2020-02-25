@@ -624,7 +624,7 @@ def test_grouping():
         .aggregate(c.reduce(c.ReduceFuncs.Sum, c.item("debit")))
         .execute(data, debug=False)
     )
-    assert result5 == [583]
+    assert result5 == 583
 
 
 # fmt: off
@@ -904,9 +904,7 @@ def test_base_reducer():
                 c.this(),
             ),
         )
-    ).filter(c.this() > 5, cast=tuple).gen_converter(debug=False)(
-        [1, 2, 3]
-    ) == (
+    ).filter(c.this() > 5, cast=tuple).gen_converter(debug=True)([1, 2, 3]) == (
         6,
         6,
         6,
@@ -919,3 +917,21 @@ def test_base_reducer():
         c.aggregate(
             (c.reduce(c.ReduceFuncs.Sum, c.reduce(c.ReduceFuncs.Count),),)
         ).gen_converter()
+
+    conv = c.aggregate(
+        c.reduce(c.ReduceFuncs.DictArray, (c.item(0), c.item(1)))
+    ).gen_converter(debug=True)
+    data = [
+        ("a", 1),
+        ("a", 2),
+        ("b", 3),
+    ]
+    result = {"a": [1, 2], "b": [3]}
+    assert conv(data) == result
+    assert conv([]) is None
+
+    conv2 = c.aggregate(
+        {"key": c.reduce(c.ReduceFuncs.DictArray, (c.item(0), c.item(1)))}
+    ).gen_converter(debug=True)
+    assert conv2([]) == {"key": None}
+    assert conv2(data) == {"key": result}

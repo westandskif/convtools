@@ -541,6 +541,27 @@ def {converter_name}(data{code_args}):
         )
         raise
 """
+aggregate_template = """
+def {converter_name}(data{code_args}):
+    _none = {var_none}
+    try:
+        {var_agg_data} = AggData()
+        for {var_row} in data:
+{code_reduce_blocks}
+
+        result = {code_result}
+        {code_sorting}
+        return result
+    except Exception:
+        import linecache
+        linecache.cache[{converter_name}._fake_filename] = (
+            len({converter_name}._code_str),
+            None,
+            {converter_name}._code_str.splitlines(),
+            {converter_name}._fake_filename,
+        )
+        raise
+"""
 
 
 class Reduce(BaseReduce):
@@ -696,8 +717,11 @@ class Reduce(BaseReduce):
 
 class GroupBy(BaseConversion):
     """Generates the function which aggregates the data, grouping by conversions,
-    specified in `__init__` method and returns data in a format defined by
-    the parameter passed to `aggregate` method.
+    specified in `__init__` method and returns list of items in a
+    format defined by the parameter passed to ``aggregate`` method.
+
+    If no group keys are passed, then it returns just a single value, defined
+    by the parameter passed to ``aggregate`` method.
 
     Current optimizations:
      * piping like ``c.group_by(...).aggregate().pipe(...)`` won't run
@@ -712,7 +736,8 @@ class GroupBy(BaseConversion):
         Args:
           by (tuple): each item is to be wrapped with :py:obj:`ensure_conversion`.
             Each is to resolve to a hashable object to allow using such tuples as
-            keys
+            keys. If nothing is passed, aggregate the input into a
+            single object.
         """
         self.options = kwargs.pop("_options", {})
         super(GroupBy, self).__init__(self.options)
@@ -721,6 +746,7 @@ class GroupBy(BaseConversion):
         self.reducer_result = None
         self.sort_key = False
         self.sort_key_reverse = None
+        self.aggregate_mode = len(self.by) == 0
 
     def prepare_reducer(self, reducer):
         reducer = self.ensure_conversion(reducer)
@@ -843,11 +869,15 @@ class GroupBy(BaseConversion):
             raise AssertionError(
                 "unsupported reducer result", self.reducer_result
             )
-        return EscapedString(
-            f"[{code_reducer_result} "
-            f"for {var_signature}, {var_agg_data} "
-            f"in {var_signature_to_agg_data}.items()]"
-        )
+
+        if self.aggregate_mode:
+            return EscapedString(f"{code_reducer_result}")
+        else:
+            return EscapedString(
+                f"[{code_reducer_result} "
+                f"for {var_signature}, {var_agg_data} "
+                f"in {var_signature_to_agg_data}.items()]"
+            )
 
     def _gen_agg_data_container(
         self, number_of_reducers, initial_val=BaseConversion._none
@@ -876,9 +906,7 @@ class GroupBy(BaseConversion):
         signature_code_items = [
             _by.gen_code_and_update_ctx(var_row, ctx) for _by in self.by
         ]
-        if len(signature_code_items) == 0:
-            code_signature = "True"
-        elif len(signature_code_items) == 1:
+        if len(signature_code_items) == 1:
             code_signature = signature_code_items[0]
         else:
             code_signature = f"({','.join(signature_code_items)},)"
@@ -938,25 +966,38 @@ class GroupBy(BaseConversion):
             )
         else:
             code_sorting = ""
-        code_none_joined_x_times = ",".join(
-            [var_none] * len(code_reduce_blocks)
-        )
 
-        converter_name = "group_by"
-        grouper_code = grouper_template.format(
-            code_args=self._get_args_def_code(ctx, as_kwargs=False),
-            var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
-                "", ctx
-            ),
-            var_signature_to_agg_data=var_signature_to_agg_data,
-            var_row=var_row,
-            var_agg_data=var_agg_data,
-            converter_name=converter_name,
-            code_signature=code_signature,
-            code_reduce_blocks="\n".join(code_reduce_blocks),
-            code_result=code_result,
-            code_sorting=code_sorting,
-        )
+        if self.aggregate_mode:
+            converter_name = "aggregate"
+            grouper_code = aggregate_template.format(
+                code_args=self._get_args_def_code(ctx, as_kwargs=False),
+                var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
+                    "", ctx
+                ),
+                var_row=var_row,
+                var_agg_data=var_agg_data,
+                converter_name=converter_name,
+                code_reduce_blocks="\n".join(code_reduce_blocks),
+                code_result=code_result,
+                code_sorting=code_sorting,
+            )
+        else:
+            converter_name = "group_by"
+            grouper_code = grouper_template.format(
+                code_args=self._get_args_def_code(ctx, as_kwargs=False),
+                var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
+                    "", ctx
+                ),
+                var_signature_to_agg_data=var_signature_to_agg_data,
+                var_row=var_row,
+                var_agg_data=var_agg_data,
+                converter_name=converter_name,
+                code_signature=code_signature,
+                code_reduce_blocks="\n".join(code_reduce_blocks),
+                code_result=code_result,
+                code_sorting=code_sorting,
+            )
+
         group_data_func = self._code_to_converter(
             converter_name=converter_name,
             code=grouper_code,
@@ -969,5 +1010,5 @@ class GroupBy(BaseConversion):
 
 
 def Aggregate(*args, **kwargs):
-    """Shortcut for ``GroupBy(True).aggregate(*args, **kwargs).item(0)``"""
-    return GroupBy(True).aggregate(*args, **kwargs).item(0)
+    """Shortcut for ``GroupBy().aggregate(*args, **kwargs)``"""
+    return GroupBy().aggregate(*args, **kwargs)

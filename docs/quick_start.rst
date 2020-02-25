@@ -13,7 +13,7 @@ For the sake of conciseness, let's assume the following import statement is in p
 
 .. code-block:: python
 
- from conversions import conversion as c
+ from convtools import conversion as c
 
 This is an object which exposes public API.
 
@@ -392,15 +392,16 @@ _______________
 
 Points to learn:
 
- 1. first, call :ref:`c.group_by<ref_c_group_by>` to specify one or many fields
-    (conversions) to group by. Then call the ``aggregate`` method to define the
-    desired output, comprised of:
+ 1. first, call :ref:`c.group_by<ref_c_group_by>` to specify one or many
+    conversions of item of input iterable to group by (results in a list of items)
+    OR no conversions to aggregate (results in a single item).
+    Then call the ``aggregate`` method to define the desired output, comprised of:
 
       * further conversions of group by keys
       * :ref:`c.reduce<ref_c_reduce>` and further conversions
 
  2. :ref:`c.aggregate<ref_c_aggregate>` is a shortcut for
-    ``c.group_by(True).aggregate(...).item(0)``
+    ``c.group_by().aggregate(...)``
 
  3. there are many :ref:`c.ReduceFuncs<ref_c_reduce_funcs>` available out of the
     box, please check the link. Also it's possible to pass a function of
@@ -420,12 +421,6 @@ reduce functions:
   * use dict sum reducer
 
 .. code-block:: python
-
-   # we are going to reuse this reducer
-   top_sales_day = c.reduce(
-       c.ReduceFuncs.MaxRow,
-       c.item("sales"),
-   )
 
    input_data = [
        {
@@ -461,6 +456,12 @@ reduce functions:
            "sales": Decimal("86869.12"),
        },
    ]
+
+   # we are going to reuse this reducer
+   top_sales_day = c.reduce(
+       c.ReduceFuncs.MaxRow,
+       c.item("sales"),
+   )
 
    # so the result is going to be a list of dicts
    converter = c.group_by(c.item("company_name")).aggregate({
