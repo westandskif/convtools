@@ -9,6 +9,14 @@ _______________
 
 ``pip install convtools``
 
+For the sake of conciseness, let's assume the following import statement is in place:
+
+.. code-block:: python
+
+ from conversions import conversion as c
+
+This is an object which exposes public API.
+
 2. Glossary
 ___________
 
