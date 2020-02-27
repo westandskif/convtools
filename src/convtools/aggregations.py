@@ -195,7 +195,9 @@ class _ReducerStatements(_BaseReducer):
                     ctx,
                 )
             else:
-                arg = Tuple(expr, *additional_args) if additional_args else expr
+                arg = (
+                    Tuple(expr, *additional_args) if additional_args else expr
+                )
                 reduce_initial = self._format_statements(
                     var_agg_data_value,
                     var_row,
@@ -818,6 +820,10 @@ class GroupBy(BaseConversion):
                     code_signature_item,
                     signature_item_getter.gen_code_and_update_ctx("", ctx),
                 )
+        if var_row in code_item:
+            raise ConversionException(
+                "failed to find such field in group by fields"
+            )
         return EscapedString(code_item)
 
     def _rebuild_reducer_result(

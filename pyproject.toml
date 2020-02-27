@@ -9,7 +9,7 @@ issue_format = "`#{issue} <https://github.com/itechart-almakov/convtools/issues/
 underlines = "-+~"
 
 [tool.black]
-line-length = 80
+line-length = 79
 target-version = ['py37']
 
 [tool.isort]
@@ -18,7 +18,7 @@ force_grid_wrap = 0
 include_trailing_comma = true
 indent = '    '
 known_first_party = 'convtools'
-line_length = 80
+line_length = 79
 lines_after_imports = 2
 lines_between_types = 0
 multi_line_output = 3

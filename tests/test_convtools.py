@@ -114,7 +114,8 @@ def test_naive_conversion_item():
 
     assert c.item(11, "test", default=77).gen_converter()(d) == 77
     assert (
-        c.item(11, "test", default=77).gen_converter(method=True)(None, d) == 77
+        c.item(11, "test", default=77).gen_converter(method=True)(None, d)
+        == 77
     )
     assert c.item(10, "testt", default=77).gen_converter()(d) == 77
 
@@ -155,7 +156,8 @@ def test_naive_conversion_item():
         == 30
     )
     assert (
-        c.naive(d).item(10).item("test2", default=30).gen_converter()(100) == 30
+        c.naive(d).item(10).item("test2", default=30).gen_converter()(100)
+        == 30
     )
     assert c.naive(True).is_(True).execute(100) is True
     assert c.naive(True).is_not(True).execute(100) is False
@@ -329,7 +331,11 @@ def test_list():
 
 
 def test_tuple():
-    assert c.tuple(c.item(1), c.item(0), 3).gen_converter()([2, 1]) == (1, 2, 3)
+    assert c.tuple(c.item(1), c.item(0), 3).gen_converter()([2, 1]) == (
+        1,
+        2,
+        3,
+    )
     assert c.tuple((c.item(1), c.item(0), 3)).gen_converter()([2, 1]) == (
         (1, 2, 3,),
     )
@@ -513,6 +519,19 @@ def test_grouping():
         {"name": "Nick", "category": "Games", "debit": 18, "balance": 32},
         {"name": "Bill", "category": "Games", "debit": 18, "balance": 120},
     ]
+    with pytest.raises(c.ConversionException):
+        # there's a single group by field, while we use separate items
+        # of this tuple in aggregate
+        result = (
+            c.group_by(c.item("name"))
+            .aggregate(
+                (
+                    c.item("category"),
+                    c.reduce(c.ReduceFuncs.Sum, c.item("debit")),
+                )
+            )
+            .execute(data, debug=True)
+        )
     result = (
         c.group_by(c.item("name"))
         .aggregate(
@@ -571,11 +590,15 @@ def test_grouping():
             tuple, c.reduce(c.ReduceFuncs.Array, c.item("name"), default=None),
         ): c.item("category").call_method("lower"),
         "count": c.reduce(c.ReduceFuncs.Count),
-        "count_distinct": c.reduce(c.ReduceFuncs.CountDistinct, c.item("name")),
+        "count_distinct": c.reduce(
+            c.ReduceFuncs.CountDistinct, c.item("name")
+        ),
         "array_agg_distinct": c.reduce(
             c.ReduceFuncs.ArrayDistinct, c.item("name"),
         ),
-        "dict": c.reduce(c.ReduceFuncs.Dict, (c.item("debit"), c.item("name"))),
+        "dict": c.reduce(
+            c.ReduceFuncs.Dict, (c.item("debit"), c.item("name"))
+        ),
     }
     result = (
         c.group_by(c.item("category"))
@@ -625,6 +648,15 @@ def test_grouping():
         .execute(data, debug=False)
     )
     assert result5 == 583
+
+    with pytest.raises(c.ConversionException):
+        # there's a single group by field, while we use separate items
+        # of this tuple in aggregate
+        result6 = (
+            c.group_by(by)
+            .aggregate(by + (c.reduce(c.ReduceFuncs.Sum, c.item("debit")),))
+            .execute(data, debug=True)
+        )
 
 
 # fmt: off
@@ -867,14 +899,18 @@ def test_base_reducer():
     assert c.aggregate(
         (
             c.reduce(
-                _ReducerExpression(lambda a, b: a + b, expr=c.this(), initial=0)
+                _ReducerExpression(
+                    lambda a, b: a + b, expr=c.this(), initial=0
+                )
             ),
             c.reduce(
                 _ReducerExpression(
                     c.naive(lambda a, b: a + b), expr=c.this(), initial=int
                 )
             ),
-            c.reduce(_ReducerExpression("{0} + {1}", expr=c.this(), default=0)),
+            c.reduce(
+                _ReducerExpression("{0} + {1}", expr=c.this(), default=0)
+            ),
             c.reduce(
                 _ReducerExpression(
                     "{0} + {1}",
@@ -904,7 +940,9 @@ def test_base_reducer():
                 c.this(),
             ),
         )
-    ).filter(c.this() > 5, cast=tuple).gen_converter(debug=True)([1, 2, 3]) == (
+    ).filter(c.this() > 5, cast=tuple).gen_converter(debug=True)(
+        [1, 2, 3]
+    ) == (
         6,
         6,
         6,

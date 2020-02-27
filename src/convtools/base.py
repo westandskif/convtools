@@ -467,7 +467,9 @@ class BaseConversion:
     def set_predefined_input(self, input_conversion):
         if self._predefined_input is not None:
             raise ConversionException(
-                "attempt to overwrite _predefined_input", self, input_conversion
+                "attempt to overwrite _predefined_input",
+                self,
+                input_conversion,
             )
         self._predefined_input = self.ensure_conversion(input_conversion)
         return self
@@ -667,7 +669,9 @@ class If(BaseConversion):
             None if if_true is self._none else self.ensure_conversion(if_true)
         )
         self.if_false = (
-            None if if_false is self._none else self.ensure_conversion(if_false)
+            None
+            if if_false is self._none
+            else self.ensure_conversion(if_false)
         )
         self.no_input_caching = no_input_caching
 
@@ -789,7 +793,9 @@ class GetItem(BaseMethodConversion):
         result = NaiveConversion(converter)
         if self_is_overwritten:
             result = result.call(
-                EscapedString(code_self), GetItem(), EscapedString(default_code)
+                EscapedString(code_self),
+                GetItem(),
+                EscapedString(default_code),
             )
         else:
             result = result.call(GetItem(), EscapedString(default_code))
@@ -1015,9 +1021,7 @@ class ListComp(BaseComprehensionConversion):
         return f"[{generator_code}]"
 
     def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
-        return (
-            f"sorted({code_input}, key={sort_key_code}, reverse={reverse_code})"
-        )
+        return f"sorted({code_input}, key={sort_key_code}, reverse={reverse_code})"
 
 
 class TupleComp(BaseComprehensionConversion):
@@ -1086,7 +1090,8 @@ class BaseCollectionConversion(BaseConversion):
 
     def gen_joined_items_code(self, code_input, ctx):
         params = [
-            item.gen_code_and_update_ctx(code_input, ctx) for item in self.items
+            item.gen_code_and_update_ctx(code_input, ctx)
+            for item in self.items
         ]
         return ",".join(params)
 
