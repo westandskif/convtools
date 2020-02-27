@@ -1,3 +1,18 @@
+0.2.3 (2020-02-27)
+------------------
+
+Bugfixes
+++++++++
+
+- Fixed ``c.group_by((c.item("name"),)).aggregate((c.item("name"), c.reduce(...)))``.
+  Previously it was compiling successfully, now it raises ``ConversionException`` on ``gen_converter``
+  because there is no explicit mention of ``c.item("name")`` field in group by keys (only tuple).
+  `#4 <https://github.com/itechart-almakov/convtools/issues/4>`_
+
+
+----
+
+
 0.2.2 (2020-02-25)
 ------------------
 
