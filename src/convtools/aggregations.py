@@ -261,8 +261,8 @@ class _DictReducerStatements(_ReducerStatements):
 
 
 _Sum = _ReducerStatements(
-    reduce=["%(result)s += ({1} or 0)",],
-    initial_from_first=["%(result)s = ({0} or 0)",],
+    reduce=["%(result)s += ({1} or 0)"],
+    initial_from_first=["%(result)s = ({0} or 0)"],
     default=0,
 )
 _SumOrNone = _ReducerStatements(
@@ -286,8 +286,8 @@ _Min = _ReducerStatements(
     default=None,
 )
 _Count = _ReducerStatements(
-    reduce=["%(result)s += 1",],
-    initial_from_first=["%(result)s = 1",],
+    reduce=["%(result)s += 1"],
+    initial_from_first=["%(result)s = 1"],
     default=0,
     expr=0,
 )
@@ -506,63 +506,43 @@ class ReduceFuncs:
 
 
 reduce_template = """
+        if {var_agg_data_value} is _none:
+{reduce_initial}
+        else:
+{reduce_two}
+
+"""
+conditional_reduce_template = """
+        if {filter_expr}:
             if {var_agg_data_value} is _none:
 {reduce_initial}
             else:
 {reduce_two}
 
 """
-conditional_reduce_template = """
-            if {filter_expr}:
-                if {var_agg_data_value} is _none:
-{reduce_initial}
-                else:
-{reduce_two}
-
-"""
 grouper_template = """
 def {converter_name}(data{code_args}):
     _none = {var_none}
-    try:
-        {var_signature_to_agg_data} = defaultdict(AggData)
-        for {var_row} in data:
-            {var_agg_data} = {var_signature_to_agg_data}[{code_signature}]
+    {var_signature_to_agg_data} = defaultdict(AggData)
+    for {var_row} in data:
+        {var_agg_data} = {var_signature_to_agg_data}[{code_signature}]
 
 {code_reduce_blocks}
 
-        result = {code_result}
-        {code_sorting}
-        return result
-    except Exception:
-        import linecache
-        linecache.cache[{converter_name}._fake_filename] = (
-            len({converter_name}._code_str),
-            None,
-            {converter_name}._code_str.splitlines(),
-            {converter_name}._fake_filename,
-        )
-        raise
+    result = {code_result}
+    {code_sorting}
+    return result
 """
 aggregate_template = """
 def {converter_name}(data{code_args}):
     _none = {var_none}
-    try:
-        {var_agg_data} = AggData()
-        for {var_row} in data:
+    {var_agg_data} = AggData()
+    for {var_row} in data:
 {code_reduce_blocks}
 
-        result = {code_result}
-        {code_sorting}
-        return result
-    except Exception:
-        import linecache
-        linecache.cache[{converter_name}._fake_filename] = (
-            len({converter_name}._code_str),
-            None,
-            {converter_name}._code_str.splitlines(),
-            {converter_name}._fake_filename,
-        )
-        raise
+    result = {code_result}
+    {code_sorting}
+    return result
 """
 
 
@@ -651,10 +631,10 @@ class Reduce(BaseReduce):
     def gen_reduce_code_block(self, var_agg_data_value, var_row, ctx):
         if self.condition is None:
             _reduce_template = reduce_template
-            indentation_level = 4
+            indentation_level = 3
         else:
             _reduce_template = conditional_reduce_template
-            indentation_level = 5
+            indentation_level = 4
         reduce_initial = self.reducer.gen_reduce_initial(
             var_agg_data_value,
             var_row,
@@ -898,7 +878,7 @@ class GroupBy(BaseConversion):
         agg_data_container_code = (
             "class AggData:\n    __slots__ = [{}]\n    def __init__(self):\n{}"
         ).format(", ".join(attrs), "\n".join(init_lines),)
-        ctx = {"_none": initial_val}
+        ctx = {"_none": initial_val, "__name__": "_convtools_agg"}
         exec(agg_data_container_code, ctx, ctx)
         return ctx["AggData"]
 

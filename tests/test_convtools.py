@@ -261,6 +261,9 @@ def test_or_and_not():
 def test_debug_true():
     assert c.this().gen_converter(debug=True)(1) == 1
 
+    with pytest.raises(TypeError):
+        assert c.item(0).gen_converter(debug=True)(1) == 1
+
 
 def test_if():
     conv1 = c.if_(True, c.this() * 2, c.this() - 1000).gen_converter(
