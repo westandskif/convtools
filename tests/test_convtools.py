@@ -1,10 +1,12 @@
 from collections import namedtuple
 from datetime import date, datetime
+from decimal import Decimal
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
 from convtools import conversion as c
+from convtools.base import CachingConversion
 
 
 def test_docs():
@@ -467,7 +469,29 @@ def test_pipes():
     ).execute(["2019-01-01",], debug=False) == date(2019, 1, 1)
 
     with pytest.raises(c.ConversionException):
-        c.naive(True).pipe(c.item("key1", _predefined_input={"key1": 777}))
+        conv = c.this()
+        for i in range(1001):
+            conv = c.this().pipe(conv)
+
+    conv = c.dict_comp(
+        c.item("name"),
+        c.item("transactions").pipe(
+            c.list_comp(
+                {
+                    "id": c.item(0).as_type(str),
+                    "amount": c.item(1).pipe(
+                        c.if_(c.this(), c.this().as_type(Decimal), None)
+                    ),
+                }
+            )
+        ),
+    ).gen_converter(debug=True)
+    assert conv([{"name": "test", "transactions": [(0, 0), (1, 10)]}]) == {
+        "test": [
+            {"id": "0", "amount": None},
+            {"id": "1", "amount": Decimal("10")},
+        ]
+    }
 
 
 def test_filter():
@@ -976,3 +1000,119 @@ def test_base_reducer():
     ).gen_converter(debug=True)
     assert conv2([]) == {"key": None}
     assert conv2(data) == {"key": result}
+
+
+def test_simple_label():
+    conv1 = (
+        c.tuple(c.item(1).add_label("a"), c.this())
+        .pipe(c.item(1).pipe(c.list_comp((c.this(), c.label("a")))))
+        .gen_converter(debug=False)
+    )
+    assert conv1([1, 2, 3, 4]) == [(1, 2), (2, 2), (3, 2), (4, 2)]
+
+    conv2 = (
+        c.tuple(c.item(1).add_label("a"), c.this())
+        .pipe(
+            c.item(1),
+            label_input={"aa": c.item(0), "bb": c.item(0),},
+            label_output="collection1",
+        )
+        .pipe(
+            c.label("collection1").pipe(
+                c.aggregate(
+                    c.reduce(
+                        c.ReduceFuncs.Sum,
+                        c.this()
+                        + c.label("a")
+                        + c.label("aa")
+                        + c.input_arg("x")
+                        + c.label("collection1").item(0),
+                    )
+                )
+            ),
+            label_output="b",
+        )
+        .pipe(c.this() + c.label("b"))
+        .gen_converter(debug=False)
+    )
+    assert conv2([1, 2, 3, 4], x=10) == 140
+
+    conv3 = (
+        c.tuple(c.item("default").add_label("default"), c.this())
+        .pipe(c.item(1).pipe(c.item("abc", default=c.label("default"))))
+        .gen_converter(debug=True)
+    )
+    assert conv3({"default": 1}) == 1
+
+    with pytest.raises(c.ConversionException):
+        c.this().pipe(c.this(), label_input=1)
+    with pytest.raises(c.ConversionException):
+        CachingConversion(c.this()).add_label("a", c.this()).add_label(
+            "a", c.this()
+        )
+
+
+def test_complex_labeling():
+    conv1 = (
+        c.this()
+        .add_label("input")
+        .pipe(
+            c.filter(c.this() % 3 == 0),
+            label_input={"input_type": c.call_func(type, c.this()),},
+        )
+        .pipe(
+            c.list_comp(c.this().as_type(str)),
+            label_output={
+                "list_length": c.call_func(len, c.this()),
+                "separator": c.if_(c.label("list_length") > 10, ",", ";"),
+            },
+        )
+        .pipe(
+            {
+                "result": c.label("separator").call_method("join", c.this()),
+                "input_type": c.label("input_type"),
+                "input_data": c.label("input"),
+            }
+        )
+        .gen_converter(debug=True)
+    )
+    assert conv1(range(30)) == {
+        "result": "0;3;6;9;12;15;18;21;24;27",
+        "input_type": range,
+        "input_data": range(0, 30),
+    }
+    assert conv1(range(40)) == {
+        "result": "0,3,6,9,12,15,18,21,24,27,30,33,36,39",
+        "input_type": range,
+        "input_data": range(0, 40),
+    }
+
+
+def test_caching_conversion():
+    class CustomException(Exception):
+        pass
+
+    def f(number):
+        if not f.first_time:
+            raise CustomException
+        f.first_time = False
+        return number
+
+    f.first_time = True
+
+    conv = (
+        c.call_func(f, c.this())
+        .pipe(c.if_(c.this(), c.this() + 1, c.this() + 2,))
+        .gen_converter()
+    )
+    assert conv(0) == 2
+    with pytest.raises(CustomException):
+        assert conv(0) == 2
+
+    f.first_time = True
+    assert conv(1) == 2
+
+    with pytest.raises(CustomException):
+        c.call_func(f, c.this()).pipe(
+            c.if_(c.this(), c.this() + 1, c.this() + 2, no_input_caching=True)
+        ).execute(0)

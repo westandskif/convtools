@@ -52,7 +52,7 @@ Please make sure you've read - :ref:`base info here<ref_index_intro>`.
 
 Let's review the most basic conversions:
 
- * returns an input untoched: :ref:`c.this<ref_c_this>`
+ * returns an input untouched: :ref:`c.this<ref_c_this>`
  * returns an object passed to a conversion: :ref:`c.naive<ref_c_naive>`
  * returns a converter input argument: :ref:`c.input_arg<ref_c_input_arg>`
  * makes any number of dictionary/index lookups, supports ``default``: :ref:`c.item<ref_c_item>`
@@ -301,8 +301,8 @@ Next:
            reverse=True,
        )
 
-6. Filters, pipes and conditions
-________________________________
+6. Filters, pipes, labels and conditions
+________________________________________
 
 Points to learn:
 
@@ -311,70 +311,160 @@ Points to learn:
  2. :ref:`(...).pipe<ref_pipes>` chains two conversions by passing the result of
     the first one to the second one. If piping is done at the top level of a
     resulting conversion (not nested), then it's going to be represented as
-    several statements.
+    several statements in the resulting code.
  3. :ref:`c.if_<ref_c_conditions>` allows to build ``1 if a else 2`` expressions.
     It's possible to pass not every parameter:
 
-    * if a condition is not passed, then the input is used as a condition
-    * if any branch is not passed, then the input is passed untouched
+      * if a condition is not passed, then the input is used as a condition
+      * if any branch is not passed, then the input is passed untouched
+ 4. :ref:`labels<ref_labels>` extend pipe and regular conversions
+    functionality:
 
-Let's use every thing on some input data:
+      * ``(...).add_label("first_el", c.item(0))`` allows to apply
+        any conversion and then add a label to the result
+      * to reference the result ``c.label("first_el")`` is used
+      * any ``(...).pipe`` supports ``label_input`` and ``label_output``
+        parameters, both accept either ``str`` (a label name) or ``dict`` (keys
+        are label names, values are conversions to be applied before labeling)
 
-.. code-block:: python
-
-   input_data = range(100)
-
-   c.filter(
-       c.this() % 3 == 0
-   ).pipe(
-       c.generator_comp(
-           c.this().as_type(str)
-       )
-   ).pipe(
-       c.if_(
-           c.this().pipe(len) > 10, c(","), c(";")
-       ).call_method("join", c.this())
-   ).gen_converter(debug=True)
-
-   # prints:
-
-   def converter365_417(data_):
-       pipe365_801 = (i349_248 for i349_248 in data_ if ((i349_248 % 3) == 0))
-       pipe365_781 = (vstr351_159(i353_292) for i353_292 in pipe365_801)
-       return ("," if (vlen355_986(pipe365_781) > 10) else ";").join(
-           pipe365_781
-       )
-
-Of course one pipe above is not necessary here, it has been done
-for demonstrational purposes only.
-A more efficient way would be:
+A simple pipe first:
 
 .. code-block:: python
 
-   c.list_comp(
-       c.this().as_type(str)
-   ).filter(
-       # this is the filter method of a comprehension,
-       # so c.this() here is a collection item before casting to str
-       c.this() % 3 == 0
+   conv = c.generator_comp(
+       c.this() * 2
    ).pipe(
-       c.if_(
-           c.this().pipe(len) > 10, c(","), c(";")
-       ).call_method("join", c.this())
+       sum
    ).gen_converter(debug=True)
 
-   # prints:
+   # GENERATES:
 
-   def converter320_422(data_):
-       pipe387_801 = [
-           vstr368_159(i370_248)
-           for i370_248 in data_
-           if ((i370_248 % 3) == 0)
+   def converter170_394(data_):
+       return vsum169_470(((i167_606 * 2) for i167_606 in data_))
+
+____
+
+A bit more complex ones:
+
+.. code-block:: python
+
+   conv = c.dict_comp(
+       c.item("name"),
+       c.item("transactions").pipe(
+           c.list_comp(
+               {
+                   "id": c.item(0).as_type(str),
+                   "amount": c.item(1).pipe(
+                       c.if_(c.this(), c.this().as_type(Decimal), None)
+                   ),
+               }
+           )
+       ),
+   ).gen_converter(debug=True)
+   assert conv([{"name": "test", "transactions": [(0, 0), (1, 10)]}]) == {
+       "test": [
+           {"id": "0", "amount": None},
+           {"id": "1", "amount": Decimal("10")},
        ]
-       return ("," if (vlen377_986(pipe387_801) > 10) else ";").join(
-           pipe387_801
-       )
+   }
 
+   # UNDER THE HOOD GENERATES:
+   def converter149_394(data_):
+       return {
+           i149_606["name"]: [
+               {
+                   "id": vstr131_647(i148_930[0]),
+                   "amount": (
+                       vDecimal137_680(cached_val_152)
+                       if (
+                           globals().__setitem__("cached_val_152", i148_930[1])
+                           or cached_val_152
+                       )
+                       else None
+                   ),
+               }
+               for i148_930 in i149_606["transactions"]
+           ]
+           for i149_606 in data_
+       }
+
+____
+
+
+Now let's use some labels:
+
+.. code-block:: python
+
+   conv1 = (
+       c.this().add_label("input")
+       .pipe(
+           c.filter(c.this() % 3 == 0),
+           label_input={
+               "input_type": c.call_func(type, c.this()),
+           },
+       )
+       .pipe(
+           c.list_comp(c.this().as_type(str)),
+           label_output={
+               "list_length": c.call_func(len, c.this()),
+               "separator": c.if_(c.label("list_length") > 10, ",", ";"),
+           },
+       )
+       .pipe({
+           "result": c.label("separator").call_method("join", c.this()),
+           "input_type": c.label("input_type"),
+           "input_data": c.label("input"),
+       })
+       .gen_converter(debug=True)
+   )
+    assert conv1(range(30)) == {
+        "result": "0;3;6;9;12;15;18;21;24;27",
+        "input_type": range
+    }
+    assert conv1(range(40)) == {
+        "result": "0,3,6,9,12,15,18,21,24,27,30,33,36,39",
+        "input_type": range
+    }
+
+Generates:
+
+.. code-block:: python
+
+   def converter256_199(data_):
+      pipe256_222 = (
+          globals().__setitem__(
+              "cached_val_225",
+              (
+                  globals().__setitem__("cached_val_208", data_)
+                  or globals().__setitem__("input", cached_val_208)
+                  or cached_val_208
+              ),
+          )
+          or globals().__setitem__("input_type", vtype222_769(cached_val_225))
+          or cached_val_225
+      )
+      input_type = globals()["input_type"]
+      pipe256_204 = (
+          i241_740 for i241_740 in pipe256_222 if ((i241_740 % 3) == 0)
+      )
+      pipe256_238 = (
+          globals().__setitem__(
+              "cached_val_243",
+              [vstr228_605(i242_730) for i242_730 in pipe256_204],
+          )
+          or globals().__setitem__("list_length", vlen232_505(cached_val_243))
+          or globals().__setitem__(
+              "separator", ("," if (globals()["list_length"] > 10) else ";")
+          )
+          or cached_val_243
+      )
+      list_length = globals()["list_length"]
+      separator = globals()["separator"]
+      return {
+          "result": separator.join(pipe256_238),
+          "input_type": input_type,
+          "input_data": input,
+      }
 
 
 7. Aggregations
@@ -440,7 +530,7 @@ reduce functions:
        {
            "company_name": "BrainCorp",
            "company_hq": "NY",
-           "app_name": "Learn QFT",
+           "app_name": "Learn FT",
            "date": "2019-01-01",
            "country": "US",
            "sales": Decimal("86869.12"),
@@ -501,12 +591,12 @@ reduce functions:
            "top_sales_day": date(2019, 1, 2),
        },
        {
-           "app_name_to_countries": {"Learn QFT": ["US"]},
-           "app_name_to_sales": {"Learn QFT": Decimal("86869.12")},
+           "app_name_to_countries": {"Learn FT": ["US"]},
+           "app_name_to_sales": {"Learn FT": Decimal("86869.12")},
            "company_hq": "NY",
            "company_name": "BRAINCORP",
            "none_sensitive_sum": Decimal("86869.12"),
-           "top_sales_app": "Learn QFT",
+           "top_sales_app": "Learn FT",
            "top_sales_day": date(2019, 1, 1),
        },
    ]

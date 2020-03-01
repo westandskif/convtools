@@ -23,6 +23,7 @@ class _Conversion:
 
     #: Shortcut to `InputArg`
     input_arg = InputArg
+    label = LabelConversion
     inline_expr = InlineExpr
     escaped_string = EscapedString
 
