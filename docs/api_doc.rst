@@ -551,6 +551,45 @@ Iterate an input filtering out items where the conversion resolves to False
      return [i182_509 for i182_509 in data_ if (i182_509["age"] >= age)]
 
 
+.. _ref_labels:
+
+Labels
+======
+
+.. autoclass:: convtools.base.CachingConversion()
+   :noindex:
+
+   .. automethod:: convtools.base.CachingConversion.__init__
+      :noindex:
+   .. automethod:: convtools.base.CachingConversion.add_label
+      :noindex:
+
+____
+
+.. autoattribute:: convtools.conversion.label
+   :noindex:
+
+.. autoclass:: convtools.base.LabelConversion()
+   :noindex:
+
+   .. automethod:: convtools.base.LabelConversion.__init__
+      :noindex:
+
+____
+
+Examples:
+
+.. code-block:: python
+
+   conv = c.call_func(
+       itertools.chain,
+       c.list_comp(c.item(0)).add_label("first_objs"),
+       c.label("first_objs"),
+   ).gen_converter(debug=True)
+
+   list(conv([(0,), (1,)])) == [0, 1, 0, 1]
+
+
 .. _ref_pipes:
 
 Pipes
@@ -559,38 +598,57 @@ Pipes
 .. automethod:: convtools.base.BaseConversion.pipe
    :noindex:
 
+____
+
 It's easier to read the code written with pipes in contrast to heavily
 nested approach:
 
 .. code-block:: python
 
- (
-     c.item("data", "users")
-     .call_method("values")
+ conv = c.tuple(
+     c.item("data", "users"),
+     c.item("timestamp").add_label("timestamp1"),
  ).pipe(
-     c.generator_comp({"id": c.item("id"), "name": c.item("name")})
+     c.item(0).pipe(
+         c.generator_comp({"id": c.item("id"), "name": c.item("name")})
+     ),
+     label_input=dict(
+         timestamp2=c.item(1),
+     )
  ).pipe(
      c.list_comp(
          c.inline_expr(
-             "{ModelCls}(updated=updated, **data)",
+             "{ModelCls}(updated={updated}, timestamp={timestamp}, **{data})",
          ).pass_args(
              ModelCls=c.input_arg("model_cls"),
+             timestamp=c.label("timestamp1"),
+             # timestamp=c.label("timestamp2"), # also available
              updated=c.input_arg("updated"),
              data=c.this(),
          )
-     )
- ).gen_converter()
+     ),
+     # label_output="resulting_list", # labeling the result
+ ).gen_converter(debug=True)
 
  # generates:
 
- def converter239_386(data_, *, model_cls, updated):
-     pipe239_654 = data_["data"]["users"].values()
-     pipe239_355 = (
-         {"id": i231_917["id"], "name": i231_917["name"]}
-         for i231_917 in pipe239_654
+ def converter282_272(data_, *, model_cls, updated):
+     pipe282_978 = (
+         globals().__setitem__(
+             "cached_val_272", (data_["data"]["users"], data_["timestamp"],)
+         )
+         or globals().__setitem__("timestamp", cached_val_272[1])
+         or cached_val_272
+     )
+     timestamp = globals()["timestamp"]
+     pipe282_748 = pipe282_978[0]
+     pipe282_952 = (
+         {"id": i281_832["id"], "name": i281_832["name"]}
+         for i281_832 in pipe282_748
      )
      return [
-         (model_cls(updated=updated, **data)) for i239_648 in pipe239_355
+         (model_cls(updated=updated, timestamp=timestamp, **i282_325))
+         for i282_325 in pipe282_952
      ]
 
 

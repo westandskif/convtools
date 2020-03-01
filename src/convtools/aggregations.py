@@ -57,7 +57,7 @@ class _BaseReducer:
             reduce_obj.default = self.default
         if self.additional_args and not reduce_obj.additional_args:
             reduce_obj.additional_args = self.additional_args
-        if self.post_conversion:
+        if self.post_conversion and not reduce_obj.post_conversion:
             reduce_obj.post_conversion = reduce_obj.ensure_conversion(
                 self.post_conversion
             )
@@ -294,7 +294,9 @@ _Count = _ReducerStatements(
 _CountDistinct = _ReducerStatements(
     reduce=["%(result)s.add({1})"],
     initial_from_first=["%(result)s = {{ {0} }}"],
-    post_conversion=GetItem().and_(CallFunc(len, GetItem())).or_(0),
+    post_conversion=InlineExpr("{set_} and len({set_}) or 0").pass_args(
+        set_=GetItem()
+    ),
     default=0,
 )
 _First = _ReducerStatements(
@@ -349,7 +351,7 @@ _DictArray = _DictReducerStatements(
         "%(result)s = _d = defaultdict(list)",
         "_d[{0}].append({1})",
     ],
-    post_conversion=CallFunc(dict, GetItem()),
+    post_conversion=InlineExpr("dict({})").pass_args(GetItem()),
     default=None,
 )
 _DictArrayDistinct = _DictReducerStatements(
@@ -358,11 +360,9 @@ _DictArrayDistinct = _DictReducerStatements(
         "%(result)s = _d = defaultdict(dict)",
         "_d[{0}][{1}] = None",
     ],
-    post_conversion=(
-        GetItem()
-        .call_method("items")
-        .pipe(DictComp(GetItem(0), GetItem(1).call_method("keys").pipe(list)))
-    ),
+    post_conversion=InlineExpr(
+        "{{k_: list(v_.keys()) for k_, v_ in {}.items()}}"
+    ).pass_args(GetItem()),
     default=None,
 )
 _DictSum = _DictReducerStatements(
@@ -371,7 +371,7 @@ _DictSum = _DictReducerStatements(
         "%(result)s = _d = defaultdict(int)",
         "_d[{0}] += {1} or 0",
     ],
-    post_conversion=CallFunc(dict, GetItem()),
+    post_conversion=InlineExpr("dict({})").pass_args(GetItem()),
     default=None,
 )
 _DictSumOrNone = _DictReducerStatements(
@@ -382,7 +382,7 @@ _DictSumOrNone = _DictReducerStatements(
         "    %(result)s[{1}] += {2}",
     ],
     initial_from_first=["%(result)s = _d = defaultdict(int)", "_d[{0}] = {1}"],
-    post_conversion=CallFunc(dict, GetItem()),
+    post_conversion=InlineExpr("dict({})").pass_args(GetItem()),
     default=None,
 )
 _DictMax = _DictReducerStatements(
@@ -425,11 +425,9 @@ _DictCountDistinct = _DictReducerStatements(
         "    %(result)s[{1}].add({2})",
     ],
     initial_from_first=["%(result)s = {{ {0}: {{ {1} }} }}"],
-    post_conversion=DictComp(
-        GetItem(0),
-        CallFunc(len, GetItem(1)),
-        _predefined_input=GetItem().call_method("items"),
-    ),
+    post_conversion=InlineExpr(
+        "{{ k_: len(v_) for k_, v_ in {}.items() }}"
+    ).pass_args(GetItem()),
     default=None,
 )
 _DictFirst = _DictReducerStatements(
@@ -521,28 +519,28 @@ conditional_reduce_template = """
 
 """
 grouper_template = """
-def {converter_name}(data{code_args}):
+def {converter_name}(data_{code_args}):
     _none = {var_none}
     {var_signature_to_agg_data} = defaultdict(AggData)
-    for {var_row} in data:
+    for {var_row} in data_:
         {var_agg_data} = {var_signature_to_agg_data}[{code_signature}]
 
 {code_reduce_blocks}
 
-    result = {code_result}
+    result_ = {code_result}
     {code_sorting}
-    return result
+    return result_
 """
 aggregate_template = """
-def {converter_name}(data{code_args}):
+def {converter_name}(data_{code_args}):
     _none = {var_none}
     {var_agg_data} = AggData()
-    for {var_row} in data:
+    for {var_row} in data_:
 {code_reduce_blocks}
 
-    result = {code_result}
+    result_ = {code_result}
     {code_sorting}
-    return result
+    return result_
 """
 
 
@@ -883,10 +881,10 @@ class GroupBy(BaseConversion):
         return ctx["AggData"]
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        var_row = "row"
-        var_signature = "signature"
-        var_signature_to_agg_data = "signature_to_agg_data"
-        var_agg_data = "agg_data"
+        var_row = "row_"
+        var_signature = "signature_"
+        var_signature_to_agg_data = "signature_to_agg_data_"
+        var_agg_data = "agg_data_"
         var_none = "_none"
 
         signature_code_items = [
@@ -944,7 +942,7 @@ class GroupBy(BaseConversion):
 
         if self.sort_key is not False:
             code_sorting = (
-                EscapedString("result")
+                EscapedString("result_")
                 .call_method(
                     "sort", key=self.sort_key, reverse=self.sort_key_reverse
                 )

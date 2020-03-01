@@ -365,8 +365,8 @@ ____________________________________________
           )
       )
 
-5. Pipes: chaining multiple conversions & c.this()
-__________________________________________________
+5. Pipes and Labels: chaining multiple conversions & c.this()
+_____________________________________________________________
 
 
 .. list-table::
@@ -379,14 +379,14 @@ __________________________________________________
    - conversion
  * - .. code-block:: python
 
-      [
+      data = {"objects": [
           {"dt": "2019-10-01",
-           "app_name": "Tardygram"),
+           "app_name": "Tardygram"},
           {"dt": "2019-10-02",
-           "app_name": "Facebrochure"),
+           "app_name": "Facebrochure"},
           {"dt": "2019-10-02",
-           "app_name": "Facebrochure"),
-      ]
+           "app_name": "Facebrochure"},
+      ], "timestamp": 123123123, "error": ""}
 
    - .. code-block:: python
 
@@ -396,7 +396,11 @@ __________________________________________________
       # get distinct apps 
       # WHERE "dt" >= "2019-10-02"
 
-      {"Facebrochure"}
+      {
+          "distinct_apps": {"Facebrochure"},
+          "timestamp": 123123123,
+          "error": "",
+      }
       
    - .. code-block:: python
 
@@ -408,13 +412,26 @@ __________________________________________________
       app_name_getter = c.generator_comp(c.item("app_name"))
       take_distinct = c.call_func(set, c.this())
 
-      converter = filter_by_dt.pipe(
-          app_name_getter
+      converter = c.tuple(
+          c.item("timestamp").add_label("timestamp"),
+          c.item("objects"),
+          c.item("error"),
       ).pipe(
-          take_distinct
-      ).gen_converter()
+          c.item(1).pipe(filter_by_dt),
+          label_input={
+              "error": c.item(2),
+          },
+          # # if we needed to label output OR via dict
+          # label_output="filtered_input",
+      ).pipe(
+          app_name_getter
+      ).pipe({
+          "timestamp": c.label("timestamp"),
+          "error": c.label("error"),
+          "distinct_apps": take_distinct
+      }).gen_converter(debug=True)
 
-      converter(input_data, dt="2019-10-02")
+      converter(data, dt_start="2019-10-02")
 
 
 6. Group by: simple
@@ -652,7 +669,7 @@ _______________________________
            "name": "Hanna",
            "sales": 175,
            "department": "BD2"},
-          {"company": "CDE GmhB",
+          {"company": "CODE GmhB",
            "name": "Ulrich",
            "sales": 160,
            "department": "BD"},
@@ -684,7 +701,7 @@ _______________________________
               "stream_consumer": StreamConsumer(...),
           },
           {
-              "company": "CDE GmhB",
+              "company": "CODE GmhB",
               "total_sales": 160,
               "top_sales_person": "Ulrich",
               "first_employee": "Ulrich",
@@ -735,7 +752,7 @@ _______________________________
       ).gen_converter()
       converter(input_data)
 
-10. Manupulating converter function signatures: methods, classmethods, \*args, \*\*kwargs
+10. Manipulating converter function signatures: methods, classmethods, \*args, \*\*kwargs
 _________________________________________________________________________________________
 
 .. list-table::
@@ -750,9 +767,9 @@ ________________________________________________________________________________
 
       class A:
           def __init__(
-              self, multiplicator: int
+              self, multiplier: int
           ):
-              self.multiplicator = multiplicator
+              self.multiplier = multiplier
 
    - .. code-block:: python
 
@@ -763,7 +780,7 @@ ________________________________________________________________________________
       # 2. add classmethod
       A.sum_and_multiply_2(
           1, 2, 3,
-          multiplicator=10
+          multiplier=10
       ) == 60
 
    - .. code-block:: python
@@ -772,20 +789,20 @@ ________________________________________________________________________________
           # ...
           sum_and_multiply_1 = (
               c.call_func(sum, c.this())
-              * c.input_arg("self").attr("multiplicator")
+              * c.input_arg("self").attr("multiplier")
           ).gen_converter(signature="self, *data_")
 
           sum_and_multiply_2 = classmethod(
               (
                   c.call_func(sum, c.this())
-                  * c.input_arg("multiplicator")
-              ).gen_converter(signature="cls, *data_, multiplicator=1")
+                  * c.input_arg("multiplier")
+              ).gen_converter(signature="cls, *data_, multiplier=1")
           )
           # ==== SAME ===
           # sum_and_multiply_2 = classmethod(
           #     (
           #         c.call_func(sum, c.this())
-          #         * c.input_arg("kwargs").call_method("get", "multiplicator", 1)
+          #         * c.input_arg("kwargs").call_method("get", "multiplier", 1)
           #     ).gen_converter(signature="cls, *data_, **kwargs")
           # )
           # ==== SAME ===

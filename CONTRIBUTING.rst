@@ -16,9 +16,16 @@ Workflow is pretty straightforward:
 
   2. Setup your machine with the required dev environment
 
+        * ``pip install -e .``
+        * install ``aspell``
+
   3. Make a change
 
-  4. Make sure all tests passed
+  4. Make sure all tests passed, docs are building, spelling is ok (or add words):
+
+        * ``pytest .``
+        * ``make docs``
+        * ``make spellcheck``
 
   5. Add a file into the ``CHANGES`` folder, named after the ticket or PR number
        towncrier has a few standard types of news fragments, signified by the file extension. These are:

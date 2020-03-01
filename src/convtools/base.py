@@ -4,6 +4,7 @@ import re
 import sys
 from collections import OrderedDict
 from itertools import chain, count
+from threading import local
 
 
 __all__ = [
@@ -11,6 +12,8 @@ __all__ = [
     "ConversionException",
     "BaseConversion",
     "BaseCollectionConversion",
+    "LabelConversion",
+    "CachingConversion",
     "GeneratorComp",
     "NaiveConversion",
     "EscapedString",
@@ -81,6 +84,31 @@ class _ConverterCallable:
         )
 
         self._line_cache_populated = True
+
+
+_code_generation_ctx = local()
+_code_generation_ctx.flags = set()
+
+
+class CodeGenerationCtx:
+    LABELING = 1
+
+    def __init__(self, *flags):
+        self.flags_to_enable = flags
+        self.prev_value = None
+
+    def __enter__(self):
+        self.prev_value = _code_generation_ctx.flags
+        _code_generation_ctx.flags = set(self.prev_value)
+        _code_generation_ctx.flags.update(self.flags_to_enable)
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        _code_generation_ctx.flags = self.prev_value
+
+    @staticmethod
+    def flag(flag):
+        return flag in _code_generation_ctx.flags
 
 
 converter_template = """
@@ -162,14 +190,18 @@ class BaseConversion:
     def __init__(self, options):
         self.depends_on = ()
 
-        self._number = next(self.counter)
-        if self._number > self.max_counter:
-            BaseConversion.counter = count()
+        self._number = self._get_number()
         self.debug = options.pop("debug", False)
         self._predefined_input = None
 
         if "_predefined_input" in options:
             self.set_predefined_input(options.pop("_predefined_input"))
+
+    def _get_number(self):
+        number = next(self.counter)
+        if number > self.max_counter:
+            BaseConversion.counter = count()
+        return number
 
     def __hash__(self):
         return id(self)
@@ -211,6 +243,7 @@ class BaseConversion:
     def clone(self):
         clone = self.__class__.__new__(self.__class__)
         clone.__dict__.update(self.__dict__)
+        clone._number = clone._get_number()
         return clone
 
     def gen_name(self, prefix, ctx, item_to_hash=None):
@@ -237,8 +270,19 @@ class BaseConversion:
             key=lambda k: k.arg_name,
         )
 
-    def _get_args_def_code(self, ctx, as_kwargs=False, exclude_cls_self=False):
+    def _get_args_def_code(
+        self,
+        ctx,
+        as_kwargs=False,
+        exclude_cls_self=False,
+        exclude_labels=False,
+    ):
         args = self._get_args()
+        if exclude_labels:
+            args = [
+                arg for arg in args if not isinstance(arg, LabelConversion)
+            ]
+
         if exclude_cls_self:
             args = [arg for arg in args if arg.arg_name not in ("self", "cls")]
         if not args:
@@ -306,7 +350,9 @@ class BaseConversion:
         ctx = {"sys": sys, "__debug": debug, "__name__": "_convtools"}
         if signature:
             missing_args = set(
-                _pattern_word.findall(self._get_args_def_code({}))
+                _pattern_word.findall(
+                    self._get_args_def_code({}, exclude_labels=True)
+                )
             ) - set(_pattern_word.findall(signature))
             if missing_args:
                 raise ConversionException(
@@ -323,7 +369,10 @@ class BaseConversion:
                 + (initial_code_input)
                 + (
                     self._get_args_def_code(
-                        ctx, as_kwargs=True, exclude_cls_self=True
+                        ctx,
+                        as_kwargs=True,
+                        exclude_cls_self=True,
+                        exclude_labels=True,
                     )
                 )
             )
@@ -351,6 +400,15 @@ class BaseConversion:
             code_input = self.gen_name("pipe", ctx, code_input)
             if index != last_index:
                 code_lines.append(f"{indent}{code_input} = {code_conv}")
+                if isinstance(conv, CachingConversion):
+                    with CodeGenerationCtx(CodeGenerationCtx.LABELING):
+                        for label_name in conv.labels.keys():
+                            code_label_ref = LabelConversion(
+                                label_name
+                            ).gen_code_and_update_ctx(None, ctx)
+                            code_lines.append(
+                                f"{indent}{label_name} = {code_label_ref}"
+                            )
             else:
                 code_lines.append(f"{indent}return {code_conv}")
 
@@ -504,22 +562,55 @@ class BaseConversion:
         return Filter(condition_conv, cast=cast, _predefined_input=self)
 
     def set_predefined_input(self, input_conversion):
-        if self._predefined_input is not None:
-            raise ConversionException(
-                "attempt to overwrite _predefined_input",
-                self,
-                input_conversion,
-            )
-        self._predefined_input = self.ensure_conversion(input_conversion)
+        _self = self
+        for i in range(1000):
+            if _self._predefined_input is None:
+                _self._predefined_input = _self.ensure_conversion(
+                    input_conversion
+                )
+                break
+            _self = _self._predefined_input
+        else:
+            raise ConversionException("failed to set predefined_input", self)
         return self
 
-    def pipe(self, next_conversion, *args, **kwargs):
+    def _prepare_labels(self, label_arg):
+        if isinstance(label_arg, str):
+            return {label_arg: GetItem()}
+
+        elif isinstance(label_arg, dict):
+            return label_arg
+
+        raise ConversionException("unexpected label_input type", label_arg)
+
+    def add_label(self, label_name: str):
+        """Wraps the conversion into :py:obj:`LabelConversion` to allow further
+        reuse.
+
+        Args:
+          label_name (str): a name of the label to be applied
+        Returns:
+          LabelConversion: the labeled conversion
+        """
+        return self.pipe(GetItem(), label_input=label_name)
+
+    def pipe(
+        self,
+        next_conversion,
+        *args,
+        label_input=None,
+        label_output=None,
+        **kwargs,
+    ):
         """Passes the result of current conversion as an input to the
         `next_conversion`.
         If `next_conversion` is callable, it gets called with self as the
         first param.
         If piping is done at the top level of a resulting conversion (not nested),
         then it's going to be represented as several statements.
+
+        Supports labeling both pipe input and output data (allows to apply
+        conversions before labeling).
 
         Args:
           next_conversion (object): to be wrapped with :py:obj:`ensure_conversion`
@@ -528,19 +619,45 @@ class BaseConversion:
             passed to `next_conversion` if it's callable
           kwargs (dict): to be wrapped with :py:obj:`ensure_conversion` and
             passed to `next_conversion` if it's callable
+          label_input (str or dict): Labels to be put on pipe input data.
+            If a ``str`` is passed, then it is used as a label name.
+            If a ``dict`` is passed, keys are label names, values
+            are conversions to be applied before labeling.
+          label_output (str or dict): Labels to be put on pipe output data.
+            The rest is all the same as with ``label_input``
+
         """
-        if callable(next_conversion):
-            return (
+
+        cloned_self = self.clone()
+
+        if label_input:
+            cloned_self = CachingConversion(cloned_self)
+            for label_name, conversion in self._prepare_labels(
+                label_input
+            ).items():
+                cloned_self.add_label(label_name, conversion)
+
+        next_is_callable = callable(next_conversion)
+        if next_is_callable:
+            result = (
                 ensure_conversion(next_conversion)
                 .clone()
-                .call(self, *args, **kwargs)
+                .call(cloned_self, *args, **kwargs)
             )
+        else:
+            result = ensure_conversion(next_conversion).clone()
 
-        return (
-            ensure_conversion(next_conversion)
-            .clone()
-            .set_predefined_input(self)
-        )
+        if label_output:
+            result = CachingConversion(result)
+            for label_name, conversion in self._prepare_labels(
+                label_output
+            ).items():
+                result.add_label(label_name, conversion)
+
+        if not next_is_callable:
+            result = result.set_predefined_input(cloned_self)
+
+        return result
 
 
 class BaseMethodConversion(BaseConversion):
@@ -610,6 +727,62 @@ class NaiveConversion(BaseConversion):
         return value_name
 
 
+class CachingConversion(BaseConversion):
+    """Caches the result of the passed conversion globally, so it is possible
+    to use the result twice without double evaluation.
+
+    Provides the API to add labels to the result, supports result
+    post-processing."""
+
+    def __init__(self, conversion, name=None, **kwargs):
+        """Takes a conversion to cache its result.
+
+        Args:
+          conversion (BaseConversion or object): to be wrapped with
+            :py:obj:`ensure_conversion` and then its result is cached
+          name (str): optional - it's possible to overwrite internally
+            generated name, which also can be references as a label
+        """
+        super(CachingConversion, self).__init__(kwargs)
+        self.conversion = self.ensure_conversion(conversion)
+        self.name = name or f"cached_val_{self._number}"
+        self.labels = {}
+
+    def add_label(self, label_name: str, conversion):
+        """Adds a label to a result of the cached conversion,
+        received into the ``__init__`` method. The cached result is first
+        processed with ``conversion``.
+
+        Args:
+          label_name (str): name of a label
+          conversion (BaseConversion or object): to be wrapped with
+            :py:obj:`ensure_conversion` and applied to the cached result before
+            the actual labeling
+        Returns:
+          CachingConversion: labeled conversion
+        """
+        if label_name in self.labels:
+            raise ConversionException("label_name is already used", label_name)
+        self.labels[label_name] = self.ensure_conversion(conversion)
+        return self
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        code = self.conversion.gen_code_and_update_ctx(code_input, ctx)
+        cache_lines = [f"globals().__setitem__('{self.name}', {code})"]
+        output_code = f"{self.name}"
+        with CodeGenerationCtx(CodeGenerationCtx.LABELING):
+            for label_name, label_conversion in self.labels.items():
+                conv_code = label_conversion.gen_code_and_update_ctx(
+                    output_code, ctx
+                )
+                cache_lines.append(
+                    f"globals().__setitem__('{label_name}', {conv_code})"
+                )
+
+        cache_lines_code = " or ".join(cache_lines)
+        return f"({cache_lines_code} or {output_code})"
+
+
 class EscapedString(BaseConversion):
     def __init__(self, s, **kwargs):
         super(EscapedString, self).__init__(kwargs)
@@ -638,6 +811,23 @@ class InputArg(BaseConversion):
         return hash(self.arg_name)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
+        return self.arg_name
+
+
+class LabelConversion(InputArg):
+    """Allows to reference a conversion result by label, after it was cached by
+    :py:obj:`CachingConversion`."""
+
+    def __init__(self, label_name, **kwargs):
+        """
+        Args:
+          label_name (string): label name to be referenced
+        """
+        super(LabelConversion, self).__init__(label_name, **kwargs)
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        if CodeGenerationCtx.flag(CodeGenerationCtx.LABELING):
+            return f"globals()['{self.arg_name}']"
         return self.arg_name
 
 
@@ -725,22 +915,17 @@ class If(BaseConversion):
         return False
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        _none = self._none
-
-        if self.no_input_caching or self.input_is_simple(code_input):
-            if_conv = if_true = if_false = EscapedString(code_input)
-
+        if self.input_is_simple(code_input) or self.no_input_caching:
+            if_conv = if_true = if_false = code_input
         else:
+            caching_conv = CachingConversion(GetItem())
+            if_conv = caching_conv.gen_code_and_update_ctx(code_input, ctx)
+            if_true = caching_conv.name
+            if_false = caching_conv.name
 
-            def value_cache(value_to_cache=_none):
-                if value_to_cache is _none:
-                    return value_cache.cached_value
-                value_cache.cached_value = value_to_cache
-                return value_to_cache
-
-            caching_conv = NaiveConversion(value_cache)
-            if_conv = caching_conv.call(EscapedString(code_input))
-            if_true = if_false = caching_conv.call()
+        if_conv = EscapedString(if_conv)
+        if_true = EscapedString(if_true)
+        if_false = EscapedString(if_false)
 
         if self.if_conv is not None:
             if_conv = if_conv.pipe(self.if_conv)
