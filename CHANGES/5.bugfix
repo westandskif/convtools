@@ -1,2 +1,0 @@
-Added ``__name__`` attribute to ctx. Now internal code from the generated converter is sending to Sentry (not only file name).
-Also the generated converter became a callable object, not a function.

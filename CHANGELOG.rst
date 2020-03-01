@@ -1,3 +1,36 @@
+0.3.0 (2020-03-01)
+------------------
+
+Features
+++++++++
+
+- Introduced `labeling`:
+
+    * ``c.item("companies").add_label("first_company", c.item(0))`` labels the first
+      company in the list as `first_company` and allows to use it as
+      ``c.label("first_company") further in next and even nested conversions
+  
+    * ``(...).pipe`` now receives 2 new arguments: 
+
+      * `label_input`, to put some labels on the pipe input data
+      * `label_output` to put labels on the output data.
+
+      Both can be either ``str`` (label name to put on) or ``dict`` (keys are label names
+      and values are conversions to apply to the data before labeling)
+  `#6 <https://github.com/itechart-almakov/convtools/issues/6>`_
+
+
+Bugfixes
+++++++++
+
+- Added ``__name__`` attribute to ctx. Now internal code from the generated converter is sending to Sentry (not only file name).
+  Also the generated converter became a callable object, not a function.
+  `#5 <https://github.com/itechart-almakov/convtools/issues/5>`_
+
+
+----
+
+
 0.2.3 (2020-02-27)
 ------------------
 

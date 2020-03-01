@@ -48,6 +48,8 @@ python expression level, but at the same time be able to run the
 ``gen_converter`` and get the compiled code which doesn't care about being DRY
 and is generated to be highly specialized for the specific need.
 
+Thanks to pipes & labels it's possible to define multiple pipelines of data
+processing, including branching and merging of them.
 
 Conversions are not limited to simple data transformations, there are
 ``GroupBy`` & ``Aggregate`` conversions with many useful reducers:
@@ -59,9 +61,11 @@ Conversions are not limited to simple data transformations, there are
 
 Every conversion:
  * contains the information of how to transform an input
- * can be piped into another conversion (same as wrapping)
+ * can be **piped** into another conversion (same as wrapping)
+ * can be labeled to be reused further in the conversions chain
  * has a method ``gen_converter`` returning a function compiled at runtime
  * despite being compiled at runtime, is debuggable with `pdb` due to `linecache` populating.
+
 
 Installation:
 =============
