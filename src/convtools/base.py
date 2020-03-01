@@ -1,4 +1,5 @@
 import dis
+import linecache
 import re
 import sys
 from collections import OrderedDict
@@ -34,35 +35,66 @@ __all__ = [
     "TupleComp",
 ]
 
+
+class _ConverterCallable:
+    def __init__(
+        self, converter, code_str, fake_filename, debug=False, _instance=None
+    ):
+        self.converter = converter
+        self._code_str = code_str
+        self._fake_filename = fake_filename
+        self._debug = debug
+        self._line_cache_populated = False
+        self._instance = _instance
+
+        if self._debug:
+            self.populate_line_cache()
+
+    def __get__(self, instance, cls):
+        return _ConverterCallable(
+            self.converter,
+            code_str=self._code_str,
+            fake_filename=self._fake_filename,
+            debug=self._debug,
+            _instance=instance or cls,
+        )
+
+    def __call__(self, *args, **kwargs):
+        try:
+            if self._instance:
+                args = (self._instance,) + args
+
+            return self.converter(*args, **kwargs)
+        except Exception:
+            self.populate_line_cache()
+            raise
+
+    def populate_line_cache(self):
+        if self._line_cache_populated:
+            return
+
+        linecache.cache[self._fake_filename] = (
+            len(self._code_str),
+            None,
+            self._code_str.splitlines(),
+            self._fake_filename,
+        )
+
+        self._line_cache_populated = True
+
+
 converter_template = """
 def {converter_name}({code_signature}):
-    try:
 {code}
-    except Exception:
-        import linecache
-        linecache.cache[{converter_name}._fake_filename] = (
-            len({converter_name}._code_str),
-            None,
-            {converter_name}._code_str.splitlines(),
-            {converter_name}._fake_filename,
-        )
-        raise
 """
+
+
 get_or_default_template = """
 def {converter_name}({code_args}):
     try:
         return {get_or_default_code}
     except (TypeError, KeyError, IndexError, AttributeError):
         return default_
-    except Exception:
-        import linecache
-        linecache.cache[{converter_name}._fake_filename] = (
-            len({converter_name}._code_str),
-            None,
-            {converter_name}._code_str.splitlines(),
-            {converter_name}._fake_filename,
-        )
-        raise
 """
 
 
@@ -221,7 +253,11 @@ class BaseConversion:
         return tuple(EscapedString(arg.arg_name) for arg in args)
 
     def _init_tmp_ctx(self, root_ctx):
-        return {"sys": sys, "__debug": root_ctx.get("__debug")}
+        return {
+            "sys": sys,
+            "__debug": root_ctx.get("__debug"),
+            "__name__": root_ctx.get("__name__", "_convtools"),
+        }
 
     def _code_to_converter(self, converter_name, code, ctx, fake_filename):
         if ctx.get("__debug", False):
@@ -241,9 +277,12 @@ class BaseConversion:
         code_obj = compile(code, fake_filename, "exec")
         exec(code_obj, ctx, ctx)
         converter = ctx[converter_name]
-        converter._code_str = code
-        converter._fake_filename = fake_filename
-        return converter
+        return _ConverterCallable(
+            converter,
+            code_str=code,
+            fake_filename=fake_filename,
+            debug=ctx.get("__debug", False),
+        )
 
     def gen_converter(
         self, method=False, class_method=False, signature=None, debug=None
@@ -264,7 +303,7 @@ class BaseConversion:
         """
         # signature should contain "data_" argument
         initial_code_input = "data_"
-        ctx = {"sys": sys, "__debug": debug}
+        ctx = {"sys": sys, "__debug": debug, "__name__": "_convtools"}
         if signature:
             missing_args = set(
                 _pattern_word.findall(self._get_args_def_code({}))
@@ -302,7 +341,7 @@ class BaseConversion:
         last_index = len(pipes) - 1
         code_input = initial_code_input
         code_lines = []
-        indent = " " * 4 * 2
+        indent = " " * 4
         for index, conv in enumerate(reversed(pipes)):
             _predefined_input = conv._predefined_input
             conv._predefined_input = None
@@ -641,8 +680,8 @@ class If(BaseConversion):
     Checks the code of the input, if it
     doesn't seem to be complex, then just proceeds with it as is.
     If it's not simple (some index/attribute lookups or function calls are
-    in there), then it caches the input for further reuse in if_true and if_false
-    clauses."""
+    in there), then it caches the input for further reuse in if_true and
+    if_false clauses."""
 
     def __init__(
         self,
@@ -1140,8 +1179,8 @@ class Dict(BaseCollectionConversion):
     def __init__(self, *key_value_pairs, **kwargs):
         """
         Args:
-          key_value_pairs (:obj:`list` of :obj:`tuple`): each tuple is a key-value
-            pair to form a dict from.
+          key_value_pairs (:obj:`list` of :obj:`tuple`): each tuple is a
+            key-value pair to form a dict from.
             Every key and value gets wrapped with ``ensure_conversion``
         """
         super(Dict, self).__init__(**kwargs)
