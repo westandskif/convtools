@@ -93,7 +93,7 @@ ________________________________________________________________________
           main_phone=c.attr("phones").item(0, default=None),
       ).gen_converter()
       converter(input_data)
-   
+
 2.1 Operators
 _____________
 
@@ -255,7 +255,7 @@ _______________________________________________________
               "amount_usd": Decimal("26.45"),
           },
       }
-      
+
    - .. code-block:: python
 
       converter = c.dict_comp(
@@ -273,7 +273,7 @@ _______________________________________________________
           }
       ).gen_converter()
       converter(input_data, dt=date.today())
-   
+
 4. Converting using hardcoded maps + filters
 ____________________________________________
 
@@ -316,7 +316,7 @@ ____________________________________________
               "quantity": 10
           },
       ]
-      
+
    - .. code-block:: python
 
       converter = c.generator_comp(
@@ -393,7 +393,7 @@ _____________________________________________________________
       # let's assume there is no group_by conversion
       # and there's no way to do the following in 1 step.
 
-      # get distinct apps 
+      # get distinct apps
       # WHERE "dt" >= "2019-10-02"
 
       {
@@ -401,7 +401,7 @@ _____________________________________________________________
           "timestamp": 123123123,
           "error": "",
       }
-      
+
    - .. code-block:: python
 
       filter_by_dt = c.generator_comp(
@@ -461,7 +461,7 @@ ___________________
           ("2019-01-01", 25),
           ("2019-01-02", 10),
       ]
-      
+
    - .. code-block:: python
 
       converter = c.group_by(
@@ -490,7 +490,7 @@ ___________________
       # aggregate, take sum and max amounts
 
       (35, 15)
-      
+
    - .. code-block:: python
 
       converter = c.aggregate(
@@ -573,7 +573,7 @@ ___________________________________________
 
       {"TARDYGRAM": 100,
        "FACEBROCHURE": 300}
-      
+
    - .. code-block:: python
 
       converter = c.group_by(
@@ -597,7 +597,7 @@ ___________________________________________
       ).gen_converter()
       converter(input_data, currency_to="USD")
 
- * -  
+ * -
 
    - .. code-block:: python
 
@@ -710,7 +710,7 @@ _______________________________
               "stream_consumer": StreamConsumer(...),
           },
       ]
-      
+
    - .. code-block:: python
 
       converter = c.group_by(
@@ -807,7 +807,7 @@ ________________________________________________________________________________
           # )
           # ==== SAME ===
 
-10. Passing options to converters
+11. Passing options to converters
 _________________________________
 
 .. list-table::
