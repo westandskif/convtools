@@ -30,6 +30,23 @@ c.BaseConversion
   At first use ``.gen_converter(debug=True)`` everywhere to see the
   generated code
 
+
+.. _ref_optionsctx:
+
+c.OptionsCtx
+============
+
+ .. autoattribute:: convtools.conversion.OptionsCtx
+
+ .. autoclass:: convtools.base.ConverterOptionsCtx()
+    :noindex:
+
+ .. autoclass:: convtools.base.ConverterOptions()
+    :noindex:
+
+
+
+
 .. _ref_c_this:
 
 c.this
@@ -77,7 +94,7 @@ c.input_arg
   )
   # is compiled to
   def converter37_306(x, data_):
-      return (data_ and vint61_679(x)) or None
+      return (data_ and int(x)) or None
 
 .. _ref_c_naive:
 
@@ -182,7 +199,7 @@ c() wrapper
  # is compiled to
  def converter100_386(data_):
      return "{}_{}".format(
-         getattr(vtype127_859(data_["value"]), "__name__"), data_["value"]
+         getattr(type(data_["value"]), "__name__"), data_["value"]
      )
  converter(123) == "int_123"
 
@@ -347,6 +364,8 @@ Wraps conversions with logical / math / comparison operators
  c.or_(*conversions)
  c.and_(*conversions)
 
+ c.this()[conv1:conv2:conv3]       # slices
+
  c.this().or_(*conversions)        # OR c.this() | ...
  c.this().and_(*conversions)       # OR c.this() & ...
  c.this().not_()                   # OR ~c.this()
@@ -437,7 +456,7 @@ Converts an input into a collection, same is achievable by using
          "val_baked_into_conversion",
          data[2],
          data[1],
-         (data[0], data[1],),
+         (data[0], data[1]),
          kwarg1,
      ]
 
@@ -460,10 +479,16 @@ Comprehensions
 ==============
 
 .. autoclass:: convtools.base.BaseComprehensionConversion()
+   :noindex:
 
-  .. automethod:: convtools.base.BaseComprehensionConversion.__init__
-  .. automethod:: convtools.base.BaseComprehensionConversion.filter
-  .. automethod:: convtools.base.BaseComprehensionConversion.sort
+   .. automethod:: convtools.base.BaseComprehensionConversion.__init__
+      :noindex:
+
+   .. automethod:: convtools.base.BaseComprehensionConversion.filter
+      :noindex:
+
+   .. automethod:: convtools.base.BaseComprehensionConversion.sort
+      :noindex:
 
 
 .. autoattribute:: convtools.conversion.list_comp
@@ -514,7 +539,7 @@ Comprehensions
  # equivalent to
  return sorted(
      [
-         (i210_700["id"], i210_700["name"],)
+         (i210_700["id"], i210_700["name"])
          for i210_700 in data
          if (i210_700["age"] >= 18)
      ],
@@ -635,7 +660,7 @@ nested approach:
  def converter282_272(data_, *, model_cls, updated):
      pipe282_978 = (
          globals().__setitem__(
-             "cached_val_272", (data_["data"]["users"], data_["timestamp"],)
+             "cached_val_272", (data_["data"]["users"], data_["timestamp"])
          )
          or globals().__setitem__("timestamp", cached_val_272[1])
          or cached_val_272
@@ -983,7 +1008,7 @@ _______________________________________________
              signature_to_agg_data = defaultdict(AggData)
              for row in data:
                  agg_data = signature_to_agg_data[
-                     (row["company"], row["department"],)
+                     (row["company"], row["department"])
                  ]
 
                  if agg_data.v0 is _none:
@@ -1039,7 +1064,7 @@ _______________________________________________
                          None if agg_data.v4 is _none else agg_data.v4[1]
                      )["employee"],
                      "employee_to_sales": (
-                         None if agg_data.v5 is _none else vdict19_752(agg_data.v5)
+                         None if agg_data.v5 is _none else dict(agg_data.v5)
                      ),
                      "postprocessed_dict_reduce": (
                          (
@@ -1048,9 +1073,9 @@ _______________________________________________
                              )
                          )
                          for i277_787 in (
-                             vdict19_548()
+                             dict()
                              if agg_data.v6 is _none
-                             else vdict19_39(agg_data.v6)
+                             else dict(agg_data.v6)
                          ).items()
                      ),
                  }

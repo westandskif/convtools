@@ -25,25 +25,7 @@ Hereinafter the docs the following terms are used:
 
  * **converter** - a function obtained by calling :ref:`gen_converter<ref_c_gen_converter>` method of `conversion`
 
-   .. note::
-     every converter has a ``try/except`` clause, which on exception populates python ``linecache``
-     with converter source code to allow for ``pdb`` debugging and is used for normal stacktraces
-
  * **input** - the input data to be transformed
-
-   .. note::
-     There are few conversions which change the input for next conversions:
-       * :ref:`Comprehensions<ref_comprehensions>`
-           *inside a comprehension the input is an item of an iterable*
-       * :ref:`Pipes<ref_pipes>`
-           *next conversion gets the result of a previous one*
-       * :ref:`Filters<ref_c_filter>`
-           *next conversion gets the result of a previous one*
-       * :ref:`Aggregations<ref_c_aggregations>`
-           *e.g. any further conversions done either to group by fields or
-           to reduce objects take the result of aggregation as the input*
-
-     No worries, we'll cover these below.
 
 2. Intro
 ________
@@ -58,7 +40,35 @@ Let's review the most basic conversions:
  * makes any number of dictionary/index lookups, supports ``default``: :ref:`c.item<ref_c_item>`
  * makes any number of attribute lookups, supports ``default``: :ref:`c.attr<ref_c_attr>`
 
-Example:
+**Example #1:**
+
+.. code-block:: python
+
+   converter = c({
+       "full_name": c.item("data", "fullName"),
+       "age": c.item("data", "age", default=None),
+   }).gen_converter(debug=True)
+
+   assert converter(
+       {"data": {"fullName": "John Wick", "age": 18}}
+   ) == {"full_name": "John Wick", "age": 18}
+
+   # compiles into
+
+   def get_or_default31_79(obj_, default_):
+       try:
+           return obj_["data"]["age"]
+       except (TypeError, KeyError, IndexError, AttributeError):
+           return default_
+
+
+   def converter35_647(data_):
+       return {
+           "full_name": data_["data"]["fullName"],
+           "age": get_or_default31_7938_271(data_, None),
+       }
+
+**Example #2 - just to demonstrate every concept mentioned above:**
 
 .. code-block:: python
 
@@ -81,7 +91,7 @@ Example:
            "by_attrs": data_.keys,
        }
 
-Advanced example (keys/indexes/attrs can be conversions themselves):
+**Example #3 (advanced) - keys/indexes/attrs can be conversions themselves:**
 
 .. code-block:: python
 
@@ -301,6 +311,40 @@ Next:
            reverse=True,
        )
 
+**Example of custom nested comprehension:**
+
+.. code-block::
+
+   conv = c.inline_expr(
+       "[(left_item, right_item)"
+       " for left_item, right_items in {}"
+       " for right_item in right_items]"
+   ).pass_args(c.this()).gen_converter(debug=True)
+   assert conv([[1, [2,3]], [10, [4,5]]]) == [(1, 2), (1, 3), (10, 4), (10, 5)]
+
+**This may be useful in cases where you work with dicts, where values are lists:**
+
+.. code-block::
+
+   conv = c.this().call_method("items").pipe(
+       c.inline_expr(
+           "(key, item)"
+           " for key, items in {}"
+           " for item in items"
+           " if key"
+       ).pass_args(c.this())
+   ).gen_converter(debug=True)
+   # # of course we could continue doing something interesting here
+   # .pipe(
+   #     # c.group_by(...).aggregate(...)
+   # )
+
+   # COMPILES INTO
+
+    def converter80_647(data_):
+        pipe80_338 = data_.items()
+        return ((key, item) for key, items in pipe80_338 for item in items if key)
+
 6. Filters, pipes, labels and conditions
 ________________________________________
 
@@ -338,9 +382,8 @@ A simple pipe first:
    ).gen_converter(debug=True)
 
    # GENERATES:
-
-   def converter170_394(data_):
-       return vsum169_470(((i167_606 * 2) for i167_606 in data_))
+   def converter35_941(data_):
+       return sum(((i32_722 * 2) for i32_722 in data_))
 
 ____
 
@@ -369,23 +412,23 @@ A bit more complex ones:
    }
 
    # UNDER THE HOOD GENERATES:
-   def converter149_394(data_):
+   def converter72_941(data_):
        return {
-           i149_606["name"]: [
+           i72_722["name"]: [
                {
-                   "id": vstr131_647(i148_930[0]),
+                   "id": str(i71_913[0]),
                    "amount": (
-                       vDecimal137_680(cached_val_152)
+                       Decimal60_929(cached_val_75)
                        if (
-                           globals().__setitem__("cached_val_152", i148_930[1])
-                           or cached_val_152
+                           globals().__setitem__("cached_val_75", i71_913[1])
+                           or globals()["cached_val_75"]
                        )
                        else None
                    ),
                }
-               for i148_930 in i149_606["transactions"]
+               for i71_913 in i72_722["transactions"]
            ]
-           for i149_606 in data_
+           for i72_722 in data_
        }
 
 ____
@@ -430,41 +473,44 @@ Generates:
 
 .. code-block:: python
 
-   def converter256_199(data_):
-      pipe256_222 = (
-          globals().__setitem__(
-              "cached_val_225",
-              (
-                  globals().__setitem__("cached_val_208", data_)
-                  or globals().__setitem__("input", cached_val_208)
-                  or cached_val_208
-              ),
-          )
-          or globals().__setitem__("input_type", vtype222_769(cached_val_225))
-          or cached_val_225
-      )
-      input_type = globals()["input_type"]
-      pipe256_204 = (
-          i241_740 for i241_740 in pipe256_222 if ((i241_740 % 3) == 0)
-      )
-      pipe256_238 = (
-          globals().__setitem__(
-              "cached_val_243",
-              [vstr228_605(i242_730) for i242_730 in pipe256_204],
-          )
-          or globals().__setitem__("list_length", vlen232_505(cached_val_243))
-          or globals().__setitem__(
-              "separator", ("," if (globals()["list_length"] > 10) else ";")
-          )
-          or cached_val_243
-      )
-      list_length = globals()["list_length"]
-      separator = globals()["separator"]
-      return {
-          "result": separator.join(pipe256_238),
-          "input_type": input_type,
-          "input_data": input,
-      }
+   def converter137_941(data_):
+       pipe137_725 = (
+           globals().__setitem__(
+               "cached_val_106",
+               (
+                   globals().__setitem__("cached_val_89", data_)
+                   or globals().__setitem__("input", globals()["cached_val_89"])
+                   or globals()["cached_val_89"]
+               ),
+           )
+           or globals().__setitem__(
+               "input_type", type(globals()["cached_val_106"])
+           )
+           or globals()["cached_val_106"]
+       )
+       input_type = globals()["input_type"]
+       pipe137_489 = (
+           i122_258 for i122_258 in pipe137_725 if ((i122_258 % 3) == 0)
+       )
+       pipe137_362 = (
+           globals().__setitem__(
+               "cached_val_124", [str(i123_386) for i123_386 in pipe137_489]
+           )
+           or globals().__setitem__(
+               "list_length", len(globals()["cached_val_124"])
+           )
+           or globals().__setitem__(
+               "separator", ("," if (globals()["list_length"] > 10) else ";")
+           )
+           or globals()["cached_val_124"]
+       )
+       list_length = globals()["list_length"]
+       separator = globals()["separator"]
+       return {
+           "result": separator.join(pipe137_362),
+           "input_type": input_type,
+           "input_data": input,
+       }
 
 
 7. Aggregations
@@ -661,12 +707,12 @@ reduce functions:
                   None
                   if agg_data.v3 is _none
                   else {
-                      i31_99[0]: vlist29_223(i31_99[1].keys())
+                      i31_99[0]: list(i31_99[1].keys())
                       for i31_99 in agg_data.v3.items()
                   }
               ),
               "app_name_to_sales": (
-                  None if agg_data.v4 is _none else vdict34_186(agg_data.v4)
+                  None if agg_data.v4 is _none else dict(agg_data.v4)
               ),
           }
           for signature, agg_data in signature_to_agg_data.items()
@@ -677,3 +723,39 @@ reduce functions:
 
   def converter539_13(data_):
       return vgroup_by652_349(data_)
+
+
+8. Debugging & setting Options
+______________________________
+
+Compiled converters are debuggable callables, which populate linecache with
+generated code either on exception inside a converter OR on setting
+``debug=True``.  There are 2 ways of doing this:
+
+.. code-block:: python
+
+   # No. 1:
+   c.this().gen_converter(debug=True)
+
+   # No. 2:
+   with c.OptionsCtx() as options:
+       options.debug = True
+       c.this().gen_converter()
+
+See :ref:`c.OptionsCtx()<ref_optionsctx>` API docs for the full list
+of available options.
+
+
+9. Details: inner input data passing
+____________________________________
+
+There are few conversions which change the input for next conversions:
+  * :ref:`Comprehensions<ref_comprehensions>`
+      *inside a comprehension the input is an item of an iterable*
+  * :ref:`Pipes<ref_pipes>`
+      *next conversion gets the result of a previous one*
+  * :ref:`Filters<ref_c_filter>`
+      *next conversion gets the result of a previous one*
+  * :ref:`Aggregations<ref_c_aggregations>`
+      *e.g. any further conversions done either to group by fields or
+      to reduce objects take the result of aggregation as the input*

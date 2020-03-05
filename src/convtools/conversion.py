@@ -1,5 +1,35 @@
-from .aggregations import *
-from .base import *
+from .aggregations import Aggregate, GroupBy, Reduce, ReduceFuncs
+from .base import (
+    And,
+    BaseCollectionConversion,
+    BaseConversion,
+    CachingConversion,
+    Call,
+    CallFunc,
+    ConversionException,
+    ConverterOptionsCtx,
+    Dict,
+    DictComp,
+    EscapedString,
+    Filter,
+    GeneratorComp,
+    GetAttr,
+    GetItem,
+    If,
+    InlineExpr,
+    InputArg,
+    LabelConversion,
+    List,
+    ListComp,
+    NaiveConversion,
+    Not,
+    Or,
+    Set,
+    SetComp,
+    Tuple,
+    TupleComp,
+    ensure_conversion,
+)
 
 
 __all__ = ["conversion"]
@@ -8,6 +38,7 @@ __all__ = ["conversion"]
 class _Conversion:
     ConversionException = ConversionException
     BaseConversion = BaseConversion
+    OptionsCtx = ConverterOptionsCtx
 
     ReduceFuncs = ReduceFuncs
     and_ = And

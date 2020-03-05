@@ -2,6 +2,9 @@
 docs:
 	python setup.py build_sphinx
 
+docs_from_scratch:
+	python setup.py build_sphinx -E
+
 build:
 	rm -rf dist/*
 	python setup.py sdist

@@ -1,9 +1,19 @@
 from collections import defaultdict
 
-from .base import *
-
-
-__all__ = ["GroupBy", "Aggregate", "Reduce", "ReduceFuncs"]
+from .base import (
+    BaseCollectionConversion,
+    BaseConversion,
+    CallFunc,
+    ConversionException,
+    Dict,
+    EscapedString,
+    GetItem,
+    InlineExpr,
+    List,
+    NaiveConversion,
+    Set,
+    Tuple,
+)
 
 
 def call_with_params(callable_or_inline_expr, *args, **kwargs):
@@ -312,7 +322,7 @@ _MaxRow = _ReducerStatements(
         "if {1} is not None and {0}[0] < {1}:",
         "    %(result)s = ({1}, {2})",
     ],
-    initial_from_first=["if {0} is not None:", "    %(result)s = ({0}, {1})",],
+    initial_from_first=["if {0} is not None:", "    %(result)s = ({0}, {1})"],
     additional_args=(GetItem(),),
     post_conversion=GetItem(1),
     default=None,
@@ -322,7 +332,7 @@ _MinRow = _ReducerStatements(
         "if {1} is not None and {0}[0] > {1}:",
         "    %(result)s = ({1}, {2})",
     ],
-    initial_from_first=["if {0} is not None:", "    %(result)s = ({0}, {1})",],
+    initial_from_first=["if {0} is not None:", "    %(result)s = ({0}, {1})"],
     additional_args=(GetItem(),),
     post_conversion=GetItem(1),
     default=None,
@@ -431,12 +441,12 @@ _DictCountDistinct = _DictReducerStatements(
     default=None,
 )
 _DictFirst = _DictReducerStatements(
-    reduce=["if {1} not in {0}:", "    %(result)s[{1}] = {2}",],
+    reduce=["if {1} not in {0}:", "    %(result)s[{1}] = {2}"],
     initial_from_first=["%(result)s = {{ {0}: {1} }}"],
     default=None,
 )
 _DictLast = _DictReducerStatements(
-    reduce=["%(result)s[{1}] = {2}",],
+    reduce=["%(result)s[{1}] = {2}"],
     initial_from_first=["%(result)s = {{ {0}: {1} }}"],
     default=None,
 )
@@ -856,12 +866,11 @@ class GroupBy(BaseConversion):
 
         if self.aggregate_mode:
             return EscapedString(f"{code_reducer_result}")
-        else:
-            return EscapedString(
-                f"[{code_reducer_result} "
-                f"for {var_signature}, {var_agg_data} "
-                f"in {var_signature_to_agg_data}.items()]"
-            )
+        return EscapedString(
+            f"[{code_reducer_result} "
+            f"for {var_signature}, {var_agg_data} "
+            f"in {var_signature_to_agg_data}.items()]"
+        )
 
     def _gen_agg_data_container(
         self, number_of_reducers, initial_val=BaseConversion._none
@@ -875,7 +884,7 @@ class GroupBy(BaseConversion):
 
         agg_data_container_code = (
             "class AggData:\n    __slots__ = [{}]\n    def __init__(self):\n{}"
-        ).format(", ".join(attrs), "\n".join(init_lines),)
+        ).format(", ".join(attrs), "\n".join(init_lines))
         ctx = {"_none": initial_val, "__name__": "_convtools_agg"}
         exec(agg_data_container_code, ctx, ctx)
         return ctx["AggData"]
@@ -885,7 +894,6 @@ class GroupBy(BaseConversion):
         var_signature = "signature_"
         var_signature_to_agg_data = "signature_to_agg_data_"
         var_agg_data = "agg_data_"
-        var_none = "_none"
 
         signature_code_items = [
             _by.gen_code_and_update_ctx(var_row, ctx) for _by in self.by
