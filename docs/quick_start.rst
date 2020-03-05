@@ -27,7 +27,7 @@ Hereinafter the docs the following terms are used:
 
  * **input** - the input data to be transformed
 
-2. Intro
+3. Intro
 ________
 
 Please make sure you've read - :ref:`base info here<ref_index_intro>`.
@@ -108,7 +108,7 @@ with manipulating converter signatures, passing functions / objects to conversio
 sharing conversion parts (honoring DRY principle).
 
 
-3. Creating collections - c() wrapper, overloaded operators and debugging
+4. Creating collections - c() wrapper, overloaded operators and debugging
 _________________________________________________________________________
 
 Next points to learn:
@@ -153,7 +153,7 @@ For example, to convert a tuple to a dict:
        }
 
 
-4. Passing/calling functions & objects into conversions; defining converter signature
+5. Passing/calling functions & objects into conversions; defining converter signature
 _____________________________________________________________________________________
 
 Next:
@@ -252,7 +252,7 @@ from a tuple:**
        }
 
 
-5. List/dict/set/tuple comprehensions & inline expressions
+6. List/dict/set/tuple comprehensions & inline expressions
 __________________________________________________________
 
 Next:
@@ -345,7 +345,7 @@ Next:
         pipe80_338 = data_.items()
         return ((key, item) for key, items in pipe80_338 for item in items if key)
 
-6. Filters, pipes, labels and conditions
+7. Filters, pipes, labels and conditions
 ________________________________________
 
 Points to learn:
@@ -513,7 +513,7 @@ Generates:
        }
 
 
-7. Aggregations
+8. Aggregations
 _______________
 
 Points to learn:
@@ -725,7 +725,7 @@ reduce functions:
       return vgroup_by652_349(data_)
 
 
-8. Debugging & setting Options
+9. Debugging & setting Options
 ______________________________
 
 Compiled converters are debuggable callables, which populate linecache with
@@ -746,7 +746,7 @@ See :ref:`c.OptionsCtx()<ref_optionsctx>` API docs for the full list
 of available options.
 
 
-9. Details: inner input data passing
+10. Details: inner input data passing
 ____________________________________
 
 There are few conversions which change the input for next conversions:

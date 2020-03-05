@@ -1,3 +1,15 @@
+0.3.2 (2020-03-05)
+------------------
+
+Improved Documentation
+++++++++++++++++++++++
+
+- * updated docs (fixed numbers) and updated pypi docs
+
+
+----
+
+
 0.3.1 (2020-03-05)
 ------------------
 
