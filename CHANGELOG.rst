@@ -1,3 +1,18 @@
+0.3.1 (2020-03-05)
+------------------
+
+Features
+++++++++
+
+- * introduced c.OptionsCtx
+  * improved tests - memory leaks
+  * improved docs - added the index page example; added an example to QuickStart
+  `#7 <https://github.com/itechart-almakov/convtools/issues/7>`_
+
+
+----
+
+
 0.3.0 (2020-03-01)
 ------------------
 
