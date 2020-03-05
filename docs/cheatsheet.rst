@@ -435,7 +435,7 @@ _____________________________________________________________
 
 
 6. Group by: simple
-_____________________________
+___________________
 
 .. list-table::
  :class: cheatsheet-table
@@ -790,19 +790,48 @@ ________________________________________________________________________________
           sum_and_multiply_1 = (
               c.call_func(sum, c.this())
               * c.input_arg("self").attr("multiplier")
-          ).gen_converter(signature="self, *data_")
+          ).gen_converter(signature="self, \*data_")
 
           sum_and_multiply_2 = classmethod(
               (
                   c.call_func(sum, c.this())
                   * c.input_arg("multiplier")
-              ).gen_converter(signature="cls, *data_, multiplier=1")
+              ).gen_converter(signature="cls, \*data_, multiplier=1")
           )
           # ==== SAME ===
           # sum_and_multiply_2 = classmethod(
           #     (
           #         c.call_func(sum, c.this())
           #         * c.input_arg("kwargs").call_method("get", "multiplier", 1)
-          #     ).gen_converter(signature="cls, *data_, **kwargs")
+          #     ).gen_converter(signature="cls, \*data_, \*\*kwargs")
           # )
           # ==== SAME ===
+
+10. Passing options to converters
+_________________________________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 25 40
+ :header-rows: 1
+
+ * - in
+   - out
+   - conversion
+ * - .. code-block:: python
+
+      ...
+
+   - .. code-block:: python
+
+      # enable debug, 2 ways
+
+   - .. code-block:: python
+
+      # No. 1
+      c.this().gen_converter(debug=True)
+
+      # No. 2
+      with c.OptionsCtx() as options:
+          options.debug = True
+          c.this().gen_converter()

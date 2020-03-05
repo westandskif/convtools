@@ -8,6 +8,7 @@ GroupBy
 ModelCls
 NumPy
 Numpy
+OptionsCtx
 Parametrized
 QuickStart
 ReduceFuncs
@@ -22,6 +23,7 @@ arg
 args
 attr
 attrs
+callables
 cls
 conv
 convtools
@@ -32,6 +34,7 @@ dt
 el
 elif
 expr
+finditer
 func
 funcs
 getter
@@ -47,6 +50,7 @@ kwargs
 len
 noindex
 objs
+optionsctx
 param
 params
 pdb
@@ -55,18 +59,14 @@ reStructuredText
 str
 strptime
 toctree
+txt
 uid
 undoc
 usd
+utils
 vDecimal
-vdict
+vectorized
 vgroup
-vint
 vlambda
-vlen
-vlist
-vstr
 vstrptime
-vsum
-vtype
 vvalue

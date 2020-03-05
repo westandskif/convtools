@@ -1,12 +1,36 @@
+import sys
 from collections import namedtuple
 from datetime import date, datetime
 from decimal import Decimal
+from functools import wraps
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
 from convtools import conversion as c
-from convtools.base import CachingConversion
+from convtools.base import (
+    CachingConversion,
+    CodeGenerationOptionsCtx,
+    _ConverterCallable,
+)
+
+from .utils import total_size
+
+
+class MemoryProfilingConverterCallable(_ConverterCallable):
+    def __call__(self, *args, **kwargs):
+        size_before = total_size(self.__dict__)
+        result = super(MemoryProfilingConverterCallable, self).__call__(
+            *args, **kwargs
+        )
+        size_after = total_size(self.__dict__)
+        assert size_after <= size_before
+        return result
+
+
+CodeGenerationOptionsCtx.options_cls.converter_callable_cls = (
+    MemoryProfilingConverterCallable
+)
 
 
 def test_docs():
@@ -86,13 +110,19 @@ def test_gen_converter():
         c.call_func(sum, c.this()).gen_converter(signature="*data_")(1, 2, 3)
         == 6
     )
+    assert (
+        c.call_func(
+            lambda i: globals().__setitem__("A", 1) or sum(i), c.this()
+        ).gen_converter(signature="*data_")(1, 2, 3)
+        == 6
+    )
     assert c(
         {
             c.naive("-").call_method(
                 "join", c.this().call_method("keys")
             ): c.call_func(sum, c.this().call_method("values"))
         }
-    ).gen_converter(signature="**data_")(a=1, b=2, c=3,) == {"a-b-c": 6}
+    ).gen_converter(signature="**data_")(a=1, b=2, c=3) == {"a-b-c": 6}
     with pytest.raises(c.ConversionException):
         c.call_func(sum, c.input_arg("x")).gen_converter(signature="*data_")(
             1, 2, 3
@@ -261,7 +291,9 @@ def test_or_and_not():
 
 
 def test_debug_true():
-    assert c.this().gen_converter(debug=True)(1) == 1
+    with c.OptionsCtx() as options:
+        options.debug = True
+        assert c.this().gen_converter(debug=True)(1) == 1
 
     with pytest.raises(TypeError):
         assert c.item(0).gen_converter(debug=True)(1) == 1
@@ -331,7 +363,7 @@ def test_callfunc():
 def test_list():
     assert c.list(c.item(1), c.item(0), 3).gen_converter()([2, 1]) == [1, 2, 3]
     assert c([[c.item(1), c.item(0), 3]]).gen_converter()([2, 1]) == [
-        [1, 2, 3,]
+        [1, 2, 3]
     ]
 
 
@@ -342,7 +374,7 @@ def test_tuple():
         3,
     )
     assert c.tuple((c.item(1), c.item(0), 3)).gen_converter()([2, 1]) == (
-        (1, 2, 3,),
+        (1, 2, 3),
     )
 
 
@@ -357,7 +389,7 @@ def test_set():
 
 
 def test_dict():
-    assert c.dict((1, c.escaped_string("1+1")), (2, 3),).gen_converter()(
+    assert c.dict((1, c.escaped_string("1+1")), (2, 3)).gen_converter()(
         100
     ) == {1: 2, 2: 3,}
     assert c({1: c.escaped_string("1+1"), 2: 3}).gen_converter()(100) == {
@@ -371,7 +403,7 @@ def test_list_comprehension():
     data = [{"name": "John"}, {"name": "Bill"}, {"name": "Nick"}]
     assert c.list_comp(c.item("name")).sort(key=lambda n: n).gen_converter()(
         data
-    ) == ["Bill", "John", "Nick",]
+    ) == ["Bill", "John", "Nick"]
     assert c.list_comp(c.item("name")).sort().gen_converter()(data) == [
         "Bill",
         "John",
@@ -397,7 +429,7 @@ def test_tuple_comprehension():
     data = [{"name": "John"}, {"name": "Bill"}, {"name": "Nick"}]
     assert c.tuple_comp(c.item("name")).sort(key=lambda n: n).gen_converter()(
         data
-    ) == ("Bill", "John", "Nick",)
+    ) == ("Bill", "John", "Nick")
     assert c.tuple_comp(c.item("name")).sort().gen_converter()(data) == (
         "Bill",
         "John",
@@ -460,18 +492,24 @@ def test_pipes():
         24,
         24,
     ]
-    assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d",).pipe(
+    assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d").pipe(
         c.call_func(lambda dt: dt.date(), c.this())
-    ).execute(["2019-01-01",], debug=False) == date(2019, 1, 1)
+    ).execute(["2019-01-01"], debug=False) == date(2019, 1, 1)
 
-    assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d",).pipe(
+    assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d").pipe(
         c.this().call_method("date")
-    ).execute(["2019-01-01",], debug=False) == date(2019, 1, 1)
+    ).execute(["2019-01-01"], debug=False) == date(2019, 1, 1)
 
-    with pytest.raises(c.ConversionException):
-        conv = c.this()
-        for i in range(1001):
-            conv = c.this().pipe(conv)
+    with c.OptionsCtx() as options:
+        max_pipe_length = options.max_pipe_length = 10
+        with pytest.raises(c.ConversionException):
+            conv = c.this()
+            for i in range(max_pipe_length + 1):
+                conv = c.this().pipe(conv)
+
+        with c.OptionsCtx() as options2, pytest.raises(c.ConversionException):
+            options2.max_pipe_length = 5
+            conv.clone()
 
     conv = c.dict_comp(
         c.item("name"),
@@ -492,6 +530,26 @@ def test_pipes():
             {"id": "1", "amount": Decimal("10")},
         ]
     }
+
+    with c.OptionsCtx() as options:
+        max_pipe_length = options.max_pipe_length = 10
+        conv1 = c.item(0).pipe(c.item(1).pipe(c.item(2)))
+
+        def measure_pipe_length(conv):
+            length = 0
+            for i in range(max_pipe_length):
+                if conv._predefined_input is not None:
+                    length += 1
+                    conv = conv._predefined_input
+                else:
+                    break
+            return length
+
+        pipe_length_before = measure_pipe_length(conv1)
+        for i in range(max_pipe_length + 20):
+            c.generator_comp(c.this().pipe(conv1))
+        pipe_length_after = measure_pipe_length(conv1)
+        assert pipe_length_after == pipe_length_before
 
 
 def test_filter():
@@ -595,10 +653,10 @@ def test_grouping():
                     ),
                     -1,
                 ),
-                c.reduce(c.ReduceFuncs.MaxRow, c.item("debit"),).item(
+                c.reduce(c.ReduceFuncs.MaxRow, c.item("debit")).item(
                     "balance"
                 ),
-                c.reduce(c.ReduceFuncs.MinRow, c.item("debit"),).item(
+                c.reduce(c.ReduceFuncs.MinRow, c.item("debit")).item(
                     "balance"
                 ),
             )
@@ -908,7 +966,7 @@ def test_reducers():
     for config in reducers_in_out:
         converter = (
             c.group_by(config["groupby"])
-            .aggregate((config["groupby"], config["reduce"],))
+            .aggregate((config["groupby"], config["reduce"]))
             .gen_converter(debug=config.get("debug", False))
         )
 
@@ -980,7 +1038,7 @@ def test_base_reducer():
 
     with pytest.raises(AssertionError):
         c.aggregate(
-            (c.reduce(c.ReduceFuncs.Sum, c.reduce(c.ReduceFuncs.Count),),)
+            (c.reduce(c.ReduceFuncs.Sum, c.reduce(c.ReduceFuncs.Count)),)
         ).gen_converter()
 
     conv = c.aggregate(
@@ -1102,7 +1160,7 @@ def test_caching_conversion():
 
     conv = (
         c.call_func(f, c.this())
-        .pipe(c.if_(c.this(), c.this() + 1, c.this() + 2,))
+        .pipe(c.if_(c.this(), c.this() + 1, c.this() + 2))
         .gen_converter()
     )
     assert conv(0) == 2
@@ -1116,3 +1174,45 @@ def test_caching_conversion():
         c.call_func(f, c.this()).pipe(
             c.if_(c.this(), c.this() + 1, c.this() + 2, no_input_caching=True)
         ).execute(0)
+
+
+def test_memory_freeing():
+    converter = (
+        c.this()
+        .pipe(
+            c.list_comp(c.this() + c.label("input_data").item(0)),
+            label_input=dict(input_data=c.this()),
+        )
+        .gen_converter(debug=True)
+    )
+
+    sizes = []
+    sizes.append(total_size(converter.__dict__))
+
+    for i in range(100):
+        l_input = [i + j for j in range(3)]
+        l_out = [j + l_input[0] for j in l_input]
+        assert converter(l_input) == l_out
+        sizes.append(total_size(converter.__dict__))
+    assert all(sizes[0] == size for size in sizes[1:]), sizes
+
+    conv2 = (
+        c.inline_expr("globals().__setitem__('a', {}) or 1")
+        .pass_args(c.this())
+        .gen_converter()
+    )
+    with pytest.raises(AssertionError):
+        # should raise because of a memory leak
+        conv2(123)
+
+
+def test_slices():
+    assert c.this()[
+        c.item(0) : c.input_arg("slice_to") : c.item(1)
+    ].gen_converter(debug=True)(
+        [2, 2, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], slice_to=8
+    ) == [
+        1,
+        3,
+        5,
+    ]

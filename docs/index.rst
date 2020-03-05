@@ -14,13 +14,14 @@ loops, ifs, etc.
 
 .. note::
 
-  So you can follow the DRY principle by storing and reusing the code on the 
+  So you can follow the DRY principle by storing and reusing the code on the
   python expression level, but at the same time be able to run the
   ``gen_converter`` and get the compiled code which doesn't care about being DRY
   and is generated to be highly specialized for the specific need.
 
 Thanks to pipes & labels it's possible to define multiple pipelines of data
 processing, including branching and merging of them.
+
 
 Conversions are not limited to simple data transformations, there are
 ``GroupBy`` & ``Aggregate`` conversions with many useful reducers:
@@ -29,6 +30,7 @@ Conversions are not limited to simple data transformations, there are
  * and less widely supported `First`/`Last`, `Array`/`ArrayDistinct`
  * to `DictSum`-like ones (for nested aggregation) and `MaxRow`/`MinRow`
    (for finding an object with max/min value and further processing)
+
 
 Every conversion:
  * contains the information of how to transform an input
@@ -44,6 +46,112 @@ Installation:
 .. code-block:: bash
 
    pip install convtools
+
+
+An example:
+===========
+
+.. code-block:: python
+
+   import re
+   from itertools import chain
+
+   # the suggested way of importing convtolls
+   from convtools import conversion as c
+
+   # Let's say we need to count words across all description strings
+   input_data = [
+       "war-and-peace-1.txt",
+       "war-and-peace-2.txt",
+       "war-and-peace-3.txt",
+       "war-and-peace-4.txt",
+   ]
+   def read_file(filename):
+       with open(filename) as f:
+           for line in f:
+               yield line
+
+   # iterate an input and take all descriptions by key
+   extract_strings = c.generator_comp(
+       c.call_func(read_file, c.this())
+   )
+
+
+   # 1. make ``re`` pattern available to the code to be generated
+   # 2. call ``finditer`` method of the pattern and pass the string
+   #    as an argument
+   # 3. pass the result to the next conversion
+   # 4. iterate results, call ``.group()`` method of each re.Match
+   #    and call ``.lower()`` on each result
+   split_words = (
+       c.naive(re.compile(r'\w+')).call_method("finditer", c.this())
+       .pipe(
+           c.generator_comp(
+               c.this().call_method("group").call_method("lower")
+           )
+       )
+   )
+
+   # ``extract_descriptions`` is the generator of strings
+   # so we iterate it and pass each item to ``split_words`` conversion
+   vectorized_split_words = c.generator_comp(
+       c.this().pipe(
+           split_words
+       )
+   )
+
+   # flattening the result of ``vectorized_split_words``, which is
+   # a generator of generators of strings
+   flatten = c.call_func(
+       chain.from_iterable,
+       c.this(),
+   )
+
+   # aggregate the input, the result is a single dict
+   # words are keys, values are count of words
+   dict_word_to_count = c.aggregate(
+       c.reduce(
+           c.ReduceFuncs.DictCount,
+           (c.this(), c.this())
+       )
+   )
+
+   # take top N words by:
+   #  - call ``.items()`` method of the dict (the result of the aggregate)
+   #  - pass the result to ``sorted``
+   #  - take the slice, using input argument named ``top_n``
+   #  - cast to a dict
+   take_top_n = (
+       c.this().call_method("items")
+       .pipe(sorted, key=lambda t: t[1], reverse=True)
+       .pipe(c.this()[:c.input_arg("top_n")])
+       .as_type(dict)
+   )
+
+   # the resulting pipeline is pretty self-descriptive, except the ``c.if_``
+   # part, which checks the condition (first argument),
+   # and returns the 2nd if True OR the 3rd (input data by default) otherwise
+   pipeline = (
+       extract_strings
+       .pipe(flatten)
+       .pipe(vectorized_split_words)
+       .pipe(flatten)
+       .pipe(dict_word_to_count)
+       .pipe(
+           c.if_(
+               c.input_arg("top_n").is_not(None),
+               c.this().pipe(take_top_n),
+           )
+       )
+   # Define the resulting converter function signature.
+   # In fact this isn't necessary if you don't need to specify default values
+   ).gen_converter(debug=True, signature="data_, top_n=None")
+
+   # check the speed yourself :)
+   # e.g. take a book in txt format and tune the ``extract_descriptions`` 
+   # conversion as needed
+   pipeline(input_data, top_n=3)
+
 
 Next steps:
 ===========

@@ -49,3 +49,6 @@ MANIFEST
 # Per-project virtualenvs
 .venv*/
 .python-version
+
+# tmp
+src/convtools/mergers.p

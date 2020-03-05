@@ -6,59 +6,37 @@ from collections import OrderedDict
 from itertools import chain, count
 from threading import local
 
-
-__all__ = [
-    "ensure_conversion",
-    "ConversionException",
-    "BaseConversion",
-    "BaseCollectionConversion",
-    "LabelConversion",
-    "CachingConversion",
-    "GeneratorComp",
-    "NaiveConversion",
-    "EscapedString",
-    "InputArg",
-    "InlineExpr",
-    "GetAttr",
-    "GetItem",
-    "Call",
-    "CallFunc",
-    "Filter",
-    "And",
-    "Or",
-    "If",
-    "Not",
-    "Dict",
-    "DictComp",
-    "List",
-    "ListComp",
-    "Set",
-    "SetComp",
-    "Tuple",
-    "TupleComp",
-]
+from .utils import BaseCtx, BaseOptions
 
 
 class _ConverterCallable:
     def __init__(
-        self, converter, code_str, fake_filename, debug=False, _instance=None
+        self,
+        converter,
+        code_str,
+        fake_filename,
+        ctx,
+        _instance=None,
+        debug=None,
     ):
         self.converter = converter
         self._code_str = code_str
         self._fake_filename = fake_filename
+        self._ctx = ctx
         self._debug = debug
         self._line_cache_populated = False
         self._instance = _instance
+        self.__name__ = getattr(self.converter, "__name__", "")
 
         if self._debug:
             self.populate_line_cache()
 
     def __get__(self, instance, cls):
-        return _ConverterCallable(
+        return self.__class__(
             self.converter,
             code_str=self._code_str,
             fake_filename=self._fake_filename,
-            debug=self._debug,
+            ctx=self._ctx,
             _instance=instance or cls,
         )
 
@@ -71,6 +49,11 @@ class _ConverterCallable:
         except Exception:
             self.populate_line_cache()
             raise
+        finally:
+            ctx = self._ctx
+            for key in ctx[BaseConversion.GLOBALS_KEYS_TO_CLEAN_UP_KEY]:
+                if key in ctx:
+                    del ctx[key]
 
     def populate_line_cache(self):
         if self._line_cache_populated:
@@ -86,29 +69,41 @@ class _ConverterCallable:
         self._line_cache_populated = True
 
 
-_code_generation_ctx = local()
-_code_generation_ctx.flags = set()
+class CodeGenerationOptions(BaseOptions):
+    labeling = False
+    converter_callable_cls = _ConverterCallable
 
 
-class CodeGenerationCtx:
-    LABELING = 1
+class CodeGenerationOptionsCtx(BaseCtx):
+    options_cls = CodeGenerationOptions
 
-    def __init__(self, *flags):
-        self.flags_to_enable = flags
-        self.prev_value = None
 
-    def __enter__(self):
-        self.prev_value = _code_generation_ctx.flags
-        _code_generation_ctx.flags = set(self.prev_value)
-        _code_generation_ctx.flags.update(self.flags_to_enable)
-        return self
+class ConverterOptions(BaseOptions):
+    """Converter options (+ see default values below):
 
-    def __exit__(self, exc_type, exc_value, tb):
-        _code_generation_ctx.flags = self.prev_value
+        * ``debug = False`` - same as ``.gen_converter(debug=...)``
+        * ``max_pipe_length = 100``
 
-    @staticmethod
-    def flag(flag):
-        return flag in _code_generation_ctx.flags
+    """
+
+    debug = False
+    max_pipe_length = 100
+
+
+class ConverterOptionsCtx(BaseCtx):
+    """Thread-safe context to manage options.
+
+    Example:
+
+    .. code-block:: python
+
+       with ConverterOptionsCtx() as options:
+           options.debug = True
+           # ...
+
+    """
+
+    options_cls = ConverterOptions
 
 
 converter_template = """
@@ -132,6 +127,7 @@ def ensure_conversion(conversion: object):
         * list/dict/set/tuple collections are wrapped with ``c.list``,
           ``c.dict``, ``c.set``, ``c.tuple`` (see below).
           If it's not desired, use ``c.naive`` instead
+        * slice gets recreated, each ``slice.start, slice.stop, slice.step`` is wrapped with ``ensure_conversion``
         * everything else is wrapped with ``c.naive`` (see below)
 
 
@@ -145,6 +141,7 @@ def ensure_conversion(conversion: object):
        * [] -> :py:class:`List` (\*conversion)
        * () -> :py:class:`Tuple` (\*conversion)
        * set() -> :py:class:`Set` (\*conversion)
+       * slice -> :py:obj:`InlineExpr`
        * object -> :py:class:`NaiveConversion` (conversion)
     """
     if isinstance(conversion, BaseConversion):
@@ -157,6 +154,10 @@ def ensure_conversion(conversion: object):
         return Tuple(*conversion)
     if isinstance(conversion, set):
         return Set(*conversion)
+    if isinstance(conversion, slice):
+        return InlineExpr("slice({}, {}, {})").pass_args(
+            conversion.start, conversion.stop, conversion.step
+        )
     return NaiveConversion(conversion)
 
 
@@ -203,6 +204,10 @@ class BaseConversion:
             BaseConversion.counter = count()
         return number
 
+    @property
+    def max_pipe_length(self):
+        return ConverterOptionsCtx.get_option_value("max_pipe_length")
+
     def __hash__(self):
         return id(self)
 
@@ -240,11 +245,24 @@ class BaseConversion:
         except TypeError:
             return f"id{id(item)}"
 
-    def clone(self):
+    def _clone(self):
         clone = self.__class__.__new__(self.__class__)
         clone.__dict__.update(self.__dict__)
         clone._number = clone._get_number()
         return clone
+
+    def clone(self):
+        result = self._clone()
+        conv = result
+        for i in range(self.max_pipe_length):
+            if conv._predefined_input:
+                conv._predefined_input = conv._predefined_input._clone()
+                conv = conv._predefined_input
+            else:
+                break
+        else:
+            raise ConversionException("failed to clone, too long pipe")
+        return result
 
     def gen_name(self, prefix, ctx, item_to_hash=None):
         prefixed_hash_to_name = ctx.setdefault("_prefixed_hash_to_name", {})
@@ -287,10 +305,15 @@ class BaseConversion:
             args = [arg for arg in args if arg.arg_name not in ("self", "cls")]
         if not args:
             return ""
-        _code = ", ".join(arg.gen_code_and_update_ctx("", ctx) for arg in args)
-        if as_kwargs:
-            return ", *, {}".format(_code)
-        return ", {}".format(_code)
+
+        with CodeGenerationOptionsCtx() as options:
+            options.labeling = False
+            _code = ", ".join(
+                arg.gen_code_and_update_ctx("", ctx) for arg in args
+            )
+            if as_kwargs:
+                return ", *, {}".format(_code)
+            return ", {}".format(_code)
 
     def _get_args_as_func_args(self):
         args = self._get_args()
@@ -301,10 +324,14 @@ class BaseConversion:
             "sys": sys,
             "__debug": root_ctx.get("__debug"),
             "__name__": root_ctx.get("__name__", "_convtools"),
+            self.GLOBALS_KEYS_TO_CLEAN_UP_KEY: (),
         }
 
     def _code_to_converter(self, converter_name, code, ctx, fake_filename):
-        if ctx.get("__debug", False):
+        is_debug = ctx.get(
+            "__debug", False
+        ) or ConverterOptionsCtx.get_option_value("debug")
+        if is_debug:
             try:
                 import black
 
@@ -321,12 +348,22 @@ class BaseConversion:
         code_obj = compile(code, fake_filename, "exec")
         exec(code_obj, ctx, ctx)
         converter = ctx[converter_name]
-        return _ConverterCallable(
+
+        converter_callable_cls = CodeGenerationOptionsCtx.get_option_value(
+            "converter_callable_cls"
+        )
+        return converter_callable_cls(
             converter,
             code_str=code,
             fake_filename=fake_filename,
-            debug=ctx.get("__debug", False),
+            ctx=ctx,
+            debug=is_debug,
         )
+
+    GLOBALS_KEYS_TO_CLEAN_UP_KEY = "__globals_keys_to_clean_up"
+
+    def add_global_key_to_clean_up(self, key_name, ctx):
+        ctx[self.GLOBALS_KEYS_TO_CLEAN_UP_KEY] += (key_name,)
 
     def gen_converter(
         self, method=False, class_method=False, signature=None, debug=None
@@ -347,7 +384,12 @@ class BaseConversion:
         """
         # signature should contain "data_" argument
         initial_code_input = "data_"
-        ctx = {"sys": sys, "__debug": debug, "__name__": "_convtools"}
+        ctx = {
+            "sys": sys,
+            "__debug": debug,
+            "__name__": "_convtools",
+            self.GLOBALS_KEYS_TO_CLEAN_UP_KEY: (),
+        }
         if signature:
             missing_args = set(
                 _pattern_word.findall(
@@ -401,7 +443,8 @@ class BaseConversion:
             if index != last_index:
                 code_lines.append(f"{indent}{code_input} = {code_conv}")
                 if isinstance(conv, CachingConversion):
-                    with CodeGenerationCtx(CodeGenerationCtx.LABELING):
+                    with CodeGenerationOptionsCtx() as options:
+                        options.labeling = True
                         for label_name in conv.labels.keys():
                             code_label_ref = LabelConversion(
                                 label_name
@@ -557,13 +600,16 @@ class BaseConversion:
     def __floordiv__(self, b):
         return self.floor_div(b)
 
+    def __getitem__(self, k):
+        return InlineExpr("{}[{}]").pass_args(self, k)
+
     def filter(self, condition_conv, cast=None):
         """Shortcut for calling :py:obj:`convtools.base.Filter` on self"""
         return Filter(condition_conv, cast=cast, _predefined_input=self)
 
     def set_predefined_input(self, input_conversion):
         _self = self
-        for i in range(1000):
+        for i in range(self.max_pipe_length - 1):
             if _self._predefined_input is None:
                 _self._predefined_input = _self.ensure_conversion(
                     input_conversion
@@ -700,6 +746,8 @@ class NaiveConversion(BaseConversion):
     Allows to make any object available inside other conversions.
     """
 
+    _builtin_dict = globals()["__builtins__"]
+
     def __init__(self, value: object, name_prefix="v", **kwargs):
         """
         Args:
@@ -709,11 +757,23 @@ class NaiveConversion(BaseConversion):
         super(NaiveConversion, self).__init__(kwargs)
         self.value = value
         self.name_prefix = name_prefix
-        if callable(value):
-            f_name = var_name_from_string(getattr(value, "__name__", ""))
-            self.name_prefix = f"{self.name_prefix}{f_name}"
+        self.code_str = None
+
+        value_name = getattr(value, "__name__", "")
+        if (
+            value_name in self._builtin_dict
+            and self.value is self._builtin_dict[value_name]
+        ):
+            self.code_str = value_name
+
+        elif callable(value):
+            f_name = var_name_from_string(value_name)
+            if f_name:
+                self.name_prefix = f_name
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
+        if self.code_str:
+            return self.code_str
         if self.value is None:
             return "None"
         if self.value is True:
@@ -767,10 +827,14 @@ class CachingConversion(BaseConversion):
         return self
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        code = self.conversion.gen_code_and_update_ctx(code_input, ctx)
-        cache_lines = [f"globals().__setitem__('{self.name}', {code})"]
-        output_code = f"{self.name}"
-        with CodeGenerationCtx(CodeGenerationCtx.LABELING):
+        with CodeGenerationOptionsCtx() as options:
+            options.labeling = True
+            code = self.conversion.gen_code_and_update_ctx(code_input, ctx)
+            cache_lines = [f"globals().__setitem__('{self.name}', {code})"]
+            self.add_global_key_to_clean_up(self.name, ctx)
+            output_code = LabelConversion(self.name).gen_code_and_update_ctx(
+                None, ctx
+            )
             for label_name, label_conversion in self.labels.items():
                 conv_code = label_conversion.gen_code_and_update_ctx(
                     output_code, ctx
@@ -778,6 +842,7 @@ class CachingConversion(BaseConversion):
                 cache_lines.append(
                     f"globals().__setitem__('{label_name}', {conv_code})"
                 )
+                self.add_global_key_to_clean_up(label_name, ctx)
 
         cache_lines_code = " or ".join(cache_lines)
         return f"({cache_lines_code} or {output_code})"
@@ -826,7 +891,7 @@ class LabelConversion(InputArg):
         super(LabelConversion, self).__init__(label_name, **kwargs)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        if CodeGenerationCtx.flag(CodeGenerationCtx.LABELING):
+        if CodeGenerationOptionsCtx.get_option_value("labeling"):
             return f"globals()['{self.arg_name}']"
         return self.arg_name
 
@@ -1060,7 +1125,7 @@ class Call(BaseMethodConversion):
         ]
         for k, v in self.kwargs.items():
             params.append(
-                "{}={}".format(k, v.gen_code_and_update_ctx(code_input, ctx),)
+                "{}={}".format(k, v.gen_code_and_update_ctx(code_input, ctx))
             )
         return f"{code_self}({','.join(params)})"
 
