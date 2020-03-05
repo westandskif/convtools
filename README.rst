@@ -102,7 +102,6 @@ An example:
        c.call_func(read_file, c.this())
    )
 
-
    # 1. make ``re`` pattern available to the code to be generated
    # 2. call ``finditer`` method of the pattern and pass the string
    #    as an argument
@@ -174,10 +173,53 @@ An example:
    ).gen_converter(debug=True, signature="data_, top_n=None")
 
    # check the speed yourself :)
-   # e.g. take a book in txt format and tune the ``extract_descriptions`` 
+   # e.g. take a book in txt format and tune the ``extract_descriptions``
    # conversion as needed
    pipeline(input_data, top_n=3)
 
+
+**Generated code:**
+
+.. code-block:: python
+
+   def aggregate(data_):
+       _none = v121_694
+       agg_data_ = AggData()
+       for row_ in data_:
+
+           if agg_data_.v0 is _none:
+               agg_data_.v0 = {row_: 1}
+           else:
+               if row_ not in agg_data_.v0:
+                   agg_data_.v0[row_] = 1
+               else:
+                   agg_data_.v0[row_] += 1
+
+       result_ = None if agg_data_.v0 is _none else agg_data_.v0
+
+       return result_
+
+
+   def converter110_15(data_, top_n=None):
+       pipe110_778 = (read_file28_474(i109_344) for i109_344 in data_)
+       pipe110_146 = from_iterable52_96(pipe110_778)
+       pipe110_803 = (
+           (i48_863.group().lower() for i48_863 in v31_713.finditer(i107_348))
+           for i107_348 in pipe110_146
+       )
+       pipe110_718 = from_iterable52_96(pipe110_803)
+       pipe110_279 = aggregate123_557(pipe110_718)
+       return (
+           dict(
+               (
+                   sorted(pipe110_279.items(), key=lambda69_318, reverse=True)[
+                       (slice(None, top_n, None))
+                   ]
+               )
+           )
+           if (top_n is not None)
+           else pipe110_279
+       )
 
 Documentation
 =============
