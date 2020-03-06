@@ -544,7 +544,7 @@ def {converter_name}(data_{code_args}):
 aggregate_template = """
 def {converter_name}(data_{code_args}):
     _none = {var_none}
-    {var_agg_data} = AggData()
+    {code_init_agg_vars}
     for {var_row} in data_:
 {code_reduce_blocks}
 
@@ -890,6 +890,8 @@ class GroupBy(BaseConversion):
         return ctx["AggData"]
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
+        aggregate_mode = len(self.by) == 0
+
         var_row = "row_"
         var_signature = "signature_"
         var_signature_to_agg_data = "signature_to_agg_data_"
@@ -904,14 +906,24 @@ class GroupBy(BaseConversion):
             code_signature = f"({','.join(signature_code_items)},)"
 
         code_reduce_blocks = []
+        var_agg_data_values = []
         code_signature_to_agg_index = {}
         reduce_id_to_var = ctx.setdefault("_reduce_id_to_var", {})
+
+        def gen_agg_data_value(value_index):
+            if aggregate_mode:
+                return EscapedString(
+                    f"{var_agg_data}v{value_index}_"
+                ).gen_code_and_update_ctx("", ctx)
+            else:
+                return (
+                    EscapedString(var_agg_data)
+                    .attr(f"v{value_index}")
+                    .gen_code_and_update_ctx("", ctx)
+                )
+
         for agg_index, agg_item in enumerate(self.agg_items):
-            var_agg_data_value = (
-                EscapedString(var_agg_data)
-                .attr(f"v{agg_index}")
-                .gen_code_and_update_ctx("", ctx)
-            )
+            var_agg_data_value = gen_agg_data_value(agg_index)
             code_reduce_block = agg_item.gen_reduce_code_block(
                 var_agg_data_value, var_row, ctx
             )
@@ -924,20 +936,25 @@ class GroupBy(BaseConversion):
                 reduce_block_index = len(code_reduce_blocks)
                 add_reduce_block = True
                 code_signature_to_agg_index[code_hash] = reduce_block_index
-            new_var = reduce_id_to_var[id(agg_item)] = (
-                EscapedString(var_agg_data)
-                .attr(f"v{reduce_block_index}")
-                .gen_code_and_update_ctx("", ctx)
+            new_var = reduce_id_to_var[id(agg_item)] = gen_agg_data_value(
+                reduce_block_index
             )
             if add_reduce_block:
                 code_reduce_blocks.append(
                     code_reduce_block.replace(var_agg_data_value, new_var)
                 )
+                var_agg_data_values.append(new_var)
 
         ctx["defaultdict"] = defaultdict
-        ctx["AggData"] = self._gen_agg_data_container(
-            len(code_reduce_blocks), self._none
-        )
+
+        if aggregate_mode:
+            code_init_agg_vars = "{} = _none".format(
+                " = ".join(var_agg_data_values)
+            )
+        else:
+            ctx["AggData"] = self._gen_agg_data_container(
+                len(code_reduce_blocks), self._none
+            )
 
         code_result = self._rebuild_reducer_result(
             var_signature_to_agg_data,
@@ -966,6 +983,7 @@ class GroupBy(BaseConversion):
                 var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
                     "", ctx
                 ),
+                code_init_agg_vars=code_init_agg_vars,
                 var_row=var_row,
                 var_agg_data=var_agg_data,
                 converter_name=converter_name,

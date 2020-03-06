@@ -1,3 +1,17 @@
+0.3.3 (2020-03-06)
+------------------
+
+Features
+++++++++
+
+- 1. fixed main example docs
+  2. improved ``c.aggregate`` speed
+  `#8 <https://github.com/itechart-almakov/convtools/issues/8>`_
+
+
+----
+
+
 0.3.2 (2020-03-05)
 ------------------
 
