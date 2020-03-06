@@ -59,7 +59,7 @@ An example:
    # the suggested way of importing convtolls
    from convtools import conversion as c
 
-   # Let's say we need to count words across all description strings
+   # Let's say we need to count words across all files
    input_data = [
        "war-and-peace-1.txt",
        "war-and-peace-2.txt",
@@ -71,7 +71,7 @@ An example:
            for line in f:
                yield line
 
-   # iterate an input and take all descriptions by key
+   # iterate an input and read file lines
    extract_strings = c.generator_comp(
        c.call_func(read_file, c.this())
    )
@@ -86,12 +86,12 @@ An example:
        c.naive(re.compile(r'\w+')).call_method("finditer", c.this())
        .pipe(
            c.generator_comp(
-               c.this().call_method("group").call_method("lower")
+               c.this().call_method("group", 0).call_method("lower")
            )
        )
    )
 
-   # ``extract_descriptions`` is the generator of strings
+   # ``extract_strings`` is the generator of strings
    # so we iterate it and pass each item to ``split_words`` conversion
    vectorized_split_words = c.generator_comp(
        c.this().pipe(
@@ -148,7 +148,7 @@ An example:
    ).gen_converter(debug=True, signature="data_, top_n=None")
 
    # check the speed yourself :)
-   # e.g. take a book in txt format and tune the ``extract_descriptions``
+   # e.g. take a look in txt format and tune the ``extract_strings``
    # conversion as needed
    pipeline(input_data, top_n=3)
 
@@ -158,42 +158,42 @@ An example:
 .. code-block:: python
 
    def aggregate(data_):
-       _none = v121_694
-       agg_data_ = AggData()
+       _none = v467_576
+       agg_data_v0_ = _none
        for row_ in data_:
 
-           if agg_data_.v0 is _none:
-               agg_data_.v0 = {row_: 1}
+           if agg_data_v0_ is _none:
+               agg_data_v0_ = {row_: 1}
            else:
-               if row_ not in agg_data_.v0:
-                   agg_data_.v0[row_] = 1
+               if row_ not in agg_data_v0_:
+                   agg_data_v0_[row_] = 1
                else:
-                   agg_data_.v0[row_] += 1
+                   agg_data_v0_[row_] += 1
 
-       result_ = dict() if agg_data_.v0 is _none else agg_data_.v0
+       result_ = dict() if agg_data_v0_ is _none else agg_data_v0_
 
        return result_
 
 
-   def converter110_15(data_, top_n=None):
-       pipe110_778 = (read_file28_474(i109_344) for i109_344 in data_)
-       pipe110_146 = from_iterable52_96(pipe110_778)
-       pipe110_803 = (
-           (i48_863.group().lower() for i48_863 in v31_713.finditer(i107_348))
-           for i107_348 in pipe110_146
+   def converter459_881(data_, top_n=None):
+       pipe459_557 = (read_file376_398(i458_940) for i458_940 in data_)
+       pipe459_694 = from_iterable401_690(pipe459_557)
+       pipe459_916 = (
+           (i397_760.group(0).lower() for i397_760 in v379_129.finditer(i456_473))
+           for i456_473 in pipe459_694
        )
-       pipe110_718 = from_iterable52_96(pipe110_803)
-       pipe110_279 = aggregate123_557(pipe110_718)
+       pipe459_431 = from_iterable401_690(pipe459_916)
+       pipe459_970 = aggregate469_287(pipe459_431)
        return (
            dict(
                (
-                   sorted(pipe110_279.items(), key=lambda69_318, reverse=True)[
+                   sorted(pipe459_970.items(), key=lambda418_804, reverse=True)[
                        (slice(None, top_n, None))
                    ]
                )
            )
            if (top_n is not None)
-           else pipe110_279
+           else pipe459_970
        )
 
 Next steps:
