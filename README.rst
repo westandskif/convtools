@@ -137,7 +137,8 @@ An example:
    dict_word_to_count = c.aggregate(
        c.reduce(
            c.ReduceFuncs.DictCount,
-           (c.this(), c.this())
+           (c.this(), c.this()),
+           default=dict
        )
    )
 
@@ -195,7 +196,7 @@ An example:
                else:
                    agg_data_.v0[row_] += 1
 
-       result_ = None if agg_data_.v0 is _none else agg_data_.v0
+       result_ = dict() if agg_data_.v0 is _none else agg_data_.v0
 
        return result_
 
