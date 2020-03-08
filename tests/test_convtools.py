@@ -1,4 +1,6 @@
 import sys
+import linecache
+
 from collections import namedtuple
 from datetime import date, datetime
 from decimal import Decimal
@@ -1216,3 +1218,23 @@ def test_slices():
         3,
         5,
     ]
+
+
+def test_linecache_cleaning():
+    length_before = len(linecache.cache)
+    for i in range(100):
+        c.this().gen_converter(debug=True)
+    length_after_100 = len(linecache.cache)
+
+    for i in range(10):
+        c.this().gen_converter(debug=True)
+    length_after_10 = len(linecache.cache)
+
+    assert (
+        length_after_10 == length_after_100
+        and length_before + 100 >= length_after_100
+    )
+
+    for key in list(linecache.cache.keys()):
+        del linecache.cache[key]
+    c.this().gen_converter(debug=True)

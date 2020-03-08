@@ -6,10 +6,19 @@ from collections import OrderedDict
 from itertools import chain, count
 from threading import local
 
-from .utils import BaseCtx, BaseOptions
+from .utils import BaseCtx, BaseOptions, RUCache
+
+
+def clean_line_cache(key, value):
+    try:
+        del linecache.cache[key]
+    except KeyError:
+        pass
 
 
 class _ConverterCallable:
+    linecache_keys = RUCache(100, clean_line_cache)
+
     def __init__(
         self,
         converter,
@@ -56,7 +65,7 @@ class _ConverterCallable:
                     del ctx[key]
 
     def populate_line_cache(self):
-        if self._line_cache_populated:
+        if self.linecache_keys.has(self._fake_filename, bump_up=True):
             return
 
         linecache.cache[self._fake_filename] = (
@@ -65,8 +74,7 @@ class _ConverterCallable:
             self._code_str.splitlines(),
             self._fake_filename,
         )
-
-        self._line_cache_populated = True
+        self.linecache_keys.set(self._fake_filename, True)
 
 
 class CodeGenerationOptions(BaseOptions):
