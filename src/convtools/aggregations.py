@@ -530,6 +530,7 @@ conditional_reduce_template = """
 """
 grouper_template = """
 def {converter_name}(data_{code_args}):
+    global add_label_, get_by_label_
     _none = {var_none}
     {var_signature_to_agg_data} = defaultdict(AggData)
     for {var_row} in data_:
@@ -543,6 +544,7 @@ def {converter_name}(data_{code_args}):
 """
 aggregate_template = """
 def {converter_name}(data_{code_args}):
+    global add_label_, get_by_label_
     _none = {var_none}
     {code_init_agg_vars}
     for {var_row} in data_:
@@ -633,7 +635,7 @@ class Reduce(BaseReduce):
           condition_conversion (object): to be wrapped with
             :py:obj:`ensure_conversion` and used as a condition
         """
-        self.condition = condition_conversion
+        self.condition = self.ensure_conversion(condition_conversion)
         return self
 
     def gen_reduce_code_block(self, var_agg_data_value, var_row, ctx):
@@ -979,7 +981,7 @@ class GroupBy(BaseConversion):
         if self.aggregate_mode:
             converter_name = "aggregate"
             grouper_code = aggregate_template.format(
-                code_args=self._get_args_def_code(ctx, as_kwargs=False),
+                code_args=self._get_args_def_code(as_kwargs=False),
                 var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
                     "", ctx
                 ),
@@ -994,7 +996,7 @@ class GroupBy(BaseConversion):
         else:
             converter_name = "group_by"
             grouper_code = grouper_template.format(
-                code_args=self._get_args_def_code(ctx, as_kwargs=False),
+                code_args=self._get_args_def_code(as_kwargs=False),
                 var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
                     "", ctx
                 ),

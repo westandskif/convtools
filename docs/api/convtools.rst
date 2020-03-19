@@ -28,6 +28,14 @@ convtools.conversion module
    :undoc-members:
    :show-inheritance:
 
+convtools.joins module
+----------------------
+
+.. automodule:: convtools.joins
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 convtools.utils module
 ----------------------
 

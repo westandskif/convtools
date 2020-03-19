@@ -3,9 +3,9 @@ convtools
 =========
 
 
-**convtools** is a python library to declaratively define fast conversions from python
-objects to python objects, including processing collections and doing complex
-aggregations.
+**convtools** is a python library to declaratively define fast conversions
+from python objects to python objects, including processing collections and
+doing complex aggregations and joins.
 
 .. image:: https://img.shields.io/pypi/pyversions/convtools.svg
     :target: https://pypi.org/project/convtools/
@@ -58,6 +58,10 @@ Conversions are not limited to simple data transformations, there are
  * and less widely supported `First`/`Last`, `Array`/`ArrayDistinct`
  * to `DictSum`-like ones (for nested aggregation) and `MaxRow`/`MinRow`
    (for finding an object with max/min value and further processing)
+
+Also there are higher-level conversions - JOINS
+(inner, left, right, outer, cross), which processes 2 iterables and returns
+a generator of joined pairs.
 
 Every conversion:
  * contains the information of how to transform an input

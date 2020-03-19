@@ -725,8 +725,69 @@ reduce functions:
       return vgroup_by652_349(data_)
 
 
-9. Debugging & setting Options
-______________________________
+9. Joins
+________
+
+There is JOIN functionality which returns generator of joined pairs.
+Points to learn:
+
+ 1. :ref:`c.join<ref_c_joins>` exposes API for joins
+
+      - first two positional arguments are conversions which are considered as
+        2 iterables to be joined
+      - the third argument is a join condition, represented as a conversion
+        based on ``c.LEFT`` and ``c.RIGHT``
+
+ 2. the following join types are supported (via passing ``how``):
+
+     - inner (default)
+     - left
+     - right
+     - outer
+     - cross (inner with ``condition=True``)
+
+Let's say we want to parse JSON string, take 2 collections, join them on
+``left id == right id AND right value > 100`` condition, and then merge data
+of joined pairs into dicts:
+
+.. code-block:: python
+
+   s = '''{"left": [
+       {"id": 1, "value": 10},
+       {"id": 2, "value": 20}
+   ], "right": [
+       {"id": 1, "value": 100},
+       {"id": 2, "value": 200}
+   ]}'''
+   conv1 = (
+       c.call_func(json.loads, c.this())
+       .pipe(
+           c.join(
+               c.item("left"),
+               c.item("right"),
+               c.and_(
+                   c.LEFT.item("id") == c.RIGHT.item("id"),
+                   c.RIGHT.item("value") > 100
+               ),
+               how="left",
+           )
+       )
+       .pipe(
+           c.list_comp({
+               "id": c.item(0, "id"),
+               "value_left": c.item(0, "value"),
+               "value_right": c.item(1).and_(c.item(1, "value")),
+           })
+       )
+       .gen_converter(debug=True)
+   )
+   assert conv1(s) == [
+       {'id': 1, 'value_left': 10, 'value_right': None},
+       {'id': 2, 'value_left': 20, 'value_right': 200}
+   ]
+
+10. Debugging & setting Options
+_______________________________
 
 Compiled converters are debuggable callables, which populate linecache with
 generated code either on exception inside a converter OR on setting
@@ -746,7 +807,7 @@ See :ref:`c.OptionsCtx()<ref_optionsctx>` API docs for the full list
 of available options.
 
 
-10. Details: inner input data passing
+11. Details: inner input data passing
 _____________________________________
 
 There are few conversions which change the input for next conversions:
