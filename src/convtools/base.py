@@ -4,7 +4,7 @@ import re
 import sys
 from collections import OrderedDict
 from itertools import chain, count
-from threading import local
+from types import GeneratorType
 
 from .utils import BaseCtx, BaseOptions, RUCache
 
@@ -32,6 +32,7 @@ class _ConverterCallable:
         self._code_str = code_str
         self._fake_filename = fake_filename
         self._ctx = ctx
+        self._ctx["__depth"] = 0
         self._debug = debug
         self._line_cache_populated = False
         self._instance = _instance
@@ -50,19 +51,38 @@ class _ConverterCallable:
         )
 
     def __call__(self, *args, **kwargs):
+        deferred_labels_cleaning = False
+        self._ctx["__depth"] += 1
         try:
             if self._instance:
                 args = (self._instance,) + args
 
-            return self.converter(*args, **kwargs)
+            result = self.converter(*args, **kwargs)
+            if isinstance(result, GeneratorType):
+                deferred_labels_cleaning = True
+                return self.wrap_generator_clean_labels_on_exit(
+                    result, self._ctx["labels_"]
+                )
+            return result
         except Exception:
             self.populate_line_cache()
             raise
         finally:
-            ctx = self._ctx
-            for key in ctx[BaseConversion.GLOBALS_KEYS_TO_CLEAN_UP_KEY]:
-                if key in ctx:
-                    del ctx[key]
+            self._ctx["__depth"] -= 1
+            if not deferred_labels_cleaning and self._ctx["__depth"] == 0:
+                labels_ = self._ctx["labels_"]
+                if labels_:
+                    for key in list(labels_):
+                        del labels_[key]
+
+    def wrap_generator_clean_labels_on_exit(self, generator_, labels_):
+        try:
+            yield from generator_
+        finally:
+            labels_ = self._ctx["labels_"]
+            if labels_ and self._ctx["__depth"] == 0:
+                for key in list(labels_):
+                    del labels_[key]
 
     def populate_line_cache(self):
         if self.linecache_keys.has(self._fake_filename, bump_up=True):
@@ -79,6 +99,7 @@ class _ConverterCallable:
 
 class CodeGenerationOptions(BaseOptions):
     labeling = False
+    expressions_only = False
     converter_callable_cls = _ConverterCallable
 
 
@@ -116,12 +137,14 @@ class ConverterOptionsCtx(BaseCtx):
 
 converter_template = """
 def {converter_name}({code_signature}):
+    global add_label_, get_by_label_
 {code}
 """
 
 
 get_or_default_template = """
 def {converter_name}({code_args}):
+    global add_label_, get_by_label_
     try:
         return {get_or_default_code}
     except (TypeError, KeyError, IndexError, AttributeError):
@@ -230,11 +253,19 @@ class BaseConversion:
         return conversion
 
     def gen_code_and_update_ctx(self, code_input, ctx):
+        code_to_be_attached = None
         if self._predefined_input is not None:
             code_input = self._predefined_input.gen_code_and_update_ctx(
                 code_input, ctx
             )
-        return self._gen_code_and_update_ctx(code_input, ctx)
+            if not If.input_is_simple(code_input):
+                code_to_be_attached = code_input
+        resulting_code = self._gen_code_and_update_ctx(code_input, ctx)
+        if code_to_be_attached and code_to_be_attached not in resulting_code:
+            return "({} and None or {})".format(
+                code_to_be_attached, resulting_code
+            )
+        return resulting_code
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         raise NotImplementedError
@@ -286,22 +317,23 @@ class BaseConversion:
         prefixed_hash_to_name[prefixed_hash] = name
         return name
 
+    def _get_dependencies(self, types=None):
+        deps = chain(self.depends_on, (self,))
+        if types:
+            deps = (dep for dep in deps if isinstance(dep, types))
+        return deps
+
     def _get_args(self):
         return sorted(
             {
                 dep.arg_name: dep
-                for dep in chain(self.depends_on, (self,))
-                if isinstance(dep, InputArg)
+                for dep in self._get_dependencies(types=InputArg)
             }.values(),
             key=lambda k: k.arg_name,
         )
 
     def _get_args_def_code(
-        self,
-        ctx,
-        as_kwargs=False,
-        exclude_cls_self=False,
-        exclude_labels=False,
+        self, as_kwargs=False, exclude_cls_self=False, exclude_labels=False,
     ):
         args = self._get_args()
         if exclude_labels:
@@ -314,26 +346,18 @@ class BaseConversion:
         if not args:
             return ""
 
-        with CodeGenerationOptionsCtx() as options:
-            options.labeling = False
-            _code = ", ".join(
-                arg.gen_code_and_update_ctx("", ctx) for arg in args
-            )
-            if as_kwargs:
-                return ", *, {}".format(_code)
-            return ", {}".format(_code)
+        _code = ", ".join(arg.arg_name for arg in args)
+        if as_kwargs:
+            return ", *, {}".format(_code)
+        return ", {}".format(_code)
 
     def _get_args_as_func_args(self):
         args = self._get_args()
-        return tuple(EscapedString(arg.arg_name) for arg in args)
-
-    def _init_tmp_ctx(self, root_ctx):
-        return {
-            "sys": sys,
-            "__debug": root_ctx.get("__debug"),
-            "__name__": root_ctx.get("__name__", "_convtools"),
-            self.GLOBALS_KEYS_TO_CLEAN_UP_KEY: (),
-        }
+        _ctx = {}
+        return tuple(
+            EscapedString(arg.gen_code_and_update_ctx(None, _ctx))
+            for arg in args
+        )
 
     def _code_to_converter(self, converter_name, code, ctx, fake_filename):
         is_debug = ctx.get(
@@ -354,7 +378,7 @@ class BaseConversion:
 
         fake_filename = f"{fake_filename}_{self._number}.py"
         code_obj = compile(code, fake_filename, "exec")
-        exec(code_obj, ctx, ctx)
+        exec(code_obj, ctx)
         converter = ctx[converter_name]
 
         converter_callable_cls = CodeGenerationOptionsCtx.get_option_value(
@@ -368,13 +392,15 @@ class BaseConversion:
             debug=is_debug,
         )
 
-    GLOBALS_KEYS_TO_CLEAN_UP_KEY = "__globals_keys_to_clean_up"
-
-    def add_global_key_to_clean_up(self, key_name, ctx):
-        ctx[self.GLOBALS_KEYS_TO_CLEAN_UP_KEY] += (key_name,)
+    NAME_TO_CODE_INPUT = "_name_to_code_input"
 
     def gen_converter(
-        self, method=False, class_method=False, signature=None, debug=None
+        self,
+        method=False,
+        class_method=False,
+        signature=None,
+        debug=None,
+        converter_name="converter",
     ):
         """Compiles a function which act according to the conversion definition.
 
@@ -386,24 +412,31 @@ class BaseConversion:
             e.g. ``signature="self, dt, data_, **kwargs"``
           method (bool): `True` is a shortcut for: ``signature="self, data_"``
           class_method (bool): `True` is a shortcut for: ``signature="cls, data_"``
+          converter_name (str): prefix of the name of the function to be compiled
 
         Returns:
           The compiled function
         """
         # signature should contain "data_" argument
         initial_code_input = "data_"
+
+        labels_ = {}
         ctx = {
             "sys": sys,
             "__debug": debug,
             "__name__": "_convtools",
-            self.GLOBALS_KEYS_TO_CLEAN_UP_KEY: (),
+            "add_label_": labels_.__setitem__,
+            "get_by_label_": labels_.__getitem__,
+            "labels_": labels_,
+            self.NAME_TO_CODE_INPUT: [{}],
         }
         if signature:
+            signature_words = _pattern_word.findall(signature)
             missing_args = set(
                 _pattern_word.findall(
-                    self._get_args_def_code({}, exclude_labels=True)
+                    self._get_args_def_code(exclude_labels=True)
                 )
-            ) - set(_pattern_word.findall(signature))
+            ) - set(signature_words)
             if missing_args:
                 raise ConversionException(
                     "bad signature, missing args", missing_args
@@ -419,7 +452,6 @@ class BaseConversion:
                 + (initial_code_input)
                 + (
                     self._get_args_def_code(
-                        ctx,
                         as_kwargs=True,
                         exclude_cls_self=True,
                         exclude_labels=True,
@@ -429,7 +461,7 @@ class BaseConversion:
 
         if debug is not None:
             self.debug = debug
-        converter_name = self.gen_name("converter", ctx)
+        converter_name = self.gen_name(converter_name, ctx)
 
         conv = self
         pipes = [conv]
@@ -444,22 +476,17 @@ class BaseConversion:
         for index, conv in enumerate(reversed(pipes)):
             _predefined_input = conv._predefined_input
             conv._predefined_input = None
-            code_conv = conv.gen_code_and_update_ctx(code_input, ctx)
+            if last_index == 0:
+                with CodeGenerationOptionsCtx() as options:
+                    options.expressions_only = True
+                    code_conv = conv.gen_code_and_update_ctx(code_input, ctx)
+            else:
+                code_conv = conv.gen_code_and_update_ctx(code_input, ctx)
             conv._predefined_input = _predefined_input
 
-            code_input = self.gen_name("pipe", ctx, code_input)
             if index != last_index:
+                code_input = self.gen_name("pipe", ctx, code_input)
                 code_lines.append(f"{indent}{code_input} = {code_conv}")
-                if isinstance(conv, CachingConversion):
-                    with CodeGenerationOptionsCtx() as options:
-                        options.labeling = True
-                        for label_name in conv.labels.keys():
-                            code_label_ref = LabelConversion(
-                                label_name
-                            ).gen_code_and_update_ctx(None, ctx)
-                            code_lines.append(
-                                f"{indent}{label_name} = {code_label_ref}"
-                            )
             else:
                 code_lines.append(f"{indent}return {code_conv}")
 
@@ -530,8 +557,8 @@ class BaseConversion:
     def not_in(self, arg):
         return InlineExpr("{0} not in {1}").pass_args(self, arg)
 
-    def eq(self, arg):
-        return InlineExpr("{0} == {1}").pass_args(self, arg)
+    def eq(self, *args, **kwargs):
+        return Eq(self, *args, **kwargs)
 
     def __eq__(self, b):
         return self.eq(b)
@@ -617,12 +644,16 @@ class BaseConversion:
 
     def set_predefined_input(self, input_conversion):
         _self = self
+        input_conversion = ensure_conversion(input_conversion)
         for i in range(self.max_pipe_length - 1):
             if _self._predefined_input is None:
                 _self._predefined_input = _self.ensure_conversion(
                     input_conversion
                 )
                 break
+            else:
+                _self._depends_on(input_conversion)
+
             _self = _self._predefined_input
         else:
             raise ConversionException("failed to set predefined_input", self)
@@ -838,8 +869,7 @@ class CachingConversion(BaseConversion):
         with CodeGenerationOptionsCtx() as options:
             options.labeling = True
             code = self.conversion.gen_code_and_update_ctx(code_input, ctx)
-            cache_lines = [f"globals().__setitem__('{self.name}', {code})"]
-            self.add_global_key_to_clean_up(self.name, ctx)
+            cache_lines = [f"add_label_('{self.name}', {code})"]
             output_code = LabelConversion(self.name).gen_code_and_update_ctx(
                 None, ctx
             )
@@ -847,10 +877,7 @@ class CachingConversion(BaseConversion):
                 conv_code = label_conversion.gen_code_and_update_ctx(
                     output_code, ctx
                 )
-                cache_lines.append(
-                    f"globals().__setitem__('{label_name}', {conv_code})"
-                )
-                self.add_global_key_to_clean_up(label_name, ctx)
+                cache_lines.append(f"add_label_('{label_name}', {conv_code})")
 
         cache_lines_code = " or ".join(cache_lines)
         return f"({cache_lines_code} or {output_code})"
@@ -897,11 +924,50 @@ class LabelConversion(InputArg):
           label_name (string): label name to be referenced
         """
         super(LabelConversion, self).__init__(label_name, **kwargs)
+        self.caching_conversion = None
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        if CodeGenerationOptionsCtx.get_option_value("labeling"):
-            return f"globals()['{self.arg_name}']"
-        return self.arg_name
+        return f"get_by_label_('{self.arg_name}')"
+
+
+class ConversionWrapper(BaseConversion):
+    def __init__(self, conversion, name_to_code_input=None, **kwargs):
+        super(ConversionWrapper, self).__init__(kwargs)
+        self.conversion = self.ensure_conversion(conversion)
+        self._name_to_code_input = name_to_code_input
+
+    @classmethod
+    def name_to_code_input(cls, ctx, name_to_code_input=None):
+        if name_to_code_input is None:
+            return ctx[cls.NAME_TO_CODE_INPUT][-1]
+        new_value = {}
+        new_value.update(cls.name_to_code_input(ctx))
+        new_value.update(name_to_code_input)
+        ctx[cls.NAME_TO_CODE_INPUT].append(new_value)
+        return new_value
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        pop_name_to_code_input = False
+        if self._name_to_code_input is not None:
+            pop_name_to_code_input = True
+            self.name_to_code_input(ctx, self._name_to_code_input)
+        result = self.conversion.gen_code_and_update_ctx(code_input, ctx)
+        if pop_name_to_code_input:
+            ctx[self.NAME_TO_CODE_INPUT].pop()
+        return result
+
+
+class NamedConversion(BaseConversion):
+    def __init__(self, name, conversion, **kwargs):
+        super(NamedConversion, self).__init__(kwargs)
+        self.conversion = self.ensure_conversion(conversion)
+        self.name = name
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        name_to_code_input = ConversionWrapper.name_to_code_input(ctx)
+        if self.name in name_to_code_input:
+            code_input = name_to_code_input[self.name]
+        return self.conversion.gen_code_and_update_ctx(code_input, ctx)
 
 
 class Or(BaseConversion):
@@ -935,6 +1001,14 @@ class And(Or):
     joining every argument with python ``and`` expression"""
 
     op = " and "
+
+
+class Eq(Or):
+    """Takes any number of objects, each is to be wrapped with
+    :py:obj:`ensure_conversion` and generates the code
+    joining every argument with python `` == `` operator"""
+
+    op = " == "
 
 
 class If(BaseConversion):
@@ -979,9 +1053,12 @@ class If(BaseConversion):
 
     symbols_making_expr_complex = re.compile(r"[^\w\"']")
 
-    def input_is_simple(self, code_input):
+    @classmethod
+    def input_is_simple(cls, code_input):
+        if code_input.startswith("(") and code_input.endswith(")"):
+            code_input = code_input[1:-1]
         if (
-            next(self.symbols_making_expr_complex.finditer(code_input), None)
+            next(cls.symbols_making_expr_complex.finditer(code_input), None)
             is None
         ):
             return True
@@ -993,8 +1070,10 @@ class If(BaseConversion):
         else:
             caching_conv = CachingConversion(GetItem())
             if_conv = caching_conv.gen_code_and_update_ctx(code_input, ctx)
-            if_true = caching_conv.name
-            if_false = caching_conv.name
+            if_true = LabelConversion(
+                caching_conv.name
+            ).gen_code_and_update_ctx(None, ctx)
+            if_false = if_true
 
         if_conv = EscapedString(if_conv)
         if_true = EscapedString(if_true)
@@ -1063,11 +1142,10 @@ class GetItem(BaseMethodConversion):
                 code_output = self.wrap_path_item(code_output, code_index)
             return code_output
 
-        exec_ctx = self._init_tmp_ctx(ctx)
         self_is_overwritten = code_self != code_input
         code_output = "self_" if self_is_overwritten else "obj_"
         for index in self.indexes:
-            code_index = index.gen_code_and_update_ctx("obj_", exec_ctx)
+            code_index = index.gen_code_and_update_ctx("obj_", ctx)
             code_output = self.wrap_path_item(code_output, code_index)
 
         converter_name = self.gen_name("get_or_default", ctx)
@@ -1083,7 +1161,7 @@ class GetItem(BaseMethodConversion):
         converter = self._code_to_converter(
             converter_name=converter_name,
             code=converter_code,
-            ctx=exec_ctx,
+            ctx=ctx,
             fake_filename="_convtools_gen_get_or_default",
         )
         default_code = self.default.gen_code_and_update_ctx(code_input, ctx)

@@ -1,10 +1,7 @@
 from .aggregations import Aggregate, GroupBy, Reduce, ReduceFuncs
 from .base import (
     And,
-    BaseCollectionConversion,
     BaseConversion,
-    CachingConversion,
-    Call,
     CallFunc,
     ConversionException,
     ConverterOptionsCtx,
@@ -30,6 +27,7 @@ from .base import (
     TupleComp,
     ensure_conversion,
 )
+from .joins import _JoinConditions, join
 
 
 __all__ = ["conversion"]
@@ -73,6 +71,10 @@ class _Conversion:
     group_by = GroupBy
     reduce = Reduce
     aggregate = staticmethod(Aggregate)
+
+    join = staticmethod(join)
+    LEFT = _JoinConditions.LEFT
+    RIGHT = _JoinConditions.RIGHT
 
     def __call__(self, obj: object):
         """Shortcut for ``ensure_conversion``"""

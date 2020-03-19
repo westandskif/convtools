@@ -578,18 +578,8 @@ Iterate an input filtering out items where the conversion resolves to False
 
 .. _ref_labels:
 
-Labels
-======
-
-.. autoclass:: convtools.base.CachingConversion()
-   :noindex:
-
-   .. automethod:: convtools.base.CachingConversion.__init__
-      :noindex:
-   .. automethod:: convtools.base.CachingConversion.add_label
-      :noindex:
-
-____
+c.label
+=======
 
 .. autoattribute:: convtools.conversion.label
    :noindex:
@@ -598,6 +588,16 @@ ____
    :noindex:
 
    .. automethod:: convtools.base.LabelConversion.__init__
+      :noindex:
+
+____
+
+.. autoclass:: convtools.base.CachingConversion()
+   :noindex:
+
+   .. automethod:: convtools.base.CachingConversion.__init__
+      :noindex:
+   .. automethod:: convtools.base.CachingConversion.add_label
       :noindex:
 
 ____
@@ -1088,3 +1088,48 @@ _______________________________________________
      return vgroup_data251_8(data)
 
 Fortunately this code is auto-generated (there's no joy in writing this).
+
+
+.. _ref_c_joins:
+
+c.join
+======
+
+.. autofunction:: convtools.conversion.join
+
+.. code-block:: python
+
+   s = '''{"left": [
+       {"id": 1, "value": 10},
+       {"id": 2, "value": 20}
+   ], "right": [
+       {"id": 1, "value": 100},
+       {"id": 2, "value": 200}
+   ]}'''
+   conv1 = (
+       c.call_func(json.loads, c.this())
+       .pipe(
+           c.join(
+               c.item("left"),
+               c.item("right"),
+               c.and_(
+                   c.LEFT.item("id") == c.RIGHT.item("id"),
+                   c.RIGHT.item("value") > 100
+               ),
+               how="left",
+           )
+       )
+       .pipe(
+           c.list_comp({
+               "id": c.item(0, "id"),
+               "value_left": c.item(0, "value"),
+               "value_right": c.item(1).and_(c.item(1, "value")),
+           })
+       )
+       .gen_converter(debug=True)
+   )
+   assert conv1(s) == [
+       {'id': 1, 'value_left': 10, 'value_right': None},
+       {'id': 2, 'value_left': 20, 'value_right': 200}
+   ]
+

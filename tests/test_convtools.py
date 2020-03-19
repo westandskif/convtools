@@ -1,10 +1,8 @@
-import sys
 import linecache
-
 from collections import namedtuple
 from datetime import date, datetime
 from decimal import Decimal
-from functools import wraps
+from types import GeneratorType
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -13,6 +11,8 @@ from convtools import conversion as c
 from convtools.base import (
     CachingConversion,
     CodeGenerationOptionsCtx,
+    ConversionWrapper,
+    NamedConversion,
     _ConverterCallable,
 )
 
@@ -25,9 +25,17 @@ class MemoryProfilingConverterCallable(_ConverterCallable):
         result = super(MemoryProfilingConverterCallable, self).__call__(
             *args, **kwargs
         )
+        if isinstance(result, GeneratorType):
+            return self.wrap_generator(result, size_before)
+
         size_after = total_size(self.__dict__)
         assert size_after <= size_before
         return result
+
+    def wrap_generator(self, generator_, size_before):
+        yield from generator_
+        size_after = total_size(self.__dict__)
+        assert size_after <= size_before
 
 
 CodeGenerationOptionsCtx.options_cls.converter_callable_cls = (
@@ -393,7 +401,7 @@ def test_set():
 def test_dict():
     assert c.dict((1, c.escaped_string("1+1")), (2, 3)).gen_converter()(
         100
-    ) == {1: 2, 2: 3,}
+    ) == {1: 2, 2: 3}
     assert c({1: c.escaped_string("1+1"), 2: 3}).gen_converter()(100) == {
         1: 2,
         2: 3,
@@ -651,7 +659,9 @@ def test_grouping():
                     c.reduce(
                         c.ReduceFuncs.Max, c.item("debit"), default=1000,
                     ).filter(
-                        c.inline_expr("{0} > 0").pass_args(c.item("balance"))
+                        c.inline_expr("{0} > {1}").pass_args(
+                            c.item("balance"), c.input_arg("arg2"),
+                        )
                     ),
                     -1,
                 ),
@@ -664,7 +674,7 @@ def test_grouping():
             )
         )
         .sort(key=lambda t: t[0].lower(), reverse=True)
-        .execute(data, arg1=100, debug=False)
+        .execute(data, arg1=100, arg2=0, debug=False)
     )
     # fmt: off
     assert result == [('Nick', 'nick', 'nick', 125, 125, 100, 0, -18, 32, 50),
@@ -739,7 +749,7 @@ def test_grouping():
     with pytest.raises(c.ConversionException):
         # there's a single group by field, while we use separate items
         # of this tuple in aggregate
-        result6 = (
+        (
             c.group_by(by)
             .aggregate(by + (c.reduce(c.ReduceFuncs.Sum, c.item("debit")),))
             .execute(data, debug=True)
@@ -1074,7 +1084,7 @@ def test_simple_label():
         c.tuple(c.item(1).add_label("a"), c.this())
         .pipe(
             c.item(1),
-            label_input={"aa": c.item(0), "bb": c.item(0),},
+            label_input={"aa": c.item(0), "bb": c.item(0)},
             label_output="collection1",
         )
         .pipe(
@@ -1118,7 +1128,7 @@ def test_complex_labeling():
         .add_label("input")
         .pipe(
             c.filter(c.this() % 3 == 0),
-            label_input={"input_type": c.call_func(type, c.this()),},
+            label_input={"input_type": c.call_func(type, c.this())},
         )
         .pipe(
             c.list_comp(c.this().as_type(str)),
@@ -1238,3 +1248,36 @@ def test_linecache_cleaning():
     for key in list(linecache.cache.keys()):
         del linecache.cache[key]
     c.this().gen_converter(debug=True)
+
+
+def test_named_conversion():
+    assert NamedConversion("abc", c.item(0)).execute([1]) == 1
+
+
+def test_conversions_dependencies():
+    input_arg = c.input_arg("abc")
+    conv = c.item(input_arg)
+    assert tuple(conv._get_dependencies()) == (input_arg, conv)
+
+
+def test_conversion_wrapper():
+    assert ConversionWrapper(c.item(1)).execute([0, 10]) == 10
+    assert (
+        (
+            ConversionWrapper(
+                ConversionWrapper(
+                    NamedConversion(
+                        "abc", NamedConversion("foo", c.item()) + c.item(),
+                    )
+                    + c.item(),
+                    name_to_code_input={"foo": "arg_foo2"},
+                ),
+                name_to_code_input={"abc": "arg_abc", "foo": "arg_foo"},
+            )
+        ).gen_converter(
+            debug=True, signature="data_, arg_abc=10, arg_foo=20, arg_foo2=30"
+        )(
+            1
+        )
+        == 41
+    )
