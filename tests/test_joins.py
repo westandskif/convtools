@@ -138,9 +138,7 @@ def test_join_conditions():
     c1 = c.LEFT + c.RIGHT + 10
     c2 = c.LEFT + 1
     c3 = c.RIGHT + 1
-    join_conditions = _JoinConditions.from_condition(
-        c.and_(c1, c2, c3)
-    )
+    join_conditions = _JoinConditions.from_condition(c.and_(c1, c2, c3))
     assert (
         True
         and join_conditions.inner_loop_conditions == [c1]
