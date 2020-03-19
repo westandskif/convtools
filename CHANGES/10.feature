@@ -1,2 +1,0 @@
-- introduced ``c.join``
-- improved & fixed pipes (code with side-effects piped to a constant)

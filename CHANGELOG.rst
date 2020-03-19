@@ -1,3 +1,21 @@
+0.4.0 (2020-03-19)
+------------------
+
+Features
+++++++++
+
+- Improved the way ``linecache`` is used: now the number of files to be put
+  into the ``linecache`` is limited to 100. The eviction is done by implementing
+  recently used strategy.
+  `#9 <https://github.com/itechart-almakov/convtools/issues/9>`_
+- - introduced ``c.join``
+  - improved & fixed pipes (code with side-effects piped to a constant)
+  `#10 <https://github.com/itechart-almakov/convtools/issues/10>`_
+
+
+----
+
+
 0.3.3 (2020-03-06)
 ------------------
 
