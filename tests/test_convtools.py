@@ -625,7 +625,7 @@ def test_grouping():
                     c.reduce(c.ReduceFuncs.Sum, c.item("debit")),
                 )
             )
-            .execute(data, debug=True)
+            .execute(data, debug=False)
         )
     result = (
         c.group_by(c.item("name"))
@@ -638,11 +638,13 @@ def test_grouping():
                     lambda a, b: a + b,
                     c.item("debit"),
                     initial=c.input_arg("arg1"),
+                    unconditional_init=True,
                 ),
                 c.reduce(
                     c.inline_expr("{0} + {1}"),
                     c.item("debit"),
                     initial=lambda: 100,
+                    unconditional_init=True,
                 ),
                 c.reduce(
                     max, c.item("debit"), default=c.input_arg("arg1")
@@ -687,6 +689,8 @@ def test_grouping():
             tuple, c.reduce(c.ReduceFuncs.Array, c.item("name"), default=None),
         ): c.item("category").call_method("lower"),
         "count": c.reduce(c.ReduceFuncs.Count),
+        "max": c.reduce(c.ReduceFuncs.Max, c.item("debit")),
+        "min": c.reduce(c.ReduceFuncs.Min, c.item("debit")),
         "count_distinct": c.reduce(
             c.ReduceFuncs.CountDistinct, c.item("name")
         ),
@@ -700,7 +704,7 @@ def test_grouping():
     result = (
         c.group_by(c.item("category"))
         .aggregate(aggregation)
-        .execute(data, debug=False)
+        .execute(data, debug=True)
     )
     result2 = (
         c.group_by(c.item("category"))
@@ -712,11 +716,15 @@ def test_grouping():
           'count': 5,
           'count_distinct': 3,
           'dict': {10: 'John', 18: 'Bill', 200: 'John', 300: 'John'},
+          'max': 300,
+          'min': 10,
           ('John', 'John', 'John', 'Nick', 'Bill'): 'games'},
          {'array_agg_distinct': ['John', 'Nick'],
           'count': 2,
           'count_distinct': 2,
           'dict': {7: 'Nick', 30: 'John'},
+          'max': 30,
+          'min': 7,
           ('John', 'Nick'): 'food'}]
     # fmt: on
     result3 = (

@@ -317,6 +317,13 @@ class BaseConversion:
         prefixed_hash_to_name[prefixed_hash] = name
         return name
 
+    @classmethod
+    def _indent_statements(cls, statements, indentation_level):
+        indentation = "    " * indentation_level
+        return "\n".join(
+            f"{indentation}{line}" for line in statements.splitlines()
+        )
+
     def _get_dependencies(self, types=None):
         deps = chain(self.depends_on, (self,))
         if types:
@@ -421,6 +428,7 @@ class BaseConversion:
         initial_code_input = "data_"
 
         labels_ = {}
+
         ctx = {
             "sys": sys,
             "__debug": debug,
@@ -844,8 +852,14 @@ class CachingConversion(BaseConversion):
         """
         super(CachingConversion, self).__init__(kwargs)
         self.conversion = self.ensure_conversion(conversion)
-        self.name = name or f"cached_val_{self._number}"
         self.labels = {}
+        self._name = name
+
+    @property
+    def name(self):
+        if self._name is None:
+            self._name = f"cached_val_{self._number}"
+        return self._name
 
     def add_label(self, label_name: str, conversion):
         """Adds a label to a result of the cached conversion,
@@ -860,9 +874,17 @@ class CachingConversion(BaseConversion):
         Returns:
           CachingConversion: labeled conversion
         """
-        if label_name in self.labels:
+        if label_name in self.labels or label_name == self._name:
             raise ConversionException("label_name is already used", label_name)
-        self.labels[label_name] = self.ensure_conversion(conversion)
+        conversion = self.ensure_conversion(conversion)
+        if (
+            self._name is None
+            and isinstance(conversion, GetItem)
+            and not conversion.indexes
+        ):
+            self._name = label_name
+        else:
+            self.labels[label_name] = conversion
         return self
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
