@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import reduce
 
 from .base import (
     BaseCollectionConversion,
@@ -43,6 +44,7 @@ class _BaseReducer:
         default=BaseConversion._none,
         additional_args=None,
         post_conversion=None,
+        unconditional_init=False,
     ):
         self.reduce = reduce
         self.initial_from_first = initial_from_first
@@ -51,6 +53,7 @@ class _BaseReducer:
         self.default = default
         self.additional_args = additional_args if additional_args else ()
         self.post_conversion = post_conversion
+        self.unconditional_init = unconditional_init
 
     def configure_parent_reduce_obj(self, reduce_obj):
         if self.expr is not None and reduce_obj.expr is BaseConversion._none:
@@ -71,27 +74,17 @@ class _BaseReducer:
             reduce_obj.post_conversion = reduce_obj.ensure_conversion(
                 self.post_conversion
             )
+        reduce_obj.unconditional_init = (
+            reduce_obj.unconditional_init or self.unconditional_init
+        )
 
     def gen_reduce_initial(
-        self,
-        var_agg_data_value,
-        var_row,
-        initial,
-        expr,
-        additional_args,
-        ctx,
-        indentation_level,
+        self, var_agg_data_value, var_row, initial, expr, additional_args, ctx,
     ):
         raise NotImplementedError
 
     def gen_reduce_two(
-        self,
-        var_agg_data_value,
-        var_row,
-        expr,
-        additional_args,
-        ctx,
-        indentation_level,
+        self, var_agg_data_value, var_row, expr, additional_args, ctx,
     ):
         raise NotImplementedError
 
@@ -103,14 +96,7 @@ class _ReducerExpression(_BaseReducer):
             self.reduce = InlineExpr(self.reduce)
 
     def gen_reduce_initial(
-        self,
-        var_agg_data_value,
-        var_row,
-        initial,
-        expr,
-        additional_args,
-        ctx,
-        indentation_level,
+        self, var_agg_data_value, var_row, initial, expr, additional_args, ctx,
     ):
         if initial is BaseConversion._none:
             if self.initial_from_first:
@@ -129,23 +115,15 @@ class _ReducerExpression(_BaseReducer):
             reduce_initial = call_with_params(
                 self.reduce, initial, expr, *additional_args,
             )
-        return "{indent}{var_agg_data_value} = {code}".format(
-            indent=" " * 4 * indentation_level,
+        return "{var_agg_data_value} = {code}".format(
             var_agg_data_value=var_agg_data_value,
             code=reduce_initial.gen_code_and_update_ctx(var_row, ctx),
         )
 
     def gen_reduce_two(
-        self,
-        var_agg_data_value,
-        var_row,
-        expr,
-        additional_args,
-        ctx,
-        indentation_level,
+        self, var_agg_data_value, var_row, expr, additional_args, ctx,
     ):
-        return "{indent}{var_agg_data_value} = {code}".format(
-            indent=" " * 4 * indentation_level,
+        return "{var_agg_data_value} = {code}".format(
             var_agg_data_value=var_agg_data_value,
             code=call_with_params(
                 self.reduce,
@@ -158,13 +136,7 @@ class _ReducerExpression(_BaseReducer):
 
 class _ReducerStatements(_BaseReducer):
     def _format_statements(
-        self,
-        var_agg_data_value,
-        var_row,
-        statements,
-        indentation_level,
-        args,
-        ctx,
+        self, var_agg_data_value, var_row, statements, args, ctx,
     ):
         if isinstance(statements, str):
             statements = [statements]
@@ -175,8 +147,7 @@ class _ReducerStatements(_BaseReducer):
 
         code = "\n".join(
             [
-                " " * 4 * indentation_level
-                + statement % dict(result=var_agg_data_value)
+                statement % dict(result=var_agg_data_value)
                 for statement in statements
             ]
         )
@@ -185,14 +156,7 @@ class _ReducerStatements(_BaseReducer):
         )
 
     def gen_reduce_initial(
-        self,
-        var_agg_data_value,
-        var_row,
-        initial,
-        expr,
-        additional_args,
-        ctx,
-        indentation_level,
+        self, var_agg_data_value, var_row, initial, expr, additional_args, ctx,
     ):
         if initial is BaseConversion._none:
             if self.initial_from_first:
@@ -200,7 +164,6 @@ class _ReducerStatements(_BaseReducer):
                     var_agg_data_value,
                     var_row,
                     self.initial_from_first,
-                    indentation_level,
                     (expr,) + tuple(additional_args),
                     ctx,
                 )
@@ -212,7 +175,6 @@ class _ReducerStatements(_BaseReducer):
                     var_agg_data_value,
                     var_row,
                     "%(result)s = {0}",
-                    indentation_level,
                     (arg,),
                     ctx,
                 )
@@ -223,23 +185,12 @@ class _ReducerStatements(_BaseReducer):
                 *additional_args,
             )
             reduce_initial = self._format_statements(
-                var_agg_data_value,
-                var_row,
-                self.reduce,
-                indentation_level,
-                args,
-                ctx,
+                var_agg_data_value, var_row, self.reduce, args, ctx,
             )
         return reduce_initial
 
     def gen_reduce_two(
-        self,
-        var_agg_data_value,
-        var_row,
-        expr,
-        additional_args,
-        ctx,
-        indentation_level,
+        self, var_agg_data_value, var_row, expr, additional_args, ctx,
     ):
         args = (
             EscapedString(var_agg_data_value),
@@ -247,12 +198,7 @@ class _ReducerStatements(_BaseReducer):
             *additional_args,
         )
         return self._format_statements(
-            var_agg_data_value,
-            var_row,
-            self.reduce,
-            indentation_level,
-            args,
-            ctx,
+            var_agg_data_value, var_row, self.reduce, args, ctx,
         )
 
 
@@ -274,6 +220,7 @@ _Sum = _ReducerStatements(
     reduce=["%(result)s += ({1} or 0)"],
     initial_from_first=["%(result)s = ({0} or 0)"],
     default=0,
+    unconditional_init=True,
 )
 _SumOrNone = _ReducerStatements(
     reduce=[
@@ -284,6 +231,7 @@ _SumOrNone = _ReducerStatements(
     ],
     initial_from_first=["%(result)s = {0}"],
     default=None,
+    unconditional_init=True,
 )
 _Max = _ReducerStatements(
     reduce=["if {1} is not None and {1} > {0}:", "    %(result)s = {1}"],
@@ -300,6 +248,7 @@ _Count = _ReducerStatements(
     initial_from_first=["%(result)s = 1"],
     default=0,
     expr=0,
+    unconditional_init=True,
 )
 _CountDistinct = _ReducerStatements(
     reduce=["%(result)s.add({1})"],
@@ -308,14 +257,19 @@ _CountDistinct = _ReducerStatements(
         set_=GetItem()
     ),
     default=0,
+    unconditional_init=True,
 )
 _First = _ReducerStatements(
-    reduce=[], initial_from_first=["%(result)s = {0}"], default=None,
+    reduce=[],
+    initial_from_first=["%(result)s = {0}"],
+    default=None,
+    unconditional_init=True,
 )
 _Last = _ReducerStatements(
     reduce=["%(result)s = {1}"],
     initial_from_first=["%(result)s = {0}"],
     default=None,
+    unconditional_init=True,
 )
 _MaxRow = _ReducerStatements(
     reduce=[
@@ -341,12 +295,14 @@ _Array = _ReducerStatements(
     reduce=["%(result)s.append({1})"],
     initial_from_first=["%(result)s = [{0}]"],
     default=None,
+    unconditional_init=True,
 )
 _ArrayDistinct = _ReducerStatements(
     reduce=["%(result)s[{1}] = None"],
     initial_from_first=["%(result)s = {{ {0}: None }}"],
     post_conversion=InlineExpr("list({0}.keys())").pass_args(GetItem()),
     default=None,
+    unconditional_init=True,
 )
 
 
@@ -354,6 +310,7 @@ _Dict = _DictReducerStatements(
     reduce=["%(result)s[{1}] = {2}"],
     initial_from_first=["%(result)s = {{ {0}: {1} }}"],
     default=None,
+    unconditional_init=True,
 )
 _DictArray = _DictReducerStatements(
     reduce=["%(result)s[{1}].append({2})"],
@@ -363,6 +320,7 @@ _DictArray = _DictReducerStatements(
     ],
     post_conversion=InlineExpr("dict({})").pass_args(GetItem()),
     default=None,
+    unconditional_init=True,
 )
 _DictArrayDistinct = _DictReducerStatements(
     reduce=["%(result)s[{1}][{2}] = None"],
@@ -374,6 +332,7 @@ _DictArrayDistinct = _DictReducerStatements(
         "{{k_: list(v_.keys()) for k_, v_ in {}.items()}}"
     ).pass_args(GetItem()),
     default=None,
+    unconditional_init=True,
 )
 _DictSum = _DictReducerStatements(
     reduce=["%(result)s[{1}] += {2} or 0"],
@@ -383,6 +342,7 @@ _DictSum = _DictReducerStatements(
     ],
     post_conversion=InlineExpr("dict({})").pass_args(GetItem()),
     default=None,
+    unconditional_init=True,
 )
 _DictSumOrNone = _DictReducerStatements(
     reduce=[
@@ -394,6 +354,7 @@ _DictSumOrNone = _DictReducerStatements(
     initial_from_first=["%(result)s = _d = defaultdict(int)", "_d[{0}] = {1}"],
     post_conversion=InlineExpr("dict({})").pass_args(GetItem()),
     default=None,
+    unconditional_init=True,
 )
 _DictMax = _DictReducerStatements(
     reduce=[
@@ -426,6 +387,7 @@ _DictCount = _DictReducerStatements(
     ],
     initial_from_first=["%(result)s = {{ {0}: 1 }}"],
     default=None,
+    unconditional_init=True,
 )
 _DictCountDistinct = _DictReducerStatements(
     reduce=[
@@ -439,16 +401,19 @@ _DictCountDistinct = _DictReducerStatements(
         "{{ k_: len(v_) for k_, v_ in {}.items() }}"
     ).pass_args(GetItem()),
     default=None,
+    unconditional_init=True,
 )
 _DictFirst = _DictReducerStatements(
     reduce=["if {1} not in {0}:", "    %(result)s[{1}] = {2}"],
     initial_from_first=["%(result)s = {{ {0}: {1} }}"],
     default=None,
+    unconditional_init=True,
 )
 _DictLast = _DictReducerStatements(
     reduce=["%(result)s[{1}] = {2}"],
     initial_from_first=["%(result)s = {{ {0}: {1} }}"],
     default=None,
+    unconditional_init=True,
 )
 
 
@@ -513,29 +478,209 @@ class ReduceFuncs:
     DictLast = _DictLast
 
 
-reduce_template = """
+class ReduceBlock:
+    var_checksum = "checksum_"
+    var_expected_checksum = "expected_checksum_"
+
+    reduce_indent = 3
+    reduce_no_init_indent = 2
+
+    def __init__(
+        self,
+        var_agg_data_value,
+        reduce_initial,
+        reduce_two,
+        checksum_flag,
+        unconditional_init,
+    ):
+        self.var_agg_data_value = var_agg_data_value
+        self.reduce_initial = reduce_initial
+        self.reduce_two = reduce_two
+        self.checksum_flag = checksum_flag
+        self.unconditional_init = unconditional_init
+
+    def union(self, reduce_block):
+        self.reduce_initial = (
+            f"{self.reduce_initial}\n{reduce_block.reduce_initial}"
+        )
+        self.reduce_two = f"{self.reduce_two}\n{reduce_block.reduce_two}"
+        self.checksum_flag |= reduce_block.checksum_flag
+        return self
+
+    def update_var_agg_data_value(self, new_var_agg_data_value):
+        self.reduce_initial = self.reduce_initial.replace(
+            self.var_agg_data_value, new_var_agg_data_value
+        )
+        self.reduce_two = self.reduce_two.replace(
+            self.var_agg_data_value, new_var_agg_data_value
+        )
+        self.var_agg_data_value = new_var_agg_data_value
+
+    def get_template_kwargs(self, no_init=False):
+        _ = BaseConversion._indent_statements
+        reduce_indent = (
+            self.reduce_no_init_indent if no_init else self.reduce_indent
+        )
+        return {
+            "var_agg_data_value": self.var_agg_data_value,
+            "reduce_initial": _(self.reduce_initial, reduce_indent),
+            "reduce_two": _(self.reduce_two, reduce_indent),
+            "var_checksum": self.var_checksum,
+            "var_expected_checksum": self.var_expected_checksum,
+            "checksum_flag": self.checksum_flag,
+        }
+
+    def get_template(self, no_init=False):
+        template = """
         if {var_agg_data_value} is _none:
 {reduce_initial}
+%(optional_checksum_code)s
         else:
 {reduce_two}
-
 """
-conditional_reduce_template = """
-        if {filter_expr}:
+        no_init_template = """
+{reduce_two}
+"""
+        optional_checksum_code = """
+            if {var_agg_data_value} is not _none:
+                {var_checksum} |= {checksum_flag}
+                if {var_checksum} == {var_expected_checksum}:
+                    break
+"""
+        template = no_init_template if no_init else template
+        template = template % dict(
+            optional_checksum_code=optional_checksum_code
+            if self.checksum_flag
+            else ""
+        )
+        return template
+
+    def to_code(self):
+        return self.get_template(no_init=False).format(
+            **self.get_template_kwargs(no_init=False)
+        )
+
+    def to_no_init_code(self):
+        return self.get_template(no_init=True).format(
+            **self.get_template_kwargs(no_init=True)
+        )
+
+    def code_hash(self):
+        code_hash = self.to_code()
+        code_hash = code_hash.replace(self.var_agg_data_value, "")
+        if self.checksum_flag:
+            code_hash = code_hash.replace(str(self.checksum_flag), "")
+        return code_hash
+
+
+class ReduceConditionalBlock(ReduceBlock):
+    reduce_indent = 4
+    reduce_no_init_indent = 3
+
+    def __init__(self, *args, **kwargs):
+        self.condition_code = kwargs.pop("condition_code")
+        super(ReduceConditionalBlock, self).__init__(*args, **kwargs)
+
+    def get_template(self, no_init=False):
+        template = """
+        if {condition_code}:
             if {var_agg_data_value} is _none:
 {reduce_initial}
+%(optional_checksum_code)s
             else:
+{reduce_two}
+"""
+        no_init_template = """
+        if {condition_code}:
 {reduce_two}
 
 """
+        optional_checksum_code = """
+                if {var_agg_data_value} is not _none:
+                    {var_checksum} |= {checksum_flag}
+                    if {var_checksum} == {var_expected_checksum}:
+                        break
+"""
+        template = no_init_template if no_init else template
+        template = template % dict(
+            optional_checksum_code=optional_checksum_code
+            if self.checksum_flag
+            else ""
+        )
+        return template
+
+    def get_template_kwargs(self, no_init=False):
+        template_kwargs = super(
+            ReduceConditionalBlock, self
+        ).get_template_kwargs(no_init=no_init)
+        template_kwargs["condition_code"] = self.condition_code
+        return template_kwargs
+
+
+class ReduceBlocks:
+    def __init__(self):
+        self.condition_to_blocks = defaultdict(list)
+        self.unconditional_init_condition_to_blocks = defaultdict(list)
+        self.unconditional_init_blocks = []
+        self.other_blocks = []
+        self.number = 0
+
+    def add_block(self, reduce_block: ReduceBlock, unconditional_init=False):
+        self.number += 1
+        if isinstance(reduce_block, ReduceConditionalBlock):
+            if reduce_block.unconditional_init:
+                _list = self.unconditional_init_condition_to_blocks[
+                    reduce_block.condition_code
+                ]
+            else:
+                _list = self.condition_to_blocks[reduce_block.condition_code]
+        else:
+            if reduce_block.unconditional_init:
+                _list = self.unconditional_init_blocks
+            else:
+                _list = self.other_blocks
+        _list.append(reduce_block)
+
+    @classmethod
+    def _reduce_blocks(cls, reduce_blocks):
+        if not reduce_blocks:
+            return None
+        if len(reduce_blocks) == 1:
+            return reduce_blocks[0]
+        return reduce((lambda b1, b2: b1.union(b2)), reduce_blocks)
+
+    def reduce_blocks(self):
+        blocks = []
+        for _blocks in self.condition_to_blocks.values():
+            for _block in _blocks:
+                blocks.append(_block)
+        for _blocks in self.unconditional_init_condition_to_blocks.values():
+            blocks.append(self._reduce_blocks(_blocks))
+
+        _block = self._reduce_blocks(self.unconditional_init_blocks)
+        if _block:
+            blocks.append(_block)
+
+        for _block in self.other_blocks:
+            blocks.append(_block)
+        return blocks
+
+    def to_code(self):
+        return "\n\n".join(block.to_code() for block in self.reduce_blocks())
+
+    def to_no_init_code(self):
+        return "\n\n".join(
+            block.to_no_init_code() for block in self.reduce_blocks()
+        )
+
+
 grouper_template = """
 def {converter_name}(data_{code_args}):
     global add_label_, get_by_label_
     _none = {var_none}
-    {var_signature_to_agg_data} = defaultdict(AggData)
+    {var_signature_to_agg_data} = defaultdict({var_agg_data_cls})
     for {var_row} in data_:
         {var_agg_data} = {var_signature_to_agg_data}[{code_signature}]
-
 {code_reduce_blocks}
 
     result_ = {code_result}
@@ -547,8 +692,14 @@ def {converter_name}(data_{code_args}):
     global add_label_, get_by_label_
     _none = {var_none}
     {code_init_agg_vars}
-    for {var_row} in data_:
+    {var_expected_checksum} = {val_expected_checksum}
+    {var_checksum} = 0
+    it_ = iter(data_)
+    for {var_row} in it_:
 {code_reduce_blocks}
+
+    for {var_row} in it_:
+{code_reduce_blocks_no_init}
 
     result_ = {code_result}
     {code_sorting}
@@ -566,6 +717,7 @@ class Reduce(BaseReduce):
         initial=BaseReduce._none,
         default=BaseReduce._none,
         additional_args=BaseReduce._none,
+        unconditional_init=False,
         **kwargs,
     ):
         """
@@ -597,6 +749,7 @@ class Reduce(BaseReduce):
         self.default = default
         self.condition = None
         self.post_conversion = None
+        self.unconditional_init = unconditional_init
         self.additional_args = (
             () if additional_args is self._none else additional_args
         )
@@ -638,13 +791,13 @@ class Reduce(BaseReduce):
         self.condition = self.ensure_conversion(condition_conversion)
         return self
 
-    def gen_reduce_code_block(self, var_agg_data_value, var_row, ctx):
-        if self.condition is None:
-            _reduce_template = reduce_template
-            indentation_level = 3
-        else:
-            _reduce_template = conditional_reduce_template
-            indentation_level = 4
+    def gen_reduce_code_block(
+        self, var_agg_data_value, var_row, checksum_flag, ctx
+    ):
+        block_cls = (
+            ReduceBlock if self.condition is None else ReduceConditionalBlock
+        )
+
         reduce_initial = self.reducer.gen_reduce_initial(
             var_agg_data_value,
             var_row,
@@ -652,28 +805,23 @@ class Reduce(BaseReduce):
             self.expr,
             self.additional_args,
             ctx,
-            indentation_level,
         )
         reduce_two = self.reducer.gen_reduce_two(
-            var_agg_data_value,
-            var_row,
-            self.expr,
-            self.additional_args,
-            ctx,
-            indentation_level,
+            var_agg_data_value, var_row, self.expr, self.additional_args, ctx,
         )
         kwargs = dict(
             var_agg_data_value=var_agg_data_value,
             reduce_initial=reduce_initial,
             reduce_two=reduce_two,
+            checksum_flag=checksum_flag,
         )
 
         if self.condition is not None:
-            kwargs["filter_expr"] = self.condition.gen_code_and_update_ctx(
+            kwargs["condition_code"] = self.condition.gen_code_and_update_ctx(
                 var_row, ctx
             )
 
-        return _reduce_template.format(**kwargs)
+        return block_cls(unconditional_init=self.unconditional_init, **kwargs)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         agg_data_item = ctx["_reduce_id_to_var"][id(self)]
@@ -898,6 +1046,7 @@ class GroupBy(BaseConversion):
         var_signature = "signature_"
         var_signature_to_agg_data = "signature_to_agg_data_"
         var_agg_data = "agg_data_"
+        var_agg_data_cls = f"AggData{self._number}"
 
         signature_code_items = [
             _by.gen_code_and_update_ctx(var_row, ctx) for _by in self.by
@@ -907,7 +1056,8 @@ class GroupBy(BaseConversion):
         else:
             code_signature = f"({','.join(signature_code_items)},)"
 
-        code_reduce_blocks = []
+        expected_checksum = 0
+        reduce_blocks = ReduceBlocks()
         var_agg_data_values = []
         code_signature_to_agg_index = {}
         reduce_id_to_var = ctx.setdefault("_reduce_id_to_var", {})
@@ -926,25 +1076,27 @@ class GroupBy(BaseConversion):
 
         for agg_index, agg_item in enumerate(self.agg_items):
             var_agg_data_value = gen_agg_data_value(agg_index)
-            code_reduce_block = agg_item.gen_reduce_code_block(
-                var_agg_data_value, var_row, ctx
+            checksum_flag = 1 << agg_index if self.aggregate_mode else 0
+            reduce_block = agg_item.gen_reduce_code_block(
+                var_agg_data_value, var_row, checksum_flag, ctx,
             )
-            code_hash = code_reduce_block.replace(var_agg_data_value, "")
+            code_hash = reduce_block.code_hash()
 
             add_reduce_block = False
             if code_hash in code_signature_to_agg_index:
                 reduce_block_index = code_signature_to_agg_index[code_hash]
             else:
-                reduce_block_index = len(code_reduce_blocks)
+                reduce_block_index = reduce_blocks.number
                 add_reduce_block = True
                 code_signature_to_agg_index[code_hash] = reduce_block_index
             new_var = reduce_id_to_var[id(agg_item)] = gen_agg_data_value(
                 reduce_block_index
             )
             if add_reduce_block:
-                code_reduce_blocks.append(
-                    code_reduce_block.replace(var_agg_data_value, new_var)
-                )
+                expected_checksum |= checksum_flag
+                if var_agg_data_value != new_var:
+                    reduce_block.update_var_agg_data_value(new_var)
+                reduce_blocks.add_block(reduce_block)
                 var_agg_data_values.append(new_var)
 
         ctx["defaultdict"] = defaultdict
@@ -954,8 +1106,9 @@ class GroupBy(BaseConversion):
                 " = ".join(var_agg_data_values)
             )
         else:
-            ctx["AggData"] = self._gen_agg_data_container(
-                len(code_reduce_blocks), self._none
+            var_agg_data_cls
+            ctx[var_agg_data_cls] = self._gen_agg_data_container(
+                reduce_blocks.number, self._none
             )
 
         code_result = self._rebuild_reducer_result(
@@ -978,36 +1131,37 @@ class GroupBy(BaseConversion):
         else:
             code_sorting = ""
 
+        agg_template_kwargs = dict(
+            code_args=self._get_args_def_code(as_kwargs=False),
+            var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
+                "", ctx
+            ),
+            code_reduce_blocks=reduce_blocks.to_code(),
+            code_result=code_result,
+            code_sorting=code_sorting,
+            var_row=var_row,
+        )
+
         if self.aggregate_mode:
             converter_name = "aggregate"
             grouper_code = aggregate_template.format(
-                code_args=self._get_args_def_code(as_kwargs=False),
-                var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
-                    "", ctx
-                ),
-                code_init_agg_vars=code_init_agg_vars,
-                var_row=var_row,
-                var_agg_data=var_agg_data,
                 converter_name=converter_name,
-                code_reduce_blocks="\n".join(code_reduce_blocks),
-                code_result=code_result,
-                code_sorting=code_sorting,
+                code_init_agg_vars=code_init_agg_vars,
+                code_reduce_blocks_no_init=reduce_blocks.to_no_init_code(),
+                var_expected_checksum=ReduceBlock.var_expected_checksum,
+                val_expected_checksum=expected_checksum,
+                var_checksum=ReduceBlock.var_checksum,
+                **agg_template_kwargs,
             )
         else:
             converter_name = "group_by"
             grouper_code = grouper_template.format(
-                code_args=self._get_args_def_code(as_kwargs=False),
-                var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
-                    "", ctx
-                ),
-                var_signature_to_agg_data=var_signature_to_agg_data,
-                var_row=var_row,
-                var_agg_data=var_agg_data,
                 converter_name=converter_name,
+                var_signature_to_agg_data=var_signature_to_agg_data,
+                var_agg_data_cls=var_agg_data_cls,
+                var_agg_data=var_agg_data,
                 code_signature=code_signature,
-                code_reduce_blocks="\n".join(code_reduce_blocks),
-                code_result=code_result,
-                code_sorting=code_sorting,
+                **agg_template_kwargs,
             )
 
         group_data_func = self._code_to_converter(
