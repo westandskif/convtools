@@ -102,7 +102,7 @@ c.naive
 =======
 
  .. automethod:: convtools.conversion.naive()
- 
+
  .. autoclass:: convtools.base.NaiveConversion()
     :noindex:
 
@@ -120,7 +120,7 @@ c.naive
 
  # is compiled to
  def converter209_358(data_):
-    # v206_380 is the mapping exposed by c.naive 
+    # v206_380 is the mapping exposed by c.naive
     return v206_380[data_["error_code"]]
 
  converter({"error_code": "500"}) == "try again later"
@@ -132,10 +132,10 @@ c() wrapper
 ===========
 
  .. automethod:: convtools.conversion.__call__
- 
+
  .. automethod:: convtools.base.ensure_conversion
     :noindex:
- 
+
  .. note::
     It is used under the hood on every argument passed to any conversion.
 
@@ -210,7 +210,7 @@ c.item
 ======
 
  .. autoattribute:: convtools.conversion.item
- 
+
  .. autoclass:: convtools.base.GetItem()
     :noindex:
 
@@ -294,7 +294,7 @@ There are 3 different actions related to calling something:
 **2. c.call_func -- Regular function calling, passing a function to call**
 
  .. autoattribute:: convtools.conversion.call_func
- 
+
  .. autofunction:: convtools.base.CallFunc
     :noindex:
 
@@ -358,7 +358,7 @@ Conversion methods/operators
 Wraps conversions with logical / math / comparison operators
 
 .. code-block:: python
- 
+
  # logical
  c.not_(conversion)
  c.or_(*conversions)
@@ -393,7 +393,7 @@ Wraps conversions with logical / math / comparison operators
 
 
 .. _ref_c_collections:
- 
+
 Collections
 ===========
 Converts an input into a collection, same is achievable by using
@@ -420,7 +420,7 @@ Converts an input into a collection, same is achievable by using
  * **c.set or c(set())**
 
   .. autoattribute:: convtools.conversion.set
-  
+
   .. autoclass:: convtools.base.Set()
      :noindex:
 
@@ -429,7 +429,7 @@ Converts an input into a collection, same is achievable by using
  * **c.dict or c({})**
 
   .. autoattribute:: convtools.conversion.dict
-  
+
   .. autoclass:: convtools.base.Dict()
      :noindex:
 
@@ -677,7 +677,7 @@ nested approach:
      ]
 
 
-Also it's often useful to pass the result to a callable (*of course you can 
+Also it's often useful to pass the result to a callable (*of course you can
 wrap any callable to make it a conversion and pass any parameters in any way
 you wish*), but there is some syntactic sugar:
 
@@ -689,7 +689,7 @@ you wish*), but there is some syntactic sugar:
 
    def converter397_422(data_):
        return vstrptime396_498(data_["date_str"], "%Y-%m-%d")
-   # so in cases where you pipe to python callable, 
+   # so in cases where you pipe to python callable,
    # the input will be passed as the first param and other params onward
 
 
@@ -1002,90 +1002,85 @@ _______________________________________________
 
 .. code-block:: python
 
-     def vgroup_data251_8(data):
-         _none = v353_639
-         try:
-             signature_to_agg_data = defaultdict(AggData)
-             for row in data:
-                 agg_data = signature_to_agg_data[
-                     (row["company"], row["department"])
-                 ]
+   def group_by(data_, convert_to_currency):
+       global add_label_, get_by_label_
+       _none = v383_497
+       signature_to_agg_data_ = defaultdict(AggData277)
+       for row_ in data_:
+           agg_data_ = signature_to_agg_data_[
+               (row_["company"], row_["department"],)
+           ]
 
-                 if agg_data.v0 is _none:
-                     agg_data.v0 = row["sales"] or 0
-                 else:
-                     agg_data.v0 += row["sales"] or 0
+           if row_["date"] >= "2019-01-01":
+               if agg_data_.v1 is _none:
+                   agg_data_.v1 = row_["sales"] or 0
 
-                 if row["date"] >= "2019-01-01":
-                     if agg_data.v1 is _none:
-                         agg_data.v1 = row["sales"] or 0
-                     else:
-                         agg_data.v1 += row["sales"] or 0
+               else:
+                   agg_data_.v1 += row_["sales"] or 0
 
-                 if agg_data.v2 is _none:
-                     agg_data.v2 = vlambda286_765(0, row["sales"])
-                 else:
-                     agg_data.v2 = vlambda286_765(agg_data.v2, row["sales"])
+           if agg_data_.v0 is _none:
+               agg_data_.v0 = row_["sales"] or 0
+               agg_data_.v3 = row_["company_address"]
+               agg_data_.v5 = _d = defaultdict(int)
+               _d[row_["employee"]] += row_["sales"] or 0
+               agg_data_.v6 = _d = defaultdict(int)
+               _d[row_["currency"]] += row_["sales"] or 0
 
-                 if agg_data.v3 is _none:
-                     agg_data.v3 = row["company_address"]
-                 else:
-                     pass
+           else:
+               agg_data_.v0 += row_["sales"] or 0
+               pass
+               agg_data_.v5[row_["employee"]] += row_["sales"] or 0
+               agg_data_.v6[row_["currency"]] += row_["sales"] or 0
 
-                 if agg_data.v4 is _none:
-                     if row["age"] is not None:
-                         agg_data.v4 = (row["age"], row)
-                 else:
-                     if row["age"] is not None and agg_data.v4[0] < row["age"]:
-                         agg_data.v4 = (row["age"], row)
+           if agg_data_.v2 is _none:
+               agg_data_.v2 = lambda305_238(0, row_["sales"])
 
-                 if agg_data.v5 is _none:
-                     agg_data.v5 = _d = defaultdict(int)
-                     _d[row["employee"]] += row["sales"] or 0
-                 else:
-                     agg_data.v5[row["employee"]] += row["sales"] or 0
+           else:
+               agg_data_.v2 = lambda305_238(agg_data_.v2, row_["sales"])
 
-             result = [
-                 {
-                     "company": signature[0],
-                     "department": signature[1],
-                     vlambda217_607(signature[0]): signature[1].replace(
-                         "PREFIX", ""
-                     ),
-                     "sales_total": (0 if agg_data.v0 is _none else agg_data.v0),
-                     "sales_2019": (0 if agg_data.v1 is _none else agg_data.v1),
-                     "sales_total_too": (
-                         None if agg_data.v2 is _none else agg_data.v2
-                     ),
-                     "company_address": (
-                         None if agg_data.v3 is _none else agg_data.v3
-                     ),
-                     "oldest_employee": (
-                         None if agg_data.v4 is _none else agg_data.v4[1]
-                     )["employee"],
-                     "employee_to_sales": (
-                         None if agg_data.v5 is _none else dict(agg_data.v5)
-                     ),
-                     "postprocessed_dict_reduce": (
-                         (
-                             vlambda276_128(
-                                 i277_787[0], convert_to_currency, i277_787[1]
-                             )
-                         )
-                         for i277_787 in (
-                             dict()
-                             if agg_data.v6 is _none
-                             else dict(agg_data.v6)
-                         ).items()
-                     ),
-                 }
-                 for signature, agg_data in signature_to_agg_data.items()
-             ]
+           if agg_data_.v4 is _none:
+               if row_["age"] is not None:
+                   agg_data_.v4 = (row_["age"], row_)
 
-             return result
+           else:
+               if row_["age"] is not None and agg_data_.v4[0] < row_["age"]:
+                   agg_data_.v4 = (row_["age"], row_)
 
- def converter210_631(data):
-     return vgroup_data251_8(data)
+       result_ = [
+           {
+               "company": signature_[0],
+               "department": signature_[1],
+               lambda212_482(signature_[0]): signature_[1].replace("PREFIX", ""),
+               "sales_total": (0 if agg_data_.v0 is _none else agg_data_.v0),
+               "sales_2019": (0 if agg_data_.v1 is _none else agg_data_.v1),
+               "sales_total_too": (
+                   None if agg_data_.v2 is _none else agg_data_.v2
+               ),
+               "company_address": (
+                   None if agg_data_.v3 is _none else agg_data_.v3
+               ),
+               "oldest_employee": (
+                   None if agg_data_.v4 is _none else agg_data_.v4[1]
+               )["employee"],
+               "employee_to_sales": (
+                   None if agg_data_.v5 is _none else (dict(agg_data_.v5))
+               ),
+               "postprocessed_dict_reduce": (
+                   (lambda273_656(i276_863[0], convert_to_currency, i276_863[1]))
+                   for i276_863 in (
+                       dict() if agg_data_.v6 is _none else (dict(agg_data_.v6))
+                   ).items()
+               ),
+           }
+           for signature_, agg_data_ in signature_to_agg_data_.items()
+       ]
+
+       return result_
+
+
+   def converter277_660(data_, *, convert_to_currency):
+      global add_label_, get_by_label_
+      return group_by386_836(data_, convert_to_currency)
 
 Fortunately this code is auto-generated (there's no joy in writing this).
 

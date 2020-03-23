@@ -161,17 +161,34 @@ An example:
 .. code-block:: python
 
    def aggregate(data_):
-       _none = v467_576
+       global add_label_, get_by_label_
+       _none = v123_497
        agg_data_v0_ = _none
-       for row_ in data_:
+       expected_checksum_ = 1
+       checksum_ = 0
+       it_ = iter(data_)
+       for row_ in it_:
 
            if agg_data_v0_ is _none:
                agg_data_v0_ = {row_: 1}
+
+               if agg_data_v0_ is not _none:
+                   checksum_ |= 1
+                   if checksum_ == expected_checksum_:
+                       break
+
            else:
                if row_ not in agg_data_v0_:
                    agg_data_v0_[row_] = 1
                else:
                    agg_data_v0_[row_] += 1
+
+       for row_ in it_:
+
+           if row_ not in agg_data_v0_:
+               agg_data_v0_[row_] = 1
+           else:
+               agg_data_v0_[row_] += 1
 
        result_ = dict() if agg_data_v0_ is _none else agg_data_v0_
 

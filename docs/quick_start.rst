@@ -651,78 +651,70 @@ reduce functions:
 
 .. code-block:: python
 
-  def group_by(data):
-      _none = v650_26
-      signature_to_agg_data = defaultdict(AggData)
-      for row in data:
-          agg_data = signature_to_agg_data[row["company_name"]]
+   def group_by(data_):
+       global add_label_, get_by_label_
+       _none = v528_497
+       signature_to_agg_data_ = defaultdict(AggData454)
+       for row_ in data_:
+           agg_data_ = signature_to_agg_data_[row_["company_name"]]
 
-          if agg_data.v0 is _none:
-              agg_data.v0 = row["sales"]
-          else:
-              if row["sales"] is None:
-                  agg_data.v0 = None
-              elif agg_data.v0 is not None:
-                  agg_data.v0 = agg_data.v0 + row["sales"]
+           if agg_data_.v0 is _none:
+               agg_data_.v0 = row_["sales"]
+               agg_data_.v2 = row_["company_hq"]
+               agg_data_.v3 = _d = defaultdict(dict)
+               _d[row_["app_name"]][row_["country"]] = None
+               agg_data_.v4 = _d = defaultdict(int)
+               _d[row_["app_name"]] += row_["sales"] or 0
 
-          if agg_data.v1 is _none:
-              if row["sales"] is not None:
-                  agg_data.v1 = (row["sales"], row)
-          else:
-              if row["sales"] is not None and agg_data.v1[0] < row["sales"]:
-                  agg_data.v1 = (row["sales"], row)
+           else:
+               if row_["sales"] is None:
+                   agg_data_.v0 = None
+               elif agg_data_.v0 is not None:
+                   agg_data_.v0 = agg_data_.v0 + row_["sales"]
+               pass
+               agg_data_.v3[row_["app_name"]][row_["country"]] = None
+               agg_data_.v4[row_["app_name"]] += row_["sales"] or 0
 
-          if agg_data.v2 is _none:
-              agg_data.v2 = row["company_hq"]
-          else:
-              pass
+           if agg_data_.v1 is _none:
+               if row_["sales"] is not None:
+                   agg_data_.v1 = (row_["sales"], row_)
 
-          if agg_data.v3 is _none:
-              agg_data.v3 = _d = defaultdict(dict)
-              _d[row["app_name"]][row["country"]] = None
-          else:
-              agg_data.v3[row["app_name"]][row["country"]] = None
+           else:
+               if row_["sales"] is not None and agg_data_.v1[0] < row_["sales"]:
+                   agg_data_.v1 = (row_["sales"], row_)
 
-          if agg_data.v4 is _none:
-              agg_data.v4 = _d = defaultdict(int)
-              _d[row["app_name"]] += row["sales"] or 0
-          else:
-              agg_data.v4[row["app_name"]] += row["sales"] or 0
+       result_ = [
+           {
+               "company_name": signature_.upper(),
+               "none_sensitive_sum": (
+                   None if agg_data_.v0 is _none else agg_data_.v0
+               ),
+               "top_sales_app": (
+                   None if agg_data_.v1 is _none else agg_data_.v1[1]
+               )["app_name"],
+               "top_sales_day": strptime430_101(
+                   (None if agg_data_.v1 is _none else agg_data_.v1[1])["date"],
+                   "%Y-%m-%d",
+               ).date(),
+               "company_hq": (None if agg_data_.v2 is _none else agg_data_.v2),
+               "app_name_to_countries": (
+                   None
+                   if agg_data_.v3 is _none
+                   else ({k_: list(v_.keys()) for k_, v_ in agg_data_.v3.items()})
+               ),
+               "app_name_to_sales": (
+                   None if agg_data_.v4 is _none else (dict(agg_data_.v4))
+               ),
+           }
+           for signature_, agg_data_ in signature_to_agg_data_.items()
+       ]
 
-      result = [
-          {
-              "company_name": signature.upper(),
-              "none_sensitive_sum": (
-                  None if agg_data.v0 is _none else agg_data.v0
-              ),
-              "top_sales_app": (
-                  None if agg_data.v1 is _none else agg_data.v1[1]
-              )["app_name"],
-              "top_sales_day": vstrptime553_735(
-                  (None if agg_data.v1 is _none else agg_data.v1[1])["date"],
-                  "%Y-%m-%d",
-              ).date(),
-              "company_hq": (None if agg_data.v2 is _none else agg_data.v2),
-              "app_name_to_countries": (
-                  None
-                  if agg_data.v3 is _none
-                  else {
-                      i31_99[0]: list(i31_99[1].keys())
-                      for i31_99 in agg_data.v3.items()
-                  }
-              ),
-              "app_name_to_sales": (
-                  None if agg_data.v4 is _none else dict(agg_data.v4)
-              ),
-          }
-          for signature, agg_data in signature_to_agg_data.items()
-      ]
-
-      return result
+       return result_
 
 
-  def converter539_13(data_):
-      return vgroup_by652_349(data_)
+   def converter454_660(data_):
+       global add_label_, get_by_label_
+       return group_by530_779(data_)
 
 
 9. Joins
