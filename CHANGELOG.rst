@@ -1,3 +1,17 @@
+0.5.0 (2020-03-23)
+------------------
+
+Features
+++++++++
+
+- - increased the speed of ``c.aggregate`` and ``c.group_by`` by collapsing multiple ``if`` statements into one
+  - updated labeling functionality
+  `#11 <https://github.com/itechart-almakov/convtools/issues/11>`_
+
+
+----
+
+
 0.4.0 (2020-03-19)
 ------------------
 
