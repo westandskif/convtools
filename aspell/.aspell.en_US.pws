@@ -1,4 +1,4 @@
-personal_ws-1.1 en 141 
+personal_ws-1.1 en 142 
 Almakov
 BYN
 CHF
@@ -70,6 +70,7 @@ getter
 globals
 groupby
 gte
+hoc
 howto
 hq
 html

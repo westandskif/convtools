@@ -8,6 +8,51 @@ convtools
 from python objects to python objects, including processing collections and
 doing complex aggregations and joins.
 
+Once defined, the conversion can be compiled into an ad hoc code OR be reused for
+building more complex conversions.
+
+Why would you need this?
+========================
+
+ * you need to serialize some objects
+ * you need to define data transformations based on some input,
+   which becomes available at runtime
+ * you want to reuse field-wise transformations across the project without
+   worrying about huge overhead of calling tens of functions per row/object,
+   especially when there are thousands of them to be processed
+ * you believe that Python is awesome enough to have powerful aggregations and
+   joins
+ * you like the idea of having something else write an unpleasant ad hoc
+   code for you
+
+
+Is it any different from tools like Pandas?
+===========================================
+
+ * `convtools` doesn't need to wrap data in any container to provide useful API,
+   it just writes normal python code under the hood
+ * `convtools` is a lightweight library with no dependencies (however optional
+   ``black`` is highly recommended for pretty-printing generated code
+   when debugging)
+ * `convtools` is about defining and reusing conversions -- declarative approach,
+   while wrapping data in high-performance containers is more of being imperative
+
+
+What's the workflow?
+====================
+
+ 1. ``from convtools import conversion as c``
+ 2. define conversions
+ 3. (optional) store them somewhere for further reuse
+ 4. call ``gen_converter`` method to compile the conversion into a function,
+    written with an ad hoc code
+ 5. (optional) it's totally fine to generate converters at runtime, for simple
+    conversions it takes less than 0.1-0.2 milliseconds to get compiled.
+
+
+Description
+===========
+
 The speed of **convtools** comes from the approach of generating code & compiling
 conversion functions, which don't have any generic code like superfluous
 loops, ifs, etc.
