@@ -121,8 +121,95 @@ Installation:
 
    pip install convtools
 
-An example:
-===========
+Example #1: deserialization & data preps
+========================================
+
+.. code-block:: python
+
+   # get by "department" key and then call method "strip"
+   department = c.item("department").call_method("strip")
+   first_name = c.item("first_name").call_method("capitalize")
+   last_name = c.item("last_name").call_method("capitalize")
+
+   # call "format" method of a string and pass first & last names as parameters
+   full_name = c("{} {}").call_method("format", first_name, last_name)
+   date_of_birth = c.item("dob")
+
+   # partially initialized "strptime"
+   parse_date = c.call_func(
+       datetime.strptime,
+       c.this(),
+       "%Y-%m-%d"
+   ).call_method("date")
+
+   c.item("objects").pipe(
+       c.generator_comp({
+           "id": c.item("id"),
+           "first_name": first_name,
+           "last_name": last_name,
+           "full_name": full_name,
+           "date_of_birth": c.if_(
+               date_of_birth,
+               date_of_birth.pipe(parse_date),
+               None,
+           ),
+           "salary": c.call_func(
+               Decimal,
+               c.item("salary").call_method("replace", ",", "")
+           ),
+           # pass a hardcoded dict and to get value by "department" key
+           "department_id": c.naive({
+               "D1": 10,
+               "D2": 11,
+               "D3": 12,
+           }).item(department),
+           "date": c.item("date").pipe(parse_date),
+       })
+   ).pipe(
+       c.dict_comp(
+           c.item("id"), # key
+           # write a python code expression, format with passed parameters
+           c.inline_expr("{employee_cls}(**{kwargs})").pass_args(
+               employee_cls=Employee,
+               kwargs=c.this(),
+           ),            # value
+       )
+   ).gen_converter(debug=True)
+
+Gets compiled into:
+
+.. code-block:: python
+
+   def converter705_580(data_):
+       global add_label_, get_by_label_
+       pipe705_68 = data_["objects"]
+       pipe705_973 = (
+           {
+               "id": i703_861["id"],
+               "first_name": i703_861["first_name"].capitalize(),
+               "last_name": i703_861["last_name"].capitalize(),
+               "full_name": "{} {}".format(
+                   i703_861["first_name"].capitalize(),
+                   i703_861["last_name"].capitalize(),
+               ),
+               "date_of_birth": (
+                   strptime494_480(i703_861["dob"], "%Y-%m-%d").date()
+                   if i703_861["dob"]
+                   else None
+               ),
+               "salary": Decimal731_432(i703_861["salary"].replace(",", "")),
+               "department_id": v677_416[i703_861["department"].strip()],
+               "date": strptime494_480(i703_861["date"], "%Y-%m-%d").date(),
+           }
+           for i703_861 in pipe705_68
+       )
+       return {
+           i705_330["id"]: (Employee700_725(**i705_330))
+           for i705_330 in pipe705_973
+       }
+
+Example #2: word count
+======================
 
 .. code-block:: python
 
