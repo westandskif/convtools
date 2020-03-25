@@ -10,6 +10,8 @@ doing complex aggregations and joins.
 Once defined, the conversion can be compiled into an ad hoc code OR be reused for
 building more complex conversions.
 
+`convtools on Read the Docs <https://convtools.readthedocs.io/en/latest/>`_
+
 .. image:: https://img.shields.io/pypi/pyversions/convtools.svg
     :target: https://pypi.org/project/convtools/
 
