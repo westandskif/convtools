@@ -1,3 +1,17 @@
+0.5.2 (2020-03-29)
+------------------
+
+Bugfixes
+++++++++
+
+- - fixed Aggregate multiple reduce optimization
+   - added main page - workflow example
+  `#14 <https://github.com/itechart-almakov/convtools/issues/14>`_
+
+
+----
+
+
 0.5.1 (2020-03-26)
 ------------------
 
