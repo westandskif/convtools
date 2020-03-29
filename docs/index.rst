@@ -11,6 +11,7 @@ doing complex aggregations and joins.
 Once defined, the conversion can be compiled into an ad hoc code OR be reused for
 building more complex conversions.
 
+
 What's the workflow?
 ====================
 
@@ -41,6 +42,7 @@ What's the workflow?
        'a_sum': 25,
        'b': ['foo', 'bar']
    }
+
 Why would you need this?
 ========================
 

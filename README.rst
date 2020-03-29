@@ -10,8 +10,6 @@ doing complex aggregations and joins.
 Once defined, the conversion can be compiled into an ad hoc code OR be reused for
 building more complex conversions.
 
-`convtools on Read the Docs <https://convtools.readthedocs.io/en/latest/>`_
-
 .. image:: https://img.shields.io/pypi/pyversions/convtools.svg
     :target: https://pypi.org/project/convtools/
 
@@ -39,6 +37,12 @@ building more complex conversions.
    :target: https://pepy.tech/project/convtools
    :alt: Downloads
 
+Docs
+====
+
+ * `convtools on Read the Docs <https://convtools.readthedocs.io/en/latest/>`_
+ * `Cheatsheet <https://convtools.readthedocs.io/en/latest/cheatsheet.html>`_
+ * `QuickStart <https://convtools.readthedocs.io/en/latest/quick_start.html>`_
 
 What's the workflow?
 ====================
@@ -391,7 +395,9 @@ Example #2: word count
            else pipe459_970
        )
 
-Documentation
-=============
+Docs
+====
 
-`convtools on Read the Docs <https://convtools.readthedocs.io/en/latest/>`_
+ * `convtools on Read the Docs <https://convtools.readthedocs.io/en/latest/>`_
+ * `Cheatsheet <https://convtools.readthedocs.io/en/latest/cheatsheet.html>`_
+ * `QuickStart <https://convtools.readthedocs.io/en/latest/quick_start.html>`_
