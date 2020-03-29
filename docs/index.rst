@@ -11,6 +11,36 @@ doing complex aggregations and joins.
 Once defined, the conversion can be compiled into an ad hoc code OR be reused for
 building more complex conversions.
 
+What's the workflow?
+====================
+
+ 1. ``from convtools import conversion as c``
+ 2. define conversions
+ 3. (optional) store them somewhere for further reuse
+ 4. call ``gen_converter`` method to compile the conversion into a function,
+    written with an ad hoc code
+ 5. (optional) it's totally fine to generate converters at runtime, for simple
+    conversions it takes less than 0.1-0.2 milliseconds to get compiled.
+
+.. code-block:: python
+
+   input_data = [
+       {'a': 5,  'b': 'foo'},
+       {'a': 10, 'b': 'bar'},
+       {'a': 10, 'b': 'bar'}
+   ]
+
+   conv = c.aggregate({
+       "a": c.reduce(c.ReduceFuncs.Array, c.item("a")),
+       "a_sum": c.reduce(c.ReduceFuncs.Sum, c.item("a")),
+       "b": c.reduce(c.ReduceFuncs.ArrayDistinct, c.item("b")),
+   }).gen_converter()
+
+   conv(input_data) == {
+       'a': [5, 10, 10],
+       'a_sum': 25,
+       'b': ['foo', 'bar']
+   }
 Why would you need this?
 ========================
 
@@ -36,18 +66,6 @@ Is it any different from tools like Pandas?
    when debugging)
  * `convtools` is about defining and reusing conversions -- declarative approach,
    while wrapping data in high-performance containers is more of being imperative
-
-
-What's the workflow?
-====================
-
- 1. ``from convtools import conversion as c``
- 2. define conversions
- 3. (optional) store them somewhere for further reuse
- 4. call ``gen_converter`` method to compile the conversion into a function,
-    written with an ad hoc code
- 5. (optional) it's totally fine to generate converters at runtime, for simple
-    conversions it takes less than 0.1-0.2 milliseconds to get compiled.
 
 
 Description
