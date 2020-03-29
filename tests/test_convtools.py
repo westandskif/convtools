@@ -1289,3 +1289,25 @@ def test_conversion_wrapper():
         )
         == 41
     )
+
+
+def test_aggregate():
+    input_data = [
+        {"a": 5, "b": "foo"},
+        {"a": 10, "b": "bar"},
+        {"a": 10, "b": "bar"},
+    ]
+
+    conv = c.aggregate(
+        {
+            "a": c.reduce(c.ReduceFuncs.Array, c.item("a")),
+            "a_sum": c.reduce(c.ReduceFuncs.Sum, c.item("a")),
+            "b": c.reduce(c.ReduceFuncs.ArrayDistinct, c.item("b")),
+        }
+    ).gen_converter(debug=True)
+
+    assert conv(input_data) == {
+        "a": [5, 10, 10],
+        "a_sum": 25,
+        "b": ["foo", "bar"],
+    }
