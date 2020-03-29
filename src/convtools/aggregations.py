@@ -500,12 +500,14 @@ class ReduceBlock:
         self.unconditional_init = unconditional_init
 
     def union(self, reduce_block):
-        self.reduce_initial = (
+        clone = self.__class__.__new__(self.__class__)
+        clone.__dict__.update(self.__dict__)
+        clone.reduce_initial = (
             f"{self.reduce_initial}\n{reduce_block.reduce_initial}"
         )
-        self.reduce_two = f"{self.reduce_two}\n{reduce_block.reduce_two}"
-        self.checksum_flag |= reduce_block.checksum_flag
-        return self
+        clone.reduce_two = f"{self.reduce_two}\n{reduce_block.reduce_two}"
+        clone.checksum_flag |= reduce_block.checksum_flag
+        return clone
 
     def update_var_agg_data_value(self, new_var_agg_data_value):
         self.reduce_initial = self.reduce_initial.replace(
