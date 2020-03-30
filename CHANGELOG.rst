@@ -1,3 +1,16 @@
+0.5.3 (2020-03-30)
+------------------
+
+Bugfixes
+++++++++
+
+- - fixed aggregate issue: reduce(...).item(..., default=...) case
+  `#15 <https://github.com/itechart-almakov/convtools/issues/15>`_
+
+
+----
+
+
 0.5.2 (2020-03-29)
 ------------------
 

@@ -1,1 +1,0 @@
-- fixed aggregate issue: reduce(...).item(..., default=...) case
