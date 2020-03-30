@@ -1301,13 +1301,18 @@ def test_aggregate():
     conv = c.aggregate(
         {
             "a": c.reduce(c.ReduceFuncs.Array, c.item("a")),
-            "a_sum": c.reduce(c.ReduceFuncs.Sum, c.item("a")),
+            "ab_sum": c.reduce(c.ReduceFuncs.Sum, c.item("a"))
+            + c.reduce(c.ReduceFuncs.Count),
             "b": c.reduce(c.ReduceFuncs.ArrayDistinct, c.item("b")),
+            "b_max_a": c.reduce(c.ReduceFuncs.MaxRow, c.item("a")).item(
+                "b", default=None
+            ),
         }
     ).gen_converter(debug=True)
 
     assert conv(input_data) == {
         "a": [5, 10, 10],
-        "a_sum": 25,
+        "ab_sum": 28,
         "b": ["foo", "bar"],
+        "b_max_a": "bar",
     }
