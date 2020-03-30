@@ -55,25 +55,92 @@ What's the workflow?
  5. (optional) it's totally fine to generate converters at runtime, for simple
     conversions it takes less than 0.1-0.2 milliseconds to get compiled.
 
+Below are real-world like examples (for more tutorial-like examples,
+please scroll down to the **Installation** step):
+
 .. code-block:: python
 
+   # ======== #
+   # GROUP BY #
+   # ======== #
    input_data = [
        {'a': 5,  'b': 'foo'},
+       {'a': 10, 'b': 'foo'},
        {'a': 10, 'b': 'bar'},
-       {'a': 10, 'b': 'bar'}
+       {'a': 10, 'b': 'bar'},
+       {'a': 20, 'b': 'bar'}
    ]
 
-   conv = c.aggregate({
-       "a": c.reduce(c.ReduceFuncs.Array, c.item("a")),
-       "a_sum": c.reduce(c.ReduceFuncs.Sum, c.item("a")),
-       "b": c.reduce(c.ReduceFuncs.ArrayDistinct, c.item("b")),
-   }).gen_converter()
+   conv = c.group_by(
+       c.item("b")
+   ).aggregate({
+       "b": c.item("b"),
+       "a_first": c.reduce(c.ReduceFuncs.First, c.item("a")),
+       "a_max": c.reduce(c.ReduceFuncs.Max, c.item("a")),
+   }).gen_converter(debug=True)
 
-   conv(input_data) == {
-       'a': [5, 10, 10],
-       'a_sum': 25,
-       'b': ['foo', 'bar']
-   }
+   conv(input_data) == [
+       {'b': 'foo', 'a_first': 5, 'a_max': 10},
+       {'b': 'bar', 'a_first': 10, 'a_max': 20}]
+
+
+   # ========= #
+   # AGGREGATE #
+   # ========= #
+   conv = c.aggregate({
+       # list of "a" values where "b" equals to "bar"
+       "a": c.reduce(
+           c.ReduceFuncs.Array,
+           c.item("a")
+       ).filter(c.item("b") == "bar"),
+
+       # "b" value of a row where "a" has Max value
+       "b": c.reduce(
+           c.ReduceFuncs.MaxRow,
+           c.item("a"),
+       ).item("b", default=None),
+   }).gen_converter(debug=True)
+
+   conv(input_data) == {'a': [10, 10, 20], 'b': 'bar'}
+
+.. code-block:: python
+
+   # ==== #
+   # JOIN #
+   # ==== #
+   collection_1 = [
+       {"id": 1, "name": "Nick"},
+       {"id": 2, "name": "Joash"},
+       {"id": 3, "name": "Bob"},
+   ]
+   collection_2 = [
+       {"ID": "3", "age": 17, "country": "GB"},
+       {"ID": "2", "age": 21, "country": "US"},
+       {"ID": "1", "age": 18, "country": "CA"},
+   ]
+   input_data = (collection_1, collection_2)
+
+   conv = c.join(
+       c.item(0),
+       c.item(1),
+       c.and_(
+           c.LEFT.item("id") == c.RIGHT.item("ID").as_type(int),
+           c.RIGHT.item("age") >= 18
+       ),
+       how="left",
+   ).pipe(
+       c.list_comp({
+           "id": c.item(0, "id"),
+           "name": c.item(0, "name"),
+           "age": c.item(1, "age", default=None),
+           "country": c.item(1, "country", default=None),
+       })
+   ).gen_converter(debug=True)
+
+   assert conv(input_data) == [
+       {'id': 1, 'name': 'Nick', 'age': 18},
+       {'id': 2, 'name': 'Joash', 'age': 21}]
+
 
 Why would you need this?
 ========================
@@ -401,3 +468,4 @@ Docs
  * `convtools on Read the Docs <https://convtools.readthedocs.io/en/latest/>`_
  * `Cheatsheet <https://convtools.readthedocs.io/en/latest/cheatsheet.html>`_
  * `QuickStart <https://convtools.readthedocs.io/en/latest/quick_start.html>`_
+

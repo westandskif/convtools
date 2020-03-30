@@ -218,6 +218,7 @@ class BaseConversion:
     _none = object()
     counter = count()
     max_counter = 32768
+    _methods_without_input = False
 
     def __init__(self, options):
         self.depends_on = ()
@@ -763,6 +764,8 @@ class BaseMethodConversion(BaseConversion):
             self._predefined_self = self.ensure_conversion(
                 options.pop("_predefined_self")
             )
+            if self._predefined_self._methods_without_input:
+                self._predefined_input = self._predefined_self
 
     def get_self_code(self, code_input, ctx):
         if self._predefined_self is None:

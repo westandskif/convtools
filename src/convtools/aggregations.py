@@ -712,6 +712,8 @@ def {converter_name}(data_{code_args}):
 class Reduce(BaseReduce):
     """Defines the reduce operation to be used during the aggregation"""
 
+    _methods_without_input = True
+
     def __init__(
         self,
         to_call_with_2_args,
