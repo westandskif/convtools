@@ -28,6 +28,8 @@ please scroll down to the **Installation** step):
 
 .. code-block:: python
 
+   from convtools import conversion as c
+
    # ======== #
    # GROUP BY #
    # ======== #
