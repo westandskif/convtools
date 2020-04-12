@@ -10,6 +10,7 @@ doing complex aggregations and joins.
 Once defined, the conversion can be compiled into an ad hoc code OR be reused for
 building more complex conversions.
 
+
 .. image:: https://img.shields.io/pypi/pyversions/convtools.svg
     :target: https://pypi.org/project/convtools/
 
@@ -36,6 +37,10 @@ building more complex conversions.
 .. image:: https://pepy.tech/badge/convtools
    :target: https://pepy.tech/project/convtools
    :alt: Downloads
+
+.. image:: https://badges.gitter.im/python-convtools/community.svg
+   :target: https://gitter.im/python-convtools/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
+   :alt: Chat on Gitter
 
 Docs
 ====
