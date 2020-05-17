@@ -17,47 +17,40 @@ def clean_line_cache(key, value):
 
 
 class _ConverterCallable:
-    linecache_keys = RUCache(100, clean_line_cache)
+    linecache_keys = RUCache(1000, clean_line_cache)
 
-    def __init__(
-        self,
-        converter,
-        code_str,
-        fake_filename,
-        ctx,
-        _instance=None,
-        debug=None,
-    ):
-        self.converter = converter
-        self._code_str = code_str
-        self._fake_filename = fake_filename
+    def __init__(self, ctx, debug=None):
+        self._fake_filename_to_code_str = {}
         self._ctx = ctx
-        self._ctx["__depth"] = 0
         self._debug = debug
-        self._line_cache_populated = False
-        self._instance = _instance
-        self.__name__ = getattr(self.converter, "__name__", "")
 
+        self._main_converter = None
+        self.__name__ = None
+
+    def add_sources(self, fake_filename, code_str):
+        new_code_str = fake_filename not in self._fake_filename_to_code_str
+        if (
+            not new_code_str
+            and self._fake_filename_to_code_str[fake_filename] != code_str
+        ):
+            raise Exception("fake_filename already exists", fake_filename)
+        self._fake_filename_to_code_str[fake_filename] = code_str
+        if self._debug and new_code_str:
+            print("\n", code_str)
+
+    def set_main_converter(self, converter):
+        self._main_converter = converter
+        self.__name__ = getattr(self._main_converter, "__name__", "")
         if self._debug:
             self.populate_line_cache()
 
     def __get__(self, instance, cls):
-        return self.__class__(
-            self.converter,
-            code_str=self._code_str,
-            fake_filename=self._fake_filename,
-            ctx=self._ctx,
-            _instance=instance or cls,
-        )
+        return _ConverterCallableMethod(self, instance, cls)
 
     def __call__(self, *args, **kwargs):
         deferred_labels_cleaning = False
-        self._ctx["__depth"] += 1
         try:
-            if self._instance:
-                args = (self._instance,) + args
-
-            result = self.converter(*args, **kwargs)
+            result = self._main_converter(*args, **kwargs)
             if isinstance(result, GeneratorType):
                 deferred_labels_cleaning = True
                 return self.wrap_generator_clean_labels_on_exit(
@@ -68,8 +61,7 @@ class _ConverterCallable:
             self.populate_line_cache()
             raise
         finally:
-            self._ctx["__depth"] -= 1
-            if not deferred_labels_cleaning and self._ctx["__depth"] == 0:
+            if not deferred_labels_cleaning:
                 labels_ = self._ctx["labels_"]
                 if labels_:
                     for key in list(labels_):
@@ -78,23 +70,38 @@ class _ConverterCallable:
     def wrap_generator_clean_labels_on_exit(self, generator_, labels_):
         try:
             yield from generator_
+        except Exception:
+            self.populate_line_cache()
+            raise
         finally:
             labels_ = self._ctx["labels_"]
-            if labels_ and self._ctx["__depth"] == 0:
+            if labels_:
                 for key in list(labels_):
                     del labels_[key]
 
     def populate_line_cache(self):
-        if self.linecache_keys.has(self._fake_filename, bump_up=True):
-            return
+        for fake_filename, code_str in self._fake_filename_to_code_str.items():
+            if self.linecache_keys.has(fake_filename, bump_up=True):
+                continue
 
-        linecache.cache[self._fake_filename] = (
-            len(self._code_str),
-            None,
-            self._code_str.splitlines(),
-            self._fake_filename,
-        )
-        self.linecache_keys.set(self._fake_filename, True)
+            linecache.cache[fake_filename] = (
+                len(code_str),
+                None,
+                code_str.splitlines(),
+                fake_filename,
+            )
+            self.linecache_keys.set(fake_filename, True)
+
+
+class _ConverterCallableMethod:
+    __slots__ = ["converter_callable", "instance_or_cls"]
+
+    def __init__(self, converter_callable, instance, cls):
+        self.converter_callable = converter_callable
+        self.instance_or_cls = instance or cls
+
+    def __call__(self, *args, **kwargs):
+        return self.converter_callable(self.instance_or_cls, *args, **kwargs)
 
 
 class CodeGenerationOptions(BaseOptions):
@@ -219,6 +226,7 @@ class BaseConversion:
     counter = count()
     max_counter = 32768
     _methods_without_input = False
+    _valid_pipe_output = True
 
     def __init__(self, options):
         self.depends_on = ()
@@ -314,8 +322,10 @@ class BaseConversion:
         if prefixed_hash in prefixed_hash_to_name:
             return prefixed_hash_to_name[prefixed_hash]
 
-        name = "%s%d_%d" % (prefix, self._number, hash(prefixed_hash) % 1000)
-        prefixed_hash_to_name[prefixed_hash] = name
+        name_parts = [prefix, str(self._number)]
+        if item_to_hash is not None:
+            name_parts.append(str(hash(prefixed_hash) % 1000))
+        name = prefixed_hash_to_name[prefixed_hash] = "_".join(name_parts)
         return name
 
     @classmethod
@@ -367,7 +377,7 @@ class BaseConversion:
             for arg in args
         )
 
-    def _code_to_converter(self, converter_name, code, ctx, fake_filename):
+    def _code_to_converter(self, converter_name, code, ctx):
         is_debug = ctx.get(
             "__debug", False
         ) or ConverterOptionsCtx.get_option_value("debug")
@@ -382,23 +392,16 @@ class BaseConversion:
                 pass
             except black.InvalidInput:
                 pass
-            print("\n", code)
 
-        fake_filename = f"{fake_filename}_{self._number}.py"
+        fake_filename = f"_fake_{converter_name}.py"
         code_obj = compile(code, fake_filename, "exec")
         exec(code_obj, ctx)
         converter = ctx[converter_name]
+        converter._conv_name = converter_name
 
-        converter_callable_cls = CodeGenerationOptionsCtx.get_option_value(
-            "converter_callable_cls"
-        )
-        return converter_callable_cls(
-            converter,
-            code_str=code,
-            fake_filename=fake_filename,
-            ctx=ctx,
-            debug=is_debug,
-        )
+        main_converter_callable = ctx["__main_converter_callable"]
+        main_converter_callable.add_sources(fake_filename, code)
+        return converter
 
     NAME_TO_CODE_INPUT = "_name_to_code_input"
 
@@ -439,6 +442,13 @@ class BaseConversion:
             "labels_": labels_,
             self.NAME_TO_CODE_INPUT: [{}],
         }
+
+        converter_callable_cls = CodeGenerationOptionsCtx.get_option_value(
+            "converter_callable_cls"
+        )
+        main_converter_callable = converter_callable_cls(debug=debug, ctx=ctx)
+        ctx["__main_converter_callable"] = main_converter_callable
+
         if signature:
             signature_words = _pattern_word.findall(signature)
             missing_args = set(
@@ -504,12 +514,11 @@ class BaseConversion:
             converter_name=converter_name,
             code_signature=signature,
         )
-        return self._code_to_converter(
-            converter_name=converter_name,
-            code=converter_code,
-            ctx=ctx,
-            fake_filename="_convtools_gen_converter",
+        main_converter = self._code_to_converter(
+            converter_name=converter_name, code=converter_code, ctx=ctx,
         )
+        main_converter_callable.set_main_converter(main_converter)
+        return main_converter_callable
 
     def execute(self, *args, debug=False, **kwargs):
         return self.gen_converter(debug=debug)(*args, **kwargs)
@@ -722,6 +731,12 @@ class BaseConversion:
 
         """
 
+        if (
+            isinstance(next_conversion, BaseConversion)
+            and not next_conversion._valid_pipe_output
+        ):
+            raise Exception("invalid pipe output", next_conversion)
+
         cloned_self = self.clone()
 
         if label_input:
@@ -808,6 +823,7 @@ class NaiveConversion(BaseConversion):
         self.value = value
         self.name_prefix = name_prefix
         self.code_str = None
+        self.value_name = None
 
         value_name = getattr(value, "__name__", "")
         if (
@@ -817,9 +833,14 @@ class NaiveConversion(BaseConversion):
             self.code_str = value_name
 
         elif callable(value):
-            f_name = var_name_from_string(value_name)
-            if f_name:
-                self.name_prefix = f_name
+            if hasattr(value, "_conv_name") and isinstance(
+                value._conv_name, str
+            ):
+                self.value_name = value._conv_name
+            else:
+                f_name = var_name_from_string(value_name)
+                if f_name:
+                    self.name_prefix = f_name
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         if self.code_str:
@@ -832,7 +853,9 @@ class NaiveConversion(BaseConversion):
             return "False"
         if isinstance(self.value, (int, str)):
             return repr(self.value)
-        value_name = self.gen_name(self.name_prefix, ctx, self.value)
+        value_name = self.value_name or self.gen_name(
+            self.name_prefix, ctx, self.value
+        )
         ctx[value_name] = self.value
         return value_name
 
@@ -1173,7 +1196,7 @@ class GetItem(BaseMethodConversion):
             code_index = index.gen_code_and_update_ctx("obj_", ctx)
             code_output = self.wrap_path_item(code_output, code_index)
 
-        converter_name = self.gen_name("get_or_default", ctx)
+        converter_name = self.gen_name("get_or_default", ctx, self)
         converter_code = get_or_default_template.format(
             code_args=(
                 "self_, obj_, default_"
@@ -1184,10 +1207,7 @@ class GetItem(BaseMethodConversion):
             get_or_default_code=code_output,
         )
         converter = self._code_to_converter(
-            converter_name=converter_name,
-            code=converter_code,
-            ctx=ctx,
-            fake_filename="_convtools_gen_get_or_default",
+            converter_name=converter_name, code=converter_code, ctx=ctx,
         )
         default_code = self.default.gen_code_and_update_ctx(code_input, ctx)
         result = NaiveConversion(converter)
@@ -1488,6 +1508,35 @@ class BaseCollectionConversion(BaseConversion):
         super(BaseCollectionConversion, self).__init__(kwargs)
         self.items = [self.ensure_conversion(item) for item in items]
 
+    def gen_optional_items_generator_code(
+        self, condition_to_item_pairs, code_input, ctx
+    ):
+        code_lines = []
+        inner_code_input = "data_"
+        for condition, item in condition_to_item_pairs:
+            value_code = item.gen_code_and_update_ctx(inner_code_input, ctx)
+            if condition is not None:
+                condition_code = condition.gen_code_and_update_ctx(
+                    inner_code_input, ctx
+                )
+                code_lines.append(f"    if {condition_code}:")
+                code_lines.append(f"        yield {value_code}")
+            else:
+                code_lines.append(f"    yield {value_code}")
+        code_lines = "\n".join(code_lines)
+        converter_name = self.gen_name("optional_items_generator", ctx)
+        code_args = self._get_args_def_code(as_kwargs=False)
+        code = f"""
+def {converter_name}(data_{code_args}):
+{code_lines}
+        """
+        generator_converter = self._code_to_converter(
+            converter_name=converter_name, code=code, ctx=ctx,
+        )
+        return CallFunc(
+            generator_converter, GetItem(), *self._get_args_as_func_args()
+        ).gen_code_and_update_ctx(code_input, ctx)
+
     def gen_joined_items_code(self, code_input, ctx):
         params = [
             item.gen_code_and_update_ctx(code_input, ctx)
@@ -1500,10 +1549,90 @@ class BaseCollectionConversion(BaseConversion):
     ):
         raise NotImplementedError
 
+    def gen_collection_from_generator(self, generator_code, code_input, ctx):
+        raise NotImplementedError
+
+    def prepare_optional_items(self):
+        condition_to_item_pairs = []
+        for item in self.items:
+            if isinstance(item, OptionalCollectionItem):
+                condition_to_item_pairs.append(
+                    (item.condition, item.conversion)
+                )
+            else:
+                condition_to_item_pairs.append((None, item))
+        return condition_to_item_pairs
+
+    def has_optional_items(self):
+        return any(
+            isinstance(item, OptionalCollectionItem) for item in self.items
+        )
+
     def _gen_code_and_update_ctx(self, code_input, ctx):
+        has_optional_items = self.has_optional_items()
+
+        if has_optional_items:
+            condition_to_item_pairs = self.prepare_optional_items()
+            optional_items_generator_code = self.gen_optional_items_generator_code(
+                condition_to_item_pairs, code_input, ctx
+            )
+            return self.gen_collection_from_generator(
+                optional_items_generator_code, code_input, ctx
+            )
+
         joined_items_code = self.gen_joined_items_code(code_input, ctx)
         return self.gen_collection_from_items_code(
             joined_items_code, code_input, ctx
+        )
+
+
+class OptionalCollectionItem(BaseConversion):
+    """Wrapping conversion which makes key/value/item of a collection optional.
+    """
+
+    _valid_pipe_output = False
+
+    def __init__(
+        self,
+        conversion,
+        skip_value=None,
+        skip_if=BaseConversion._none,
+        keep_if=BaseConversion._none,
+        **kwargs,
+    ):
+        """
+        Args:
+          conversion (BaseConversion): conversion to be wrapped
+          skip_value: value to compare with conversion result and to be excluded
+            from the collection
+          skip_if: a condition to be checked; if it resolves to True, then the
+            item gets excluded from the collection
+          keep_if: a condition to be checked; if it resolves to False, then the
+            item gets excluded from the collection
+        """
+        super(OptionalCollectionItem, self).__init__(kwargs)
+        condition_is_passed = (
+            skip_if is not self._none or keep_if is not self._none
+        )
+        if condition_is_passed and skip_value is not None:
+            raise Exception("both condition and skip_value are passed")
+        self.conversion = self.ensure_conversion(conversion)
+        if condition_is_passed:
+            if skip_if is not self._none:
+                self.condition = Not(self.ensure_conversion(skip_if))
+            if keep_if is not self._none:
+                self.condition = self.ensure_conversion(keep_if)
+        else:
+            if skip_value is None:
+                self.condition = self.conversion.is_not(None)
+            else:
+                self.condition = self.conversion != self.ensure_conversion(
+                    skip_value
+                )
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        raise Exception(
+            "OptionalCollectionItem cannot be used outside of collections"
         )
 
 
@@ -1515,6 +1644,9 @@ class Tuple(BaseCollectionConversion):
     ):
         return f"({joined_items_code},)"
 
+    def gen_collection_from_generator(self, generator_code, code_input, ctx):
+        return f"tuple({generator_code})"
+
 
 class List(BaseCollectionConversion):
     """Gets compiled into the code which generates a list"""
@@ -1524,6 +1656,9 @@ class List(BaseCollectionConversion):
     ):
         return f"[{joined_items_code}]"
 
+    def gen_collection_from_generator(self, generator_code, code_input, ctx):
+        return f"list({generator_code})"
+
 
 class Set(BaseCollectionConversion):
     """Gets compiled into the code which generates a set"""
@@ -1532,6 +1667,9 @@ class Set(BaseCollectionConversion):
         self, joined_items_code, code_input, ctx
     ):
         return "{%s}" % joined_items_code
+
+    def gen_collection_from_generator(self, generator_code, code_input, ctx):
+        return f"set({generator_code})"
 
 
 class Dict(BaseCollectionConversion):
@@ -1559,6 +1697,36 @@ class Dict(BaseCollectionConversion):
             for key, value in self.key_value_pairs
         ]
         return ",".join(params)
+
+    def gen_collection_from_generator(self, generator_code, code_input, ctx):
+        return f"dict({generator_code})"
+
+    def prepare_optional_items(self):
+        condition_to_item_pairs = []
+        for key_value in self.key_value_pairs:
+            conditions = []
+            item = []
+            for _item in key_value:
+                if isinstance(_item, OptionalCollectionItem):
+                    conditions.append(_item.condition)
+                    item.append(_item.conversion)
+                else:
+                    item.append(_item)
+            if conditions:
+                condition = (
+                    And(*conditions) if len(conditions) > 1 else conditions[0]
+                )
+                condition_to_item_pairs.append((condition, Tuple(*item)))
+            else:
+                condition_to_item_pairs.append((None, Tuple(*item)))
+        return condition_to_item_pairs
+
+    def has_optional_items(self):
+        return any(
+            isinstance(item, OptionalCollectionItem)
+            for key_value in self.key_value_pairs
+            for item in key_value
+        )
 
     def gen_collection_from_items_code(
         self, joined_items_code, code_input, ctx

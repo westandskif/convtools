@@ -108,16 +108,17 @@ with manipulating converter signatures, passing functions / objects to conversio
 sharing conversion parts (honoring DRY principle).
 
 
-4. Creating collections - c() wrapper, overloaded operators and debugging
-_________________________________________________________________________
+4. Creating collections - c() wrapper, optional items, overloaded operators and debugging
+_________________________________________________________________________________________
 
 Next points to learn:
 
- 1. every argument passed to a conversion is wrapped with :ref:`c() wrapper<ref_c_wrapper>`
+ 1. operators are overloaded for conversions - :ref:`convtools operators<ref_c_operators>`
+ 2. every argument passed to a conversion is wrapped with :ref:`c() wrapper<ref_c_wrapper>`
       * leaving conversions untouched
       * interpreting python dict/list/tuple/set collections as :ref:`collection conversions<ref_c_collections>`
       * everything else is being wrapped with :ref:`c.naive<ref_c_naive>`
- 2. operators are overloaded for conversions - :ref:`convtools operators<ref_c_operators>`
+ 3. collections support optional items :ref:`c.optional<ref_c_optionals>`
 
 .. note::
   whenever you are not sure what code is going to be generated, just
@@ -152,6 +153,32 @@ For example, to convert a tuple to a dict:
            "comparisons": (data_[0] > data_[1]),
        }
 
+
+**It's possible to define an optional key, value or list/set/tuple item, which
+appears in the output only if a condition is met:**
+
+.. code-block:: python
+
+   converter = c({
+       "exists if 'key' exists": c.optional(c.item("key", default=None)),
+       "exists if not None": c.optional(
+           c.call_func(lambda i: i+1, c.item("key", default=None)),
+           skip_value=None,
+       ),
+       "exists if 'amount' > 10": c.optional(
+           c.call_func(bool, c.item("key", default=None)),
+           skip_if=c.item("amount") <= 10,
+       ),
+       "exists if 'amount' > 10 (same)": c.optional(
+           c.call_func(bool, c.item("key", default=None)),
+           keep_if=c.item("amount") > 10,
+       ),
+       # works for keys too
+       c.optional(
+           "name",
+           keep_if=c.item("tos_accepted", default=False)
+        ): c.item("name"),
+   }).gen_converter(debug=True)
 
 5. Passing/calling functions & objects into conversions; defining converter signature
 _____________________________________________________________________________________

@@ -473,6 +473,89 @@ Converts an input into a collection, same is achievable by using
      return {data[0]: data[1], data[1]: data[0], "3": data[0]}
 
 
+.. _ref_c_optionals:
+
+Optional items:
++++++++++++++++
+
+It's also possible to define optional collection items by specifying either a
+value or a condition to exclude an item from a collection.
+
+  .. autoattribute:: convtools.conversion.optional
+
+  .. autoclass:: convtools.base.OptionalCollectionItem()
+     :noindex:
+
+  .. automethod:: convtools.base.OptionalCollectionItem.__init__
+
+.. code-block:: python
+
+   conv = c.list_comp(
+       {
+           "always here": c.item("key1"),
+           "if key2 exist": c.optional(c.item("key2", default=None)),
+           "if key1 != -1": c.optional(c.item("key1"), skip_value=-1),
+           "if key1 >= 5": c.optional(
+               c.item("key1"), skip_if=c.item("key1") < 5
+           ),
+           "if key1 >= 5 (same)": c.optional(
+               c.item("key1"), keep_if=c.item("key1") >= 5
+           ),
+           c.optional(c.item("key2", default=-1), skip_value=-1): "if key2 exists",
+
+           # if key1 >= 5 and key22 exists
+           c.optional(
+               c.item("key1") * 400, skip_if=c.item("key1") < 5
+           ): c.optional(c.item("key22")),
+       }
+   ).gen_converter(debug=True)
+
+Compiles into:
+
+.. code-block:: python
+
+   def optional_items_generator_89(data_):
+       yield (
+           "always here",
+           data_["key1"],
+       )
+       if get_or_default_33_760(data_, None) is not None:
+           yield (
+               "if key2 exist",
+               get_or_default_33_760(data_, None),
+           )
+       if data_["key1"] != -1:
+           yield (
+               "if key1 != -1",
+               data_["key1"],
+           )
+       if not (data_["key1"] < 5):
+           yield (
+               "if key1 >= 5",
+               data_["key1"],
+           )
+       if data_["key1"] >= 5:
+           yield (
+               "if key1 >= 5 (same)",
+               data_["key1"],
+           )
+       if get_or_default_63_484(data_, -1) != -1:
+           yield (
+               get_or_default_63_484(data_, -1),
+               "if key2 exists",
+           )
+       if (not (data_["key1"] < 5)) and (data_["key22"] is not None):
+           yield (
+               (data_["key1"] * 400),
+               data_["key22"],
+           )
+
+
+   def converter_88(data_):
+       global add_label_, get_by_label_
+       return [dict(optional_items_generator_89(i_88_848)) for i_88_848 in data_]
+
+
 .. _ref_comprehensions:
 
 Comprehensions

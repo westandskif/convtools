@@ -433,6 +433,17 @@ def test_list_comprehension():
         {("Nick",)},
     ]
 
+    class CustomException(Exception):
+        pass
+
+    def f():
+        yield 1
+        raise CustomException
+
+    wrapped_generator = c.generator_comp(c.this()).execute(f())
+    with pytest.raises(CustomException):
+        list(wrapped_generator)
+
 
 def test_tuple_comprehension():
     assert c.tuple_comp(1).gen_converter()(range(5)) == (1,) * 5
@@ -1239,6 +1250,7 @@ def test_slices():
 
 
 def test_linecache_cleaning():
+    _ConverterCallable.linecache_keys.max_size = 100
     length_before = len(linecache.cache)
     for i in range(100):
         c.this().gen_converter(debug=True)
@@ -1246,16 +1258,24 @@ def test_linecache_cleaning():
 
     for i in range(10):
         c.this().gen_converter(debug=True)
-    length_after_10 = len(linecache.cache)
+    length_after_110 = len(linecache.cache)
 
     assert (
-        length_after_10 == length_after_100
+        length_after_110 == length_after_100
         and length_before + 100 >= length_after_100
     )
 
     for key in list(linecache.cache.keys()):
         del linecache.cache[key]
-    c.this().gen_converter(debug=True)
+    converter_callable = c.this().gen_converter(debug=True)
+
+    for (
+        fake_filename,
+        code_str,
+    ) in converter_callable._fake_filename_to_code_str.items():
+        converter_callable.add_sources(fake_filename, code_str)
+        with pytest.raises(Exception):
+            converter_callable.add_sources(fake_filename, code_str + " ")
 
 
 def test_named_conversion():

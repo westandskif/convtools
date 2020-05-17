@@ -20,6 +20,7 @@ from .base import (
     ListComp,
     NaiveConversion,
     Not,
+    OptionalCollectionItem,
     Or,
     Set,
     SetComp,
@@ -61,6 +62,7 @@ class _Conversion:
     tuple = Tuple
     set = Set
     dict = Dict
+    optional = OptionalCollectionItem
 
     list_comp = ListComp
     tuple_comp = TupleComp
