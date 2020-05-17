@@ -143,8 +143,8 @@ _____________
       }).gen_converter()
       converter(input_data)
 
-2.2 Logical operators & conditions
-__________________________________
+2.2 Comprehensions, logical operators & conditions
+__________________________________________________
 
 .. list-table::
  :class: cheatsheet-table
@@ -223,8 +223,8 @@ __________________________________
 
 
 
-3. Parametrized conversion with some baked in arguments
-_______________________________________________________
+3. Parametrized conversion with some baked in arguments and optional items
+__________________________________________________________________________
 
 .. list-table::
  :class: cheatsheet-table
@@ -238,7 +238,7 @@ _______________________________________________________
 
       [
           (1, "Nick", "38.21", "BYN"),
-          (7, "John", "26.45", "USD"),
+          (7, "John", "26.45", "USD", "check"),
       ]
 
    - .. code-block:: python
@@ -253,6 +253,7 @@ _______________________________________________________
               "id": 7,
               "name": "John",
               "amount_usd": Decimal("26.45"),
+              "type": "check",
           },
       }
 
@@ -270,6 +271,17 @@ _______________________________________________________
                   c.input_arg("dt"), # becomes keyword argument
                   c.item(2),         # amount
               ),
+              "type": c.optional(c.item(4, default=None)),
+              # # same
+              # "type": c.optional(
+              #     c.item(4, default=None),
+              #     skip_if=c.item(4, default=None).is_(None)
+              # ),
+              # # same
+              # "type": c.optional(
+              #     c.item(4, default=None),
+              #     keep_if=c.item(4, default=None).is_not(None)
+              # ),
           }
       ).gen_converter()
       converter(input_data, dt=date.today())

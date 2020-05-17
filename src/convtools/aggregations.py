@@ -1147,7 +1147,7 @@ class GroupBy(BaseConversion):
         )
 
         if self.aggregate_mode:
-            converter_name = "aggregate"
+            converter_name = self.gen_name("aggregate", ctx)
             grouper_code = aggregate_template.format(
                 converter_name=converter_name,
                 code_init_agg_vars=code_init_agg_vars,
@@ -1158,7 +1158,7 @@ class GroupBy(BaseConversion):
                 **agg_template_kwargs,
             )
         else:
-            converter_name = "group_by"
+            converter_name = self.gen_name("group_by", ctx)
             grouper_code = grouper_template.format(
                 converter_name=converter_name,
                 var_signature_to_agg_data=var_signature_to_agg_data,
@@ -1169,10 +1169,7 @@ class GroupBy(BaseConversion):
             )
 
         group_data_func = self._code_to_converter(
-            converter_name=converter_name,
-            code=grouper_code,
-            ctx=ctx,
-            fake_filename="_convtools_gen_group_by",
+            converter_name=converter_name, code=grouper_code, ctx=ctx,
         )
         return CallFunc(
             group_data_func, GetItem(), *self._get_args_as_func_args()
