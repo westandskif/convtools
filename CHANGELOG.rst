@@ -1,3 +1,16 @@
+0.6.1 (2020-05-18)
+------------------
+
+Bugfixes
+++++++++
+
+- fixed ``gen_name`` usages (made ``item_to_hash`` mandatory)
+  `#19 <https://github.com/itechart-almakov/convtools/issues/19>`_
+
+
+----
+
+
 0.6.0 (2020-05-17)
 ------------------
 
