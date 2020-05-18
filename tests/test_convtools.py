@@ -1336,3 +1336,31 @@ def test_aggregate():
         "b": ["foo", "bar"],
         "b_max_a": "bar",
     }
+
+
+def test_piped_group_by():
+    input_data = [
+        {"a": 5, "b": "foo", "amount": 1},
+        {"a": 10, "b": "bar", "amount": 2},
+        {"a": 10, "b": "bar", "amount": 3},
+    ]
+    assert c.group_by(c.item("a"), c.item("b")).aggregate(
+        {
+            "a": c.item("a"),
+            "b": c.item("b"),
+            "amount": c.reduce(c.ReduceFuncs.Sum, c.item("amount")),
+        }
+    ).pipe(
+        c.group_by(c.item("b")).aggregate(
+            {
+                "b": c.item("b"),
+                "set_a": c.reduce(c.ReduceFuncs.ArrayDistinct, c.item("a")),
+                "min_amount": c.reduce(c.ReduceFuncs.Min, c.item("amount")),
+            }
+        )
+    ).execute(
+        input_data
+    ) == [
+        {"b": "foo", "set_a": [5], "min_amount": 1},
+        {"b": "bar", "set_a": [10], "min_amount": 5},
+    ]

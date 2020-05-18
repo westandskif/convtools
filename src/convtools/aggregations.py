@@ -1147,7 +1147,7 @@ class GroupBy(BaseConversion):
         )
 
         if self.aggregate_mode:
-            converter_name = self.gen_name("aggregate", ctx)
+            converter_name = self.gen_name("aggregate", ctx, self)
             grouper_code = aggregate_template.format(
                 converter_name=converter_name,
                 code_init_agg_vars=code_init_agg_vars,
@@ -1158,7 +1158,7 @@ class GroupBy(BaseConversion):
                 **agg_template_kwargs,
             )
         else:
-            converter_name = self.gen_name("group_by", ctx)
+            converter_name = self.gen_name("group_by", ctx, self)
             grouper_code = grouper_template.format(
                 converter_name=converter_name,
                 var_signature_to_agg_data=var_signature_to_agg_data,

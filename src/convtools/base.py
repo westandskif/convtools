@@ -312,7 +312,7 @@ class BaseConversion:
             raise ConversionException("failed to clone, too long pipe")
         return result
 
-    def gen_name(self, prefix, ctx, item_to_hash=None):
+    def gen_name(self, prefix, ctx, item_to_hash):
         prefixed_hash_to_name = ctx.setdefault("_prefixed_hash_to_name", {})
         prefixed_hash = (
             f"{prefix}"
@@ -480,7 +480,7 @@ class BaseConversion:
 
         if debug is not None:
             self.debug = debug
-        converter_name = self.gen_name(converter_name, ctx)
+        converter_name = self.gen_name(converter_name, ctx, None)
 
         conv = self
         pipes = [conv]
@@ -1524,7 +1524,7 @@ class BaseCollectionConversion(BaseConversion):
             else:
                 code_lines.append(f"    yield {value_code}")
         code_lines = "\n".join(code_lines)
-        converter_name = self.gen_name("optional_items_generator", ctx)
+        converter_name = self.gen_name("optional_items_generator", ctx, self)
         code_args = self._get_args_def_code(as_kwargs=False)
         code = f"""
 def {converter_name}(data_{code_args}):
