@@ -232,6 +232,12 @@ Example #1: deserialization & data preps
            "date": c.item("date").pipe(parse_date),
        })
    ).pipe(
+       c.generator_comp(
+           c.this().tap(
+               c.Mut.set_item("signature", (c.item("full_name"), c.item("date_of_birth")))
+           )
+       )
+   ).pipe(
        c.dict_comp(
            c.item("id"), # key
            # write a python code expression, format with passed parameters
@@ -246,32 +252,40 @@ Gets compiled into:
 
 .. code-block:: python
 
-   def converter705_580(data_):
+   def tap_190_748(data_):
+       data_["signature"] = (
+           data_["full_name"],
+           data_["date_of_birth"],
+       )
+       return data_
+
+
+   def converter_206(data_):
        global add_label_, get_by_label_
-       pipe705_68 = data_["objects"]
-       pipe705_973 = (
+       pipe_206_395 = data_["objects"]
+       pipe_206_565 = (
            {
-               "id": i703_861["id"],
-               "first_name": i703_861["first_name"].capitalize(),
-               "last_name": i703_861["last_name"].capitalize(),
+               "id": i_204_189["id"],
+               "first_name": i_204_189["first_name"].capitalize(),
+               "last_name": i_204_189["last_name"].capitalize(),
                "full_name": "{} {}".format(
-                   i703_861["first_name"].capitalize(),
-                   i703_861["last_name"].capitalize(),
+                   i_204_189["first_name"].capitalize(),
+                   i_204_189["last_name"].capitalize(),
                ),
                "date_of_birth": (
-                   strptime494_480(i703_861["dob"], "%Y-%m-%d").date()
-                   if i703_861["dob"]
+                   strptime_74_898(i_204_189["dob"], "%Y-%m-%d").date()
+                   if i_204_189["dob"]
                    else None
                ),
-               "salary": Decimal731_432(i703_861["salary"].replace(",", "")),
-               "department_id": v677_416[i703_861["department"].strip()],
-               "date": strptime494_480(i703_861["date"], "%Y-%m-%d").date(),
+               "salary": Decimal_162_692(i_204_189["salary"].replace(",", "")),
+               "department_id": v_164_182[i_204_189["department"].strip()],
+               "date": strptime_74_898(i_204_189["date"], "%Y-%m-%d").date(),
            }
-           for i703_861 in pipe705_68
+           for i_204_189 in pipe_206_395
        )
+       pipe_206_836 = (tap_190_748(i_203_422) for i_203_422 in pipe_206_565)
        return {
-           i705_330["id"]: (Employee700_725(**i705_330))
-           for i705_330 in pipe705_973
+           i_206_826["id"]: (object(**i_206_826)) for i_206_826 in pipe_206_836
        }
 
 Example #2: word count
