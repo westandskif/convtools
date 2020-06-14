@@ -51,6 +51,7 @@ class Custom(BaseMutation):
     """Mutation to be used in conjunction with `tap` method.
     Runs the code, defined by the conversion argument and returns the input
     as is."""
+
     def __init__(self, conversion, **options):
         """
         Arg:
@@ -63,8 +64,10 @@ class Custom(BaseMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return self.conversion.gen_code_and_update_ctx(code_input, ctx)
 
+
 class Mutations:
     """Mutations to be used in conjunction with the conversion `tap` method."""
+
     #: Sets a value by key.
     set_item = SetItem
     #: Sets a value of an attribute.

@@ -35,7 +35,6 @@ from .mutations import Mutations
 __all__ = ["conversion"]
 
 
-
 class _Conversion:
     ConversionException = ConversionException
     BaseConversion = BaseConversion
