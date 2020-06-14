@@ -108,7 +108,7 @@ with manipulating converter signatures, passing functions / objects to conversio
 sharing conversion parts (honoring DRY principle).
 
 
-4. Creating collections - c() wrapper, optional items, overloaded operators and debugging
+4. Creating collections - c() wrapper, Optional items, overloaded operators and debugging
 _________________________________________________________________________________________
 
 Next points to learn:
@@ -179,6 +179,51 @@ appears in the output only if a condition is met:**
            keep_if=c.item("tos_accepted", default=False)
         ): c.item("name"),
    }).gen_converter(debug=True)
+
+Compiles into:
+
+.. code-block:: python
+
+   def optional_items_generator_89(data_):
+       yield (
+           "always here",
+           data_["key1"],
+       )
+       if get_or_default_33_760(data_, None) is not None:
+           yield (
+               "if key2 exist",
+               get_or_default_33_760(data_, None),
+           )
+       if data_["key1"] != -1:
+           yield (
+               "if key1 != -1",
+               data_["key1"],
+           )
+       if not (data_["key1"] < 5):
+           yield (
+               "if key1 >= 5",
+               data_["key1"],
+           )
+       if data_["key1"] >= 5:
+           yield (
+               "if key1 >= 5 (same)",
+               data_["key1"],
+           )
+       if get_or_default_63_484(data_, -1) != -1:
+           yield (
+               get_or_default_63_484(data_, -1),
+               "if key2 exists",
+           )
+       if (not (data_["key1"] < 5)) and (data_["key22"] is not None):
+           yield (
+               (data_["key1"] * 400),
+               data_["key22"],
+           )
+
+
+   def converter_88(data_):
+       global add_label_, get_by_label_
+       return [dict(optional_items_generator_89(i_88_848)) for i_88_848 in data_]
 
 5. Passing/calling functions & objects into conversions; defining converter signature
 _____________________________________________________________________________________
@@ -539,6 +584,10 @@ Generates:
            "input_data": input,
        }
 
+It works as follows: if it finds any function calls, index/attribute lookups,
+it just caches the input, because the IF cannot be sure whether it's cheap or
+applicable to run the input code twice.
+
 
 8. Aggregations
 _______________
@@ -805,7 +854,50 @@ of joined pairs into dicts:
        {'id': 2, 'value_left': 20, 'value_right': 200}
    ]
 
-10. Debugging & setting Options
+
+10. Mutations
+_____________
+
+Alongside pipes, there's a way to tap into any conversion and define
+mutation of its result by using :ref:`(...).tap(*mutations)<ref_mutations>`:
+
+ * ``c.Mut.set_item``
+ * ``c.Mut.set_attr``
+ * ``c.Mut.del_item``
+ * ``c.Mut.del_attr``
+ * ``c.Mut.custom``
+
+Example:
+
+.. code-block:: python
+
+   input_data = [{"a": 1, "b": 2}]
+
+   converter = c.list_comp(
+       c.this().tap(
+           c.Mut.set_item("c", c.item("a") + c.item("b")),
+           c.Mut.del_item("a"),
+           c.Mut.custom(c.this().call_method("update", c.input_arg("data")))
+       )
+   ).gen_converter(debug=True)
+
+   converter(input_data, data={"d": 4}) == [{"b": 2, "c": 3, "d": 4}]
+
+generated code:
+
+.. code-block:: python
+
+   def tap_70_949(data_, data):
+       data_["c"] = data_["a"] + data_["b"]
+       data_.pop("a")
+       data_.update(data)
+       return data_
+
+   def converter_71(data_, *, data):
+       global add_label_, get_by_label_
+       return [tap_70_949(i_71_940, data) for i_71_940 in data_]
+
+11. Debugging & setting Options
 _______________________________
 
 Compiled converters are debuggable callables, which populate linecache with
@@ -826,7 +918,7 @@ See :ref:`c.OptionsCtx()<ref_optionsctx>` API docs for the full list
 of available options.
 
 
-11. Details: inner input data passing
+12. Details: inner input data passing
 _____________________________________
 
 There are few conversions which change the input for next conversions:

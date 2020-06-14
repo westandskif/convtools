@@ -156,6 +156,8 @@ loops, ifs, etc.
 Thanks to pipes & labels it's possible to define multiple pipelines of data
 processing, including branching and merging of them.
 
+Tapping allows to add mutation steps not to rebuild objects from the scratch
+every step.
 
 Conversions are not limited to simple data transformations, there are
 ``GroupBy`` & ``Aggregate`` conversions with many useful reducers:

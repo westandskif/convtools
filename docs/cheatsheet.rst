@@ -905,3 +905,38 @@ _________________________________
       with c.OptionsCtx() as options:
           options.debug = True
           c.this().gen_converter()
+
+13. Mutations
+_____________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 25 40
+ :header-rows: 1
+
+ * - in
+   - out
+   - conversion
+ * - .. code-block:: python
+
+      input_data = [{"a": 1, "b": 2}]
+
+   - .. code-block:: python
+
+      # mutate each element by
+      #  - adding "c" calculated value
+      #  - drop "a" key
+      #  - update the dict with an input dict
+      [{"b": 2, "c": 3, "d": 4}]
+
+   - .. code-block:: python
+
+      converter = c.list_comp(
+          c.this().tap(
+              c.Mut.set_item("c", c.item("a") + c.item("b")),
+              c.Mut.del_item("a"),
+              c.Mut.custom(
+                  c.this().call_method( "update", c.input_arg("data"))
+              )
+          )
+      ).gen_converter(debug=True)

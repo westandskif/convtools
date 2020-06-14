@@ -1,4 +1,4 @@
-personal_ws-1.1 en 147 
+personal_ws-1.1 en 149 
 Almakov
 BYN
 CHF
@@ -95,6 +95,7 @@ len
 lte
 mul
 multiplicator
+mut
 noindex
 numpy
 objs
@@ -121,6 +122,7 @@ shutil
 sig
 sizeof
 sklearn
+stmts
 str
 strftime
 strptime
