@@ -159,7 +159,7 @@ def {converter_name}({code_args}):
 """
 
 
-def ensure_conversion(conversion: object):
+def ensure_conversion(conversion: object, _accept_mutations=False):
     r"""Helps to define conversions based on its type:
         * any conversion is returned untouched
         * list/dict/set/tuple collections are wrapped with ``c.list``,
@@ -183,6 +183,8 @@ def ensure_conversion(conversion: object):
        * object -> :py:class:`NaiveConversion` (conversion)
     """
     if isinstance(conversion, BaseConversion):
+        if not _accept_mutations and isinstance(conversion, BaseMutation):
+            raise Exception("BaseMutation instances are not allowed")
         return conversion
     if isinstance(conversion, dict):
         return Dict(*conversion.items())
@@ -256,8 +258,8 @@ class BaseConversion:
             self.depends_on += arg.depends_on + (arg,)
         return self
 
-    def ensure_conversion(self, conversion):
-        conversion = ensure_conversion(conversion)
+    def ensure_conversion(self, conversion, **kwargs):
+        conversion = ensure_conversion(conversion, **kwargs)
         self._depends_on(conversion)
         return conversion
 
@@ -331,33 +333,38 @@ class BaseConversion:
     @classmethod
     def _indent_statements(cls, statements, indentation_level):
         indentation = "    " * indentation_level
-        return "\n".join(
-            f"{indentation}{line}" for line in statements.splitlines()
+        lines = (
+            statements.splitlines()
+            if isinstance(statements, str)
+            else statements
         )
+        return "\n".join(f"{indentation}{line}" for line in lines)
 
-    def _get_dependencies(self, types=None):
+    def _get_dependencies(self, types=None, exclude_types=None):
         deps = chain(self.depends_on, (self,))
         if types:
             deps = (dep for dep in deps if isinstance(dep, types))
+        if exclude_types:
+            deps = (dep for dep in deps if not isinstance(dep, exclude_types))
         return deps
 
-    def _get_args(self):
+    def _get_args(self, exclude_types=None):
         return sorted(
             {
                 dep.arg_name: dep
-                for dep in self._get_dependencies(types=InputArg)
+                for dep in self._get_dependencies(
+                    types=InputArg, exclude_types=exclude_types
+                )
             }.values(),
             key=lambda k: k.arg_name,
         )
 
     def _get_args_def_code(
-        self, as_kwargs=False, exclude_cls_self=False, exclude_labels=False,
+        self, as_kwargs=False, exclude_cls_self=False, exclude_labels=True,
     ):
-        args = self._get_args()
-        if exclude_labels:
-            args = [
-                arg for arg in args if not isinstance(arg, LabelConversion)
-            ]
+        args = self._get_args(
+            exclude_types=(LabelConversion,) if exclude_labels else None
+        )
 
         if exclude_cls_self:
             args = [arg for arg in args if arg.arg_name not in ("self", "cls")]
@@ -369,8 +376,10 @@ class BaseConversion:
             return ", *, {}".format(_code)
         return ", {}".format(_code)
 
-    def _get_args_as_func_args(self):
-        args = self._get_args()
+    def _get_args_as_func_args(self, exclude_labels=True):
+        args = self._get_args(
+            exclude_types=(LabelConversion,) if exclude_labels else None
+        )
         _ctx = {}
         return tuple(
             EscapedString(arg.gen_code_and_update_ctx(None, _ctx))
@@ -697,6 +706,16 @@ class BaseConversion:
         """
         return self.pipe(GetItem(), label_input=label_name)
 
+    def tap(self, *mutations):
+        """Allows to tap into the processing of a conversion and mutate it
+        in place. Accepts multiple mutations, order matters.
+
+        Args:
+          mutations (iterable of BaseMutation): mutations to process the
+            conversion
+        """
+        return TapConversion(self, *mutations)
+
     def pipe(
         self,
         next_conversion,
@@ -767,6 +786,10 @@ class BaseConversion:
             result = result.set_predefined_input(cloned_self)
 
         return result
+
+
+class BaseMutation(BaseConversion):
+    pass
 
 
 class BaseMethodConversion(BaseConversion):
@@ -1732,3 +1755,40 @@ class Dict(BaseCollectionConversion):
         self, joined_items_code, code_input, ctx
     ):
         return "{%s}" % joined_items_code
+
+
+class TapConversion(BaseConversion):
+    def __init__(self, obj, *mutations, **options):
+        super(TapConversion, self).__init__(options)
+        self.obj = self.ensure_conversion(obj)
+        self.mutations = [
+            self.ensure_conversion(mut, _accept_mutations=True)
+            for mut in mutations
+        ]
+
+    code_template = """
+def {f_name}(data_{code_args}):
+{mut_stmts}
+    return data_
+"""
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        converter_name = self.gen_name("tap", ctx, self)
+        obj_code = self.obj.gen_code_and_update_ctx(code_input, ctx)
+        mut_stmts = [
+            self._indent_statements(
+                mut.gen_code_and_update_ctx("data_", ctx), 1
+            )
+            for mut in self.mutations
+        ]
+        code = self.code_template.format(
+            f_name=converter_name,
+            code_args=self._get_args_def_code(
+                as_kwargs=False, exclude_labels=True
+            ),
+            mut_stmts="\n".join(mut_stmts),
+        )
+        converter = self._code_to_converter(converter_name, code, ctx)
+        return CallFunc(
+            converter, EscapedString(obj_code), *self._get_args_as_func_args()
+        ).gen_code_and_update_ctx(code_input, ctx)

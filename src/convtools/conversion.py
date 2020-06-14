@@ -29,9 +29,11 @@ from .base import (
     ensure_conversion,
 )
 from .joins import _JoinConditions, join
+from .mutations import Mutations
 
 
 __all__ = ["conversion"]
+
 
 
 class _Conversion:
@@ -77,6 +79,8 @@ class _Conversion:
     join = staticmethod(join)
     LEFT = _JoinConditions.LEFT
     RIGHT = _JoinConditions.RIGHT
+
+    Mut = Mutations
 
     def __call__(self, obj: object):
         """Shortcut for ``ensure_conversion``"""

@@ -36,6 +36,14 @@ convtools.joins module
    :undoc-members:
    :show-inheritance:
 
+convtools.mutations module
+--------------------------
+
+.. automodule:: convtools.mutations
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 convtools.utils module
 ----------------------
 
