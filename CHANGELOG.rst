@@ -1,3 +1,16 @@
+0.7.0 (2020-06-14)
+------------------
+
+Features
+++++++++
+
+- Introduced ``c.Mut.set_item`` and other mutations to be used in ``(...).tap(...)``` method
+  `#20 <https://github.com/itechart-almakov/convtools/issues/20>`_
+
+
+----
+
+
 0.6.1 (2020-05-18)
 ------------------
 
