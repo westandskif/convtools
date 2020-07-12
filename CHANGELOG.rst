@@ -1,3 +1,16 @@
+0.7.1 (2020-07-12)
+------------------
+
+Bugfixes
+++++++++
+
+- Fixed name generation uniqueness issue
+  `#21 <https://github.com/itechart-almakov/convtools/issues/21>`_
+
+
+----
+
+
 0.7.0 (2020-06-14)
 ------------------
 
