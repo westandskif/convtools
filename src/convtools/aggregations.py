@@ -1050,7 +1050,7 @@ class GroupBy(BaseConversion):
         var_signature = "signature_"
         var_signature_to_agg_data = "signature_to_agg_data_"
         var_agg_data = "agg_data_"
-        var_agg_data_cls = f"AggData{self._number}"
+        var_agg_data_cls = self.gen_name("AggData", ctx, self)
 
         signature_code_items = [
             _by.gen_code_and_update_ctx(var_row, ctx) for _by in self.by

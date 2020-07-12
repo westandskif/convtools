@@ -1364,3 +1364,14 @@ def test_piped_group_by():
         {"b": "foo", "set_a": [5], "min_amount": 1},
         {"b": "bar", "set_a": [10], "min_amount": 5},
     ]
+
+
+def test_name_generation():
+    max_counter_prev = c.BaseConversion.max_counter
+    c.BaseConversion.max_counter = 1
+    try:
+        c.list_comp(
+            {i: c.item(f"test{i}", default=1) for i in range(100)}
+        ).gen_converter(debug=True)
+    finally:
+        c.BaseConversion.max_counter = max_counter_prev
