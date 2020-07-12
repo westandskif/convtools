@@ -1,9 +1,11 @@
 import dis
 import linecache
 import re
+import string
 import sys
 from collections import OrderedDict
 from itertools import chain, count
+from random import choice
 from types import GeneratorType
 
 from .utils import BaseCtx, BaseOptions, RUCache
@@ -28,14 +30,14 @@ class _ConverterCallable:
         self.__name__ = None
 
     def add_sources(self, fake_filename, code_str):
-        new_code_str = fake_filename not in self._fake_filename_to_code_str
+        code_str_is_new = fake_filename not in self._fake_filename_to_code_str
         if (
-            not new_code_str
+            not code_str_is_new
             and self._fake_filename_to_code_str[fake_filename] != code_str
         ):
             raise Exception("fake_filename already exists", fake_filename)
         self._fake_filename_to_code_str[fake_filename] = code_str
-        if self._debug and new_code_str:
+        if self._debug and code_str_is_new:
             print("\n", code_str)
 
     def set_main_converter(self, converter):
@@ -226,7 +228,7 @@ class BaseConversion:
 
     _none = object()
     counter = count()
-    max_counter = 32768
+    max_counter = 2 ** 30
     _methods_without_input = False
     _valid_pipe_output = True
 
@@ -285,15 +287,13 @@ class BaseConversion:
     def _hash_item(cls, item):
         if callable(item):
             try:
-                code_obj_hash = hash(dis.Bytecode(item).codeobj)
+                return hash(dis.Bytecode(item).codeobj)
             except TypeError:
                 pass
-            else:
-                return f"#{code_obj_hash}"
         try:
-            return f"#{hash(item)}"
+            return hash(item)
         except TypeError:
-            return f"id{id(item)}"
+            return id(item)
 
     def _clone(self):
         clone = self.__class__.__new__(self.__class__)
@@ -314,21 +314,28 @@ class BaseConversion:
             raise ConversionException("failed to clone, too long pipe")
         return result
 
+    allowed_symbols = string.ascii_lowercase + string.digits
+
     def gen_name(self, prefix, ctx, item_to_hash):
-        prefixed_hash_to_name = ctx.setdefault("_prefixed_hash_to_name", {})
-        prefixed_hash = (
-            f"{prefix}"
-            f"{type(item_to_hash).__name__}"
-            f"{self._hash_item(item_to_hash)}"
+        if "_prefixed_hash_to_name" not in ctx:
+            ctx["_prefixed_hash_to_name"] = {}
+            ctx["_generated_names"] = set()
+        prefixed_hash_to_name = ctx["_prefixed_hash_to_name"]
+        generated_names = ctx["_generated_names"]
+        prefixed_hash = "{}_{}".format(
+            prefix, str(self._hash_item(item_to_hash))
         )
         if prefixed_hash in prefixed_hash_to_name:
             return prefixed_hash_to_name[prefixed_hash]
 
-        name_parts = [prefix, str(self._number)]
-        if item_to_hash is not None:
-            name_parts.append(str(hash(prefixed_hash) % 1000))
-        name = prefixed_hash_to_name[prefixed_hash] = "_".join(name_parts)
-        return name
+        name = prefix
+        for i in range(10):
+            name += f"_{choice(self.allowed_symbols)}{choice(self.allowed_symbols)}"
+            if name not in generated_names:
+                prefixed_hash_to_name[prefixed_hash] = name
+                generated_names.add(name)
+                return name
+        raise AssertionError("failed to generate unique filename", name)
 
     @classmethod
     def _indent_statements(cls, statements, indentation_level):
