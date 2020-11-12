@@ -29,3 +29,6 @@ exclude_lines =
 
 	except ImportError:
 	except black.InvalidInput:
+
+	# Don't complain about tricked finally block
+	if not deferred_labels_cleaning:

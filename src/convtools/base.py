@@ -60,8 +60,9 @@ class _ConverterCallable:
                 )
             return result
         except Exception:
-            self.populate_line_cache()
-            raise
+            if not deferred_labels_cleaning:
+                self.populate_line_cache()
+                raise
         finally:
             if not deferred_labels_cleaning:
                 labels_ = self._ctx["labels_"]
@@ -119,8 +120,8 @@ class CodeGenerationOptionsCtx(BaseCtx):
 class ConverterOptions(BaseOptions):
     """Converter options (+ see default values below):
 
-        * ``debug = False`` - same as ``.gen_converter(debug=...)``
-        * ``max_pipe_length = 100``
+    * ``debug = False`` - same as ``.gen_converter(debug=...)``
+    * ``max_pipe_length = 100``
 
     """
 
@@ -367,7 +368,10 @@ class BaseConversion:
         )
 
     def _get_args_def_code(
-        self, as_kwargs=False, exclude_cls_self=False, exclude_labels=True,
+        self,
+        as_kwargs=False,
+        exclude_cls_self=False,
+        exclude_labels=True,
     ):
         args = self._get_args(
             exclude_types=(LabelConversion,) if exclude_labels else None
@@ -531,7 +535,9 @@ class BaseConversion:
             code_signature=signature,
         )
         main_converter = self._code_to_converter(
-            converter_name=converter_name, code=converter_code, ctx=ctx,
+            converter_name=converter_name,
+            code=converter_code,
+            ctx=ctx,
         )
         main_converter_callable.set_main_converter(main_converter)
         return main_converter_callable
@@ -1192,7 +1198,10 @@ class GetItem(BaseMethodConversion):
     against an input."""
 
     def __init__(
-        self, *indexes, default=BaseConversion._none, **kwargs,
+        self,
+        *indexes,
+        default=BaseConversion._none,
+        **kwargs,
     ):
         """
         Args:
@@ -1237,7 +1246,9 @@ class GetItem(BaseMethodConversion):
             get_or_default_code=code_output,
         )
         converter = self._code_to_converter(
-            converter_name=converter_name, code=converter_code, ctx=ctx,
+            converter_name=converter_name,
+            code=converter_code,
+            ctx=ctx,
         )
         default_code = self.default.gen_code_and_update_ctx(code_input, ctx)
         result = NaiveConversion(converter)
@@ -1561,7 +1572,9 @@ def {converter_name}(data_{code_args}):
 {code_lines}
         """
         generator_converter = self._code_to_converter(
-            converter_name=converter_name, code=code, ctx=ctx,
+            converter_name=converter_name,
+            code=code,
+            ctx=ctx,
         )
         return CallFunc(
             generator_converter, GetItem(), *self._get_args_as_func_args()
@@ -1603,8 +1616,10 @@ def {converter_name}(data_{code_args}):
 
         if has_optional_items:
             condition_to_item_pairs = self.prepare_optional_items()
-            optional_items_generator_code = self.gen_optional_items_generator_code(
-                condition_to_item_pairs, code_input, ctx
+            optional_items_generator_code = (
+                self.gen_optional_items_generator_code(
+                    condition_to_item_pairs, code_input, ctx
+                )
             )
             return self.gen_collection_from_generator(
                 optional_items_generator_code, code_input, ctx
@@ -1617,8 +1632,7 @@ def {converter_name}(data_{code_args}):
 
 
 class OptionalCollectionItem(BaseConversion):
-    """Wrapping conversion which makes key/value/item of a collection optional.
-    """
+    """Wrapping conversion which makes key/value/item of a collection optional."""
 
     _valid_pipe_output = False
 

@@ -331,7 +331,8 @@ def join(left_conversion, right_conversion, condition, how="inner"):
             )
 
         conv = conv.pipe(
-            _add_right_part, get_by_label_=InlineExpr("get_by_label_"),
+            _add_right_part,
+            get_by_label_=InlineExpr("get_by_label_"),
         )
     if join_conditions.pre_filter:
         conv = If(

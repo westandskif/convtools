@@ -1,0 +1,38 @@
+from convtools import conversion as c
+
+
+def test_push_strategy():
+    c.generator_comp(
+        c.this()
+    ).pipe(
+        c.push_items_into(
+            c.list_comp(c.this() + 1),
+            c.set_comp(c.this() + 20),
+            c.tuple_comp(c.this() + 300)
+        )
+    )
+
+def gen(base):
+    yield None # initialization
+    total = base
+    try:
+        while True:
+            total += yield
+            print(total)
+    except Exception:
+        yield total
+
+g1 = gen(0)
+g2 = gen(10)
+g3 = gen(100)
+next(g1)
+next(g2)
+next(g3)
+
+for i in range(10):
+    g1.send(i)
+    g2.send(i)
+    g3.send(i)
+
+print(g1.throw(Exception), g2.throw(Exception), g3.throw(Exception))
+
