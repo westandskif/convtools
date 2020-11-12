@@ -10,7 +10,7 @@ repr = _repr.repr
 
 
 def total_size(o, handlers={}, verbose=False):
-    """ Returns the approximate memory footprint an object and all of its contents.
+    """Returns the approximate memory footprint an object and all of its contents.
 
     Automatically finds the contents of the following builtin containers and
     their subclasses:  tuple, list, deque, dict, set and frozenset.
@@ -21,7 +21,13 @@ def total_size(o, handlers={}, verbose=False):
 
     """
     dict_handler = lambda d: chain.from_iterable(
-        (k, v) for k, v in d.items() if k not in {"sys", "__builtins__",}
+        (k, v)
+        for k, v in d.items()
+        if k
+        not in {
+            "sys",
+            "__builtins__",
+        }
     )
     all_handlers = {
         tuple: iter,

@@ -295,7 +295,11 @@ def test_left_join():
         join(
             c.item(0),
             c.item(1),
-            c.and_(c.LEFT == c.RIGHT, c.LEFT + c.RIGHT < 10, c.LEFT > 0,),
+            c.and_(
+                c.LEFT == c.RIGHT,
+                c.LEFT + c.RIGHT < 10,
+                c.LEFT > 0,
+            ),
             how="left",
         )
         .as_type(list)
@@ -317,7 +321,11 @@ def test_right_join():
         join(
             c.item(0),
             c.item(1),
-            c.and_(c.LEFT == c.RIGHT, c.LEFT + c.RIGHT < 10, c.LEFT > 0,),
+            c.and_(
+                c.LEFT == c.RIGHT,
+                c.LEFT + c.RIGHT < 10,
+                c.LEFT > 0,
+            ),
             how="right",
         )
         .as_type(list)
@@ -335,7 +343,12 @@ def test_right_join():
 
 def test_outer_join():
     join1 = (
-        join(c.item(0), c.item(1), Eq(c.LEFT, c.RIGHT, 2), how="full",)
+        join(
+            c.item(0),
+            c.item(1),
+            Eq(c.LEFT, c.RIGHT, 2),
+            how="full",
+        )
         .as_type(list)
         .gen_converter(debug=True)
     )
@@ -352,7 +365,11 @@ def test_outer_join():
         join(
             c.item(0),
             c.item(1),
-            c.and_(c.LEFT == c.RIGHT, c.LEFT + c.RIGHT < 10, c.LEFT > 0,),
+            c.and_(
+                c.LEFT == c.RIGHT,
+                c.LEFT + c.RIGHT < 10,
+                c.LEFT > 0,
+            ),
             how="outer",
         )
         .as_type(list)
