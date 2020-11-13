@@ -108,9 +108,9 @@ please scroll down to the **Installation** step):
    ).gen_converter(debug=True)
 
    assert conv(input_data) == [
-       {'id': 1, 'name': 'Nick', 'age': 18},
-       {'id': 2, 'name': 'Joash', 'age': 21}]
-
+       {'id': 1, 'name': 'Nick', 'age': 18, 'country': 'CA'},
+       {'id': 2, 'name': 'Joash', 'age': 21, 'country': 'US'},
+       {'id': 3, 'name': 'Bob', 'age': None, 'country': None}]
 
 Why would you need this?
 ========================
