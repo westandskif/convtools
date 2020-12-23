@@ -14,22 +14,22 @@ building more complex conversions.
 .. image:: https://img.shields.io/pypi/pyversions/convtools.svg
     :target: https://pypi.org/project/convtools/
 
-.. image:: https://img.shields.io/github/license/itechart-almakov/convtools.svg
-   :target: https://github.com/itechart-almakov/convtools/blob/master/LICENSE.txt
+.. image:: https://img.shields.io/github/license/itechart/convtools.svg
+   :target: https://github.com/itechart/convtools/blob/master/LICENSE.txt
 
-.. image:: https://codecov.io/gh/itechart-almakov/convtools/branch/master/graph/badge.svg
-   :target: https://codecov.io/gh/itechart-almakov/convtools
+.. image:: https://codecov.io/gh/itechart/convtools/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/itechart/convtools
 
-.. image:: https://github.com/itechart-almakov/convtools/workflows/tests/badge.svg
-   :target: https://github.com/itechart-almakov/convtools/workflows/tests/badge.svg
+.. image:: https://github.com/itechart/convtools/workflows/tests/badge.svg
+   :target: https://github.com/itechart/convtools/workflows/tests/badge.svg
    :alt: Tests Status
 
 .. image:: https://readthedocs.org/projects/convtools/badge/?version=latest
    :target: https://convtools.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
-.. image:: https://img.shields.io/github/tag/itechart-almakov/convtools.svg
-   :target: https://GitHub.com/itechart-almakov/convtools/tags/
+.. image:: https://img.shields.io/github/tag/itechart/convtools.svg
+   :target: https://GitHub.com/itechart/convtools/tags/
 
 .. image:: https://badge.fury.io/py/convtools.svg
    :target: https://badge.fury.io/py/convtools

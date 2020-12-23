@@ -4,7 +4,7 @@
 Misc
 ++++
 
-- `#22 <https://github.com/itechart-almakov/convtools/issues/22>`_
+- `#22 <https://github.com/itechart/convtools/issues/22>`_
 
 
 ----
@@ -17,7 +17,7 @@ Bugfixes
 ++++++++
 
 - Fixed name generation uniqueness issue
-  `#21 <https://github.com/itechart-almakov/convtools/issues/21>`_
+  `#21 <https://github.com/itechart/convtools/issues/21>`_
 
 
 ----
@@ -30,7 +30,7 @@ Features
 ++++++++
 
 - Introduced ``c.Mut.set_item`` and other mutations to be used in ``(...).tap(...)``` method
-  `#20 <https://github.com/itechart-almakov/convtools/issues/20>`_
+  `#20 <https://github.com/itechart/convtools/issues/20>`_
 
 
 ----
@@ -43,7 +43,7 @@ Bugfixes
 ++++++++
 
 - fixed ``gen_name`` usages (made ``item_to_hash`` mandatory)
-  `#19 <https://github.com/itechart-almakov/convtools/issues/19>`_
+  `#19 <https://github.com/itechart/convtools/issues/19>`_
 
 
 ----
@@ -58,7 +58,7 @@ Features
 - * introduced ``c.optional`` collection items, which get omitted based on value or a condition
   * improved converter generation so that inner conversions are not getting their own callable wrapper
   * updated generated code variable name generation
-  `#18 <https://github.com/itechart-almakov/convtools/issues/18>`_
+  `#18 <https://github.com/itechart/convtools/issues/18>`_
 
 
 ----
@@ -71,7 +71,7 @@ Bugfixes
 ++++++++
 
 - - fixed aggregate issue: reduce(...).item(..., default=...) case
-  `#15 <https://github.com/itechart-almakov/convtools/issues/15>`_
+  `#15 <https://github.com/itechart/convtools/issues/15>`_
 
 
 ----
@@ -85,7 +85,7 @@ Bugfixes
 
 - - fixed Aggregate multiple reduce optimization
    - added main page - workflow example
-  `#14 <https://github.com/itechart-almakov/convtools/issues/14>`_
+  `#14 <https://github.com/itechart/convtools/issues/14>`_
 
 
 ----
@@ -108,7 +108,7 @@ Features
 
 - - increased the speed of ``c.aggregate`` and ``c.group_by`` by collapsing multiple ``if`` statements into one
   - updated labeling functionality
-  `#11 <https://github.com/itechart-almakov/convtools/issues/11>`_
+  `#11 <https://github.com/itechart/convtools/issues/11>`_
 
 
 ----
@@ -123,10 +123,10 @@ Features
 - Improved the way ``linecache`` is used: now the number of files to be put
   into the ``linecache`` is limited to 100. The eviction is done by implementing
   recently used strategy.
-  `#9 <https://github.com/itechart-almakov/convtools/issues/9>`_
+  `#9 <https://github.com/itechart/convtools/issues/9>`_
 - - introduced ``c.join``
   - improved & fixed pipes (code with side-effects piped to a constant)
-  `#10 <https://github.com/itechart-almakov/convtools/issues/10>`_
+  `#10 <https://github.com/itechart/convtools/issues/10>`_
 
 
 ----
@@ -140,7 +140,7 @@ Features
 
 - 1. fixed main example docs
   2. improved ``c.aggregate`` speed
-  `#8 <https://github.com/itechart-almakov/convtools/issues/8>`_
+  `#8 <https://github.com/itechart/convtools/issues/8>`_
 
 
 ----
@@ -167,7 +167,7 @@ Features
 - * introduced c.OptionsCtx
   * improved tests - memory leaks
   * improved docs - added the index page example; added an example to QuickStart
-  `#7 <https://github.com/itechart-almakov/convtools/issues/7>`_
+  `#7 <https://github.com/itechart/convtools/issues/7>`_
 
 
 ----
@@ -192,7 +192,7 @@ Features
 
       Both can be either ``str`` (label name to put on) or ``dict`` (keys are label names
       and values are conversions to apply to the data before labeling)
-  `#6 <https://github.com/itechart-almakov/convtools/issues/6>`_
+  `#6 <https://github.com/itechart/convtools/issues/6>`_
 
 
 Bugfixes
@@ -200,7 +200,7 @@ Bugfixes
 
 - Added ``__name__`` attribute to ctx. Now internal code from the generated converter is sending to Sentry (not only file name).
   Also the generated converter became a callable object, not a function.
-  `#5 <https://github.com/itechart-almakov/convtools/issues/5>`_
+  `#5 <https://github.com/itechart/convtools/issues/5>`_
 
 
 ----
@@ -215,7 +215,7 @@ Bugfixes
 - Fixed ``c.group_by((c.item("name"),)).aggregate((c.item("name"), c.reduce(...)))``.
   Previously it was compiling successfully, now it raises ``ConversionException`` on ``gen_converter``
   because there is no explicit mention of ``c.item("name")`` field in group by keys (only tuple).
-  `#4 <https://github.com/itechart-almakov/convtools/issues/4>`_
+  `#4 <https://github.com/itechart/convtools/issues/4>`_
 
 
 ----
@@ -228,7 +228,7 @@ Bugfixes
 ++++++++
 
 - fixed ``c.aggregate`` to return a single value for empty input
-  `#3 <https://github.com/itechart-almakov/convtools/issues/3>`_
+  `#3 <https://github.com/itechart/convtools/issues/3>`_
 
 
 ----
@@ -241,7 +241,7 @@ Bugfixes
 ++++++++
 
 - ``c.aggregate`` now returns a single value (previously the result was a list of one item)
-  `#2 <https://github.com/itechart-almakov/convtools/issues/2>`_
+  `#2 <https://github.com/itechart/convtools/issues/2>`_
 
 
 ----
@@ -254,7 +254,7 @@ Features
 ++++++++
 
 - added ``c.if_`` conversion and introduced QuickStart docs
-  `#1 <https://github.com/itechart-almakov/convtools/issues/1>`_
+  `#1 <https://github.com/itechart/convtools/issues/1>`_
 
 
 ----
