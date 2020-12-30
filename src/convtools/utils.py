@@ -52,13 +52,13 @@ class RUCache:
 
 class BaseCtxMeta(type):
     def __init__(cls, name, bases, kwargs):
-        super(BaseCtxMeta, cls).__init__(name, bases, kwargs)
+        super().__init__(name, bases, kwargs)
         cls._ctx = local()
 
 
 class BaseOptionsMeta(type):
     def __init__(cls, name, bases, kwargs):
-        super(BaseOptionsMeta, cls).__init__(name, bases, kwargs)
+        super().__init__(name, bases, kwargs)
         cls._option_attrs = {
             k: v
             for k, v in kwargs.items()

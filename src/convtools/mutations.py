@@ -10,14 +10,14 @@ class BaseNameValueMutation(BaseMutation):
           value: to be wrapped with :py:obj:`ensure_conversion` and used as
             a value for a mutation
         """
-        super(BaseNameValueMutation, self).__init__(options)
+        super().__init__(options)
         self.name = self.ensure_conversion(name)
         self.value = self.ensure_conversion(value)
 
 
 class BaseIndexMutation(BaseMutation):
     def __init__(self, index, **options):
-        super(BaseIndexMutation, self).__init__(options)
+        super().__init__(options)
         self.index = self.ensure_conversion(index)
 
 
@@ -58,7 +58,7 @@ class Custom(BaseMutation):
           conversion: to be wrapped with :py:obj:`ensure_conversion` and used
             as a mutation code
         """
-        super(Custom, self).__init__(options)
+        super().__init__(options)
         self.conversion = self.ensure_conversion(conversion)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):

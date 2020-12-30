@@ -145,14 +145,14 @@ class ConverterOptionsCtx(BaseCtx):
     options_cls = ConverterOptions
 
 
-converter_template = """
+CONVERTER_TEMPLATE = """
 def {converter_name}({code_signature}):
     global add_label_, get_by_label_
 {code}
 """
 
 
-get_or_default_template = """
+GET_OR_DEFAULT_TEMPLATE = """
 def {converter_name}({code_args}):
     global add_label_, get_by_label_
     try:
@@ -529,7 +529,7 @@ class BaseConversion:
             else:
                 code_lines.append(f"{indent}return {code_conv}")
 
-        converter_code = converter_template.format(
+        converter_code = CONVERTER_TEMPLATE.format(
             code="\n".join(code_lines),
             converter_name=converter_name,
             code_signature=signature,
@@ -809,7 +809,7 @@ class BaseMethodConversion(BaseConversion):
     """like obj['key'] OR obj.func() OR obj.attr1"""
 
     def __init__(self, options):
-        super(BaseMethodConversion, self).__init__(options)
+        super().__init__(options)
         self._predefined_self = None
         if "_predefined_self" in options:
             self._predefined_self = self.ensure_conversion(
@@ -855,7 +855,7 @@ class NaiveConversion(BaseConversion):
           value (object): any object
 
         """
-        super(NaiveConversion, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.value = value
         self.name_prefix = name_prefix
         self.code_str = None
@@ -912,7 +912,7 @@ class CachingConversion(BaseConversion):
           name (str): optional - it's possible to overwrite internally
             generated name, which also can be references as a label
         """
-        super(CachingConversion, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.conversion = self.ensure_conversion(conversion)
         self.labels = {}
         self._name = name
@@ -969,7 +969,7 @@ class CachingConversion(BaseConversion):
 
 class EscapedString(BaseConversion):
     def __init__(self, s, **kwargs):
-        super(EscapedString, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.s = s
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
@@ -988,7 +988,7 @@ class InputArg(BaseConversion):
         Args:
           arg_name (string): argument name of the converter to be used
         """
-        super(InputArg, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.arg_name = arg_name
 
     def __hash__(self):
@@ -1007,7 +1007,7 @@ class LabelConversion(InputArg):
         Args:
           label_name (string): label name to be referenced
         """
-        super(LabelConversion, self).__init__(label_name, **kwargs)
+        super().__init__(label_name, **kwargs)
         self.caching_conversion = None
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
@@ -1016,7 +1016,7 @@ class LabelConversion(InputArg):
 
 class ConversionWrapper(BaseConversion):
     def __init__(self, conversion, name_to_code_input=None, **kwargs):
-        super(ConversionWrapper, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.conversion = self.ensure_conversion(conversion)
         self._name_to_code_input = name_to_code_input
 
@@ -1043,7 +1043,7 @@ class ConversionWrapper(BaseConversion):
 
 class NamedConversion(BaseConversion):
     def __init__(self, name, conversion, **kwargs):
-        super(NamedConversion, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.conversion = self.ensure_conversion(conversion)
         self.name = name
 
@@ -1063,7 +1063,7 @@ class Or(BaseConversion):
 
     def __init__(self, arg1, arg2, *other_args, **kwargs):
         """"""
-        super(Or, self).__init__(kwargs)
+        super().__init__(kwargs)
         args = [arg1, arg2]
         args.extend(other_args)
         self.args = [self.ensure_conversion(a) for a in args]
@@ -1121,7 +1121,7 @@ class If(BaseConversion):
           no_input_caching (bool): if True, disables automatic decision making
             on whether result caching is needed
         """
-        super(If, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.if_conv = (
             None if condition is True else self.ensure_conversion(condition)
         )
@@ -1179,7 +1179,7 @@ class If(BaseConversion):
 
 class Not(BaseConversion):
     def __init__(self, arg, **kwargs):
-        super(Not, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.arg = self.ensure_conversion(arg)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
@@ -1209,7 +1209,7 @@ class GetItem(BaseMethodConversion):
           default (:obj:`object`, optional): to be returned on fail,
            like ``{}.get`` method, but now applicable to arrays too
         """
-        super(GetItem, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.indexes = [self.ensure_conversion(index) for index in indexes]
         self.default = (
             self.ensure_conversion(default)
@@ -1236,7 +1236,7 @@ class GetItem(BaseMethodConversion):
             code_output = self.wrap_path_item(code_output, code_index)
 
         converter_name = self.gen_name("get_or_default", ctx, self)
-        converter_code = get_or_default_template.format(
+        converter_code = GET_OR_DEFAULT_TEMPLATE.format(
             code_args=(
                 "self_, obj_, default_"
                 if self_is_overwritten
@@ -1282,7 +1282,7 @@ class Call(BaseMethodConversion):
     symbols_to_filter_out = re.compile(r"\W")
 
     def __init__(self, *args, **kwargs):
-        super(Call, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.args = [self.ensure_conversion(arg) for arg in args]
         self.kwargs = {
             k: self.ensure_conversion(v) for k, v in (kwargs or {}).items()
@@ -1394,7 +1394,7 @@ class BaseComprehensionConversion(BaseConversion):
 
             e.g. for ``[i * 2 for i in l]`` an item would be ``c.this() * 2``
         """
-        super(BaseComprehensionConversion, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.sort_key = None
         self.sort_key_reverse = None
         self.condition_conversion = None
@@ -1518,7 +1518,7 @@ class DictComp(BaseComprehensionConversion):
           value (object): to be wrapped with :py:obj:`ensure_conversion` and
             used on each item of a collection to form values
         """
-        super(DictComp, self).__init__(item=None, **kwargs)
+        super().__init__(item=None, **kwargs)
         self.key = self.ensure_conversion(key)
         self.value = self.ensure_conversion(value)
 
@@ -1546,7 +1546,7 @@ class BaseCollectionConversion(BaseConversion):
           items (objects): items to form a collection from.
             every item gets wrapped with :py:obj:`ensure_conversion`
         """
-        super(BaseCollectionConversion, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.items = [self.ensure_conversion(item) for item in items]
 
     def gen_optional_items_generator_code(
@@ -1654,7 +1654,7 @@ class OptionalCollectionItem(BaseConversion):
           keep_if: a condition to be checked; if it resolves to False, then the
             item gets excluded from the collection
         """
-        super(OptionalCollectionItem, self).__init__(kwargs)
+        super().__init__(kwargs)
         condition_is_passed = (
             skip_if is not self._none or keep_if is not self._none
         )
@@ -1726,7 +1726,7 @@ class Dict(BaseCollectionConversion):
             key-value pair to form a dict from.
             Every key and value gets wrapped with ``ensure_conversion``
         """
-        super(Dict, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.key_value_pairs = [
             (self.ensure_conversion(k), self.ensure_conversion(v))
             for k, v in key_value_pairs
@@ -1780,7 +1780,7 @@ class Dict(BaseCollectionConversion):
 
 class TapConversion(BaseConversion):
     def __init__(self, obj, *mutations, **options):
-        super(TapConversion, self).__init__(options)
+        super().__init__(options)
         self.obj = self.ensure_conversion(obj)
         self.mutations = [
             self.ensure_conversion(mut, _accept_mutations=True)

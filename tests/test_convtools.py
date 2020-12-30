@@ -22,7 +22,7 @@ from .utils import total_size
 class MemoryProfilingConverterCallable(_ConverterCallable):
     def __call__(self, *args, **kwargs):
         size_before = total_size(self.__dict__)
-        result = super(MemoryProfilingConverterCallable, self).__call__(
+        result = super().__call__(
             *args, **kwargs
         )
         if isinstance(result, GeneratorType):

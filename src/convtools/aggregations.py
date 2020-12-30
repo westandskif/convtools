@@ -102,7 +102,7 @@ class _BaseReducer:
 
 class _ReducerExpression(_BaseReducer):
     def __init__(self, *args, **kwargs):
-        super(_ReducerExpression, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         if isinstance(self.reduce, str):
             self.reduce = InlineExpr(self.reduce)
 
@@ -255,7 +255,7 @@ class _ReducerStatements(_BaseReducer):
 
 class _DictReducerStatements(_ReducerStatements):
     def configure_parent_reduce_obj(self, reduce_obj):
-        super(_DictReducerStatements, self).configure_parent_reduce_obj(
+        super().configure_parent_reduce_obj(
             reduce_obj
         )
         if reduce_obj.additional_args:
@@ -632,7 +632,7 @@ class ReduceConditionalBlock(ReduceBlock):
 
     def __init__(self, *args, **kwargs):
         self.condition_code = kwargs.pop("condition_code")
-        super(ReduceConditionalBlock, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def get_template(self, no_init=False):
         template = """
@@ -727,7 +727,7 @@ class ReduceBlocks:
         )
 
 
-grouper_template = """
+GROUPER_TEMPLATE = """
 def {converter_name}(data_{code_args}):
     global add_label_, get_by_label_
     _none = {var_none}
@@ -740,7 +740,7 @@ def {converter_name}(data_{code_args}):
     {code_sorting}
     return result_
 """
-aggregate_template = """
+AGGREGATE_TEMPLATE = """
 def {converter_name}(data_{code_args}):
     global add_label_, get_by_label_
     _none = {var_none}
@@ -798,7 +798,7 @@ class Reduce(BaseReduce):
             and passed to the reduce operation along with `expr` as next positional
             arguments
         """
-        super(Reduce, self).__init__(kwargs)
+        super().__init__(kwargs)
         self.expr = expr
         self.initial = initial
         self.default = default
@@ -941,7 +941,7 @@ class GroupBy(BaseConversion):
             single object.
         """
         self.options = kwargs.pop("_options", {})
-        super(GroupBy, self).__init__(self.options)
+        super().__init__(self.options)
         self.by = [self.ensure_conversion(_by) for _by in by]
         self.agg_items = None
         self.reducer_result = None
@@ -994,7 +994,7 @@ class GroupBy(BaseConversion):
         """Same as :py:obj:`convtools.base.BaseComprehensionConversion.filter`.
         The only exception is that it works with results, not initial items."""
         cast = list if cast is self._none else cast
-        return super(GroupBy, self).filter(condition_conv, cast=cast)
+        return super().filter(condition_conv, cast=cast)
 
     def sort(self, key=None, reverse=False):
         """Same as :py:obj:`convtools.base.BaseComprehensionConversion.sort`.
@@ -1217,7 +1217,7 @@ class GroupBy(BaseConversion):
 
         if self.aggregate_mode:
             converter_name = self.gen_name("aggregate", ctx, self)
-            grouper_code = aggregate_template.format(
+            grouper_code = AGGREGATE_TEMPLATE.format(
                 converter_name=converter_name,
                 code_init_agg_vars=code_init_agg_vars,
                 code_reduce_blocks_no_init=reduce_blocks.to_no_init_code(),
@@ -1228,7 +1228,7 @@ class GroupBy(BaseConversion):
             )
         else:
             converter_name = self.gen_name("group_by", ctx, self)
-            grouper_code = grouper_template.format(
+            grouper_code = GROUPER_TEMPLATE.format(
                 converter_name=converter_name,
                 var_signature_to_agg_data=var_signature_to_agg_data,
                 var_agg_data_cls=var_agg_data_cls,
