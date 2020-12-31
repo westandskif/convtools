@@ -1,3 +1,6 @@
+"""
+Base and basic conversions are defined here.
+"""
 import dis
 import linecache
 import re
@@ -11,7 +14,13 @@ from types import GeneratorType
 from .utils import BaseCtx, BaseOptions, RUCache
 
 
-def clean_line_cache(key, value):
+try:
+    import black
+except ImportError:
+    pass
+
+
+def clean_line_cache(key, _):
     try:
         del linecache.cache[key]
     except KeyError:
@@ -19,6 +28,14 @@ def clean_line_cache(key, value):
 
 
 class _ConverterCallable:
+    """A wrapper which collects all source code, generated every conversion,
+    used in the main converter.
+
+    If an exception is raised, it populates the linecache for beautiful
+    stacktraces and easy pdb debugging.
+    If black is installed, it's applied to the code.
+    """
+
     linecache_keys = RUCache(1000, clean_line_cache)
 
     def __init__(self, ctx, debug=None):
@@ -27,7 +44,7 @@ class _ConverterCallable:
         self._debug = debug
 
         self._main_converter = None
-        self.__name__ = None
+        self.__name__ = "not_defined_yet"
 
     def add_sources(self, fake_filename, code_str):
         code_str_is_new = fake_filename not in self._fake_filename_to_code_str
@@ -50,27 +67,25 @@ class _ConverterCallable:
         return _ConverterCallableMethod(self, instance, cls)
 
     def __call__(self, *args, **kwargs):
-        deferred_labels_cleaning = False
+        drop_labels_now = True
         try:
             result = self._main_converter(*args, **kwargs)
             if isinstance(result, GeneratorType):
-                deferred_labels_cleaning = True
-                return self.wrap_generator_clean_labels_on_exit(
-                    result, self._ctx["labels_"]
-                )
+                drop_labels_now = False
+                return self.wrap_generator_clean_labels_on_exit(result)
             return result
-        except Exception:
-            if not deferred_labels_cleaning:
-                self.populate_line_cache()
-                raise
+        except:
+            # definitely not generator
+            self.populate_line_cache()
+            raise
         finally:
-            if not deferred_labels_cleaning:
+            if drop_labels_now:
                 labels_ = self._ctx["labels_"]
                 if labels_:
                     for key in list(labels_):
                         del labels_[key]
 
-    def wrap_generator_clean_labels_on_exit(self, generator_, labels_):
+    def wrap_generator_clean_labels_on_exit(self, generator_):
         try:
             yield from generator_
         except Exception:
@@ -162,13 +177,14 @@ def {converter_name}({code_args}):
 """
 
 
-def ensure_conversion(conversion: object, _accept_mutations=False):
+def ensure_conversion(conversion: object, accept_mutations=False):
     r"""Helps to define conversions based on its type:
         * any conversion is returned untouched
         * list/dict/set/tuple collections are wrapped with ``c.list``,
           ``c.dict``, ``c.set``, ``c.tuple`` (see below).
           If it's not desired, use ``c.naive`` instead
-        * slice gets recreated, each ``slice.start, slice.stop, slice.step`` is wrapped with ``ensure_conversion``
+        * slice gets recreated, each ``slice.start, slice.stop, slice.step`` is
+          wrapped with ``ensure_conversion``
         * everything else is wrapped with ``c.naive`` (see below)
 
 
@@ -186,7 +202,7 @@ def ensure_conversion(conversion: object, _accept_mutations=False):
        * object -> :py:class:`NaiveConversion` (conversion)
     """
     if isinstance(conversion, BaseConversion):
-        if not _accept_mutations and isinstance(conversion, BaseMutation):
+        if not accept_mutations and isinstance(conversion, BaseMutation):
             raise Exception("BaseMutation instances are not allowed")
         return conversion
     if isinstance(conversion, dict):
@@ -231,10 +247,10 @@ class BaseConversion:
     counter = count()
     max_counter = 2 ** 30
     _methods_without_input = False
-    _valid_pipe_output = True
+    valid_pipe_output = True
 
     def __init__(self, options):
-        self.depends_on = ()
+        self._depends_on = ()
 
         self._number = self._get_number()
         self.debug = options.pop("debug", False)
@@ -256,14 +272,26 @@ class BaseConversion:
     def __hash__(self):
         return id(self)
 
-    def _depends_on(self, *args):
+    def depends_on(self, *args):
         for arg in args:
-            self.depends_on += arg.depends_on + (arg,)
+            self._depends_on += tuple(arg.get_dependencies())
         return self
+
+    def get_dependencies(
+        self, types=None, exclude_types=None, include_self=True
+    ):
+        deps = self._depends_on
+        if include_self:
+            deps = chain(deps, (self,))
+        if types:
+            deps = (dep for dep in deps if isinstance(dep, types))
+        if exclude_types:
+            deps = (dep for dep in deps if not isinstance(dep, exclude_types))
+        return deps
 
     def ensure_conversion(self, conversion, **kwargs):
         conversion = ensure_conversion(conversion, **kwargs)
-        self._depends_on(conversion)
+        self.depends_on(conversion)
         return conversion
 
     def gen_code_and_update_ctx(self, code_input, ctx):
@@ -296,18 +324,20 @@ class BaseConversion:
         except TypeError:
             return id(item)
 
-    def _clone(self):
+    def _clone(self, new_number):
         clone = self.__class__.__new__(self.__class__)
         clone.__dict__.update(self.__dict__)
-        clone._number = clone._get_number()
+        clone.__dict__["_number"] = new_number
         return clone
 
     def clone(self):
-        result = self._clone()
+        result = self._clone(self._get_number())
         conv = result
-        for i in range(self.max_pipe_length):
+        for _ in range(self.max_pipe_length):
             if conv._predefined_input:
-                conv._predefined_input = conv._predefined_input._clone()
+                conv._predefined_input = conv._predefined_input._clone(
+                    self._get_number()
+                )
                 conv = conv._predefined_input
             else:
                 break
@@ -330,8 +360,11 @@ class BaseConversion:
             return prefixed_hash_to_name[prefixed_hash]
 
         name = prefix
-        for i in range(10):
-            name += f"_{choice(self.allowed_symbols)}{choice(self.allowed_symbols)}"
+        for _ in range(10):
+            name += (
+                f"_{choice(self.allowed_symbols)}"
+                f"{choice(self.allowed_symbols)}"
+            )
             if name not in generated_names:
                 prefixed_hash_to_name[prefixed_hash] = name
                 generated_names.add(name)
@@ -348,19 +381,11 @@ class BaseConversion:
         )
         return "\n".join(f"{indentation}{line}" for line in lines)
 
-    def _get_dependencies(self, types=None, exclude_types=None):
-        deps = chain(self.depends_on, (self,))
-        if types:
-            deps = (dep for dep in deps if isinstance(dep, types))
-        if exclude_types:
-            deps = (dep for dep in deps if not isinstance(dep, exclude_types))
-        return deps
-
     def _get_args(self, exclude_types=None):
         return sorted(
             {
                 dep.arg_name: dep
-                for dep in self._get_dependencies(
+                for dep in self.get_dependencies(
                     types=InputArg, exclude_types=exclude_types
                 )
             }.values(),
@@ -368,10 +393,7 @@ class BaseConversion:
         )
 
     def _get_args_def_code(
-        self,
-        as_kwargs=False,
-        exclude_cls_self=False,
-        exclude_labels=True,
+        self, as_kwargs=False, exclude_cls_self=False, exclude_labels=True,
     ):
         args = self._get_args(
             exclude_types=(LabelConversion,) if exclude_labels else None
@@ -382,18 +404,18 @@ class BaseConversion:
         if not args:
             return ""
 
-        _code = ", ".join(arg.arg_name for arg in args)
+        code = ", ".join(arg.arg_name for arg in args)
         if as_kwargs:
-            return ", *, {}".format(_code)
-        return ", {}".format(_code)
+            return ", *, {}".format(code)
+        return ", {}".format(code)
 
     def _get_args_as_func_args(self, exclude_labels=True):
         args = self._get_args(
             exclude_types=(LabelConversion,) if exclude_labels else None
         )
-        _ctx = {}
+        ctx = {}
         return tuple(
-            EscapedString(arg.gen_code_and_update_ctx(None, _ctx))
+            EscapedString(arg.gen_code_and_update_ctx(None, ctx))
             for arg in args
         )
 
@@ -401,15 +423,11 @@ class BaseConversion:
         is_debug = ctx.get(
             "__debug", False
         ) or ConverterOptionsCtx.get_option_value("debug")
-        if is_debug:
+        if is_debug and "black" in globals():
             try:
-                import black
-
                 code = black.format_str(
                     code, mode=black.FileMode(line_length=79)
                 )
-            except ImportError:
-                pass
             except black.InvalidInput:
                 pass
 
@@ -417,7 +435,7 @@ class BaseConversion:
         code_obj = compile(code, fake_filename, "exec")
         exec(code_obj, ctx)
         converter = ctx[converter_name]
-        converter._conv_name = converter_name
+        converter.conv_name = converter_name
 
         main_converter_callable = ctx["__main_converter_callable"]
         main_converter_callable.add_sources(fake_filename, code)
@@ -436,14 +454,16 @@ class BaseConversion:
         """Compiles a function which act according to the conversion definition.
 
         Args:
-          debug (bool): If `True`, prints the generated code (formats with black if
-            available). By default: None
-          signature (str): Defines the signature of the function to be compiled.
-            `data_` argument is what going to be used as the input.
+          debug (bool): If `True`, prints the generated code (formats with
+            black if available). By default: None
+          signature (str): Defines the signature of the function to be
+            compiled.  `data_` argument is what going to be used as the input.
             e.g. ``signature="self, dt, data_, **kwargs"``
           method (bool): `True` is a shortcut for: ``signature="self, data_"``
-          class_method (bool): `True` is a shortcut for: ``signature="cls, data_"``
-          converter_name (str): prefix of the name of the function to be compiled
+          class_method (bool): `True` is a shortcut for:
+            ``signature="cls, data_"``
+          converter_name (str): prefix of the name of the function to be
+            compiled
 
         Returns:
           The compiled function
@@ -513,7 +533,7 @@ class BaseConversion:
         code_lines = []
         indent = " " * 4
         for index, conv in enumerate(reversed(pipes)):
-            _predefined_input = conv._predefined_input
+            predefined_input = conv._predefined_input
             conv._predefined_input = None
             if last_index == 0:
                 with CodeGenerationOptionsCtx() as options:
@@ -521,7 +541,7 @@ class BaseConversion:
                     code_conv = conv.gen_code_and_update_ctx(code_input, ctx)
             else:
                 code_conv = conv.gen_code_and_update_ctx(code_input, ctx)
-            conv._predefined_input = _predefined_input
+            conv._predefined_input = predefined_input
 
             if index != last_index:
                 code_input = self.gen_name("pipe", ctx, code_input)
@@ -535,9 +555,7 @@ class BaseConversion:
             code_signature=signature,
         )
         main_converter = self._code_to_converter(
-            converter_name=converter_name,
-            code=converter_code,
-            ctx=ctx,
+            converter_name=converter_name, code=converter_code, ctx=ctx,
         )
         main_converter_callable.set_main_converter(main_converter)
         return main_converter_callable
@@ -564,8 +582,8 @@ class BaseConversion:
         """
         return self.attr(method_name).call(*args, **kwargs)
 
-    def as_type(self, _callable):
-        return ensure_conversion(_callable).call(self)
+    def as_type(self, callable_):
+        return ensure_conversion(callable_).call(self)
 
     def or_(self, *args, **kwargs):
         return Or(self, *args, **kwargs)
@@ -683,18 +701,18 @@ class BaseConversion:
         return Filter(condition_conv, cast=cast, _predefined_input=self)
 
     def set_predefined_input(self, input_conversion):
-        _self = self
+        conversion = self
         input_conversion = ensure_conversion(input_conversion)
-        for i in range(self.max_pipe_length - 1):
-            if _self._predefined_input is None:
-                _self._predefined_input = _self.ensure_conversion(
+        for _ in range(self.max_pipe_length - 1):
+            if conversion._predefined_input is None:
+                conversion._predefined_input = conversion.ensure_conversion(
                     input_conversion
                 )
                 break
             else:
-                _self._depends_on(input_conversion)
+                conversion.depends_on(input_conversion)
 
-            _self = _self._predefined_input
+            conversion = conversion._predefined_input
         else:
             raise ConversionException("failed to set predefined_input", self)
         return self
@@ -741,15 +759,15 @@ class BaseConversion:
         `next_conversion`.
         If `next_conversion` is callable, it gets called with self as the
         first param.
-        If piping is done at the top level of a resulting conversion (not nested),
-        then it's going to be represented as several statements.
+        If piping is done at the top level of a resulting conversion
+        (not nested), then it's going to be represented as several statements.
 
         Supports labeling both pipe input and output data (allows to apply
         conversions before labeling).
 
         Args:
-          next_conversion (object): to be wrapped with :py:obj:`ensure_conversion`
-            and called if callable is passed
+          next_conversion (object): to be wrapped with
+            :py:obj:`ensure_conversion` and called if callable is passed
           args (tuple): to be wrapped with :py:obj:`ensure_conversion` and
             passed to `next_conversion` if it's callable
           kwargs (dict): to be wrapped with :py:obj:`ensure_conversion` and
@@ -765,7 +783,7 @@ class BaseConversion:
 
         if (
             isinstance(next_conversion, BaseConversion)
-            and not next_conversion._valid_pipe_output
+            and not next_conversion.valid_pipe_output
         ):
             raise Exception("invalid pipe output", next_conversion)
 
@@ -869,10 +887,10 @@ class NaiveConversion(BaseConversion):
             self.code_str = value_name
 
         elif callable(value):
-            if hasattr(value, "_conv_name") and isinstance(
-                value._conv_name, str
+            if hasattr(value, "conv_name") and isinstance(
+                value.conv_name, str
             ):
-                self.value_name = value._conv_name
+                self.value_name = value.conv_name
             else:
                 f_name = var_name_from_string(value_name)
                 if f_name:
@@ -1015,6 +1033,13 @@ class LabelConversion(InputArg):
 
 
 class ConversionWrapper(BaseConversion):
+    """This is to be used in conjunction with NamedConversion.
+    ConversionWrapper is a map where:
+      - key is the name of NamedConversion used somewhere inside what the
+        ConversionWrapper wraps
+      - value is the piece of code to be used as input for NamedConversion
+    """
+
     def __init__(self, conversion, name_to_code_input=None, **kwargs):
         super().__init__(kwargs)
         self.conversion = self.ensure_conversion(conversion)
@@ -1042,6 +1067,8 @@ class ConversionWrapper(BaseConversion):
 
 
 class NamedConversion(BaseConversion):
+    """See the ConversionWrapper docstring above"""
+
     def __init__(self, name, conversion, **kwargs):
         super().__init__(kwargs)
         self.conversion = self.ensure_conversion(conversion)
@@ -1198,10 +1225,7 @@ class GetItem(BaseMethodConversion):
     against an input."""
 
     def __init__(
-        self,
-        *indexes,
-        default=BaseConversion._none,
-        **kwargs,
+        self, *indexes, default=BaseConversion._none, **kwargs,
     ):
         """
         Args:
@@ -1246,9 +1270,7 @@ class GetItem(BaseMethodConversion):
             get_or_default_code=code_output,
         )
         converter = self._code_to_converter(
-            converter_name=converter_name,
-            code=converter_code,
-            ctx=ctx,
+            converter_name=converter_name, code=converter_code, ctx=ctx,
         )
         default_code = self.default.gen_code_and_update_ctx(code_input, ctx)
         result = NaiveConversion(converter)
@@ -1279,6 +1301,11 @@ class GetAttr(GetItem):
 
 
 class Call(BaseMethodConversion):
+    """This conversion writes the code which takes the input code and calls it
+    as a function.
+    It takes both positional and keyword arguments to be passed.
+    """
+
     symbols_to_filter_out = re.compile(r"\W")
 
     def __init__(self, *args, **kwargs):
@@ -1358,7 +1385,8 @@ class InlineExpr(BaseConversion):
         """The method passes arguments to the code to be inlined.
 
         Args:
-          args (tuple of objects): each is wrapped with :py:obj:`ensure_conversion`
+          args (tuple of objects): each is wrapped with
+            :py:obj:`ensure_conversion`
           kwargs (dict of objects): each value is wrapped
             with :py:obj:`ensure_conversion`
         Returns:
@@ -1386,11 +1414,14 @@ class InlineExpr(BaseConversion):
 
 
 class BaseComprehensionConversion(BaseConversion):
+    """This is the base conversion to generate a code, which creates a
+    collection like: list/dict/etc."""
+
     def __init__(self, item, **kwargs):
         """
         Args:
-          item (object): to be wrapped with :py:obj:`ensure_conversion` and used
-            as a conversion on each item of a collection.
+          item (object): to be wrapped with :py:obj:`ensure_conversion`
+            and used as a conversion on each item of a collection.
 
             e.g. for ``[i * 2 for i in l]`` an item would be ``c.this() * 2``
         """
@@ -1482,7 +1513,10 @@ class ListComp(BaseComprehensionConversion):
         return f"[{generator_code}]"
 
     def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
-        return f"sorted({code_input}, key={sort_key_code}, reverse={reverse_code})"
+        return (
+            f"sorted({code_input}, key={sort_key_code},"
+            f"reverse={reverse_code})"
+        )
 
 
 class TupleComp(BaseComprehensionConversion):
@@ -1494,7 +1528,10 @@ class TupleComp(BaseComprehensionConversion):
         return f"tuple({generator_code})"
 
     def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
-        return f"tuple(sorted({code_input}, key={sort_key_code}, reverse={reverse_code}))"
+        return (
+            f"tuple(sorted({code_input}, key={sort_key_code},"
+            f"reverse={reverse_code}))"
+        )
 
 
 class SetComp(BaseComprehensionConversion):
@@ -1536,10 +1573,15 @@ class DictComp(BaseComprehensionConversion):
 
     def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
         ctx["OrderedDict"] = OrderedDict
-        return f"OrderedDict(sorted({code_input}, key={sort_key_code}, reverse={reverse_code}))"
+        return (
+            f"OrderedDict(sorted({code_input}, key={sort_key_code},"
+            f"reverse={reverse_code}))"
+        )
 
 
 class BaseCollectionConversion(BaseConversion):
+    """This is a base conversion of """
+
     def __init__(self, *items, **kwargs):
         """
         Args:
@@ -1572,9 +1614,7 @@ def {converter_name}(data_{code_args}):
 {code_lines}
         """
         generator_converter = self._code_to_converter(
-            converter_name=converter_name,
-            code=code,
-            ctx=ctx,
+            converter_name=converter_name, code=code, ctx=ctx,
         )
         return CallFunc(
             generator_converter, GetItem(), *self._get_args_as_func_args()
@@ -1616,13 +1656,12 @@ def {converter_name}(data_{code_args}):
 
         if has_optional_items:
             condition_to_item_pairs = self.prepare_optional_items()
-            optional_items_generator_code = (
+            return self.gen_collection_from_generator(
                 self.gen_optional_items_generator_code(
                     condition_to_item_pairs, code_input, ctx
-                )
-            )
-            return self.gen_collection_from_generator(
-                optional_items_generator_code, code_input, ctx
+                ),
+                code_input,
+                ctx,
             )
 
         joined_items_code = self.gen_joined_items_code(code_input, ctx)
@@ -1632,9 +1671,10 @@ def {converter_name}(data_{code_args}):
 
 
 class OptionalCollectionItem(BaseConversion):
-    """Wrapping conversion which makes key/value/item of a collection optional."""
+    """Wrapping conversion which makes key/value/item of a collection
+    optional."""
 
-    _valid_pipe_output = False
+    valid_pipe_output = False
 
     def __init__(
         self,
@@ -1749,20 +1789,24 @@ class Dict(BaseCollectionConversion):
         condition_to_item_pairs = []
         for key_value in self.key_value_pairs:
             conditions = []
-            item = []
-            for _item in key_value:
-                if isinstance(_item, OptionalCollectionItem):
-                    conditions.append(_item.condition)
-                    item.append(_item.conversion)
+            tuple_items = []
+            for item in key_value:
+                if isinstance(item, OptionalCollectionItem):
+                    conditions.append(item.condition)
+                    tuple_items.append(item.conversion)
                 else:
-                    item.append(_item)
+                    tuple_items.append(item)
             if conditions:
                 condition = (
-                    And(*conditions) if len(conditions) > 1 else conditions[0]
+                    And(conditions[0], conditions[1], *conditions[2:])
+                    if len(conditions) > 1
+                    else conditions[0]
                 )
-                condition_to_item_pairs.append((condition, Tuple(*item)))
+                condition_to_item_pairs.append(
+                    (condition, Tuple(*tuple_items))
+                )
             else:
-                condition_to_item_pairs.append((None, Tuple(*item)))
+                condition_to_item_pairs.append((None, Tuple(*tuple_items)))
         return condition_to_item_pairs
 
     def has_optional_items(self):
@@ -1779,11 +1823,14 @@ class Dict(BaseCollectionConversion):
 
 
 class TapConversion(BaseConversion):
-    def __init__(self, obj, *mutations, **options):
+    """This conversion generates the code which mutates the input date in-place.
+    TapConversion takes any number of mutations"""
+
+    def __init__(self, obj, *mutations: BaseMutation, **options):
         super().__init__(options)
         self.obj = self.ensure_conversion(obj)
         self.mutations = [
-            self.ensure_conversion(mut, _accept_mutations=True)
+            self.ensure_conversion(mut, accept_mutations=True)
             for mut in mutations
         ]
 

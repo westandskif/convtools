@@ -1292,7 +1292,7 @@ def test_named_conversion():
 def test_conversions_dependencies():
     input_arg = c.input_arg("abc")
     conv = c.item(input_arg)
-    assert tuple(conv._get_dependencies()) == (input_arg, conv)
+    assert tuple(conv.get_dependencies()) == (input_arg, conv)
 
 
 def test_conversion_wrapper():
@@ -1380,3 +1380,16 @@ def test_name_generation():
         ).gen_converter(debug=True)
     finally:
         c.BaseConversion.max_counter = max_counter_prev
+
+def test_generator_exception_handling():
+    class CustomException(Exception):
+        pass
+    def f_second_call_raises():
+        if f_second_call_raises.counter:
+            raise CustomException
+        f_second_call_raises.counter += 1
+    f_second_call_raises.counter = 0
+
+    conv = c.generator_comp(c.call_func(f_second_call_raises)).gen_converter()
+    with pytest.raises(CustomException):
+        list(conv([1,2]))

@@ -79,7 +79,7 @@ class _JoinConditions:
     def _get_join_deps(cls, conv):
         return {
             dep.name
-            for dep in conv._get_dependencies(types=NamedConversion)
+            for dep in conv.get_dependencies(types=NamedConversion)
             if dep.name in cls._ANY
         }
 
@@ -331,8 +331,7 @@ def join(left_conversion, right_conversion, condition, how="inner"):
             )
 
         conv = conv.pipe(
-            _add_right_part,
-            get_by_label_=InlineExpr("get_by_label_"),
+            _add_right_part, get_by_label_=InlineExpr("get_by_label_"),
         )
     if join_conditions.pre_filter:
         conv = If(
@@ -357,5 +356,5 @@ def join(left_conversion, right_conversion, condition, how="inner"):
         right_conversion,
         *condition._get_args_as_func_args(),
     )
-    join_conversion.depends_on += tuple(condition._get_args())
+    join_conversion.depends_on(*condition._get_args())
     return join_conversion
