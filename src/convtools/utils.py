@@ -1,8 +1,14 @@
+"""Helpers live here: like:
+ - recently used cache
+ - options ctx manager
+"""
 from collections import deque
 from threading import local
 
 
 class RUCache:
+    """Recently used cache - naive implementation"""
+
     def __init__(self, max_size, on_evict=None):
         self.max_size = max_size
         self._on_evict = on_evict
@@ -36,7 +42,7 @@ class RUCache:
         return False
 
     def _evict(self, expected_size):
-        for i in range(self.max_size + 1):
+        for _ in range(self.max_size + 1):
             if len(self._keys) > expected_size:
                 key = self._keys.pop()
                 if key in self._keys_to_be_put_back:
@@ -67,6 +73,8 @@ class BaseOptionsMeta(type):
 
 
 class BaseOptions(object, metaclass=BaseOptionsMeta):
+    """Container object, which carries current options"""
+
     def clone(self):
         clone = self.__class__()
         for option_attr in self._option_attrs.keys():
@@ -82,7 +90,9 @@ class BaseOptions(object, metaclass=BaseOptionsMeta):
 
 
 class BaseCtx(object, metaclass=BaseCtxMeta):
-    options_cls = None
+    """Context manager to manage option objects"""
+
+    options_cls = BaseOptions
 
     def __enter__(self) -> BaseOptions:
         self._ctx.prev_options = getattr(self._ctx, "options", None)

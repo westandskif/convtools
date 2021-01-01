@@ -1,7 +1,10 @@
+"""This module brings in-place mutations"""
 from .base import BaseMutation
 
 
 class BaseNameValueMutation(BaseMutation):
+    """A base in-place mutation where name and value are needed to define it"""
+
     def __init__(self, name, value, **options):
         """
         Args:

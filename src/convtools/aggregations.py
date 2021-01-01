@@ -843,6 +843,7 @@ class Reduce(BaseReduce):
         return block_cls(unconditional_init=self.unconditional_init, **kwargs)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
+        del code_input
         agg_data_item = ctx["_reduce_id_to_var"][id(self)]
         processed_agg_data_item = agg_data_item
         if self.post_conversion:
