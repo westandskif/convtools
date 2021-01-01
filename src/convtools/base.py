@@ -74,7 +74,7 @@ class _ConverterCallable:
                 drop_labels_now = False
                 return self.wrap_generator_clean_labels_on_exit(result)
             return result
-        except:
+        except (Exception, KeyboardInterrupt):
             # definitely not generator
             self.populate_line_cache()
             raise
@@ -1452,7 +1452,8 @@ class BaseComprehensionConversion(BaseConversion):
         """
         Args:
           key (object): to be wrapped with
-            :py:obj:`ensure_conversion` and used as a key to sort the collection
+            :py:obj:`ensure_conversion` and used as a key to sort the
+            collection
           reverse (bool): if `True`, sorts DESC
         Returns:
           BaseComprehensionConversion: cloned and filtered comprehension
@@ -1688,8 +1689,8 @@ class OptionalCollectionItem(BaseConversion):
         """
         Args:
           conversion (BaseConversion): conversion to be wrapped
-          skip_value: value to compare with conversion result and to be excluded
-            from the collection
+          skip_value: value to compare with conversion result and to be
+            excluded from the collection
           skip_if: a condition to be checked; if it resolves to True, then the
             item gets excluded from the collection
           keep_if: a condition to be checked; if it resolves to False, then the
