@@ -22,9 +22,7 @@ from .utils import total_size
 class MemoryProfilingConverterCallable(_ConverterCallable):
     def __call__(self, *args, **kwargs):
         size_before = total_size(self.__dict__)
-        result = super().__call__(
-            *args, **kwargs
-        )
+        result = super().__call__(*args, **kwargs)
         if isinstance(result, GeneratorType):
             return self.wrap_generator(result, size_before)
 
@@ -670,13 +668,10 @@ def test_grouping():
                 c.call_func(
                     lambda max_debit, n: max_debit * n,
                     c.reduce(
-                        c.ReduceFuncs.Max,
-                        c.item("debit"),
-                        default=1000,
+                        c.ReduceFuncs.Max, c.item("debit"), default=1000,
                     ).filter(
                         c.inline_expr("{0} > {1}").pass_args(
-                            c.item("balance"),
-                            c.input_arg("arg2"),
+                            c.item("balance"), c.input_arg("arg2"),
                         )
                     ),
                     -1,
@@ -700,8 +695,7 @@ def test_grouping():
 
     aggregation = {
         c.call_func(
-            tuple,
-            c.reduce(c.ReduceFuncs.Array, c.item("name"), default=None),
+            tuple, c.reduce(c.ReduceFuncs.Array, c.item("name"), default=None),
         ): c.item("category").call_method("lower"),
         "count": c.reduce(c.ReduceFuncs.Count),
         "max": c.reduce(c.ReduceFuncs.Max, c.item("debit")),
@@ -710,8 +704,7 @@ def test_grouping():
             c.ReduceFuncs.CountDistinct, c.item("name")
         ),
         "array_agg_distinct": c.reduce(
-            c.ReduceFuncs.ArrayDistinct,
-            c.item("name"),
+            c.ReduceFuncs.ArrayDistinct, c.item("name"),
         ),
         "dict": c.reduce(
             c.ReduceFuncs.Dict, (c.item("debit"), c.item("name"))
@@ -1050,15 +1043,13 @@ def test_base_reducer():
             ),
             c.reduce(
                 _ReducerStatements(
-                    reduce="%(result)s += ({1} or 0)",
-                    default=c.naive(int),
+                    reduce="%(result)s += ({1} or 0)", default=c.naive(int),
                 ),
                 c.this(),
             ),
             c.reduce(
                 _ReducerStatements(
-                    reduce="%(result)s = ({1} or 0)",
-                    initial=0,
+                    reduce="%(result)s = ({1} or 0)", initial=0,
                 ),
                 c.this(),
             ),
@@ -1298,22 +1289,24 @@ def test_conversions_dependencies():
 def test_conversion_wrapper():
     assert ConversionWrapper(c.item(1)).execute([0, 10]) == 10
     assert (
-        ConversionWrapper(
+        (
             ConversionWrapper(
-                NamedConversion(
-                    "abc",
-                    NamedConversion("foo", c.item()) + c.item(),
-                )
-                + c.item(),
-                name_to_code_input={"foo": "arg_foo2"},
-            ),
-            name_to_code_input={"abc": "arg_abc", "foo": "arg_foo"},
+                ConversionWrapper(
+                    NamedConversion(
+                        "abc", NamedConversion("foo", c.item()) + c.item(),
+                    )
+                    + c.item(),
+                    name_to_code_input={"foo": "arg_foo2"},
+                ),
+                name_to_code_input={"abc": "arg_abc", "foo": "arg_foo"},
+            )
+        ).gen_converter(
+            debug=True, signature="data_, arg_abc=10, arg_foo=20, arg_foo2=30"
+        )(
+            1
         )
-    ).gen_converter(
-        debug=True, signature="data_, arg_abc=10, arg_foo=20, arg_foo2=30"
-    )(
-        1
-    ) == 41
+        == 41
+    )
 
 
 def test_aggregate():
@@ -1381,15 +1374,18 @@ def test_name_generation():
     finally:
         c.BaseConversion.max_counter = max_counter_prev
 
+
 def test_generator_exception_handling():
     class CustomException(Exception):
         pass
+
     def f_second_call_raises():
         if f_second_call_raises.counter:
             raise CustomException
         f_second_call_raises.counter += 1
+
     f_second_call_raises.counter = 0
 
     conv = c.generator_comp(c.call_func(f_second_call_raises)).gen_converter()
     with pytest.raises(CustomException):
-        list(conv([1,2]))
+        list(conv([1, 2]))

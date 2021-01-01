@@ -21,13 +21,7 @@ def total_size(o, handlers={}, verbose=False):
 
     """
     dict_handler = lambda d: chain.from_iterable(
-        (k, v)
-        for k, v in d.items()
-        if k
-        not in {
-            "sys",
-            "__builtins__",
-        }
+        (k, v) for k, v in d.items() if k not in {"sys", "__builtins__",}
     )
     all_handlers = {
         tuple: iter,

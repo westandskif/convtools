@@ -424,7 +424,8 @@ defining-attr-methods=__init__,
 # List of member names, which should be excluded from the protected access
 # warning.
 exclude-protected=_predefined_input,
-                  _clone
+                  _clone,
+                  _none
 
 # List of valid names for the first argument in a class method.
 valid-classmethod-first-arg=cls,

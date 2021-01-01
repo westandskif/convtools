@@ -1,3 +1,6 @@
+"""
+The main module exposing public API (via conversion object)
+"""
 from .aggregations import Aggregate, GroupBy, Reduce, ReduceFuncs
 from .base import (
     And,
@@ -36,11 +39,35 @@ __all__ = ["conversion"]
 
 
 class _Conversion:
-    ConversionException = ConversionException
-    BaseConversion = BaseConversion
-    OptionsCtx = ConverterOptionsCtx
+    """The object, which exposes public API
 
-    ReduceFuncs = ReduceFuncs
+    .. code-block:: python
+
+      from convtools import conversion as c
+      convert = (
+          c.group_by(c.item("name"))
+          .aggregate(
+              {c.item("name"): c.reduce(c.ReduceFuncs.Sum, c.item("value"),),}
+          )
+          .gen_converter(debug=True)
+      )
+
+      convert([
+          {"name": "Bob", "value": 10},
+          {"name": "Bob", "value": 7},
+          {"name": "Ron", "value": 3},
+      ])
+
+    """
+
+    ConversionException = ConversionException  # pylint: disable=invalid-name
+    BaseConversion = BaseConversion  # pylint: disable=invalid-name
+    OptionsCtx = ConverterOptionsCtx  # pylint: disable=invalid-name
+
+    ReduceFuncs = ReduceFuncs  # pylint: disable=invalid-name
+    #: Shortcut to `Mutations`
+    Mut = Mutations  # pylint: disable=invalid-name
+
     and_ = And
     or_ = Or
     not_ = Not
@@ -78,8 +105,6 @@ class _Conversion:
     join = staticmethod(join)
     LEFT = _JoinConditions.LEFT
     RIGHT = _JoinConditions.RIGHT
-
-    Mut = Mutations
 
     def __call__(self, obj: object):
         """Shortcut for ``ensure_conversion``"""

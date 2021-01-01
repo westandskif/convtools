@@ -1,5 +1,6 @@
+"""This module brings aggregations with various reduce functions"""
 from collections import defaultdict
-from functools import reduce
+from functools import reduce as functools_reduce
 
 from .base import (
     BaseCollectionConversion,
@@ -35,6 +36,8 @@ class BaseReduce(BaseConversion):
 
 
 class _BaseReducer:
+    """Base reducer - object which describes how to reduce collections"""
+
     def __init__(
         self,
         reduce=None,
@@ -90,6 +93,8 @@ class _BaseReducer:
 
 
 class _ReducerExpression(_BaseReducer):
+    """Base reducer, which is a python expression"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if isinstance(self.reduce, str):
@@ -135,6 +140,8 @@ class _ReducerExpression(_BaseReducer):
 
 
 class _ReducerStatements(_BaseReducer):
+    """Base reducer, which is based on multiple python statements"""
+
     def _format_statements(
         self, var_agg_data_value, var_row, statements, args, ctx,
     ):
@@ -418,6 +425,8 @@ _DictLast = _DictReducerStatements(
 class ReduceFuncs:
     """Exposes the list of reduce functions"""
 
+    # pylint: disable=invalid-name
+
     #: Calculates the sum, skips false values
     Sum = _Sum
     #: Calculates the sum, any ``None`` makes the total sum ``None``
@@ -452,8 +461,8 @@ class ReduceFuncs:
     Dict = _Dict
     #: Aggregates values into dict; dict values are lists of group values
     DictArray = _DictArray
-    #: Aggregates values into dict; dict values are lists of unique group values,
-    #: preserves order
+    #: Aggregates values into dict; dict values are lists of unique group
+    #: values preserves order
     DictArrayDistinct = _DictArrayDistinct
     #: Aggregates values into dict; dict values are sums of group values,
     #: skipping ``None``
@@ -477,6 +486,8 @@ class ReduceFuncs:
 
 
 class ReduceBlock:
+    """Represents a section of code of a single reducer"""
+
     var_checksum = "checksum_"
     var_expected_checksum = "expected_checksum_"
 
@@ -517,7 +528,7 @@ class ReduceBlock:
         self.var_agg_data_value = new_var_agg_data_value
 
     def get_template_kwargs(self, no_init=False):
-        _ = BaseConversion._indent_statements
+        _ = BaseConversion.indent_statements
         reduce_indent = (
             self.reduce_no_init_indent if no_init else self.reduce_indent
         )
@@ -574,6 +585,9 @@ class ReduceBlock:
 
 
 class ReduceConditionalBlock(ReduceBlock):
+    """Represents a section of code of a single reducer with an
+    incoming condition"""
+
     reduce_indent = 4
     reduce_no_init_indent = 3
 
@@ -610,14 +624,14 @@ class ReduceConditionalBlock(ReduceBlock):
         return template
 
     def get_template_kwargs(self, no_init=False):
-        template_kwargs = super(
-            ReduceConditionalBlock, self
-        ).get_template_kwargs(no_init=no_init)
+        template_kwargs = super().get_template_kwargs(no_init=no_init)
         template_kwargs["condition_code"] = self.condition_code
         return template_kwargs
 
 
 class ReduceBlocks:
+    """Represents a set of reduce blocks"""
+
     def __init__(self):
         self.condition_to_blocks = defaultdict(list)
         self.unconditional_init_condition_to_blocks = defaultdict(list)
@@ -625,21 +639,21 @@ class ReduceBlocks:
         self.other_blocks = []
         self.number = 0
 
-    def add_block(self, reduce_block: ReduceBlock, unconditional_init=False):
+    def add_block(self, reduce_block: ReduceBlock):
         self.number += 1
         if isinstance(reduce_block, ReduceConditionalBlock):
             if reduce_block.unconditional_init:
-                _list = self.unconditional_init_condition_to_blocks[
+                list_ = self.unconditional_init_condition_to_blocks[
                     reduce_block.condition_code
                 ]
             else:
-                _list = self.condition_to_blocks[reduce_block.condition_code]
+                list_ = self.condition_to_blocks[reduce_block.condition_code]
         else:
             if reduce_block.unconditional_init:
-                _list = self.unconditional_init_blocks
+                list_ = self.unconditional_init_blocks
             else:
-                _list = self.other_blocks
-        _list.append(reduce_block)
+                list_ = self.other_blocks
+        list_.append(reduce_block)
 
     @classmethod
     def _reduce_blocks(cls, reduce_blocks):
@@ -647,22 +661,22 @@ class ReduceBlocks:
             return None
         if len(reduce_blocks) == 1:
             return reduce_blocks[0]
-        return reduce((lambda b1, b2: b1.union(b2)), reduce_blocks)
+        return functools_reduce((lambda b1, b2: b1.union(b2)), reduce_blocks)
 
     def reduce_blocks(self):
         blocks = []
-        for _blocks in self.condition_to_blocks.values():
-            for _block in _blocks:
-                blocks.append(_block)
-        for _blocks in self.unconditional_init_condition_to_blocks.values():
-            blocks.append(self._reduce_blocks(_blocks))
+        for blocks_ in self.condition_to_blocks.values():
+            for block_ in blocks_:
+                blocks.append(block_)
+        for blocks_ in self.unconditional_init_condition_to_blocks.values():
+            blocks.append(self._reduce_blocks(blocks_))
 
-        _block = self._reduce_blocks(self.unconditional_init_blocks)
-        if _block:
-            blocks.append(_block)
+        block_ = self._reduce_blocks(self.unconditional_init_blocks)
+        if block_:
+            blocks.append(block_)
 
-        for _block in self.other_blocks:
-            blocks.append(_block)
+        for block_ in self.other_blocks:
+            blocks.append(block_)
         return blocks
 
     def to_code(self):
@@ -724,26 +738,29 @@ class Reduce(BaseReduce):
     ):
         """
         Args:
-          to_call_with_2_args (one of :py:obj:`ReduceFuncs`, :py:obj:`_ReducerExpression`, :py:obj:`_ReducerStatements`, :py:obj:`callable` of 2 arguments):
+          to_call_with_2_args (one of :py:obj:`ReduceFuncs`,
+            :py:obj:`_ReducerExpression`, :py:obj:`_ReducerStatements`,
+            :py:obj:`callable` of 2 arguments):
             defines the reduce operation.
             `self` can be partially initialized by
             :py:obj:`convtools.aggregations._BaseReducer` via
-            `configure_parent_reduce_obj` method call (e.g. for the `Count` reduce
-            func the `expr` is not a required argument, so `Count` reduce func
-            can partially initialize the `Reduce` operation).
+            `configure_parent_reduce_obj` method call (e.g. for the `Count`
+            reduce func the `expr` is not a required argument, so `Count`
+            reduce func can partially initialize the `Reduce` operation).
           expr (object): is to be wrapped with :py:obj:`ensure_conversion` and
             used as an object to be reduced
-          initial (callable, object): is to be wrapped with :py:obj:`ensure_conversion`
-            and used for reducing with the first item. If callable, then the result
-            of a call is used.
-          default (callable, object): is to be wrapped with :py:obj:`ensure_conversion`
-            and used if there was nothing to reduce in a group (e.g. the current
-            reduce operation has filtered out some rows, while an adjacent reduce
-            operation has got something to reduce). If callable, then the result
-            of a call is used.
-          additional_args (tuple): each is to be wrapped with :py:obj:`ensure_conversion`
-            and passed to the reduce operation along with `expr` as next positional
-            arguments
+          initial (callable, object): is to be wrapped with
+            :py:obj:`ensure_conversion` and used for reducing with the first
+            item. If callable, then the result of a call is used.
+          default (callable, object): is to be wrapped with
+            :py:obj:`ensure_conversion` and used if there was nothing to
+            reduce in a group (e.g. the current reduce operation has filtered
+            out some rows, while an adjacent reduce operation has got
+            something to reduce). If callable, then the result of a call is
+            used.
+          additional_args (tuple): each is to be wrapped with
+            :py:obj:`ensure_conversion` and passed to the reduce operation
+            along with `expr` as next positional arguments
         """
         super().__init__(kwargs)
         self.expr = expr
@@ -829,9 +846,13 @@ class Reduce(BaseReduce):
         agg_data_item = ctx["_reduce_id_to_var"][id(self)]
         processed_agg_data_item = agg_data_item
         if self.post_conversion:
-            processed_agg_data_item = self.post_conversion.gen_code_and_update_ctx(
-                agg_data_item, ctx
+            # fmt: off
+            processed_agg_data_item = (
+                self.post_conversion.gen_code_and_update_ctx(
+                    agg_data_item, ctx
+                )
             )
+            # fmt: on
 
         if self.default is self._none:
             result = processed_agg_data_item
@@ -859,8 +880,8 @@ class Reduce(BaseReduce):
 
 
 class GroupBy(BaseConversion):
-    """Generates the function which aggregates the data, grouping by conversions,
-    specified in `__init__` method and returns list of items in a
+    """Generates the function which aggregates the data, grouping by
+    conversions, specified in `__init__` method and returns list of items in a
     format defined by the parameter passed to ``aggregate`` method.
 
     If no group keys are passed, then it returns just a single value, defined
@@ -877,14 +898,14 @@ class GroupBy(BaseConversion):
         """Takes any number of conversions to group by
 
         Args:
-          by (tuple): each item is to be wrapped with :py:obj:`ensure_conversion`.
-            Each is to resolve to a hashable object to allow using such tuples as
-            keys. If nothing is passed, aggregate the input into a
-            single object.
+          by (tuple): each item is to be wrapped with
+            :py:obj:`ensure_conversion`.  Each is to resolve to a hashable
+            object to allow using such tuples as keys. If nothing is passed,
+            aggregate the input into a single object.
         """
         self.options = kwargs.pop("_options", {})
         super().__init__(self.options)
-        self.by = [self.ensure_conversion(_by) for _by in by]
+        self.by = [self.ensure_conversion(by_) for by_ in by]
         self.agg_items = None
         self.reducer_result = None
         self.sort_key = False
@@ -1045,7 +1066,7 @@ class GroupBy(BaseConversion):
         var_agg_data_cls = self.gen_name("AggData", ctx, self)
 
         signature_code_items = [
-            _by.gen_code_and_update_ctx(var_row, ctx) for _by in self.by
+            by_.gen_code_and_update_ctx(var_row, ctx) for by_ in self.by
         ]
         if len(signature_code_items) == 1:
             code_signature = signature_code_items[0]
@@ -1102,7 +1123,6 @@ class GroupBy(BaseConversion):
                 " = ".join(var_agg_data_values)
             )
         else:
-            var_agg_data_cls
             ctx[var_agg_data_cls] = self._gen_agg_data_container(
                 reduce_blocks.number, self._none
             )
@@ -1128,7 +1148,7 @@ class GroupBy(BaseConversion):
             code_sorting = ""
 
         agg_template_kwargs = dict(
-            code_args=self._get_args_def_code(as_kwargs=False),
+            code_args=self.get_args_def_code(as_kwargs=False),
             var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
                 "", ctx
             ),
@@ -1164,10 +1184,10 @@ class GroupBy(BaseConversion):
             converter_name=converter_name, code=grouper_code, ctx=ctx,
         )
         return CallFunc(
-            group_data_func, GetItem(), *self._get_args_as_func_args()
+            group_data_func, GetItem(), *self.get_args_as_func_args()
         ).gen_code_and_update_ctx(code_input, ctx)
 
 
-def Aggregate(*args, **kwargs):
+def Aggregate(*args, **kwargs):  # pylint: disable=invalid-name
     """Shortcut for ``GroupBy().aggregate(*args, **kwargs)``"""
     return GroupBy().aggregate(*args, **kwargs)

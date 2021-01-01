@@ -56,10 +56,7 @@ def test_mutation_attr():
     obj.a = 1
     obj.b = 2
 
-    obj = (
-        c.this().tap(
-            c.Mut.del_attr("a"),
-            c.Mut.set_attr("c", 3),
-        )
-    ).execute(obj, debug=True)
+    obj = (c.this().tap(c.Mut.del_attr("a"), c.Mut.set_attr("c", 3),)).execute(
+        obj, debug=True
+    )
     assert not hasattr(obj, "a") and obj.b == 2 and obj.c == 3

@@ -372,7 +372,7 @@ class BaseConversion:
         raise AssertionError("failed to generate unique filename", name)
 
     @classmethod
-    def _indent_statements(cls, statements, indentation_level):
+    def indent_statements(cls, statements, indentation_level):
         indentation = "    " * indentation_level
         lines = (
             statements.splitlines()
@@ -381,7 +381,7 @@ class BaseConversion:
         )
         return "\n".join(f"{indentation}{line}" for line in lines)
 
-    def _get_args(self, exclude_types=None):
+    def get_args(self, exclude_types=None):
         return sorted(
             {
                 dep.arg_name: dep
@@ -392,10 +392,10 @@ class BaseConversion:
             key=lambda k: k.arg_name,
         )
 
-    def _get_args_def_code(
+    def get_args_def_code(
         self, as_kwargs=False, exclude_cls_self=False, exclude_labels=True,
     ):
-        args = self._get_args(
+        args = self.get_args(
             exclude_types=(LabelConversion,) if exclude_labels else None
         )
 
@@ -409,8 +409,8 @@ class BaseConversion:
             return ", *, {}".format(code)
         return ", {}".format(code)
 
-    def _get_args_as_func_args(self, exclude_labels=True):
-        args = self._get_args(
+    def get_args_as_func_args(self, exclude_labels=True):
+        args = self.get_args(
             exclude_types=(LabelConversion,) if exclude_labels else None
         )
         ctx = {}
@@ -493,7 +493,7 @@ class BaseConversion:
             signature_words = _pattern_word.findall(signature)
             missing_args = set(
                 _pattern_word.findall(
-                    self._get_args_def_code(exclude_labels=True)
+                    self.get_args_def_code(exclude_labels=True)
                 )
             ) - set(signature_words)
             if missing_args:
@@ -510,7 +510,7 @@ class BaseConversion:
                 + ("cls, " if class_method else "")
                 + (initial_code_input)
                 + (
-                    self._get_args_def_code(
+                    self.get_args_def_code(
                         as_kwargs=True,
                         exclude_cls_self=True,
                         exclude_labels=True,
@@ -1033,7 +1033,8 @@ class LabelConversion(InputArg):
 
 
 class ConversionWrapper(BaseConversion):
-    """This is to be used in conjunction with NamedConversion.
+    """ This is to be used in conjunction with NamedConversion.
+
     ConversionWrapper is a map where:
       - key is the name of NamedConversion used somewhere inside what the
         ConversionWrapper wraps
@@ -1608,7 +1609,7 @@ class BaseCollectionConversion(BaseConversion):
                 code_lines.append(f"    yield {value_code}")
         code_lines = "\n".join(code_lines)
         converter_name = self.gen_name("optional_items_generator", ctx, self)
-        code_args = self._get_args_def_code(as_kwargs=False)
+        code_args = self.get_args_def_code(as_kwargs=False)
         code = f"""
 def {converter_name}(data_{code_args}):
 {code_lines}
@@ -1617,7 +1618,7 @@ def {converter_name}(data_{code_args}):
             converter_name=converter_name, code=code, ctx=ctx,
         )
         return CallFunc(
-            generator_converter, GetItem(), *self._get_args_as_func_args()
+            generator_converter, GetItem(), *self.get_args_as_func_args()
         ).gen_code_and_update_ctx(code_input, ctx)
 
     def gen_joined_items_code(self, code_input, ctx):
@@ -1844,19 +1845,19 @@ def {f_name}(data_{code_args}):
         converter_name = self.gen_name("tap", ctx, self)
         obj_code = self.obj.gen_code_and_update_ctx(code_input, ctx)
         mut_stmts = [
-            self._indent_statements(
+            self.indent_statements(
                 mut.gen_code_and_update_ctx("data_", ctx), 1
             )
             for mut in self.mutations
         ]
         code = self.code_template.format(
             f_name=converter_name,
-            code_args=self._get_args_def_code(
+            code_args=self.get_args_def_code(
                 as_kwargs=False, exclude_labels=True
             ),
             mut_stmts="\n".join(mut_stmts),
         )
         converter = self._code_to_converter(converter_name, code, ctx)
         return CallFunc(
-            converter, EscapedString(obj_code), *self._get_args_as_func_args()
+            converter, EscapedString(obj_code), *self.get_args_as_func_args()
         ).gen_code_and_update_ctx(code_input, ctx)

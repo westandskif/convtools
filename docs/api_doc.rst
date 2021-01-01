@@ -401,7 +401,7 @@ c.group_by, c.aggregate & c.reduce
 
 
 c.group_by
-__________
+==========
 
 .. _ref_c_group_by:
 
@@ -426,7 +426,7 @@ __________
 .. _ref_c_aggregate:
 
 c.aggregate
-___________
+===========
 
 .. autoattribute:: convtools.conversion.aggregate
 
@@ -436,7 +436,7 @@ ___________
 .. _ref_c_reduce:
 
 c.reduce
-________
+========
 
 .. autoattribute:: convtools.conversion.reduce
 
@@ -488,7 +488,7 @@ Examples:
 .. _ref_c_reduce_funcs:
 
 c.ReduceFuncs
-_____________
+=============
 
 .. autoclass:: convtools.aggregations.ReduceFuncs
    :noindex:
@@ -551,14 +551,13 @@ c.join
 
 .. _ref_mutations:
 
-Mutations
-=========
+c.mut - Mutations
+=================
 
 .. automethod:: convtools.base.BaseConversion.tap
    :noindex:
 
-.. autoclass:: convtools.conversion.conversion.Mut
-   :noindex:
+``c.Mut`` is a shortcut for ``Mutations`` container.
 
 .. autoclass:: convtools.mutations.Mutations
    :noindex:

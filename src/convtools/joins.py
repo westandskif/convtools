@@ -1,3 +1,6 @@
+"""
+This module brings join functionality to the library
+"""
 from itertools import chain
 
 from .aggregations import Aggregate, Reduce, ReduceFuncs
@@ -23,6 +26,8 @@ class JoinException(Exception):
 
 
 class _JoinConditions:
+    """A helper object to analyze join conditions"""
+
     LEFT = NamedConversion("left_row", GetItem())
     RIGHT = NamedConversion("right_row", GetItem())
     LEFT_NAME = LEFT.name
@@ -67,11 +72,11 @@ class _JoinConditions:
             return join_conditions
 
         if isinstance(condition, Eq):
-            join_conditions._consume_eq(condition)
+            join_conditions.consume_eq(condition)
         elif isinstance(condition, And):
-            join_conditions._consume_and(condition)
+            join_conditions.consume_and(condition)
         else:
-            join_conditions._consume_other(condition)
+            join_conditions.consume_other(condition)
 
         return join_conditions
 
@@ -83,7 +88,7 @@ class _JoinConditions:
             if dep.name in cls._ANY
         }
 
-    def _consume_eq(self, eq_conversion):
+    def consume_eq(self, eq_conversion):
         if not isinstance(eq_conversion, Eq):
             raise AssertionError
 
@@ -110,7 +115,7 @@ class _JoinConditions:
             else:
                 self.pre_filter.append(eq_conversion)
 
-    def _consume_other(self, other):
+    def consume_other(self, other):
         deps = self._get_join_deps(other)
         deps_length = len(deps)
         if deps_length > 1:
@@ -123,17 +128,17 @@ class _JoinConditions:
         else:
             self.pre_filter.append(other)
 
-    def _consume_and(self, and_conversion):
+    def consume_and(self, and_conversion):
         if not isinstance(and_conversion, And):
             raise AssertionError
 
         for arg in and_conversion.args:
             if isinstance(arg, Eq):
-                self._consume_eq(arg)
+                self.consume_eq(arg)
             elif isinstance(arg, And):
-                self._consume_and(arg)
+                self.consume_and(arg)
             else:
-                self._consume_other(arg)
+                self.consume_other(arg)
 
 
 def join(left_conversion, right_conversion, condition, how="inner"):
@@ -145,7 +150,8 @@ def join(left_conversion, right_conversion, condition, how="inner"):
       right_conversion (BaseConversion): right collection to join
       condition (BaseConversion): join condition. If is True, results in cross
         join
-      how (str): one of the following: ``"inner"``, ``"left"``, ``"right"``, ``"outer"``
+      how (str): one of the following: ``"inner"``, ``"left"``, ``"right"``,
+        ``"outer"``
 
     Returns:
       BaseConversion: which processes the input and returns generator of
@@ -169,7 +175,11 @@ def join(left_conversion, right_conversion, condition, how="inner"):
     if right_collection_filters:
         right_collection = right_collection.pipe(
             GeneratorComp(GetItem()).filter(
-                And(*right_collection_filters)
+                And(
+                    right_collection_filters[0],
+                    right_collection_filters[1],
+                    *right_collection_filters[2:],
+                )
                 if len(right_collection_filters) > 1
                 else right_collection_filters[0]
             )
@@ -187,25 +197,33 @@ def join(left_conversion, right_conversion, condition, how="inner"):
     if left_collection_filters:
         left_collection = left_collection.pipe(
             GeneratorComp(GetItem()).filter(
-                And(*left_collection_filters)
+                And(
+                    left_collection_filters[0],
+                    left_collection_filters[1],
+                    *left_collection_filters[2:],
+                )
                 if len(left_collection_filters) > 1
                 else left_collection_filters[0]
             )
         )
 
     inner_loop_condition = None
-    _inner_loop_conditions = list(
+    resulting_inner_loop_conditions = list(
         chain(
             join_conditions.left_row_filters,
             join_conditions.right_row_filters,
             join_conditions.inner_loop_conditions,
         )
     )
-    if _inner_loop_conditions:
-        if len(_inner_loop_conditions) > 1:
-            inner_loop_condition = And(*_inner_loop_conditions)
+    if resulting_inner_loop_conditions:
+        if len(resulting_inner_loop_conditions) > 1:
+            inner_loop_condition = And(
+                resulting_inner_loop_conditions[0],
+                resulting_inner_loop_conditions[1],
+                *resulting_inner_loop_conditions[2:],
+            )
         else:
-            inner_loop_condition = _inner_loop_conditions[0]
+            inner_loop_condition = resulting_inner_loop_conditions[0]
         inner_loop_condition = ConversionWrapper(
             inner_loop_condition,
             name_to_code_input=(
@@ -276,10 +294,10 @@ def join(left_conversion, right_conversion, condition, how="inner"):
         if left_right_swapped:
 
             def _left_joiner_swapped(left_to_right_ones_gen):
-                _none = object()
+                none_ = object()
                 for left_item, right_ones in left_to_right_ones_gen:
-                    right_item = next(right_ones, _none)
-                    if right_item is _none:
+                    right_item = next(right_ones, none_)
+                    if right_item is none_:
                         yield None, left_item
                     else:
                         yield right_item, left_item
@@ -290,10 +308,10 @@ def join(left_conversion, right_conversion, condition, how="inner"):
         else:
 
             def _left_joiner(left_to_right_ones_gen):
-                _none = object()
+                none_ = object()
                 for left_item, right_ones in left_to_right_ones_gen:
-                    right_item = next(right_ones, _none)
-                    if right_item is _none:
+                    right_item = next(right_ones, none_)
+                    if right_item is none_:
                         yield left_item, None
                     else:
                         yield left_item, right_item
@@ -336,7 +354,11 @@ def join(left_conversion, right_conversion, condition, how="inner"):
     if join_conditions.pre_filter:
         conv = If(
             (
-                And(*join_conditions.pre_filter)
+                And(
+                    join_conditions.pre_filter[0],
+                    join_conditions.pre_filter[1],
+                    *join_conditions.pre_filter[2:],
+                )
                 if len(join_conditions.pre_filter) > 1
                 else join_conditions.pre_filter[0]
             ),
@@ -346,7 +368,7 @@ def join(left_conversion, right_conversion, condition, how="inner"):
     converter = conv.gen_converter(
         debug=True,
         signature="left, right{}".format(
-            condition._get_args_def_code(as_kwargs=False)
+            condition.get_args_def_code(as_kwargs=False)
         ),
         converter_name="join",
     )
@@ -354,7 +376,7 @@ def join(left_conversion, right_conversion, condition, how="inner"):
         converter,
         left_conversion,
         right_conversion,
-        *condition._get_args_as_func_args(),
+        *condition.get_args_as_func_args(),
     )
-    join_conversion.depends_on(*condition._get_args())
+    join_conversion.depends_on(*condition.get_args())
     return join_conversion
