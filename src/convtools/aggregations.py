@@ -82,12 +82,23 @@ class _BaseReducer:
         )
 
     def gen_reduce_initial(
-        self, var_agg_data_value, var_row, initial, expr, additional_args, ctx,
+        self,
+        var_agg_data_value,
+        var_row,
+        initial,
+        expr,
+        additional_args,
+        ctx,
     ):
         raise NotImplementedError
 
     def gen_reduce_two(
-        self, var_agg_data_value, var_row, expr, additional_args, ctx,
+        self,
+        var_agg_data_value,
+        var_row,
+        expr,
+        additional_args,
+        ctx,
     ):
         raise NotImplementedError
 
@@ -101,13 +112,21 @@ class _ReducerExpression(_BaseReducer):
             self.reduce = InlineExpr(self.reduce)
 
     def gen_reduce_initial(
-        self, var_agg_data_value, var_row, initial, expr, additional_args, ctx,
+        self,
+        var_agg_data_value,
+        var_row,
+        initial,
+        expr,
+        additional_args,
+        ctx,
     ):
         if initial is BaseConversion._none:
             if self.initial_from_first:
                 reduce_initial = (
                     call_with_params(
-                        self.initial_from_first, expr, *additional_args,
+                        self.initial_from_first,
+                        expr,
+                        *additional_args,
                     )
                     if additional_args
                     else call_with_params(self.initial_from_first, expr)
@@ -118,7 +137,10 @@ class _ReducerExpression(_BaseReducer):
                 )
         else:
             reduce_initial = call_with_params(
-                self.reduce, initial, expr, *additional_args,
+                self.reduce,
+                initial,
+                expr,
+                *additional_args,
             )
         return "{var_agg_data_value} = {code}".format(
             var_agg_data_value=var_agg_data_value,
@@ -126,7 +148,12 @@ class _ReducerExpression(_BaseReducer):
         )
 
     def gen_reduce_two(
-        self, var_agg_data_value, var_row, expr, additional_args, ctx,
+        self,
+        var_agg_data_value,
+        var_row,
+        expr,
+        additional_args,
+        ctx,
     ):
         return "{var_agg_data_value} = {code}".format(
             var_agg_data_value=var_agg_data_value,
@@ -143,7 +170,12 @@ class _ReducerStatements(_BaseReducer):
     """Base reducer, which is based on multiple python statements"""
 
     def _format_statements(
-        self, var_agg_data_value, var_row, statements, args, ctx,
+        self,
+        var_agg_data_value,
+        var_row,
+        statements,
+        args,
+        ctx,
     ):
         if isinstance(statements, str):
             statements = [statements]
@@ -163,7 +195,13 @@ class _ReducerStatements(_BaseReducer):
         )
 
     def gen_reduce_initial(
-        self, var_agg_data_value, var_row, initial, expr, additional_args, ctx,
+        self,
+        var_agg_data_value,
+        var_row,
+        initial,
+        expr,
+        additional_args,
+        ctx,
     ):
         if initial is BaseConversion._none:
             if self.initial_from_first:
@@ -192,12 +230,21 @@ class _ReducerStatements(_BaseReducer):
                 *additional_args,
             )
             reduce_initial = self._format_statements(
-                var_agg_data_value, var_row, self.reduce, args, ctx,
+                var_agg_data_value,
+                var_row,
+                self.reduce,
+                args,
+                ctx,
             )
         return reduce_initial
 
     def gen_reduce_two(
-        self, var_agg_data_value, var_row, expr, additional_args, ctx,
+        self,
+        var_agg_data_value,
+        var_row,
+        expr,
+        additional_args,
+        ctx,
     ):
         args = (
             EscapedString(var_agg_data_value),
@@ -205,7 +252,11 @@ class _ReducerStatements(_BaseReducer):
             *additional_args,
         )
         return self._format_statements(
-            var_agg_data_value, var_row, self.reduce, args, ctx,
+            var_agg_data_value,
+            var_row,
+            self.reduce,
+            args,
+            ctx,
         )
 
 
@@ -826,7 +877,11 @@ class Reduce(BaseReduce):
             ctx,
         )
         reduce_two = self.reducer.gen_reduce_two(
-            var_agg_data_value, var_row, self.expr, self.additional_args, ctx,
+            var_agg_data_value,
+            var_row,
+            self.expr,
+            self.additional_args,
+            ctx,
         )
         kwargs = dict(
             var_agg_data_value=var_agg_data_value,
@@ -962,7 +1017,12 @@ class GroupBy(BaseConversion):
         return self_clone
 
     def _gen_reducer_result_item(
-        self, item, var_signature, var_row, signature_code_items, ctx,
+        self,
+        item,
+        var_signature,
+        var_row,
+        signature_code_items,
+        ctx,
     ):
         code_item = item.gen_code_and_update_ctx(var_row, ctx)
         for code_index, code_signature_item in enumerate(signature_code_items):
@@ -1014,7 +1074,11 @@ class GroupBy(BaseConversion):
             code_reducer_result = self.reducer_result.__class__(
                 *(
                     self._gen_reducer_result_item(
-                        i, var_signature, var_row, signature_code_items, ctx,
+                        i,
+                        var_signature,
+                        var_row,
+                        signature_code_items,
+                        ctx,
                     )
                     for i in self.reducer_result.items
                 )
@@ -1096,7 +1160,10 @@ class GroupBy(BaseConversion):
             var_agg_data_value = gen_agg_data_value(agg_index)
             checksum_flag = 1 << agg_index if self.aggregate_mode else 0
             reduce_block = agg_item.gen_reduce_code_block(
-                var_agg_data_value, var_row, checksum_flag, ctx,
+                var_agg_data_value,
+                var_row,
+                checksum_flag,
+                ctx,
             )
             code_hash = reduce_block.code_hash()
 
@@ -1182,7 +1249,9 @@ class GroupBy(BaseConversion):
             )
 
         group_data_func = self._code_to_converter(
-            converter_name=converter_name, code=grouper_code, ctx=ctx,
+            converter_name=converter_name,
+            code=grouper_code,
+            ctx=ctx,
         )
         return CallFunc(
             group_data_func, GetItem(), *self.get_args_as_func_args()

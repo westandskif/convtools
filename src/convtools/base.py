@@ -393,7 +393,10 @@ class BaseConversion:
         )
 
     def get_args_def_code(
-        self, as_kwargs=False, exclude_cls_self=False, exclude_labels=True,
+        self,
+        as_kwargs=False,
+        exclude_cls_self=False,
+        exclude_labels=True,
     ):
         args = self.get_args(
             exclude_types=(LabelConversion,) if exclude_labels else None
@@ -555,7 +558,9 @@ class BaseConversion:
             code_signature=signature,
         )
         main_converter = self._code_to_converter(
-            converter_name=converter_name, code=converter_code, ctx=ctx,
+            converter_name=converter_name,
+            code=converter_code,
+            ctx=ctx,
         )
         main_converter_callable.set_main_converter(main_converter)
         return main_converter_callable
@@ -1033,7 +1038,7 @@ class LabelConversion(InputArg):
 
 
 class ConversionWrapper(BaseConversion):
-    """ This is to be used in conjunction with NamedConversion.
+    """This is to be used in conjunction with NamedConversion.
 
     ConversionWrapper is a map where:
       - key is the name of NamedConversion used somewhere inside what the
@@ -1226,7 +1231,10 @@ class GetItem(BaseMethodConversion):
     against an input."""
 
     def __init__(
-        self, *indexes, default=BaseConversion._none, **kwargs,
+        self,
+        *indexes,
+        default=BaseConversion._none,
+        **kwargs,
     ):
         """
         Args:
@@ -1271,7 +1279,9 @@ class GetItem(BaseMethodConversion):
             get_or_default_code=code_output,
         )
         converter = self._code_to_converter(
-            converter_name=converter_name, code=converter_code, ctx=ctx,
+            converter_name=converter_name,
+            code=converter_code,
+            ctx=ctx,
         )
         default_code = self.default.gen_code_and_update_ctx(code_input, ctx)
         result = NaiveConversion(converter)
@@ -1616,7 +1626,9 @@ def {converter_name}(data_{code_args}):
 {code_lines}
         """
         generator_converter = self._code_to_converter(
-            converter_name=converter_name, code=code, ctx=ctx,
+            converter_name=converter_name,
+            code=code,
+            ctx=ctx,
         )
         return CallFunc(
             generator_converter, GetItem(), *self.get_args_as_func_args()
