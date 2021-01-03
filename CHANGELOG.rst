@@ -1,3 +1,17 @@
+0.8.0 (2021-01-03)
+------------------
+
+Misc
+++++
+
+- improved pylint rating
+- added a few type hints
+- added a few docstings
+
+
+----
+
+
 0.7.2 (2020-11-12)
 ------------------
 
