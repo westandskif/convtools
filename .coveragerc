@@ -27,8 +27,12 @@ exclude_lines =
     if 0:
     if __name__ == .__main__.:
 
-	except ImportError:
-	except black.InvalidInput:
+    except ImportError:
+    except black.InvalidInput:
 
-	# Don't complain about tricked finally block
-	if not deferred_labels_cleaning:
+    # Don't complain about tricked finally block
+    if drop_labels_now:
+
+    # Don't complain about python3.6 workaround
+    class GenericMeta
+    GenericMeta = typing.GenericMeta

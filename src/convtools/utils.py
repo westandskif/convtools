@@ -57,7 +57,16 @@ class RUCache:
                 break
 
 
-class BaseCtxMeta(typing.GenericMeta, type):
+if hasattr(typing, "GenericMeta"):
+    # python 3.6
+    GenericMeta = typing.GenericMeta
+else:
+    # python 3.7+
+    class GenericMeta(type):  # type: ignore
+        pass
+
+
+class BaseCtxMeta(GenericMeta):
     def __init__(cls, name, bases, kwargs):
         super().__init__(name, bases, kwargs)
         cls._ctx = threading.local()
