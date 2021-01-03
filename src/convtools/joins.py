@@ -1,11 +1,14 @@
 """
 This module brings join functionality to the library
 """
+import typing
 from itertools import chain
 
 from .aggregations import Aggregate, Reduce, ReduceFuncs
 from .base import (
     And,
+    BaseConversion,
+    Call,
     CallFunc,
     ConversionWrapper,
     Eq,
@@ -81,14 +84,14 @@ class _JoinConditions:
         return join_conditions
 
     @classmethod
-    def _get_join_deps(cls, conv):
+    def _get_join_deps(cls, conv) -> typing.Set[str]:
         return {
             dep.name
             for dep in conv.get_dependencies(types=NamedConversion)
             if dep.name in cls._ANY
         }
 
-    def consume_eq(self, eq_conversion):
+    def consume_eq(self, eq_conversion: Eq):
         if not isinstance(eq_conversion, Eq):
             raise AssertionError
 
@@ -115,7 +118,7 @@ class _JoinConditions:
             else:
                 self.pre_filter.append(eq_conversion)
 
-    def consume_other(self, other):
+    def consume_other(self, other: BaseConversion):
         deps = self._get_join_deps(other)
         deps_length = len(deps)
         if deps_length > 1:
@@ -128,7 +131,7 @@ class _JoinConditions:
         else:
             self.pre_filter.append(other)
 
-    def consume_and(self, and_conversion):
+    def consume_and(self, and_conversion: And):
         if not isinstance(and_conversion, And):
             raise AssertionError
 
@@ -141,7 +144,12 @@ class _JoinConditions:
                 self.consume_other(arg)
 
 
-def join(left_conversion, right_conversion, condition, how="inner"):
+def join(
+    left_conversion: BaseConversion,
+    right_conversion: BaseConversion,
+    condition: BaseConversion,
+    how="inner",
+) -> Call:
     """Generates conversion which joins left_conversion and right_conversion
     using condition. The result is a generator of joined pairs
 
@@ -166,7 +174,7 @@ def join(left_conversion, right_conversion, condition, how="inner"):
     if condition is True:
         condition = NaiveConversion(True)
 
-    right_collection = InputArg("right")
+    right_collection: BaseConversion = InputArg("right")
     right_collection_filters = (
         join_conditions.left_collection_filters
         if left_right_swapped
@@ -188,7 +196,7 @@ def join(left_conversion, right_conversion, condition, how="inner"):
         right_collection = right_collection.as_type(list)
     right_collection = right_collection.add_label("right_collection")
 
-    left_collection = InputArg("left")
+    left_collection: BaseConversion = InputArg("left")
     left_collection_filters = (
         join_conditions.right_collection_filters
         if left_right_swapped
@@ -207,7 +215,7 @@ def join(left_conversion, right_conversion, condition, how="inner"):
             )
         )
 
-    inner_loop_condition = None
+    inner_loop_condition: typing.Optional[ConversionWrapper] = None
     resulting_inner_loop_conditions = list(
         chain(
             join_conditions.left_row_filters,
@@ -217,15 +225,15 @@ def join(left_conversion, right_conversion, condition, how="inner"):
     )
     if resulting_inner_loop_conditions:
         if len(resulting_inner_loop_conditions) > 1:
-            inner_loop_condition = And(
+            condition_ = And(
                 resulting_inner_loop_conditions[0],
                 resulting_inner_loop_conditions[1],
                 *resulting_inner_loop_conditions[2:],
             )
         else:
-            inner_loop_condition = resulting_inner_loop_conditions[0]
+            condition_ = resulting_inner_loop_conditions[0]
         inner_loop_condition = ConversionWrapper(
-            inner_loop_condition,
+            condition_,
             name_to_code_input=(
                 {
                     _JoinConditions.LEFT_NAME: "right_item",

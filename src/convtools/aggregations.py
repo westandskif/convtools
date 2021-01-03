@@ -1,10 +1,12 @@
 """This module brings aggregations with various reduce functions"""
+import typing
 from collections import defaultdict
 from functools import reduce as functools_reduce
 
 from .base import (
     BaseCollectionConversion,
     BaseConversion,
+    Call,
     CallFunc,
     ConversionException,
     Dict,
@@ -18,15 +20,23 @@ from .base import (
 )
 
 
-def call_with_params(callable_or_inline_expr, *args, **kwargs):
+def call_with_params(
+    callable_or_inline_expr: typing.Union[
+        InlineExpr, NaiveConversion, typing.Callable
+    ],
+    *args,
+    **kwargs,
+) -> Call:
     if isinstance(callable_or_inline_expr, InlineExpr):
         return callable_or_inline_expr.pass_args(*args, **kwargs)
     elif callable(callable_or_inline_expr):
         return CallFunc(callable_or_inline_expr, *args, **kwargs)
-    elif isinstance(callable_or_inline_expr, NaiveConversion) and callable(
-        callable_or_inline_expr.value
-    ):
-        return callable_or_inline_expr.call(*args, **kwargs)
+    elif isinstance(callable_or_inline_expr, NaiveConversion):
+        if callable(callable_or_inline_expr.value):
+            return callable_or_inline_expr.call(*args, **kwargs)
+        raise AssertionError(
+            "unexpected NaiveConversion - only wrapped callables are supported"
+        )
 
     raise AssertionError("unexpected callable", callable_or_inline_expr)
 
@@ -58,7 +68,7 @@ class _BaseReducer:
         self.post_conversion = post_conversion
         self.unconditional_init = unconditional_init
 
-    def configure_parent_reduce_obj(self, reduce_obj):
+    def configure_parent_reduce_obj(self, reduce_obj: "Reduce"):
         if self.expr is not None and reduce_obj.expr is BaseConversion._none:
             reduce_obj.expr = reduce_obj.ensure_conversion(self.expr)
         if (
@@ -83,23 +93,23 @@ class _BaseReducer:
 
     def gen_reduce_initial(
         self,
-        var_agg_data_value,
-        var_row,
+        var_agg_data_value: str,
+        var_row: str,
         initial,
         expr,
         additional_args,
         ctx,
-    ):
+    ) -> str:
         raise NotImplementedError
 
     def gen_reduce_two(
         self,
-        var_agg_data_value,
-        var_row,
+        var_agg_data_value: str,
+        var_row: str,
         expr,
         additional_args,
         ctx,
-    ):
+    ) -> str:
         raise NotImplementedError
 
 
@@ -113,13 +123,13 @@ class _ReducerExpression(_BaseReducer):
 
     def gen_reduce_initial(
         self,
-        var_agg_data_value,
-        var_row,
+        var_agg_data_value: str,
+        var_row: str,
         initial,
         expr,
         additional_args,
         ctx,
-    ):
+    ) -> str:
         if initial is BaseConversion._none:
             if self.initial_from_first:
                 reduce_initial = (
@@ -536,6 +546,9 @@ class ReduceFuncs:
     DictLast = _DictLast
 
 
+RT = typing.TypeVar("RT", bound="ReduceBlock")
+
+
 class ReduceBlock:
     """Represents a section of code of a single reducer"""
 
@@ -559,7 +572,7 @@ class ReduceBlock:
         self.checksum_flag = checksum_flag
         self.unconditional_init = unconditional_init
 
-    def union(self, reduce_block):
+    def union(self, reduce_block: RT):
         clone = self.__class__.__new__(self.__class__)
         clone.__dict__.update(self.__dict__)
         clone.reduce_initial = (
@@ -569,7 +582,7 @@ class ReduceBlock:
         clone.checksum_flag |= reduce_block.checksum_flag
         return clone
 
-    def update_var_agg_data_value(self, new_var_agg_data_value):
+    def update_var_agg_data_value(self, new_var_agg_data_value: str):
         self.reduce_initial = self.reduce_initial.replace(
             self.var_agg_data_value, new_var_agg_data_value
         )
@@ -578,7 +591,7 @@ class ReduceBlock:
         )
         self.var_agg_data_value = new_var_agg_data_value
 
-    def get_template_kwargs(self, no_init=False):
+    def get_template_kwargs(self, no_init=False) -> typing.Dict[str, str]:
         _ = BaseConversion.indent_statements
         reduce_indent = (
             self.reduce_no_init_indent if no_init else self.reduce_indent
@@ -592,7 +605,7 @@ class ReduceBlock:
             "checksum_flag": self.checksum_flag,
         }
 
-    def get_template(self, no_init=False):
+    def get_template(self, no_init=False) -> str:
         template = """
         if {var_agg_data_value} is _none:
 {reduce_initial}
@@ -617,17 +630,17 @@ class ReduceBlock:
         )
         return template
 
-    def to_code(self):
+    def to_code(self) -> str:
         return self.get_template(no_init=False).format(
             **self.get_template_kwargs(no_init=False)
         )
 
-    def to_no_init_code(self):
+    def to_no_init_code(self) -> str:
         return self.get_template(no_init=True).format(
             **self.get_template_kwargs(no_init=True)
         )
 
-    def code_hash(self):
+    def code_hash(self) -> str:
         code_hash = self.to_code()
         code_hash = code_hash.replace(self.var_agg_data_value, "")
         if self.checksum_flag:
@@ -636,8 +649,8 @@ class ReduceBlock:
 
 
 class ReduceConditionalBlock(ReduceBlock):
-    """Represents a section of code of a single reducer with an
-    incoming condition"""
+    """Represents a section of code of a single reducer with an incoming
+    condition"""
 
     reduce_indent = 4
     reduce_no_init_indent = 3
@@ -680,7 +693,7 @@ class ReduceConditionalBlock(ReduceBlock):
         return template_kwargs
 
 
-class ReduceBlocks:
+class ReduceBlocks(typing.Generic[RT]):
     """Represents a set of reduce blocks"""
 
     def __init__(self):
@@ -690,7 +703,7 @@ class ReduceBlocks:
         self.other_blocks = []
         self.number = 0
 
-    def add_block(self, reduce_block: ReduceBlock):
+    def add_block(self, reduce_block: RT):
         self.number += 1
         if isinstance(reduce_block, ReduceConditionalBlock):
             if reduce_block.unconditional_init:
@@ -707,14 +720,14 @@ class ReduceBlocks:
         list_.append(reduce_block)
 
     @classmethod
-    def _reduce_blocks(cls, reduce_blocks):
+    def _reduce_blocks(cls, reduce_blocks) -> typing.Optional[RT]:
         if not reduce_blocks:
             return None
         if len(reduce_blocks) == 1:
             return reduce_blocks[0]
         return functools_reduce((lambda b1, b2: b1.union(b2)), reduce_blocks)
 
-    def reduce_blocks(self):
+    def reduce_blocks(self) -> typing.Iterable[RT]:
         blocks = []
         for blocks_ in self.condition_to_blocks.values():
             for block_ in blocks_:
@@ -730,10 +743,10 @@ class ReduceBlocks:
             blocks.append(block_)
         return blocks
 
-    def to_code(self):
+    def to_code(self) -> str:
         return "\n\n".join(block.to_code() for block in self.reduce_blocks())
 
-    def to_no_init_code(self):
+    def to_no_init_code(self) -> str:
         return "\n\n".join(
             block.to_no_init_code() for block in self.reduce_blocks()
         )
@@ -772,7 +785,7 @@ def {converter_name}(data_{code_args}):
 """
 
 
-class Reduce(BaseReduce):
+class Reduce(BaseReduce, typing.Generic[RT]):
     """Defines the reduce operation to be used during the aggregation"""
 
     _methods_without_input = True
@@ -811,8 +824,7 @@ class Reduce(BaseReduce):
             used.
           additional_args (tuple): each is to be wrapped with
             :py:obj:`ensure_conversion` and passed to the reduce operation
-            along with `expr` as next positional arguments
-        """
+            along with `expr` as next positional arguments"""
         super().__init__(kwargs)
         self.expr = expr
         self.initial = initial
@@ -850,7 +862,7 @@ class Reduce(BaseReduce):
         if self.default is not self._none:
             self.default = self.ensure_conversion(self.default)
 
-    def filter(self, condition_conversion):
+    def filter(self, condition_conversion) -> "Reduce":  # type: ignore
         """Defines a conversion to be used as a condition. Only truth values
         will be aggregated.
 
@@ -862,8 +874,12 @@ class Reduce(BaseReduce):
         return self
 
     def gen_reduce_code_block(
-        self, var_agg_data_value, var_row, checksum_flag, ctx
-    ):
+        self,
+        var_agg_data_value: str,
+        var_row: str,
+        checksum_flag: int,
+        ctx: dict,
+    ) -> RT:
         block_cls = (
             ReduceBlock if self.condition is None else ReduceConditionalBlock
         )
@@ -897,7 +913,7 @@ class Reduce(BaseReduce):
 
         return block_cls(unconditional_init=self.unconditional_init, **kwargs)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         del code_input
         agg_data_item = ctx["_reduce_id_to_var"][id(self)]
         processed_agg_data_item = agg_data_item
@@ -968,13 +984,13 @@ class GroupBy(BaseConversion):
         self.sort_key_reverse = None
         self.aggregate_mode = len(self.by) == 0
 
-    def prepare_reducer(self, reducer):
+    def prepare_reducer(self, reducer) -> BaseConversion:
         reducer = self.ensure_conversion(reducer)
         if isinstance(reducer, NaiveConversion):
             raise AssertionError("unexpected reducer type", type(reducer))
         return reducer
 
-    def aggregate(self, reducer):
+    def aggregate(self, reducer) -> BaseConversion:
         """Takes the conversion which defines the desired output of aggregation.
 
         Args:
@@ -1002,13 +1018,15 @@ class GroupBy(BaseConversion):
 
         return self_clone
 
-    def filter(self, condition_conv, cast=BaseConversion._none):
+    def filter(
+        self, condition_conv, cast=BaseConversion._none
+    ) -> BaseConversion:
         """Same as :py:obj:`convtools.base.BaseComprehensionConversion.filter`.
         The only exception is that it works with results, not initial items."""
         cast = list if cast is self._none else cast
         return super().filter(condition_conv, cast=cast)
 
-    def sort(self, key=None, reverse=False):
+    def sort(self, key=None, reverse=False) -> "GroupBy":
         """Same as :py:obj:`convtools.base.BaseComprehensionConversion.sort`.
         The only exception is that it works with results, not initial items."""
         self_clone = self.clone()
@@ -1023,18 +1041,19 @@ class GroupBy(BaseConversion):
         var_row,
         signature_code_items,
         ctx,
-    ):
+    ) -> BaseConversion:
         code_item = item.gen_code_and_update_ctx(var_row, ctx)
         for code_index, code_signature_item in enumerate(signature_code_items):
             if code_signature_item in code_item:
-                signature_item_getter = EscapedString(var_signature)
-                if len(signature_code_items) > 1:
-                    signature_item_getter = signature_item_getter.item(
-                        code_index
-                    )
+                code_signature_item_getter = (
+                    EscapedString(var_signature).item(code_index)
+                    if len(signature_code_items) > 1
+                    else EscapedString(var_signature)
+                ).gen_code_and_update_ctx("", ctx)
+
                 code_item = code_item.replace(
                     code_signature_item,
-                    signature_item_getter.gen_code_and_update_ctx("", ctx),
+                    code_signature_item_getter,
                 )
         if var_row in code_item:
             raise ConversionException(
@@ -1050,7 +1069,7 @@ class GroupBy(BaseConversion):
         var_row,
         signature_code_items,
         ctx,
-    ):
+    ) -> BaseConversion:
         if isinstance(self.reducer_result, Dict):
             new_key_value_pairs = []
             for k_v in self.reducer_result.key_value_pairs:
@@ -1121,7 +1140,7 @@ class GroupBy(BaseConversion):
         exec(agg_data_container_code, ctx, ctx)
         return ctx["AggData"]
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         aggregate_mode = len(self.by) == 0
 
         var_row = "row_"
@@ -1139,9 +1158,9 @@ class GroupBy(BaseConversion):
             code_signature = f"({','.join(signature_code_items)},)"
 
         expected_checksum = 0
-        reduce_blocks = ReduceBlocks()
+        reduce_blocks: ReduceBlocks = ReduceBlocks()
         var_agg_data_values = []
-        code_signature_to_agg_index = {}
+        code_signature_to_agg_index: typing.Dict[str, int] = {}
         reduce_id_to_var = ctx.setdefault("_reduce_id_to_var", {})
 
         def gen_agg_data_value(value_index):
@@ -1258,6 +1277,6 @@ class GroupBy(BaseConversion):
         ).gen_code_and_update_ctx(code_input, ctx)
 
 
-def Aggregate(*args, **kwargs):  # pylint: disable=invalid-name
+def Aggregate(*args, **kwargs) -> BaseConversion:
     """Shortcut for ``GroupBy().aggregate(*args, **kwargs)``"""
     return GroupBy().aggregate(*args, **kwargs)

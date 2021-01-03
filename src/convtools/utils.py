@@ -2,8 +2,9 @@
  - recently used cache
  - options ctx manager
 """
+import threading
+import typing
 from collections import deque
-from threading import local
 
 
 class RUCache:
@@ -56,10 +57,10 @@ class RUCache:
                 break
 
 
-class BaseCtxMeta(type):
+class BaseCtxMeta(typing.GenericMeta, type):
     def __init__(cls, name, bases, kwargs):
         super().__init__(name, bases, kwargs)
-        cls._ctx = local()
+        cls._ctx = threading.local()
 
 
 class BaseOptionsMeta(type):
@@ -89,12 +90,16 @@ class BaseOptions(object, metaclass=BaseOptionsMeta):
                 setattr(self, option_attr, value)
 
 
-class BaseCtx(object, metaclass=BaseCtxMeta):
+OT = typing.TypeVar("OT", bound=BaseOptions)
+
+
+class BaseCtx(typing.Generic[OT], metaclass=BaseCtxMeta):
     """Context manager to manage option objects"""
 
-    options_cls = BaseOptions
+    options_cls: typing.Type[OT]
+    _ctx: threading.local
 
-    def __enter__(self) -> BaseOptions:
+    def __enter__(self) -> OT:
         self._ctx.prev_options = getattr(self._ctx, "options", None)
         if self._ctx.prev_options:
             self._ctx.options = self._ctx.prev_options.clone()

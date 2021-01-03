@@ -1376,6 +1376,12 @@ def test_name_generation():
         c.list_comp(
             {i: c.item(f"test{i}", default=1) for i in range(100)}
         ).gen_converter(debug=True)
+
+        item = c.this()
+        ctx = {}
+        for i in range(11):
+            item.gen_name("abc", ctx, i)
+
     finally:
         c.BaseConversion.max_counter = max_counter_prev
 
