@@ -106,7 +106,9 @@ class _Conversion:
     RIGHT = _JoinConditions.RIGHT
 
     def reduce(self, to_call_with_2_args, *args, **kwargs):
-        if issubclass(to_call_with_2_args, BaseReducer):
+        if isinstance(to_call_with_2_args, type) and issubclass(
+            to_call_with_2_args, BaseReducer
+        ):
             return to_call_with_2_args(*args, **kwargs)
         return Reduce(to_call_with_2_args, *args, **kwargs)
 
