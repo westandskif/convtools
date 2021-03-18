@@ -5,7 +5,7 @@ from .base import BaseMutation
 class BaseNameValueMutation(BaseMutation):
     """A base in-place mutation where name and value are needed to define it"""
 
-    def __init__(self, name, value, **options):
+    def __init__(self, name, value):
         """
         Args:
           name: to be wrapped with :py:obj:`ensure_conversion` and used as
@@ -13,14 +13,14 @@ class BaseNameValueMutation(BaseMutation):
           value: to be wrapped with :py:obj:`ensure_conversion` and used as
             a value for a mutation
         """
-        super().__init__(options)
+        super().__init__()
         self.name = self.ensure_conversion(name)
         self.value = self.ensure_conversion(value)
 
 
 class BaseIndexMutation(BaseMutation):
-    def __init__(self, index, **options):
-        super().__init__(options)
+    def __init__(self, index):
+        super().__init__()
         self.index = self.ensure_conversion(index)
 
 
@@ -55,13 +55,13 @@ class Custom(BaseMutation):
     Runs the code, defined by the conversion argument and returns the input
     as is."""
 
-    def __init__(self, conversion, **options):
+    def __init__(self, conversion):
         """
         Arg:
           conversion: to be wrapped with :py:obj:`ensure_conversion` and used
             as a mutation code
         """
-        super().__init__(options)
+        super().__init__()
         self.conversion = self.ensure_conversion(conversion)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):

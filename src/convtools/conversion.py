@@ -1,7 +1,7 @@
 """
 The main module exposing public API (via conversion object)
 """
-from .aggregations import Aggregate, GroupBy, Reduce, ReduceFuncs
+from .aggregations import Aggregate, BaseReducer, GroupBy, Reduce, ReduceFuncs
 from .base import (
     And,
     BaseConversion,
@@ -44,19 +44,19 @@ class _Conversion:
     .. code-block:: python
 
       from convtools import conversion as c
-      convert = (
-          c.group_by(c.item("name"))
-          .aggregate(
-              {c.item("name"): c.reduce(c.ReduceFuncs.Sum, c.item("value"),),}
-          )
-          .gen_converter(debug=True)
-      )
 
-      convert([
+      convert = c.aggregate(
+          c.ReduceFuncs.DictSum(
+              c.item("name"),
+              c.item("value")
+          )
+      ).gen_converter(debug=True)
+
+      assert convert([
           {"name": "Bob", "value": 10},
           {"name": "Bob", "value": 7},
           {"name": "Ron", "value": 3},
-      ])
+      ]) == {'Bob': 17, 'Ron': 3}
 
     """
 
@@ -99,12 +99,16 @@ class _Conversion:
     dict_comp = DictComp
 
     group_by = GroupBy
-    reduce = Reduce
     aggregate = staticmethod(Aggregate)
 
     join = staticmethod(join)
     LEFT = _JoinConditions.LEFT
     RIGHT = _JoinConditions.RIGHT
+
+    def reduce(self, to_call_with_2_args, *args, **kwargs):
+        if issubclass(to_call_with_2_args, BaseReducer):
+            return to_call_with_2_args(*args, **kwargs)
+        return Reduce(to_call_with_2_args, *args, **kwargs)
 
     def __call__(self, obj: object):
         """Shortcut for ``ensure_conversion``"""

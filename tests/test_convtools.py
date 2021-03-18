@@ -2,7 +2,6 @@ import linecache
 from collections import namedtuple
 from datetime import date, datetime
 from decimal import Decimal
-from types import GeneratorType
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -10,35 +9,13 @@ import pytest
 from convtools import conversion as c
 from convtools.base import (
     CachingConversion,
-    CodeGenerationOptionsCtx,
     ConversionWrapper,
+    InlineExpr,
     NamedConversion,
     _ConverterCallable,
 )
 
 from .utils import total_size
-
-
-class MemoryProfilingConverterCallable(_ConverterCallable):
-    def __call__(self, *args, **kwargs):
-        size_before = total_size(self.__dict__)
-        result = super().__call__(*args, **kwargs)
-        if isinstance(result, GeneratorType):
-            return self.wrap_generator(result, size_before)
-
-        size_after = total_size(self.__dict__)
-        assert size_after <= size_before
-        return result
-
-    def wrap_generator(self, generator_, size_before):
-        yield from generator_
-        size_after = total_size(self.__dict__)
-        assert size_after <= size_before
-
-
-CodeGenerationOptionsCtx.options_cls.converter_callable_cls = (
-    MemoryProfilingConverterCallable
-)
 
 
 def test_docs():
@@ -275,6 +252,16 @@ def test_naive_conversion_callmethod():
     mock = Mock()
     c.naive(mock).call_method("test_method", 1, abc=2).gen_converter()(100)
     mock.test_method.assert_called_with(1, abc=2)
+
+
+def test_set_predefined_self():
+    self_obj = c.this()
+    conversion = c.item("name")
+    assert conversion.set_predefined_self(self_obj) is not conversion
+    assert (
+        conversion.set_predefined_self(self_obj, skip_cloning=True)
+        is conversion
+    )
 
 
 def test_naive_conversion_or_and():
@@ -526,10 +513,6 @@ def test_pipes():
             for i in range(max_pipe_length + 1):
                 conv = c.this().pipe(conv)
 
-        with c.OptionsCtx() as options2, pytest.raises(c.ConversionException):
-            options2.max_pipe_length = 5
-            conv.clone()
-
     conv = c.dict_comp(
         c.item("name"),
         c.item("transactions").pipe(
@@ -603,7 +586,10 @@ def test_manually_defined_reducers():
         c.group_by(c.item("name"))
         .aggregate(
             c.reduce(
-                lambda a, b: a + b, c.item(c.input_arg("group_key")), initial=0
+                lambda a, b: a + b,
+                c.item(c.input_arg("group_key")),
+                initial=int,
+                default=int,
             )
         )
         .filter(c.this() > 20)
@@ -623,19 +609,6 @@ def test_grouping():
         {"name": "Nick", "category": "Games", "debit": 18, "balance": 32},
         {"name": "Bill", "category": "Games", "debit": 18, "balance": 120},
     ]
-    with pytest.raises(c.ConversionException):
-        # there's a single group by field, while we use separate items
-        # of this tuple in aggregate
-        result = (
-            c.group_by(c.item("name"))
-            .aggregate(
-                (
-                    c.item("category"),
-                    c.reduce(c.ReduceFuncs.Sum, c.item("debit")),
-                )
-            )
-            .execute(data, debug=False)
-        )
     result = (
         c.group_by(c.item("name"))
         .aggregate(
@@ -656,13 +629,19 @@ def test_grouping():
                     unconditional_init=True,
                 ),
                 c.reduce(
-                    max, c.item("debit"), default=c.input_arg("arg1")
+                    max,
+                    c.item("debit"),
+                    prepare_first=lambda a: a,
+                    default=c.input_arg("arg1"),
                 ).filter(c.call_func(lambda x: x < 0, c.item("balance"))),
                 c.call_func(
                     lambda max_debit, n: max_debit * n,
-                    c.reduce(max, c.item("debit"), default=0).filter(
-                        c.call_func(lambda x: x < 0, c.item("balance"))
-                    ),
+                    c.reduce(
+                        max,
+                        c.item("debit"),
+                        prepare_first=lambda a: a,
+                        default=0,
+                    ).filter(c.call_func(lambda x: x < 0, c.item("balance"))),
                     1000,
                 ),
                 c.call_func(
@@ -688,32 +667,40 @@ def test_grouping():
             )
         )
         .sort(key=lambda t: t[0].lower(), reverse=True)
-        .execute(data, arg1=100, arg2=0, debug=False)
+        .execute(data, arg1=100, arg2=0, debug=True)
     )
+
     # fmt: off
     assert result == [('Nick', 'nick', 'nick', 125, 125, 100, 0, -18, 32, 50),
                      ('John', 'john', 'john', 640, 640, 200, 200000, -10, 0, 90),
-                     ('Bill', 'bill', 'bill', 118, 118, 100, 0, -18, 120, 120)]
+                     ('Bill', 'bill', 'bill', 118, 118, 100, 0, -18, 120, 120),]
     # fmt: on
+
+    with pytest.raises(c.ConversionException):
+        # there's a single group by field, while we use separate items
+        # of this tuple in aggregate
+        result = (
+            c.group_by(c.item("name"))
+            .aggregate(
+                (
+                    c.item("category"),
+                    c.reduce(c.ReduceFuncs.Sum, c.item("debit")),
+                )
+            )
+            .execute(data, debug=False)
+        )
 
     aggregation = {
         c.call_func(
             tuple,
-            c.reduce(c.ReduceFuncs.Array, c.item("name"), default=None),
+            c.ReduceFuncs.Array(c.item("name"), default=None),
         ): c.item("category").call_method("lower"),
-        "count": c.reduce(c.ReduceFuncs.Count),
-        "max": c.reduce(c.ReduceFuncs.Max, c.item("debit")),
-        "min": c.reduce(c.ReduceFuncs.Min, c.item("debit")),
-        "count_distinct": c.reduce(
-            c.ReduceFuncs.CountDistinct, c.item("name")
-        ),
-        "array_agg_distinct": c.reduce(
-            c.ReduceFuncs.ArrayDistinct,
-            c.item("name"),
-        ),
-        "dict": c.reduce(
-            c.ReduceFuncs.Dict, (c.item("debit"), c.item("name"))
-        ),
+        "count": c.ReduceFuncs.Count(),
+        "max": c.ReduceFuncs.Max(c.item("debit")),
+        "min": c.ReduceFuncs.Min(c.item("debit")),
+        "count_distinct": c.ReduceFuncs.CountDistinct(c.item("name")),
+        "array_agg_distinct": c.ReduceFuncs.ArrayDistinct(c.item("name")),
+        "dict": c.ReduceFuncs.Dict(c.item("debit"), c.item("name")),
     }
     result = (
         c.group_by(c.item("category"))
@@ -742,7 +729,7 @@ def test_grouping():
           ('John', 'Nick'): 'food'}]
     # fmt: on
     result3 = (
-        c.aggregate(c.reduce(c.ReduceFuncs.Sum, c.item("debit")))
+        c.aggregate(c.ReduceFuncs.Sum(c.item("debit")))
         .pipe(c.inline_expr("{0} + {1}").pass_args(c.this(), c.this()))
         .execute(data, debug=False)
     )
@@ -751,7 +738,7 @@ def test_grouping():
     by = c.item("name"), c.item("category")
     result4 = (
         c.group_by(*by)
-        .aggregate(by + (c.reduce(c.ReduceFuncs.Sum, c.item("debit")),))
+        .aggregate(by + (c.ReduceFuncs.Sum(c.item("debit")),))
         .execute(data, debug=False)
     )
     # fmt: off
@@ -763,7 +750,7 @@ def test_grouping():
     # fmt: on
     result5 = (
         c.group_by()
-        .aggregate(c.reduce(c.ReduceFuncs.Sum, c.item("debit")))
+        .aggregate(c.ReduceFuncs.Sum(c.item("debit")))
         .execute(data, debug=False)
     )
     assert result5 == 583
@@ -801,42 +788,56 @@ reducer_data4 = [
 reducers_in_out = [
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Sum, c.item("debit")),
+        reduce=c.reduce(lambda a, b: a + b, c.item("debit"), initial=0),
         data=reducer_data1,
         output=[('Bill', 150), ('Nick', 1)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Sum, c.item("debit")),
+        reduce=c.reduce(c.inline_expr("{} + {}"), c.item("debit"), initial=0),
+        data=reducer_data1,
+        output=[('Bill', 150), ('Nick', 1)],
+        raises=None,
+    ),
+    dict(
+        groupby=c.item("name"),
+        reduce=c.ReduceFuncs.Sum(c.item("debit")),
+        data=reducer_data1,
+        output=[('Bill', 150), ('Nick', 1)],
+        raises=None,
+    ),
+    dict(
+        groupby=c.item("name"),
+        reduce=c.ReduceFuncs.Sum(c.item("debit")),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', 150), ('Nick', 3)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.SumOrNone, c.item("debit")),
+        reduce=c.ReduceFuncs.SumOrNone(c.item("debit")),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', None), ('Nick', 3)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Max, c.item("debit")),
+        reduce=c.ReduceFuncs.Max(c.item("debit")),
         data=reducer_data1,
         output=[('Bill', 100), ('Nick', 1)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Max, c.item("debit")),
+        reduce=c.ReduceFuncs.Max(c.item("debit")),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', 100), ('Nick', 2)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.MaxRow, c.item("debit")),
+        reduce=c.ReduceFuncs.MaxRow(c.item("debit")),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', {'debit': 100, 'name': 'Bill'}),
                  ('Nick', {'debit': 2, 'name': 'Nick'})],
@@ -844,21 +845,21 @@ reducers_in_out = [
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Min, c.item("debit")),
+        reduce=c.ReduceFuncs.Min(c.item("debit")),
         data=reducer_data1,
         output=[('Bill', 50), ('Nick', 1)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Min, c.item("debit")),
+        reduce=c.ReduceFuncs.Min(c.item("debit")),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', 50), ('Nick', 1)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.MinRow, c.item("debit")),
+        reduce=c.ReduceFuncs.MinRow(c.item("debit")),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', {'debit': 50, 'name': 'Bill'}),
                  ('Nick', {'debit': 1, 'name': 'Nick'})],
@@ -866,14 +867,14 @@ reducers_in_out = [
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Count, c.item("debit")),
+        reduce=c.ReduceFuncs.Count(c.item("debit")),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', 3), ('Nick', 2)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Count, c.item("debit")).filter(
+        reduce=c.ReduceFuncs.Count(c.item("debit")).filter(
             c.item("debit").is_(None)
         ),
         data=reducer_data1 + reducer_data2,
@@ -882,98 +883,98 @@ reducers_in_out = [
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.CountDistinct, c.item("debit")),
+        reduce=c.ReduceFuncs.CountDistinct(c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3 + reducer_data4,
         output=[('Bill', 4), ('Nick', 3)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.First, c.item("debit")),
+        reduce=c.ReduceFuncs.First(c.item("debit")),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', 100), ('Nick', 1)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Last, c.item("debit")),
+        reduce=c.ReduceFuncs.Last(c.item("debit")),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', None), ('Nick', 2)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.Array, c.item("debit")),
+        reduce=c.ReduceFuncs.Array(c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[('Bill', [100, 50, None, 50]), ('Nick', [1, 2, 2, 2])],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.reduce(c.ReduceFuncs.ArrayDistinct, c.item("debit")),
+        reduce=c.ReduceFuncs.ArrayDistinct(c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[('Bill', [100, 50, None]), ('Nick', [1, 2])],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.Dict, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.Dict(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': 50, 'Nick': 2})],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictArray, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictArray(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': [100, 50, None, 50], 'Nick': [1, 2, 2, 2]})],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictArrayDistinct, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictArrayDistinct(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': [100, 50, None], 'Nick': [1, 2]})],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictSum, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictSum(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': 200, 'Nick': 7})],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictSumOrNone, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictSumOrNone(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': None, 'Nick': 7})],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictMax, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictMax(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': 100, 'Nick': 2})],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictMin, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictMin(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': 50, 'Nick': 1})],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictCount, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictCount(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': 4, 'Nick': 4})],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictCountDistinct, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictCountDistinct(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3 + reducer_data4,
         output=[(True, {'Bill': 4, 'Nick': 3})],
         raises=None,
@@ -981,14 +982,14 @@ reducers_in_out = [
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictFirst, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictFirst(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': 100, 'Nick': 1})],
         raises=None,
     ),
     dict(
         groupby=True,
-        reduce=c.reduce(c.ReduceFuncs.DictLast, (c.item("name"), c.item("debit"))),
+        reduce=c.ReduceFuncs.DictLast(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3 + reducer_data4,
         output=[(True, {'Bill': 25, 'Nick': 3})],
         raises=None,
@@ -1001,7 +1002,7 @@ def test_reducers():
         converter = (
             c.group_by(config["groupby"])
             .aggregate((config["groupby"], config["reduce"]))
-            .gen_converter(debug=config.get("debug", False))
+            .gen_converter(debug=config.get("debug", True))
         )
 
         if config["raises"]:
@@ -1013,52 +1014,23 @@ def test_reducers():
 
 
 def test_base_reducer():
-    from convtools.aggregations import _ReducerExpression, _ReducerStatements
+    from convtools.aggregations import MultiStatementReducer
 
     assert c.aggregate(
         (
+            c.reduce(lambda a, b: a + b, c.this(), initial=0),
+            c.reduce(c.naive(lambda a, b: a + b), c.this(), initial=int),
             c.reduce(
-                _ReducerExpression(
-                    lambda a, b: a + b, expr=c.this(), initial=0
-                )
-            ),
-            c.reduce(
-                _ReducerExpression(
-                    c.naive(lambda a, b: a + b), expr=c.this(), initial=int
-                )
-            ),
-            c.reduce(
-                _ReducerExpression("{0} + {1}", expr=c.this(), default=0)
-            ),
-            c.reduce(
-                _ReducerExpression(
-                    "{0} + {1}",
-                    expr=c.this(),
-                    initial_from_first=int,
-                    default=0,
-                )
-            ),
-            c.reduce(
-                _ReducerStatements(
-                    reduce="%(result)s += ({1} or 0)",
-                    initial_from_first="%(result)s = ({0} or 0)",
-                    default=0,
-                ),
+                InlineExpr("{0} + {1}"),
                 c.this(),
+                prepare_first=InlineExpr("{}"),
+                default=0,
             ),
             c.reduce(
-                _ReducerStatements(
-                    reduce="%(result)s += ({1} or 0)",
-                    default=c.naive(int),
-                ),
+                InlineExpr("{0} + {1}"),
                 c.this(),
-            ),
-            c.reduce(
-                _ReducerStatements(
-                    reduce="%(result)s = ({1} or 0)",
-                    initial=0,
-                ),
-                c.this(),
+                prepare_first=int,
+                default=0,
             ),
         )
     ).filter(c.this() > 5, cast=tuple).gen_converter(debug=True)(
@@ -1068,17 +1040,15 @@ def test_base_reducer():
         6,
         6,
         6,
-        6,
-        6,
     )
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         c.aggregate(
-            (c.reduce(c.ReduceFuncs.Sum, c.reduce(c.ReduceFuncs.Count)),)
+            (c.ReduceFuncs.Sum(c.reduce(c.ReduceFuncs.Count)),)
         ).gen_converter()
 
     conv = c.aggregate(
-        c.reduce(c.ReduceFuncs.DictArray, (c.item(0), c.item(1)))
+        c.ReduceFuncs.DictArray(c.item(0), c.item(1))
     ).gen_converter(debug=True)
     data = [
         ("a", 1),
@@ -1090,7 +1060,7 @@ def test_base_reducer():
     assert conv([]) is None
 
     conv2 = c.aggregate(
-        {"key": c.reduce(c.ReduceFuncs.DictArray, (c.item(0), c.item(1)))}
+        {"key": c.ReduceFuncs.DictArray(c.item(0), c.item(1))}
     ).gen_converter(debug=True)
     assert conv2([]) == {"key": None}
     assert conv2(data) == {"key": result}
@@ -1098,11 +1068,11 @@ def test_base_reducer():
 
 def test_simple_label():
     conv1 = (
-        c.tuple(c.item(1).add_label("a"), c.this())
+        c.tuple(c.item(2).add_label("a"), c.this())
         .pipe(c.item(1).pipe(c.list_comp((c.this(), c.label("a")))))
-        .gen_converter(debug=False)
+        .gen_converter(debug=True)
     )
-    assert conv1([1, 2, 3, 4]) == [(1, 2), (2, 2), (3, 2), (4, 2)]
+    assert conv1([1, 2, 3, 4]) == [(1, 3), (2, 3), (3, 3), (4, 3)]
 
     conv2 = (
         c.tuple(c.item(1).add_label("a"), c.this())
@@ -1114,8 +1084,7 @@ def test_simple_label():
         .pipe(
             c.label("collection1").pipe(
                 c.aggregate(
-                    c.reduce(
-                        c.ReduceFuncs.Sum,
+                    c.ReduceFuncs.Sum(
                         c.this()
                         + c.label("a")
                         + c.label("aa")
@@ -1323,11 +1292,10 @@ def test_aggregate():
 
     conv = c.aggregate(
         {
-            "a": c.reduce(c.ReduceFuncs.Array, c.item("a")),
-            "ab_sum": c.reduce(c.ReduceFuncs.Sum, c.item("a"))
-            + c.reduce(c.ReduceFuncs.Count),
-            "b": c.reduce(c.ReduceFuncs.ArrayDistinct, c.item("b")),
-            "b_max_a": c.reduce(c.ReduceFuncs.MaxRow, c.item("a")).item(
+            "a": c.ReduceFuncs.Array(c.item("a")),
+            "ab_sum": c.ReduceFuncs.Sum(c.item("a")) + c.ReduceFuncs.Count(),
+            "b": c.ReduceFuncs.ArrayDistinct(c.item("b")),
+            "b_max_a": c.ReduceFuncs.MaxRow(c.item("a")).item(
                 "b", default=None
             ),
         }
@@ -1351,14 +1319,14 @@ def test_piped_group_by():
         {
             "a": c.item("a"),
             "b": c.item("b"),
-            "amount": c.reduce(c.ReduceFuncs.Sum, c.item("amount")),
+            "amount": c.ReduceFuncs.Sum(c.item("amount")),
         }
     ).pipe(
         c.group_by(c.item("b")).aggregate(
             {
                 "b": c.item("b"),
-                "set_a": c.reduce(c.ReduceFuncs.ArrayDistinct, c.item("a")),
-                "min_amount": c.reduce(c.ReduceFuncs.Min, c.item("amount")),
+                "set_a": c.ReduceFuncs.ArrayDistinct(c.item("a")),
+                "min_amount": c.ReduceFuncs.Min(c.item("amount")),
             }
         )
     ).execute(
@@ -1400,3 +1368,82 @@ def test_generator_exception_handling():
     conv = c.generator_comp(c.call_func(f_second_call_raises)).gen_converter()
     with pytest.raises(CustomException):
         list(conv([1, 2]))
+
+
+def test_group_by_with_pipes():
+    # fmt: off
+    input_data = [
+        {"name": "John", "started_at": date(2020, 1, 1), "stopped_at": None, "product": "A"},
+        {"name": "John", "started_at": date(2020, 1, 1), "stopped_at": date(2020, 1, 2), "product": "B"},
+        {"name": "John", "started_at": date(2020, 1, 1), "stopped_at": None, "product": "C"},
+        {"name": "Nick", "started_at": date(2020, 1, 1), "stopped_at": None, "product": "D"},
+        {"name": "Nick", "started_at": date(2020, 2, 1), "stopped_at": None, "product": "D"},
+        {"name": "Nick", "started_at": date(2020, 2, 1), "stopped_at": None, "product": "E"},
+    ]
+    # fmt: on
+    output = (
+        c.group_by(
+            c.item("name"),
+            c.item("started_at"),
+        )
+        .aggregate(
+            {
+                "name": c.item("name"),
+                "started_at": c.item("started_at"),
+                "products": c.ReduceFuncs.ArrayDistinct(
+                    c.if_(
+                        c.item("stopped_at").is_(None),
+                        c.item("product"),
+                        None,
+                    ),
+                )
+                .pipe(c.filter(c.this()))
+                .pipe(
+                    c.call_func(sorted, c.this()).pipe(
+                        c(", ").call_method("join", c.this())
+                    )
+                )
+                .pipe(c.this()),
+            }
+        )
+        .execute(input_data)
+    )
+    # fmt: off
+    assert output == [
+        {'name': 'John', 'products': 'A, C', 'started_at': date(2020, 1, 1)},
+        {'name': 'Nick', 'products': 'D', 'started_at': date(2020, 1, 1)},
+        {'name': 'Nick', 'products': 'D, E', 'started_at': date(2020, 2, 1)}]
+    # fmt: on
+
+    reducer = c.ReduceFuncs.Array(c.this(), default=list)
+    output = (
+        c.group_by(
+            c.this()["name"],
+            c.this()["started_at"],
+        )
+        .aggregate(
+            {
+                "name": c.this()["name"],
+                "started_at": c.this()["started_at"],
+                "products": c.this()["product"].pipe(reducer)[:3],
+            }
+        )
+        .execute(input_data)
+    )
+    assert output == [
+        {
+            "name": "John",
+            "products": ["A", "B", "C"],
+            "started_at": date(2020, 1, 1),
+        },
+        {
+            "name": "Nick",
+            "products": ["D"],
+            "started_at": date(2020, 1, 1),
+        },
+        {
+            "name": "Nick",
+            "products": ["D", "E"],
+            "started_at": date(2020, 2, 1),
+        },
+    ]

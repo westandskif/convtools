@@ -453,14 +453,15 @@ Examples:
 
 .. code-block:: python
 
+   from decimal import Decimal
+   from datetime import datetime
+
    converter = c.group_by(c.item("category")).aggregate({
        "category": c.item("category").call_method("upper"),
-       "earnings": c.reduce(
-           c.ReduceFuncs.Sum,
+       "earnings": c.ReduceFuncs.Sum(
            c.item("earnings").as_type(Decimal),
        ),
-       "best_day": c.reduce(
-           c.ReduceFuncs.MaxRow,
+       "best_day": c.ReduceFuncs.MaxRow(
            c.item("earnings").as_type(float),
        ).item("date").pipe(datetime.strptime, "%Y-%m-%d"),
    }).gen_converter(debug=True)
@@ -468,16 +469,13 @@ Examples:
    converter(data)
 
    converter = c.aggregate({
-       "category": c.reduce(
-           c.ReduceFuncs.ArrayDistinct,
+       "categories": c.ReduceFuncs.ArrayDistinct(
            c.item("category").call_method("upper"),
        ),
-       "earnings": c.reduce(
-           c.ReduceFuncs.Sum,
+       "earnings": c.ReduceFuncs.Sum(
            c.item("earnings").as_type(Decimal),
        ),
-       "best_day": c.reduce(
-           c.ReduceFuncs.MaxRow,
+       "best_day": c.ReduceFuncs.MaxRow(
            c.item("earnings").as_type(float),
        ).item("date").pipe(datetime.strptime, "%Y-%m-%d"),
    }).gen_converter(debug=True)

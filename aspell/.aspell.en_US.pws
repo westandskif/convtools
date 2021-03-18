@@ -1,4 +1,4 @@
-personal_ws-1.1 en 149 
+personal_ws-1.1 en 154 
 Almakov
 BYN
 CHF
@@ -33,6 +33,7 @@ agg
 api
 arg
 args
+ascii
 attr
 attrs
 bool
@@ -84,6 +85,7 @@ init
 inlined
 inlines
 isinstance
+issubclass
 iter
 iterable
 iterables
@@ -93,10 +95,12 @@ kwarg
 kwargs
 len
 lte
+mct
 mul
 multiplicator
 mut
 noindex
+noqa
 numpy
 objs
 optionals
@@ -107,6 +111,7 @@ pdb
 pre
 prev
 pygments
+pylint
 pypi
 pytest
 quickstart
