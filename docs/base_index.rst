@@ -12,15 +12,16 @@ What's the workflow?
 Please, see simple examples of `group by`, `aggregate` and `join` conversions
 below.  Also there are more in the **Installation** step.
 
-.. literalinclude:: ../tests/test_doc__index_intro.py
+.. include:: ../tests/test_doc__index_intro.py
+   :code: python
 
 
 Why would you need this?
 ========================
 
- * you need to serialize some objects
- * you need to define data transformations based on some input,
-   which becomes available at runtime
+ * you need to serialize/deserialize objects
+ * you need to define dynamic data transforms based on some input, which
+   becomes available at runtime
  * you want to reuse field-wise transformations across the project without
    worrying about huge overhead of calling tens of functions per row/object,
    especially when there are thousands of them to be processed
@@ -34,30 +35,31 @@ Is it any different from tools like Pandas?
 ===========================================
 
  * `convtools` doesn't need to wrap data in any container to provide useful API,
-   it just writes normal python code under the hood
+   it just writes ad hoc python code under the hood
  * `convtools` is a lightweight library with no dependencies (however optional
-   ``black`` is highly recommended for pretty-printing generated code
-   when debugging)
- * `convtools` is about defining and reusing conversions -- declarative approach,
-   while wrapping data in high-performance containers is more of being imperative
+   ``black`` is highly recommended for pretty-printing generated code when
+   debugging)
+ * `convtools` is about defining and reusing conversions -- declarative
+   approach, while wrapping data in high-performance containers is more of
+   being imperative
 
 
 Description
 ===========
 
-The speed of **convtools** comes from the approach of generating code & compiling
-conversion functions, which don't have any generic code like superfluous
-loops, ifs, etc.
+The speed of **convtools** comes from the approach of generating code &
+compiling conversion functions, which don't have any generic code like
+superfluous loops, ifs, unnecessary function calls, etc.
 
-So you can keep following the DRY principle by storing and reusing the code on the
-python expression level, but at the same time be able to run the
+So you can keep following the DRY principle by storing and reusing the code on
+the python expression level, but at the same time be able to run the
 ``gen_converter`` and get the compiled code which doesn't care about being DRY
 and is generated to be highly specialized for the specific need.
 
 Thanks to pipes & labels it's possible to define multiple pipelines of data
 processing, including branching and merging of them.
 
-Tapping allows to add mutation steps not to rebuild objects from the scratch
+Tapping allows to add mutation steps not to rebuild objects from the scratch at
 every step.
 
 Conversions are not limited to simple data transformations, there are
@@ -90,7 +92,8 @@ Installation:
 Example #1: deserialization & data preps
 ========================================
 
-.. literalinclude:: ../tests/test_doc__index_deserialization.py
+.. include:: ../tests/test_doc__index_deserialization.py
+   :code: python
 
 
 Under the hood the compiled code is as follows:
@@ -125,7 +128,8 @@ Under the hood the compiled code is as follows:
 Example #2: word count
 ======================
 
-.. literalinclude:: ../tests/test_doc__index_word_count.py
+.. include:: ../tests/test_doc__index_word_count.py
+   :code: python
 
 
 **Generated code:**

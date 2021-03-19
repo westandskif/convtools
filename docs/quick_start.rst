@@ -619,7 +619,8 @@ reduce functions:
   * use dict array reducer
   * use dict sum reducer
 
-.. literalinclude:: ../tests/test_doc__quickstart_aggregation.py
+.. include:: ../tests/test_doc__quickstart_aggregation.py
+   :code: python
 
 **Don't get scared, but this is the code which is generated under the hood:**
 

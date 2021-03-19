@@ -4,13 +4,7 @@ convtools
 
 .. _ref_index_intro:
 
-**convtools** is a python library to declaratively define fast conversions
-from python objects to python objects, including processing collections and
-doing complex aggregations and joins.
-
-Once defined, the conversion can be compiled into an ad hoc code OR be reused for
-building more complex conversions.
-
+.. include:: base_intro.rst
 
 .. include:: base_index.rst
 
