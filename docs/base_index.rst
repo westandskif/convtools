@@ -10,25 +10,26 @@ What's the workflow?
     conversions it takes less than 0.1-0.2 milliseconds to get compiled.
 
 Please, see simple examples of `group by`, `aggregate` and `join` conversions
-below.  Also there are more in the **Installation** step.
+below.
 
 .. include:: ../tests/test_doc__index_intro.py
    :code: python
 
+Also there are more after the **Installation** section.
 
 Why would you need this?
 ========================
 
+ * you believe that Python is awesome enough to have powerful aggregations and
+   joins
+ * you like the idea of having something else write an unpleasant ad hoc
+   code for you
  * you need to serialize/deserialize objects
  * you need to define dynamic data transforms based on some input, which
    becomes available at runtime
  * you want to reuse field-wise transformations across the project without
    worrying about huge overhead of calling tens of functions per row/object,
    especially when there are thousands of them to be processed
- * you believe that Python is awesome enough to have powerful aggregations and
-   joins
- * you like the idea of having something else write an unpleasant ad hoc
-   code for you
 
 
 Is it any different from tools like Pandas?
@@ -56,23 +57,26 @@ the python expression level, but at the same time be able to run the
 ``gen_converter`` and get the compiled code which doesn't care about being DRY
 and is generated to be highly specialized for the specific need.
 
-Thanks to pipes & labels it's possible to define multiple pipelines of data
-processing, including branching and merging of them.
+____
 
-Tapping allows to add mutation steps not to rebuild objects from the scratch at
-every step.
-
-Conversions are not limited to simple data transformations, there are
-``GroupBy`` & ``Aggregate`` conversions with many useful reducers:
+There are ``group_by`` & ``aggregate`` conversions with many useful reducers:
 
  * from common `Sum`, `Max`
  * and less widely supported `First`/`Last`, `Array`/`ArrayDistinct`
  * to `DictSum`-like ones (for nested aggregation) and `MaxRow`/`MinRow`
    (for finding an object with max/min value and further processing)
 
-Also there are higher-level conversions - JOINS
-(inner, left, right, outer, cross), which processes 2 iterables and returns
-a generator of joined pairs.
+There is a ``join`` conversion (inner, left, right, outer, cross are
+supported), which processes 2 iterables and returns a generator of joined
+pairs.
+
+Thanks to pipes & labels it's possible to define multiple pipelines of data
+processing, including branching and merging of them.
+
+Tapping allows to add mutation steps not to rebuild objects from the scratch at
+every step.
+
+____
 
 Every conversion:
  * contains the information of how to transform an input
@@ -89,8 +93,8 @@ Installation:
 
    pip install convtools
 
-Example #1: deserialization & data preps
-========================================
+All-in-one example #1: deserialization & data preps
+===================================================
 
 .. include:: ../tests/test_doc__index_deserialization.py
    :code: python
@@ -125,8 +129,8 @@ Under the hood the compiled code is as follows:
       return {i_tj["id"]: (Employee_1y(**i_tj)) for i_tj in pipe_ro}
 
 
-Example #2: word count
-======================
+All-in-one example #2: word count
+=================================
 
 .. include:: ../tests/test_doc__index_word_count.py
    :code: python

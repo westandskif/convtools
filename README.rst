@@ -58,7 +58,7 @@ What's the workflow?
     conversions it takes less than 0.1-0.2 milliseconds to get compiled.
 
 Please, see simple examples of `group by`, `aggregate` and `join` conversions
-below.  Also there are more in the **Installation** step.
+below.
 
 .. code-block:: python
 
@@ -69,8 +69,6 @@ below.  Also there are more in the **Installation** step.
 
 
     def test_doc__index_intro():
-
-        from convtools import conversion as c
 
         # ======== #
         # GROUP BY #
@@ -160,62 +158,68 @@ below.  Also there are more in the **Installation** step.
             {"id": 3, "name": "Bob", "age": None, "country": None},
         ]
 
+Also there are more after the **Installation** section.
+
 Why would you need this?
 ========================
 
+ * you believe that Python is awesome enough to have powerful aggregations and
+   joins
+ * you like the idea of having something else write an unpleasant ad hoc
+   code for you
  * you need to serialize/deserialize objects
  * you need to define dynamic data transforms based on some input, which
    becomes available at runtime
  * you want to reuse field-wise transformations across the project without
    worrying about huge overhead of calling tens of functions per row/object,
    especially when there are thousands of them to be processed
- * you believe that Python is awesome enough to have powerful aggregations and
-   joins
- * you like the idea of having something else write an unpleasant ad hoc
-   code for you
 
 
 Is it any different from tools like Pandas?
 ===========================================
 
  * `convtools` doesn't need to wrap data in any container to provide useful API,
-   it just writes normal python code under the hood
+   it just writes ad hoc python code under the hood
  * `convtools` is a lightweight library with no dependencies (however optional
-   ``black`` is highly recommended for pretty-printing generated code
-   when debugging)
- * `convtools` is about defining and reusing conversions -- declarative approach,
-   while wrapping data in high-performance containers is more of being imperative
+   ``black`` is highly recommended for pretty-printing generated code when
+   debugging)
+ * `convtools` is about defining and reusing conversions -- declarative
+   approach, while wrapping data in high-performance containers is more of
+   being imperative
 
 
 Description
 ===========
 
-The speed of **convtools** comes from the approach of generating code & compiling
-conversion functions, which don't have any generic code like superfluous
-loops, ifs, etc.
+The speed of **convtools** comes from the approach of generating code &
+compiling conversion functions, which don't have any generic code like
+superfluous loops, ifs, unnecessary function calls, etc.
 
-So you can keep following the DRY principle by storing and reusing the code on the
-python expression level, but at the same time be able to run the
+So you can keep following the DRY principle by storing and reusing the code on
+the python expression level, but at the same time be able to run the
 ``gen_converter`` and get the compiled code which doesn't care about being DRY
 and is generated to be highly specialized for the specific need.
 
-Thanks to pipes & labels it's possible to define multiple pipelines of data
-processing, including branching and merging of them.
+____
 
-Tapping allows to add mutation steps not to rebuild objects from the scratch
-every step.
-
-Conversions are not limited to simple data transformations, there are
-``GroupBy`` & ``Aggregate`` conversions with many useful reducers:
+There are ``group_by`` & ``aggregate`` conversions with many useful reducers:
 
  * from common `Sum`, `Max`
  * and less widely supported `First`/`Last`, `Array`/`ArrayDistinct`
  * to `DictSum`-like ones (for nested aggregation) and `MaxRow`/`MinRow`
    (for finding an object with max/min value and further processing)
 
-Also there are higher-level conversions - JOINS
-(inner, left, right, outer, cross), which processes 2 iterables and returns
-a generator of joined pairs.
+There is a ``join`` conversion (inner, left, right, outer, cross are
+supported), which processes 2 iterables and returns a generator of joined
+pairs.
+
+Thanks to pipes & labels it's possible to define multiple pipelines of data
+processing, including branching and merging of them.
+
+Tapping allows to add mutation steps not to rebuild objects from the scratch at
+every step.
+
+____
 
 Every conversion:
  * contains the information of how to transform an input
@@ -232,8 +236,8 @@ Installation:
 
    pip install convtools
 
-Example #1: deserialization & data preps
-========================================
+All-in-one example #1: deserialization & data preps
+===================================================
 
 .. code-block:: python
 
@@ -379,8 +383,8 @@ Under the hood the compiled code is as follows:
       return {i_tj["id"]: (Employee_1y(**i_tj)) for i_tj in pipe_ro}
 
 
-Example #2: word count
-======================
+All-in-one example #2: word count
+=================================
 
 .. code-block:: python
 

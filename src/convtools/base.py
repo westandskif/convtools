@@ -261,6 +261,7 @@ class BaseConversion(typing.Generic[CT, MCT]):
     max_counter = 2 ** 30
     valid_pipe_output = True
     method_calls_override_input = False
+    multi_step_calculation = False
 
     def __init__(self):
         self.number = self._gen_number()
@@ -282,6 +283,12 @@ class BaseConversion(typing.Generic[CT, MCT]):
 
     def _add_dependency(self, dep):
         self._depends_on[dep.number] = dep
+
+    def _delete_dependency(self, dep):
+        del self._depends_on[dep.number]
+
+    def set_dependencies(self, deps):
+        self._depends_on = dict(deps.items())
 
     def depends_on(self, *args):
         for arg in args:
@@ -305,6 +312,42 @@ class BaseConversion(typing.Generic[CT, MCT]):
         self.depends_on(conversion)
         return conversion
 
+    def clone(self: CT) -> CT:
+        clone: CT = self.__class__.__new__(self.__class__)
+        clone.__dict__.update(self.__dict__)
+        clone.number = self._gen_number()
+        clone.set_dependencies(self._depends_on)
+        return clone
+
+    def _set_predefined_input(self: CT, input_conversion: CT) -> CT:
+        cloned_self = self.clone()
+        cloned_self.depends_on(input_conversion)
+        cloned_self._predefined_input = input_conversion
+        return cloned_self
+
+    def set_predefined_input(self: CT, input_conversion) -> CT:
+        conversions_chain = []
+        conversion = self
+        for _ in range(self.max_pipe_length - 1):
+            conversions_chain.append(conversion)
+            if conversion._predefined_input is None:
+                break
+            conversion = conversion._predefined_input
+        else:
+            raise ConversionException("failed to set predefined_input", self)
+
+        input_conversion = ensure_conversion(input_conversion)
+        dependencies_to_be_dropped = []  # type: typing.List[CT]
+        for conversion in reversed(conversions_chain):
+            # pylint: disable=protected-access
+            input_conversion = conversion._set_predefined_input(
+                input_conversion
+            )
+            for dep in dependencies_to_be_dropped:
+                input_conversion._delete_dependency(dep)
+            dependencies_to_be_dropped.append(conversion)
+        return input_conversion
+
     def gen_code_and_update_ctx(self, code_input, ctx) -> str:
         """The main method which generates the code and stores necessary info
         in the context (which will be passed as locals() and globals() on to
@@ -323,7 +366,11 @@ class BaseConversion(typing.Generic[CT, MCT]):
             if not If.input_is_simple(code_input):
                 code_to_be_attached = code_input
         resulting_code = self._gen_code_and_update_ctx(code_input, ctx)
-        if code_to_be_attached and code_to_be_attached not in resulting_code:
+        if (
+            not self.multi_step_calculation
+            and code_to_be_attached
+            and code_to_be_attached not in resulting_code
+        ):
             return "({} and None or {})".format(
                 code_to_be_attached, resulting_code
             )
@@ -331,11 +378,6 @@ class BaseConversion(typing.Generic[CT, MCT]):
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         raise NotImplementedError
-
-    def clone(self) -> CT:
-        clone = self.__class__.__new__(self.__class__)
-        clone.__dict__.update(self.__dict__)
-        return clone
 
     allowed_symbols = string.ascii_lowercase + string.digits
 
@@ -571,25 +613,19 @@ class BaseConversion(typing.Generic[CT, MCT]):
         return self.gen_converter(debug=debug)(*args, **kwargs)
 
     def item(self, *args, **kwargs) -> "GetItem":
-        return GetItem(*args, **kwargs).set_predefined_self(
-            self, skip_cloning=True
-        )
+        return GetItem(*args, **kwargs).set_predefined_self(self)
 
     def __getitem__(self, k) -> "GetItem":
         return self.item(k)
 
     def attr(self, *attrs, **kwargs) -> "GetAttr":
-        return GetAttr(*attrs, **kwargs).set_predefined_self(
-            self, skip_cloning=True
-        )
+        return GetAttr(*attrs, **kwargs).set_predefined_self(self)
 
     def call(self, *args, **kwargs) -> "Call":
         """Gets compiled into the code which calls the input with params.
         Each ``*args`` and ``**kwargs`` are wrapped with ``ensure_conversion``.
         """
-        return Call(*args, **kwargs).set_predefined_self(
-            self, skip_cloning=True
-        )
+        return Call(*args, **kwargs).set_predefined_self(self)
 
     def call_method(self, method_name: str, *args, **kwargs) -> "Call":
         """Gets compiled into the code which calls the ``method_name`` method
@@ -714,23 +750,6 @@ class BaseConversion(typing.Generic[CT, MCT]):
         conversion = Filter(condition_conv, cast=cast)
         return conversion.set_predefined_input(self)
 
-    def set_predefined_input(self: CT, input_conversion) -> CT:
-        cloned_self = self.clone()
-        input_conversion = ensure_conversion(input_conversion)
-
-        conversion = cloned_self
-        for _ in range(self.max_pipe_length - 1):
-            conversion.depends_on(input_conversion)
-            if conversion._predefined_input is None:
-                conversion._predefined_input = input_conversion
-                break
-
-            conversion._predefined_input = conversion._predefined_input.clone()
-            conversion = conversion._predefined_input
-        else:
-            raise ConversionException("failed to set predefined_input", self)
-        return cloned_self
-
     def _prepare_labels(self, label_arg):
         if isinstance(label_arg, str):
             return {label_arg: GetItem()}
@@ -807,6 +826,8 @@ class BaseConversion(typing.Generic[CT, MCT]):
             raise Exception("invalid pipe output", next_conversion)
 
         self_to_pass = self
+        next_is_callable = callable(next_conversion)
+        next_conversion = ensure_conversion(next_conversion)
 
         if label_input:
             self_to_pass = CachingConversion(self_to_pass)
@@ -815,14 +836,11 @@ class BaseConversion(typing.Generic[CT, MCT]):
             ).items():
                 self_to_pass.add_label(label_name, conversion)
 
-        next_is_callable = callable(next_conversion)
-
-        if next_is_callable:
-            result = ensure_conversion(next_conversion).call(
-                self_to_pass, *args, **kwargs
-            )  # type: BaseConversion
-        else:
-            result = ensure_conversion(next_conversion).clone()
+        result = (
+            next_conversion.call(self_to_pass, *args, **kwargs)
+            if next_is_callable
+            else next_conversion.set_predefined_input(self_to_pass)
+        )
 
         if label_output:
             result = CachingConversion(result)
@@ -830,9 +848,6 @@ class BaseConversion(typing.Generic[CT, MCT]):
                 label_output
             ).items():
                 result.add_label(label_name, conversion)
-
-        if not next_is_callable:
-            result = result.set_predefined_input(self_to_pass)
 
         return result
 
@@ -851,15 +866,11 @@ class BaseMethodConversion(BaseConversion):
         super().__init__()
         self._predefined_self = None
 
-    def set_predefined_self(
-        self: MCT, input_conversion, skip_cloning=False
-    ) -> MCT:
-        if not skip_cloning:
-            return self.clone().set_predefined_self(
-                input_conversion, skip_cloning=True
-            )
-        input_conversion = ensure_conversion(input_conversion)
+    def set_predefined_self(self: MCT, input_conversion) -> MCT:
+        if self._predefined_self is not None:
+            raise ConversionException("failed to set predefined_input", self)
 
+        input_conversion = ensure_conversion(input_conversion)
         self.depends_on(input_conversion)
         self._predefined_self = input_conversion
         if input_conversion.method_calls_override_input:
@@ -1042,9 +1053,6 @@ class InputArg(BaseConversion):
         """
         super().__init__()
         self.arg_name = arg_name
-
-    def __hash__(self):
-        return hash(self.arg_name)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return self.arg_name
@@ -1417,9 +1425,6 @@ class InlineExpr(BaseConversion):
         self.args = []
         self.kwargs = {}
 
-    def __hash__(self):
-        return hash(self.code_str)
-
     def pass_args(self, *args, **kwargs):
         """The method passes arguments to the code to be inlined.
 
@@ -1480,6 +1485,8 @@ class BaseComprehensionConversion(BaseConversion):
           BaseComprehensionConversion: cloned and filtered comprehension
           conversion
         """
+        if self.condition_conversion:
+            raise AssertionError("condition_conversion is already present")
         self_clone = self.clone()
         self_clone.condition_conversion = self_clone.ensure_conversion(
             condition_conversion
@@ -1497,6 +1504,8 @@ class BaseComprehensionConversion(BaseConversion):
           BaseComprehensionConversion: cloned and filtered comprehension
           conversion
         """
+        if self.sort_key:
+            raise AssertionError("sort has already been called")
         self_clone = self.clone()
         self_clone.sort_key = True if key is None else key
         self_clone.sort_key_reverse = reverse

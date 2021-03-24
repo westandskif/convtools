@@ -4,6 +4,7 @@ from collections import defaultdict
 from functools import reduce as functools_reduce
 
 from .base import (
+    CT,
     BaseCollectionConversion,
     BaseConversion,
     Call,
@@ -43,7 +44,7 @@ def call_with_params(
     raise AssertionError("unexpected callable", callable_or_inline_expr)
 
 
-RT = typing.TypeVar("RT", bound="ReduceBlock")
+RBT = typing.TypeVar("RBT", bound="ReduceBlock")
 
 
 class ReduceBlock:
@@ -79,7 +80,7 @@ class ReduceBlock:
         self.var_agg_data_value = var_agg_data_value
         return self
 
-    def union(self, reduce_block: RT):
+    def union(self, reduce_block: RBT):
         clone = self.__class__.__new__(self.__class__)
         clone.__dict__.update(self.__dict__)
         clone.reduce_initial = (
@@ -191,7 +192,7 @@ class ReduceConditionalBlock(ReduceBlock):
         return template_kwargs
 
 
-class ReduceBlocks(typing.Generic[RT]):
+class ReduceBlocks(typing.Generic[RBT]):
     """Represents a set of reduce blocks"""
 
     def __init__(self):
@@ -201,7 +202,7 @@ class ReduceBlocks(typing.Generic[RT]):
         self.other_blocks = []
         self.number = 0
 
-    def add_block(self, reduce_block: RT):
+    def add_block(self, reduce_block: RBT):
         self.number += 1
         if isinstance(reduce_block, ReduceConditionalBlock):
             if reduce_block.unconditional_init:
@@ -218,14 +219,14 @@ class ReduceBlocks(typing.Generic[RT]):
         list_.append(reduce_block)
 
     @classmethod
-    def _reduce_blocks(cls, reduce_blocks) -> typing.Optional[RT]:
+    def _reduce_blocks(cls, reduce_blocks) -> typing.Optional[RBT]:
         if not reduce_blocks:
             return None
         if len(reduce_blocks) == 1:
             return reduce_blocks[0]
         return functools_reduce((lambda b1, b2: b1.union(b2)), reduce_blocks)
 
-    def reduce_blocks(self) -> typing.Iterable[RT]:
+    def reduce_blocks(self) -> typing.Iterable[RBT]:
         blocks = []
         for blocks_ in self.condition_to_blocks.values():
             for block_ in blocks_:
@@ -283,10 +284,14 @@ def {converter_name}(data_{code_args}):
 """
 
 
-class BaseReducer(BaseConversion, typing.Generic[RT]):
+RT = typing.TypeVar("RT", bound="BaseReducer")
+
+
+class BaseReducer(BaseConversion, typing.Generic[RBT]):
     """Base of a reduce operation to be used during the aggregation"""
 
     method_calls_override_input = True
+    multi_step_calculation = True
 
     expressions: typing.Tuple[typing.Any, ...]
     post_conversion: typing.Optional[BaseConversion] = None
@@ -303,6 +308,8 @@ class BaseReducer(BaseConversion, typing.Generic[RT]):
           condition_conversion (object): to be wrapped with
             :py:obj:`ensure_conversion` and used as a condition
         """
+        if getattr(self, "condition", None):
+            raise AssertionError("condition is already present")
         cloned_self = self.clone()
         cloned_self.condition = cloned_self.ensure_conversion(
             condition_conversion
@@ -315,11 +322,11 @@ class BaseReducer(BaseConversion, typing.Generic[RT]):
         var_row: str,
         checksum_flag: int,
         ctx: dict,
-    ) -> RT:
+    ) -> RBT:
         raise NotImplementedError
 
-    def set_predefined_input(self, input_conversion):
-        cloned_self = self.clone()
+    def _set_predefined_input(self: RT, input_conversion: CT) -> RT:
+        cloned_self = super()._set_predefined_input(input_conversion)
         cloned_self.expressions = tuple(
             expr.set_predefined_input(input_conversion)
             for expr in self.expressions
@@ -431,7 +438,7 @@ class MultiStatementReducer(BaseReducer):
         var_row: str,
         checksum_flag: int,
         ctx: dict,
-    ) -> RT:
+    ) -> RBT:
         if hasattr(self, "initial"):
             reduce_initial = self._format_statements(
                 var_agg_data_value,
@@ -548,7 +555,7 @@ class Reduce(BaseReducer):
         var_row: str,
         checksum_flag: int,
         ctx: dict,
-    ) -> RT:
+    ) -> RBT:
         if hasattr(self, "initial"):
             initial_conversion = call_with_params(
                 self.to_call_with_2_args,
@@ -635,6 +642,8 @@ class GroupBy(BaseConversion):
     ) -> BaseConversion:
         """Takes the conversion which defines the desired output of
         aggregation"""
+        if self.agg_items:
+            raise AssertionError("aggregate has already been called")
         self_clone = self.clone()
         reducer = self_clone.reducer_result = self.prepare_reducer(reducer)
         reduce_items = []
@@ -664,6 +673,8 @@ class GroupBy(BaseConversion):
     def sort(self, key=None, reverse=False) -> "GroupBy":
         """Same as :py:obj:`convtools.base.BaseComprehensionConversion.sort`.
         The only exception is that it works with results, not initial items."""
+        if self.sort_key is not False:
+            raise AssertionError("sort has already been called")
         self_clone = self.clone()
         self_clone.sort_key = key
         self_clone.sort_key_reverse = reverse
@@ -1030,9 +1041,11 @@ class ArrayDistinctReducer(MultiStatementReducer):
 
 class BaseDictReducer(MultiStatementReducer):
     """This reducer accepts 2 expressions:
+
     - the first one is used to calculate keys of the resulting dict
     - the second one is used to calculate values to be reduced and put as the
       final value, under the certain key.
+
     Effectively dict reducers allow for double grouping: the first one on the
     top level, the second one on DictReducer level.
     """

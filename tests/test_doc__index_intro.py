@@ -6,8 +6,6 @@ from convtools import conversion as c
 
 def test_doc__index_intro():
 
-    from convtools import conversion as c
-
     # ======== #
     # GROUP BY #
     # ======== #

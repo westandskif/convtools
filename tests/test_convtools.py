@@ -116,13 +116,6 @@ def test_gen_converter():
         c.this().gen_converter(method=True, class_method=True)
 
 
-def test_hashes():
-    assert hash(c.input_arg("abc")) == hash(c.input_arg("abc"))
-    assert hash(c.input_arg("abd")) != hash(c.input_arg("abc"))
-    assert hash(c.inline_expr("abc")) == hash(c.inline_expr("abc"))
-    assert hash(c.inline_expr("abd")) != hash(c.inline_expr("abc"))
-
-
 def test_naive_conversion_item():
     d = {1: 2, 10: {"test": 15, 2: 777}, 100: {"test2": 200}}
     assert c.naive(d).item(1).execute(100) == 2
@@ -252,16 +245,6 @@ def test_naive_conversion_callmethod():
     mock = Mock()
     c.naive(mock).call_method("test_method", 1, abc=2).gen_converter()(100)
     mock.test_method.assert_called_with(1, abc=2)
-
-
-def test_set_predefined_self():
-    self_obj = c.this()
-    conversion = c.item("name")
-    assert conversion.set_predefined_self(self_obj) is not conversion
-    assert (
-        conversion.set_predefined_self(self_obj, skip_cloning=True)
-        is conversion
-    )
 
 
 def test_naive_conversion_or_and():
@@ -1447,3 +1430,36 @@ def test_group_by_with_pipes():
             "started_at": date(2020, 2, 1),
         },
     ]
+
+
+def test_group_by_with_double_ended_pipes():
+    input_data = [
+        {"value": 1},
+        {"value": 2},
+    ]
+    # fmt: off
+    conv = c.aggregate(
+        c.item("value")
+        .pipe(c.ReduceFuncs.Sum(c.this()))
+        .pipe(c.this() * 2)
+    ).gen_converter()
+    # fmt: on
+    result = conv(input_data)
+    assert result == 6
+
+    input_data = [
+        {"k": "A", "v": 1},
+        {"k": "A", "v": 2},
+    ]
+    reducer = c.ReduceFuncs.Sum(c.item("v"))
+    conv = (
+        c.group_by(c.item("k"))
+        .aggregate(
+            {
+                "v1": c.input_arg("test").pipe(reducer),
+                "v2": reducer,
+            }
+        )
+        .gen_converter()
+    )
+    assert conv(input_data, test={"v": 7}) == [{"v1": 14, "v2": 3}]
