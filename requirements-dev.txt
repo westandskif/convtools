@@ -3,5 +3,6 @@ pytest-cov
 towncrier
 sphinx
 flake8
+rst_include
 isort==5.7.0
 black==20.8b1
