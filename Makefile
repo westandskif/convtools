@@ -1,5 +1,9 @@
 .PHONY: docs build
-docs:
+
+readme:
+	rst_include include -q docs/github_readme.rst README.rst
+
+docs: readme
 	python setup.py build_sphinx
 
 docs_from_scratch:

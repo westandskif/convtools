@@ -4,7 +4,7 @@ This module brings join functionality to the library
 import typing
 from itertools import chain
 
-from .aggregations import Aggregate, Reduce, ReduceFuncs
+from .aggregations import Aggregate, ReduceFuncs
 from .base import (
     And,
     BaseConversion,
@@ -261,10 +261,10 @@ def join(
 
         right_collection_conversion = right_collection.pipe(
             Aggregate(
-                Reduce(
-                    ReduceFuncs.DictArray,
-                    (right_row_conv_to_hash, GetItem()),
-                    default={},
+                ReduceFuncs.DictArray(
+                    right_row_conv_to_hash,
+                    GetItem(),
+                    default=dict,
                 )
             ),
             label_output="hash_to_items",

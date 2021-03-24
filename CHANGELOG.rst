@@ -1,3 +1,48 @@
+0.9.0 (2021-03-24)
+------------------
+
+Features
+++++++++
+
+- improved reducers to be usable on their own
+
+  .. code-block:: python
+
+    c.aggregate(
+        c.ReduceFuncs.DictSum(
+            c.item("name"),
+            c.item("value")
+        )
+    )
+
+  previously it was possible to use them only within ``c.reduce`` clause:
+
+  .. code-block:: python
+
+    c.aggregate(
+        c.reduce(
+            c.ReduceFuncs.DictSum,
+            (c.item("name"), c.item("value")),
+        )
+    )
+
+- allowed piping to reducers, still allowing to pipe the result further
+
+  .. code-block:: python
+
+    c.aggregate(
+        c.item("value").pipe(
+            c.ReduceFuncs.Sum(c.this()).pipe(c.this() + 1)
+        )
+    ).gen_converter(debug=True)
+
+- fixed nested piping in aggregations
+- reworked docs to use testable code
+
+
+----
+
+
 0.8.0 (2021-01-03)
 ------------------
 
@@ -71,8 +116,7 @@ Features
 
 - * introduced ``c.optional`` collection items, which get omitted based on value or a condition
   * improved converter generation so that inner conversions are not getting their own callable wrapper
-  * updated generated code variable name generation
-  `#18 <https://github.com/itechart/convtools/issues/18>`_
+  * updated generated code variable name generation `#18 <https://github.com/itechart/convtools/issues/18>`_
 
 
 ----
@@ -84,8 +128,7 @@ Features
 Bugfixes
 ++++++++
 
-- - fixed aggregate issue: reduce(...).item(..., default=...) case
-  `#15 <https://github.com/itechart/convtools/issues/15>`_
+- fixed aggregate issue: reduce(...).item(..., default=...) case `#15 <https://github.com/itechart/convtools/issues/15>`_
 
 
 ----
@@ -97,9 +140,11 @@ Bugfixes
 Bugfixes
 ++++++++
 
-- - fixed Aggregate multiple reduce optimization
-   - added main page - workflow example
-  `#14 <https://github.com/itechart/convtools/issues/14>`_
+- fixed Aggregate multiple reduce optimization
+- added main page
+- added workflow example
+
+`#14 <https://github.com/itechart/convtools/issues/14>`_
 
 
 ----
@@ -122,6 +167,7 @@ Features
 
 - - increased the speed of ``c.aggregate`` and ``c.group_by`` by collapsing multiple ``if`` statements into one
   - updated labeling functionality
+
   `#11 <https://github.com/itechart/convtools/issues/11>`_
 
 
@@ -140,6 +186,7 @@ Features
   `#9 <https://github.com/itechart/convtools/issues/9>`_
 - - introduced ``c.join``
   - improved & fixed pipes (code with side-effects piped to a constant)
+
   `#10 <https://github.com/itechart/convtools/issues/10>`_
 
 
@@ -154,6 +201,7 @@ Features
 
 - 1. fixed main example docs
   2. improved ``c.aggregate`` speed
+
   `#8 <https://github.com/itechart/convtools/issues/8>`_
 
 
@@ -181,6 +229,7 @@ Features
 - * introduced c.OptionsCtx
   * improved tests - memory leaks
   * improved docs - added the index page example; added an example to QuickStart
+
   `#7 <https://github.com/itechart/convtools/issues/7>`_
 
 
@@ -197,7 +246,7 @@ Features
 
     * ``c.item("companies").add_label("first_company", c.item(0))`` labels the first
       company in the list as `first_company` and allows to use it as
-      ``c.label("first_company") further in next and even nested conversions
+      ``c.label("first_company")`` further in next and even nested conversions
   
     * ``(...).pipe`` now receives 2 new arguments: 
 
@@ -206,6 +255,7 @@ Features
 
       Both can be either ``str`` (label name to put on) or ``dict`` (keys are label names
       and values are conversions to apply to the data before labeling)
+
   `#6 <https://github.com/itechart/convtools/issues/6>`_
 
 
@@ -214,6 +264,7 @@ Bugfixes
 
 - Added ``__name__`` attribute to ctx. Now internal code from the generated converter is sending to Sentry (not only file name).
   Also the generated converter became a callable object, not a function.
+
   `#5 <https://github.com/itechart/convtools/issues/5>`_
 
 
@@ -229,6 +280,7 @@ Bugfixes
 - Fixed ``c.group_by((c.item("name"),)).aggregate((c.item("name"), c.reduce(...)))``.
   Previously it was compiling successfully, now it raises ``ConversionException`` on ``gen_converter``
   because there is no explicit mention of ``c.item("name")`` field in group by keys (only tuple).
+
   `#4 <https://github.com/itechart/convtools/issues/4>`_
 
 
@@ -242,6 +294,7 @@ Bugfixes
 ++++++++
 
 - fixed ``c.aggregate`` to return a single value for empty input
+
   `#3 <https://github.com/itechart/convtools/issues/3>`_
 
 
@@ -255,6 +308,7 @@ Bugfixes
 ++++++++
 
 - ``c.aggregate`` now returns a single value (previously the result was a list of one item)
+
   `#2 <https://github.com/itechart/convtools/issues/2>`_
 
 
@@ -268,7 +322,6 @@ Features
 ++++++++
 
 - added ``c.if_`` conversion and introduced QuickStart docs
+
   `#1 <https://github.com/itechart/convtools/issues/1>`_
 
-
-----

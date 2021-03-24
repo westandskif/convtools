@@ -202,8 +202,7 @@ __________________________________________________
    - .. code-block:: python
 
       converter = c.aggregate(
-          c.reduce(
-              c.ReduceFuncs.DictArrayDistinct,
+          c.ReduceFuncs.DictArrayDistinct(
               (c.item(0), c.item(1)),
               default=dict,
           )
@@ -481,10 +480,7 @@ ___________________
       ).aggregate(
           (
               c.item(0),
-              c.reduce(
-                  c.ReduceFuncs.Sum,
-                  c.item(1)
-              )
+              c.ReduceFuncs.Sum(c.item(1))
           )
       ).gen_converter()
       converter(input_data)
@@ -507,14 +503,8 @@ ___________________
 
       converter = c.aggregate(
           (
-              c.reduce(
-                  c.ReduceFuncs.Sum,
-                  c.item(1)
-              ),
-              c.reduce(
-                  c.ReduceFuncs.Max,
-                  c.item(1),
-              ),
+              c.ReduceFuncs.Sum(c.item(1)),
+              c.ReduceFuncs.Max(c.item(1)),
           )
       ).gen_converter()
       converter(input_data)
@@ -593,8 +583,7 @@ ___________________________________________
       ).aggregate(
           (
               c.item("app_name").call_method("upper"),
-              c.reduce(
-                  c.ReduceFuncs.Sum,
+              c.ReduceFuncs.Sum(
                   c.call_func(
                       convert_to_currency_func,
                       c.item("currency"),
@@ -625,8 +614,7 @@ ___________________________________________
       ).aggregate(
           (
               c.item("app_name").call_method("upper"),
-              c.reduce(
-                  c.ReduceFuncs.DictSum,
+              c.ReduceFuncs.DictSum(
                   (
                       # key
                       (c.item("currency"), c.item("dt")),
@@ -730,26 +718,21 @@ _______________________________
       ).aggregate(
           {
               "company": c.item("company"),
-              "total_sales": c.reduce(
-                  c.ReduceFuncs.Sum,
+              "total_sales": c.ReduceFuncs.Sum(
                   c.item("sales"),
               ).filter(
                   c.item("sales") > 155
               ),
-              "top_sales_person": c.reduce(
-                  c.ReduceFuncs.MaxRow,
+              "top_sales_person": c.ReduceFuncs.MaxRow(
                   c.item("sales")
               ).item("name"), # or we could return full row
-              "first_employee": c.reduce(
-                  c.ReduceFuncs.First,
+              "first_employee": c.ReduceFuncs.First(
                   c.item("name"),
               ),
-              "distinct_employee_names": c.reduce(
-                  c.ReduceFuncs.ArrayDistinct,
+              "distinct_employee_names": c.ReduceFuncs.ArrayDistinct(
                   c.item("name"),
               ),
-              "department_to_sales": c.reduce(
-                  c.ReduceFuncs.DictSum,
+              "department_to_sales": c.ReduceFuncs.DictSum(
                   (c.item("department"), c.item("sales"))
               ),
               "stream_consumer": c.reduce(

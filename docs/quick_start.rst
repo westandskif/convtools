@@ -595,22 +595,19 @@ _______________
 Points to learn:
 
  1. first, call :ref:`c.group_by<ref_c_group_by>` to specify one or many
-    conversions of item of input iterable to group by (results in a list of items)
-    OR no conversions to aggregate (results in a single item).
-    Then call the ``aggregate`` method to define the desired output, comprised of:
+     conversions to use as group by keys (getting list of items in the end) OR
+     no conversions to aggregate (results in a single item)
+ 2.  then call the ``aggregate`` method to define the desired output, comprised of:
 
-      * further conversions of group by keys
-      * :ref:`c.reduce<ref_c_reduce>` and further conversions
+      * (optional) a container you want to get the results in
+      * (optional) group by keys or further conversions of them
+      * any number of available out of the box
+        :ref:`c.ReduceFuncs<ref_c_reduce_funcs>` or further conversions of them
+      * any number of custom :ref:`c.reduce<ref_c_reduce>`
+        and further conversions of them
 
- 2. :ref:`c.aggregate<ref_c_aggregate>` is a shortcut for
+ 3. :ref:`c.aggregate<ref_c_aggregate>` is a shortcut for
     ``c.group_by().aggregate(...)``
-
- 3. there are many :ref:`c.ReduceFuncs<ref_c_reduce_funcs>` available out of the
-    box, please check the link. Also it's possible to pass a function of
-    2 arguments.
-
- 4. there is a way to pass additional arguments to the reduce
-    function, see ``additional_args`` argument of :ref:`c.reduce<ref_c_reduce>`
 
 
 Not to provide a lot of boring examples, let's use the most interesting
@@ -622,175 +619,79 @@ reduce functions:
   * use dict array reducer
   * use dict sum reducer
 
-.. code-block:: python
-
-   input_data = [
-       {
-           "company_name": "Facebrochure",
-           "company_hq": "CA",
-           "app_name": "Tardygram",
-           "date": "2019-01-01",
-           "country": "US",
-           "sales": Decimal("45678.98"),
-       },
-       {
-           "company_name": "Facebrochure",
-           "company_hq": "CA",
-           "app_name": "Tardygram",
-           "date": "2019-01-02",
-           "country": "US",
-           "sales": Decimal("86869.12"),
-       },
-       {
-           "company_name": "Facebrochure",
-           "company_hq": "CA",
-           "app_name": "Tardygram",
-           "date": "2019-01-03",
-           "country": "CA",
-           "sales": Decimal("45000.35"),
-       },
-       {
-           "company_name": "BrainCorp",
-           "company_hq": "NY",
-           "app_name": "Learn FT",
-           "date": "2019-01-01",
-           "country": "US",
-           "sales": Decimal("86869.12"),
-       },
-   ]
-
-   # we are going to reuse this reducer
-   top_sales_day = c.reduce(
-       c.ReduceFuncs.MaxRow,
-       c.item("sales"),
-   )
-
-   # so the result is going to be a list of dicts
-   converter = c.group_by(c.item("company_name")).aggregate({
-
-       "company_name": c.item("company_name").call_method("upper"),
-       # this would work as well
-       # c.item("company_name"): ...,
-
-       "none_sensitive_sum": c.reduce(c.ReduceFuncs.SumOrNone, c.item("sales")),
-
-       # as you can see, next two reduce objects do the same except taking
-       # different fields after finding a row with max value.
-       # but please check the generated code below, you'll see that it is
-       # calculated just once AND then reused to take necessary fields
-       "top_sales_app": top_sales_day.item("app_name"),
-       "top_sales_day": top_sales_day.item("date").pipe(
-           datetime.strptime,
-           "%Y-%m-%d",
-       ).call_method("date"),
-
-       "company_hq": c.reduce(c.ReduceFuncs.First, c.item("company_hq")),
-
-       "app_name_to_countries": c.reduce(
-           c.ReduceFuncs.DictArrayDistinct,
-           (
-               c.item("app_name"),
-               c.item("country")
-           )
-       ),
-       "app_name_to_sales": c.reduce(
-           c.ReduceFuncs.DictSum,
-           (
-               c.item("app_name"),
-               c.item("sales")
-           )
-       ),
-   }).gen_converter(debug=True)
-
-   converter(input_data) == [
-       {
-           "app_name_to_countries": {"Tardygram": ["US", "CA"]},
-           "app_name_to_sales": {"Tardygram": Decimal("177548.45")},
-           "company_hq": "CA",
-           "company_name": "FACEBROCHURE",
-           "none_sensitive_sum": Decimal("177548.45"),
-           "top_sales_app": "Tardygram",
-           "top_sales_day": date(2019, 1, 2),
-       },
-       {
-           "app_name_to_countries": {"Learn FT": ["US"]},
-           "app_name_to_sales": {"Learn FT": Decimal("86869.12")},
-           "company_hq": "NY",
-           "company_name": "BRAINCORP",
-           "none_sensitive_sum": Decimal("86869.12"),
-           "top_sales_app": "Learn FT",
-           "top_sales_day": date(2019, 1, 1),
-       },
-   ]
+.. include:: ../tests/test_doc__quickstart_aggregation.py
+   :code: python
 
 **Don't get scared, but this is the code which is generated under the hood:**
 
 .. code-block:: python
 
-   def group_by(data_):
-       global add_label_, get_by_label_
-       _none = v528_497
-       signature_to_agg_data_ = defaultdict(AggData454)
-       for row_ in data_:
-           agg_data_ = signature_to_agg_data_[row_["company_name"]]
+   def group_by_un(data_):
+      global add_label_, get_by_label_
+      _none = v_hs
+      signature_to_agg_data_ = defaultdict(AggData_y7)
+      for row_ in data_:
+          agg_data_ = signature_to_agg_data_[row_["company_name"]]
 
-           if agg_data_.v0 is _none:
-               agg_data_.v0 = row_["sales"]
-               agg_data_.v2 = row_["company_hq"]
-               agg_data_.v3 = _d = defaultdict(dict)
-               _d[row_["app_name"]][row_["country"]] = None
-               agg_data_.v4 = _d = defaultdict(int)
-               _d[row_["app_name"]] += row_["sales"] or 0
+          if agg_data_.v0 is _none:
+              agg_data_.v0 = row_["sales"]
+              agg_data_.v2 = row_["company_hq"]
+              agg_data_.v3 = _d = defaultdict(dict)
+              _d[row_["app_name"]][row_["country"]] = None
+              agg_data_.v4 = _d = defaultdict(int)
+              _d[row_["app_name"]] = row_["sales"] or 0
 
-           else:
-               if row_["sales"] is None:
-                   agg_data_.v0 = None
-               elif agg_data_.v0 is not None:
-                   agg_data_.v0 = agg_data_.v0 + row_["sales"]
-               pass
-               agg_data_.v3[row_["app_name"]][row_["country"]] = None
-               agg_data_.v4[row_["app_name"]] += row_["sales"] or 0
+          else:
+              if row_["sales"] is None:
+                  agg_data_.v0 = None
+              elif agg_data_.v0 is not None:
+                  agg_data_.v0 = agg_data_.v0 + row_["sales"]
+              pass
+              agg_data_.v3[row_["app_name"]][row_["country"]] = None
+              agg_data_.v4[row_["app_name"]] = agg_data_.v4[row_["app_name"]] + (
+                  row_["sales"] or 0
+              )
 
-           if agg_data_.v1 is _none:
-               if row_["sales"] is not None:
-                   agg_data_.v1 = (row_["sales"], row_)
+          if agg_data_.v1 is _none:
+              if row_["sales"] is not None:
+                  agg_data_.v1 = (row_["sales"], row_)
 
-           else:
-               if row_["sales"] is not None and agg_data_.v1[0] < row_["sales"]:
-                   agg_data_.v1 = (row_["sales"], row_)
+          else:
+              if row_["sales"] is not None and agg_data_.v1[0] < row_["sales"]:
+                  agg_data_.v1 = (row_["sales"], row_)
 
-       result_ = [
-           {
-               "company_name": signature_.upper(),
-               "none_sensitive_sum": (
-                   None if agg_data_.v0 is _none else agg_data_.v0
-               ),
-               "top_sales_app": (
-                   None if agg_data_.v1 is _none else agg_data_.v1[1]
-               )["app_name"],
-               "top_sales_day": strptime430_101(
-                   (None if agg_data_.v1 is _none else agg_data_.v1[1])["date"],
-                   "%Y-%m-%d",
-               ).date(),
-               "company_hq": (None if agg_data_.v2 is _none else agg_data_.v2),
-               "app_name_to_countries": (
-                   None
-                   if agg_data_.v3 is _none
-                   else ({k_: list(v_.keys()) for k_, v_ in agg_data_.v3.items()})
-               ),
-               "app_name_to_sales": (
-                   None if agg_data_.v4 is _none else (dict(agg_data_.v4))
-               ),
-           }
-           for signature_, agg_data_ in signature_to_agg_data_.items()
-       ]
+      result_ = [
+          {
+              "company_name": signature_.upper(),
+              "none_sensitive_sum": (
+                  None if agg_data_.v0 is _none else agg_data_.v0
+              ),
+              "top_sales_app": (
+                  None if agg_data_.v1 is _none else agg_data_.v1[1]
+              )["app_name"],
+              "top_sales_day": strptime_qd(
+                  (None if agg_data_.v1 is _none else agg_data_.v1[1])["date"],
+                  "%Y-%m-%d",
+              ).date(),
+              "company_hq": (None if agg_data_.v2 is _none else agg_data_.v2),
+              "app_name_to_countries": (
+                  None
+                  if agg_data_.v3 is _none
+                  else ({k_: list(v_) for k_, v_ in agg_data_.v3.items()})
+              ),
+              "app_name_to_sales": (
+                  None if agg_data_.v4 is _none else (dict(agg_data_.v4))
+              ),
+          }
+          for signature_, agg_data_ in signature_to_agg_data_.items()
+      ]
 
-       return result_
+      return result_
 
 
-   def converter454_660(data_):
-       global add_label_, get_by_label_
-       return group_by530_779(data_)
+   def converter_7y(data_):
+      global add_label_, get_by_label_
+      return group_by_un(data_)
 
 
 9. Joins
