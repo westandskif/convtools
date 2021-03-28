@@ -1,8 +1,23 @@
+0.9.1 (2021-03-28)
+------------------
+
+Bugfix
+++++++
+
+`#24 <https://github.com/itechart/convtools/issues/24>`_
+
+- fixed populating ``linecache`` with source code (previously new lines were not preserved) -- debugging issue
+
+----
+
 0.9.0 (2021-03-24)
 ------------------
 
 Features
 ++++++++
+
+`#23 <https://github.com/itechart/convtools/issues/23>`_
+
 
 - improved reducers to be usable on their own
 

@@ -105,7 +105,7 @@ class _ConverterCallable:
             linecache.cache[fake_filename] = (
                 len(code_str),
                 None,
-                code_str.splitlines(),
+                code_str.splitlines(True),
                 fake_filename,
             )
             self.linecache_keys.set(fake_filename, True)
