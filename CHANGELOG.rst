@@ -1,3 +1,14 @@
+0.9.2 (2021-03-28)
+------------------
+
+Misc
+++++
+
+- removed unnecessary ``debug=True`` enabled by default for ``join`` conversions
+
+----
+
+
 0.9.1 (2021-03-28)
 ------------------
 

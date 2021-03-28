@@ -375,7 +375,6 @@ def join(
             [],
         )
     converter = conv.gen_converter(
-        debug=True,
         signature="left, right{}".format(
             condition.get_args_def_code(as_kwargs=False)
         ),
