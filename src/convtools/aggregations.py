@@ -779,7 +779,10 @@ class GroupBy(BaseConversion):
 
         agg_data_container_code = (
             "class AggData:\n    __slots__ = [{}]\n    def __init__(self):\n{}"
-        ).format(", ".join(attrs), "\n".join(init_lines))
+        ).format(
+            ", ".join(attrs),
+            "\n".join(init_lines) if init_lines else "        pass",
+        )
         ctx = {"_none": initial_val, "__name__": "_convtools_agg"}
         exec(agg_data_container_code, ctx, ctx)
         return ctx["AggData"]

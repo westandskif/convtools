@@ -131,3 +131,15 @@ def test_reducer_reuse():
         ("Nick", 13, 23),
         ("John", 73, 83),
     ]
+
+
+def test_blank_aggregate():
+    assert c.group_by(c.item(0)).aggregate(c.item(0)).execute(
+        [
+            (0, 1),
+            (1, 2),
+        ]
+    ) == [
+        0,
+        1,
+    ]

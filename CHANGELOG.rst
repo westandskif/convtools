@@ -1,3 +1,15 @@
+0.9.3 (2021-04-11)
+------------------
+
+Bugfix
+++++++
+
+- fixed ``c.group_by`` case without reducers like:
+  ``c.group_by(c.item(0)).aggregate(c.item(0))``
+
+----
+
+
 0.9.2 (2021-03-28)
 ------------------
 
