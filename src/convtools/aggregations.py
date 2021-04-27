@@ -1202,10 +1202,10 @@ class TopReducer(DictCountReducer):
     def __init__(self, k: int, key_conv, *args, **kwargs):
         super().__init__(key_conv, 1, *args, **kwargs)
         if not isinstance(k, int):
-            raise TypeError
+            raise TypeError("K must be an integer.")
 
         if k < 1:
-            raise ValueError("K must be positive integer greater than 0.")
+            raise ValueError("K must be a positive integer greater than 0.")
 
         self.k = k
 
