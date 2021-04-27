@@ -1,4 +1,9 @@
+import random
+import statistics
+
+from operator import eq
 import pytest
+from collections import Counter
 
 from convtools import conversion as c
 from convtools.aggregations import MultiStatementReducer
@@ -37,16 +42,31 @@ class SumReducer5(MultiStatementReducer):
     unconditional_init = True
 
 
-NAME_VALUE_INPUT_DATA = [
-    {"name": "Nick", "value": 1},
-    {"name": "Nick", "value": 2},
-    {"name": "John", "value": 20},
-    {"name": "John", "value": 21},
-    {"name": "John", "value": 22},
-]
+@pytest.fixture
+def dict_series():
+    return [
+        {"name": "Nick", "value": 1},
+        {"name": "Nick", "value": 2},
+        {"name": "John", "value": 20},
+        {"name": "John", "value": 21},
+        {"name": "John", "value": 22},
+    ]
 
 
-def test_multi_statement_reducers():
+@pytest.fixture
+def series():
+    random.seed(73)
+    return [
+        (random.randint(0, 100), random.randint(0, 10 ** 9))
+        for _ in range(10000)
+    ]
+
+
+def weighted_average(samples):
+    return
+
+
+def test_multi_statement_reducers(dict_series):
     output = (
         c.group_by(c.item("name"))
         .aggregate(
@@ -59,7 +79,7 @@ def test_multi_statement_reducers():
                 SumReducer5(c.item("value"), initial=5),
             )
         )
-        .execute(NAME_VALUE_INPUT_DATA, debug=True)
+        .execute(dict_series, debug=True)
     )
     assert output == [("Nick", 3, 3, 3, 3, 8), ("John", 63, 63, 63, 63, 68)]
 
@@ -87,13 +107,13 @@ def test_custom_reduce():
         c.reduce(lambda a, b: a + b, c.this(), default=0)
 
 
-def test_legacy_dict_reduce_approach():
+def test_legacy_dict_reduce_approach(dict_series):
     output = c.aggregate(
         c.reduce(
             c.ReduceFuncs.DictSum,
             (c.item("name"), c.item("value")),
         )
-    ).execute(NAME_VALUE_INPUT_DATA)
+    ).execute(dict_series)
     assert output == {
         "Nick": 3,
         "John": 63,
@@ -104,15 +124,7 @@ def test_legacy_dict_reduce_approach():
         c.ReduceFuncs.DictSum({c.this(), c.this()})
 
 
-def test_reducer_reuse():
-    input_data = [
-        {"name": "Nick", "value": 1},
-        {"name": "Nick", "value": 2},
-        {"name": "John", "value": 20},
-        {"name": "John", "value": 21},
-        {"name": "John", "value": 22},
-    ]
-
+def test_reducer_reuse(dict_series):
     f = lambda a, b: a + b
     reducer = c.reduce(f, c.item("value"), initial=0)
     reducer2 = c.reduce(f, c.item("value"), initial=0)
@@ -125,7 +137,7 @@ def test_reducer_reuse():
                 reducer2 + 20,
             )
         )
-        .execute(input_data)
+        .execute(dict_series)
     )
     assert output == [
         ("Nick", 13, 23),
@@ -133,13 +145,62 @@ def test_reducer_reuse():
     ]
 
 
-def test_blank_aggregate():
-    assert c.group_by(c.item(0)).aggregate(c.item(0)).execute(
-        [
-            (0, 1),
-            (1, 2),
-        ]
-    ) == [
-        0,
-        1,
-    ]
+def test_blank_aggregate(series):
+    assert eq(
+        c.group_by(c.item(0)).aggregate(c.item(0)).execute(series),
+        list({x[0]: 1 for x in series}),
+    )
+
+
+def test_average(series):
+    assert eq(
+        c.aggregate(c.ReduceFuncs.Average(c.item(1))).execute(series),
+        statistics.mean(x[1] for x in series),
+    )
+
+
+def test_average_of_empty_collection():
+    assert c.aggregate(c.ReduceFuncs.Average(c.item(1))).execute([]) is None
+
+
+def test_weighted_average(series):
+    assert eq(
+        c.aggregate(c.ReduceFuncs.Average(c.item(0), c.item(1))).execute(
+            series
+        ),
+        sum(v * w for v, w in series) / sum(x[1] for x in series),
+    )
+
+
+def test_mode(series):
+    assert eq(
+        c.aggregate(c.ReduceFuncs.Mode(c.item(0))).execute(series),
+        statistics.mode(x[0] for x in series),
+    )
+
+
+@pytest.mark.parametrize("k", [1, 5, 10 ** 9])
+def test_top_k(series, k):
+    assert eq(
+        c.aggregate(c.ReduceFuncs.TopK(k, c.item(1))).execute(series),
+        [x[1] for x in Counter(x[1] for x in series).most_common(k)],
+    )
+
+
+@pytest.mark.parametrize("k", [0, -1])
+def test_top_k_non_positive_int(k):
+    with pytest.raises(ValueError):
+        c.aggregate(c.ReduceFuncs.TopK(k, c.this())).execute([1, 2]),
+
+
+@pytest.mark.parametrize("k", [c.item(1), "abc"])
+def test_top_k_invalid_input(k):
+    with pytest.raises(TypeError):
+        c.aggregate(c.ReduceFuncs.TopK(k, c.this())).execute([1, 2]),
+
+
+def test_median(series):
+    assert eq(
+        c.aggregate(c.ReduceFuncs.Median(c.item(1))).execute(series),
+        statistics.median(x[1] for x in series),
+    )
