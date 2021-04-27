@@ -1311,7 +1311,8 @@ class GetItem(BaseMethodConversion):
                 "self_, obj_, default_"
                 if self_is_overwritten
                 else "obj_, default_"
-            ),
+            )
+            + self.get_args_def_code(),
             converter_name=converter_name,
             get_or_default_code=code_output,
         )
@@ -1327,9 +1328,14 @@ class GetItem(BaseMethodConversion):
                 EscapedString(code_self),
                 GetItem(),
                 EscapedString(default_code),
+                *self.get_args_as_func_args(),
             )
         else:
-            result = result.call(GetItem(), EscapedString(default_code))
+            result = result.call(
+                GetItem(),
+                EscapedString(default_code),
+                *self.get_args_as_func_args(),
+            )
         return result.gen_code_and_update_ctx(code_input, ctx)
 
 
