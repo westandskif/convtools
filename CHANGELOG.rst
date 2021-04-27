@@ -1,3 +1,15 @@
+0.9.4 (2021-04-27)
+------------------
+
+Bugfix
+++++++
+
+- fixed ``c.item(..., default=c.input_arg("abc"))``-like cases, where input
+  args passed to item/attr with defaults
+
+----
+
+
 0.9.3 (2021-04-11)
 ------------------
 

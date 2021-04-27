@@ -124,6 +124,18 @@ def test_naive_conversion_item():
 
     assert c.item(11, "test", default=77).gen_converter()(d) == 77
     assert (
+        c.item(
+            10, c.input_arg("arg1"), default=c.input_arg("arg2")
+        ).gen_converter()(d, arg1="test", arg2=77)
+        == 15
+    )
+    assert (
+        c.item(
+            10, c.input_arg("arg1"), default=c.input_arg("arg2")
+        ).gen_converter()(d, arg1="tst", arg2=77)
+        == 77
+    )
+    assert (
         c.item(11, "test", default=77).gen_converter(method=True)(None, d)
         == 77
     )
