@@ -1270,7 +1270,7 @@ class ReduceFuncs:
     #: Calculates the most common value.
     #: In case of multiple values, returns the last of them.
     Mode = ModeReducer
-    #: Returns a list of the approximately most frequent values.
+    #: Returns a list of the most frequent values.
     #: The resulting list is sorted in descending order of values frequency.
     TopK = TopReducer
 
