@@ -1,3 +1,21 @@
+0.10.0 (2021-04-28)
+------------------
+
+Features
+++++++++
+
+`#25 by Anexen <https://github.com/itechart/convtools/issues/25>`_
+
+- introduced ``c.ReduceFuncs.Average`` - arithmetic mean or weighted mean
+- introduced ``c.ReduceFuncs.Median``
+- introduced ``c.ReduceFuncs.Mode`` - most frequent value; last one if there are
+  many of the same frequency
+- introduced ``c.ReduceFuncs.TopK`` - list of most frequent values
+
+----
+
+
+
 0.9.4 (2021-04-27)
 ------------------
 
