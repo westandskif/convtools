@@ -2,6 +2,7 @@
  - recently used cache
  - options ctx manager
 """
+import sys
 import threading
 import typing
 from collections import deque
@@ -57,12 +58,11 @@ class RUCache:
                 break
 
 
-if hasattr(typing, "GenericMeta"):
-    # python 3.6
+if sys.version_info[:2] == (3, 6):
     GenericMeta = typing.GenericMeta
 else:
-    # python 3.7+
-    class GenericMeta(type):  # type: ignore
+
+    class GenericMeta(type):
         pass
 
 
@@ -102,7 +102,9 @@ class BaseOptions(object, metaclass=BaseOptionsMeta):
 OT = typing.TypeVar("OT", bound=BaseOptions)
 
 
-class BaseCtx(typing.Generic[OT], metaclass=BaseCtxMeta):
+class BaseCtx(
+    typing.Generic[OT], metaclass=BaseCtxMeta
+):  # pylint:disable=invalid-metaclass
     """Context manager to manage option objects"""
 
     options_cls: typing.Type[OT]

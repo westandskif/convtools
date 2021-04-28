@@ -1,4 +1,5 @@
 """This module brings aggregations with various reduce functions"""
+import statistics
 import typing
 from collections import defaultdict
 from functools import reduce as functools_reduce
@@ -371,12 +372,7 @@ class MultiStatementReducer(BaseReducer):
     prepare_first: typing.Tuple[str, ...]
     reduce: typing.Tuple[str, ...]
 
-    def __init__(
-        self,
-        *expressions,
-        initial=_none,
-        default=_none,
-    ):
+    def __init__(self, *expressions, initial=_none, default=_none):
         super().__init__()
         self.expressions = tuple(
             self.ensure_conversion(expr)
@@ -784,7 +780,7 @@ class GroupBy(BaseConversion):
             "\n".join(init_lines) if init_lines else "        pass",
         )
         ctx = {"_none": initial_val, "__name__": "_convtools_agg"}
-        exec(agg_data_container_code, ctx, ctx)
+        exec(agg_data_container_code, ctx, ctx)  # pylint:disable=exec-used
         return ctx["AggData"]
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
@@ -851,7 +847,7 @@ class GroupBy(BaseConversion):
                 reduce_block_index
             )
 
-        ctx["defaultdict"] = defaultdict
+        ctx.update({"defaultdict": defaultdict})
 
         if aggregate_mode:
             code_init_agg_vars = "{} = _none".format(
@@ -1187,6 +1183,62 @@ class DictLastReducer(BaseDictReducer):
     unconditional_init = True
 
 
+class AverageReducer(MultiStatementReducer):
+    """
+    Calculates the arithmetic mean or weighted mean.
+    """
+
+    def __init__(self, value, weight=1, **kwargs):
+        super().__init__(value, weight, **kwargs)
+
+    prepare_first = (
+        "if {0} is not None:",
+        "    %(result)s = ({1}, {0} * {1})",
+    )
+    reduce = (
+        "if {1} is not None:",
+        "    %(result)s = ({0}[0] + {2}, {0}[1] + {1} * {2})",
+    )
+    default = None
+    post_conversion = GetItem(1) / GetItem(0)
+
+
+class TopReducer(DictCountReducer):
+    """
+    Returns a list of the most frequent values.
+    The resulting list is sorted in descending order of values frequency.
+    """
+
+    def __init__(self, k: int, key_conv, *args, **kwargs):
+        super().__init__(key_conv, 1, *args, **kwargs)
+        if not isinstance(k, int):
+            raise TypeError("K must be an integer.")
+
+        if k < 1:
+            raise ValueError("K must be a positive integer greater than 0.")
+
+        self.k = k
+
+    @property
+    def post_conversion(self):
+        return InlineExpr(
+            "[k for k,v in sorted((v,k) for k,v in {data}.items())[:-{k}:-1]]"
+        ).pass_args(data=GetItem(), k=self.k + 1)
+
+
+class ModeReducer(DictCountReducer):
+    def __init__(self, conv, *args, **kwargs):
+        super().__init__(conv, conv, *args, **kwargs)
+
+    post_conversion = InlineExpr(
+        "sorted(((v,k) for k,v in {data}.items()))[-1][1]"
+    ).pass_args(data=GetItem())
+
+
+class MedianReducer(ArrayReducer):
+    post_conversion = CallFunc(statistics.median, GetItem())
+
+
 class ReduceFuncs:
     """Exposes the list of reduce functions"""
 
@@ -1216,6 +1268,17 @@ class ReduceFuncs:
     First = FirstReducer
     #: Stores the last value per group
     Last = LastReducer
+
+    #: Calculates the arithmetic mean or weighted mean.
+    Average = AverageReducer
+    #: Calculates the median value.
+    Median = MedianReducer
+    #: Calculates the most common value.
+    #: In case of multiple values, returns the last of them.
+    Mode = ModeReducer
+    #: Returns a list of the most frequent values.
+    #: The resulting list is sorted in descending order of values frequency.
+    TopK = TopReducer
 
     #: Aggregates values into array
     Array = ArrayReducer

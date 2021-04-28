@@ -511,6 +511,14 @@ c.ReduceFuncs
         :noindex:
    * .. autoattribute:: convtools.aggregations.ReduceFuncs.Last
         :noindex:
+   * .. autoattribute:: convtools.aggregations.ReduceFuncs.Average
+        :noindex:
+   * .. autoattribute:: convtools.aggregations.ReduceFuncs.Median
+        :noindex:
+   * .. autoattribute:: convtools.aggregations.ReduceFuncs.Mode
+        :noindex:
+   * .. autoattribute:: convtools.aggregations.ReduceFuncs.TopK
+        :noindex:
    * .. autoattribute:: convtools.aggregations.ReduceFuncs.Array
         :noindex:
    * .. autoattribute:: convtools.aggregations.ReduceFuncs.ArrayDistinct

@@ -522,6 +522,10 @@ _____________________
  * CountDistinct
  * First
  * Last
+ * Average
+ * Median
+ * Mode
+ * TopK
  * Array
  * ArrayDistinct
  * Dict
