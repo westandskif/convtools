@@ -479,7 +479,7 @@ class BaseConversion(typing.Generic[CT, MCT]):
 
         fake_filename = f"_fake_{converter_name}.py"
         code_obj = compile(code, fake_filename, "exec")
-        exec(code_obj, ctx)
+        exec(code_obj, ctx)  # pylint:disable=exec-used
         converter = ctx[converter_name]
         converter.conv_name = converter_name
 

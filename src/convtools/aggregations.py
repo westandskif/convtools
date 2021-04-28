@@ -1,4 +1,5 @@
 """This module brings aggregations with various reduce functions"""
+import statistics
 import typing
 from collections import defaultdict
 from functools import reduce as functools_reduce
@@ -779,7 +780,7 @@ class GroupBy(BaseConversion):
             "\n".join(init_lines) if init_lines else "        pass",
         )
         ctx = {"_none": initial_val, "__name__": "_convtools_agg"}
-        exec(agg_data_container_code, ctx, ctx)
+        exec(agg_data_container_code, ctx, ctx)  # pylint:disable=exec-used
         return ctx["AggData"]
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
@@ -1183,8 +1184,11 @@ class DictLastReducer(BaseDictReducer):
 
 
 class AverageReducer(MultiStatementReducer):
-    def __init__(self, value, weight=1, *args, **kwargs):
-        super().__init__(value, weight, *args, **kwargs)
+    """
+    Calculates the arithmetic mean or weighted mean.
+    """
+    def __init__(self, value, weight=1, **kwargs):
+        super().__init__(value, weight, **kwargs)
 
     prepare_first = (
         "if {0} is not None:",
@@ -1199,6 +1203,11 @@ class AverageReducer(MultiStatementReducer):
 
 
 class TopReducer(DictCountReducer):
+    """
+    Returns a list of the most frequent values.
+    The resulting list is sorted in descending order of values frequency.
+    """
+
     def __init__(self, k: int, key_conv, *args, **kwargs):
         super().__init__(key_conv, 1, *args, **kwargs)
         if not isinstance(k, int):
@@ -1226,11 +1235,7 @@ class ModeReducer(DictCountReducer):
 
 
 class MedianReducer(ArrayReducer):
-    @property
-    def post_conversion(self):
-        import statistics
-
-        return CallFunc(statistics.median, GetItem())
+    post_conversion = CallFunc(statistics.median, GetItem())
 
 
 class ReduceFuncs:
@@ -1263,7 +1268,7 @@ class ReduceFuncs:
     #: Stores the last value per group
     Last = LastReducer
 
-    #: Calculates the arithmetic mean.
+    #: Calculates the arithmetic mean or weighted mean.
     Average = AverageReducer
     #: Calculates the median value.
     Median = MedianReducer
