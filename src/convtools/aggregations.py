@@ -1187,6 +1187,7 @@ class AverageReducer(MultiStatementReducer):
     """
     Calculates the arithmetic mean or weighted mean.
     """
+
     def __init__(self, value, weight=1, **kwargs):
         super().__init__(value, weight, **kwargs)
 
