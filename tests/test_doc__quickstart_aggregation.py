@@ -57,12 +57,14 @@ def test_doc__quickstart_aggregation():
                 # but please check the generated code below, you'll see that it is
                 # calculated just once AND then reused to take necessary fields
                 "top_sales_app": top_sales_day.item("app_name"),
-                "top_sales_day": top_sales_day.item("date")
-                .pipe(
-                    datetime.strptime,
-                    "%Y-%m-%d",
-                )
-                .call_method("date"),
+                "top_sales_day": (
+                    top_sales_day.item("date")
+                    .pipe(
+                        datetime.strptime,
+                        "%Y-%m-%d",
+                    )
+                    .call_method("date")
+                ),
                 "company_hq": c.ReduceFuncs.First(c.item("company_hq")),
                 "app_name_to_countries": c.ReduceFuncs.DictArrayDistinct(
                     c.item("app_name"), c.item("country")

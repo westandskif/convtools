@@ -298,27 +298,67 @@ Comprehensions
    .. automethod:: convtools.base.BaseComprehensionConversion.sort
       :noindex:
 
+____
+
+.. autoattribute:: convtools.conversion.generator_comp
+
+ .. autoclass:: convtools.base.GeneratorComp()
+   :noindex:
+ .. automethod:: convtools.base.GeneratorComp.__init__
+
+____
 
 .. autoattribute:: convtools.conversion.list_comp
 
  .. autoclass:: convtools.base.ListComp()
    :noindex:
 
+____
+
 .. autoattribute:: convtools.conversion.tuple_comp
 
  .. autoclass:: convtools.base.TupleComp()
   :noindex:
+
+____
 
 .. autoattribute:: convtools.conversion.set_comp
 
  .. autoclass:: convtools.base.SetComp()
   :noindex:
 
+____
+
 .. autoattribute:: convtools.conversion.dict_comp
 
  .. autoclass:: convtools.base.DictComp()
   :noindex:
  .. automethod:: convtools.base.DictComp.__init__
+
+
+.. _ref_c_iter:
+
+c.iter
+======
+
+.. automethod:: convtools.base.BaseConversion.iter
+  :noindex:
+
+
+.. _ref_c_iter_mut:
+
+c.iter_mut
+==========
+
+ .. automethod:: convtools.base.BaseConversion.iter_mut
+  :noindex:
+
+____
+
+ .. autoclass:: convtools.base.IterMutConversion()
+  :noindex:
+ .. automethod:: convtools.base.IterMutConversion.__init__
+  :noindex:
 
 
 .. _ref_c_filter:
@@ -346,16 +386,6 @@ c.label
    .. automethod:: convtools.base.LabelConversion.__init__
       :noindex:
 
-____
-
-.. autoclass:: convtools.base.CachingConversion()
-   :noindex:
-
-   .. automethod:: convtools.base.CachingConversion.__init__
-      :noindex:
-   .. automethod:: convtools.base.CachingConversion.add_label
-      :noindex:
-
 
 .. _ref_pipes:
 
@@ -365,6 +395,11 @@ Pipes
 .. automethod:: convtools.base.BaseConversion.pipe
    :noindex:
 
+.. autoclass:: convtools.base.PipeConversion()
+   :noindex:
+
+   .. automethod:: convtools.base.PipeConversion.__init__
+      :noindex:
 
 .. _ref_c_conditions:
 
@@ -552,12 +587,14 @@ c.ReduceFuncs
 c.join
 ======
 
-.. autofunction:: convtools.conversion.join
+.. autoclass:: convtools.joins.JoinConversion
+   :noindex:
+   :members:
 
 
 .. _ref_mutations:
 
-c.mut - Mutations
+c.Mut - Mutations
 =================
 
 .. automethod:: convtools.base.BaseConversion.tap

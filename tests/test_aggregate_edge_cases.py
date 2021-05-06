@@ -1,11 +1,11 @@
 import random
 import statistics
-
-from operator import eq
-import pytest
 from collections import Counter
-
+from operator import eq
 from typing import List, Tuple
+
+import pytest
+
 from convtools import conversion as c
 from convtools.aggregations import MultiStatementReducer
 

@@ -627,15 +627,13 @@ ___________________________________________
                   )
               ).call_method(
                   "items"
-              ).pipe(
-                  c.generator_comp(
-                      c.call_func(
-                          convert_to_currency_func,
-                          c.item(0, 0),
-                          c.input_arg("currency_to"),
-                          c.item(0, 1),
-                          c.item(1),
-                      )
+              ).iter(
+                  c.call_func(
+                      convert_to_currency_func,
+                      c.item(0, 0),
+                      c.input_arg("currency_to"),
+                      c.item(0, 1),
+                      c.item(1),
                   )
               ).pipe(
                   c.call_func(sum, c.this())
@@ -918,6 +916,26 @@ _____________
 
    - .. code-block:: python
 
+      # generator which mutates whole sequence
+      converter = c.iter_mut(
+          c.Mut.set_item("c", c.item("a") + c.item("b")),
+          c.Mut.del_item("a"),
+          c.Mut.custom(
+              c.this().call_method("update", c.input_arg("data"))
+          )
+      ).as_type(list).gen_converter(debug=True)
+
+ * - .. code-block:: python
+
+      # same
+
+   - .. code-block:: python
+
+      # same
+
+   - .. code-block:: python
+
+      # function call per element (if needed by some reason)
       converter = c.list_comp(
           c.this().tap(
               c.Mut.set_item("c", c.item("a") + c.item("b")),
@@ -927,3 +945,4 @@ _____________
               )
           )
       ).gen_converter(debug=True)
+

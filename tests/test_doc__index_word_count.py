@@ -1,6 +1,4 @@
 import re
-from datetime import date, datetime
-from decimal import Decimal
 from itertools import chain
 
 from convtools import conversion as c
@@ -89,8 +87,8 @@ def test_doc__index_word_count():
                 c.this().pipe(take_top_n),
             )
         )
-        # Define the resulting converter function signature.
-        # In fact this isn't necessary if you don't need to specify default values
+        # Define the resulting converter function signature.  In fact this
+        # isn't necessary if you don't need to specify default values
     ).gen_converter(debug=True, signature="data_, top_n=None")
 
     assert pipeline(input_data, top_n=3) == {"war": 4, "and": 4, "peace": 4}

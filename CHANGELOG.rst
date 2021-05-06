@@ -1,5 +1,22 @@
+0.11.0 (2021-05-06)
+-------------------
+
+Features
+++++++++
+
+`#26 <https://github.com/itechart/convtools/issues/25>`_
+
+- reimplemented pipes as a separate conversion + smart inlining
+- now pipes are the only conversions which take care of adding labels
+- introduced ``c.iter``: shortcut for ``self.pipe(c.generator_comp(element_conv))``
+- introduced ``c.iter_mut``: generates the code which iterates and mutates the
+  elements in-place. The result is a generator.
+
+----
+
+
 0.10.0 (2021-04-28)
-------------------
+-------------------
 
 Features
 ++++++++

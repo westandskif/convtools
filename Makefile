@@ -18,3 +18,10 @@ upload:
 
 spellcheck:
 	find . \( -name "*.rst" -o -name "*.py" \) -not -path "./build/*" -exec aspell/aspell {} \;
+
+checks:
+	black src tests
+	isort src tests
+	pylint src
+	mypy src
+	flake8 src
