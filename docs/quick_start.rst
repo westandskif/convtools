@@ -184,46 +184,38 @@ Compiles into:
 
 .. code-block:: python
 
-   def optional_items_generator_89(data_):
-       yield (
-           "always here",
-           data_["key1"],
-       )
-       if get_or_default_33_760(data_, None) is not None:
+   def optional_items_generator_we(data_):
+       global labels_
+       if get_or_default_uw(data_, None) is not None:
            yield (
-               "if key2 exist",
-               get_or_default_33_760(data_, None),
+               "exists if 'key' exists",
+               get_or_default_uw(data_, None),
            )
-       if data_["key1"] != -1:
+       if lambda_q4(get_or_default_10(data_, None)) is not None:
            yield (
-               "if key1 != -1",
-               data_["key1"],
+               "exists if not None",
+               lambda_q4(get_or_default_10(data_, None)),
            )
-       if not (data_["key1"] < 5):
+       if not (data_["amount"] <= 10):
            yield (
-               "if key1 >= 5",
-               data_["key1"],
+               "exists if 'amount' > 10",
+               bool(get_or_default_4e(data_, None)),
            )
-       if data_["key1"] >= 5:
+       if data_["amount"] > 10:
            yield (
-               "if key1 >= 5 (same)",
-               data_["key1"],
+               "exists if 'amount' > 10 (same)",
+               bool(get_or_default_7d(data_, None)),
            )
-       if get_or_default_63_484(data_, -1) != -1:
+       if get_or_default_gy(data_, False):
            yield (
-               get_or_default_63_484(data_, -1),
-               "if key2 exists",
-           )
-       if (not (data_["key1"] < 5)) and (data_["key22"] is not None):
-           yield (
-               (data_["key1"] * 400),
-               data_["key22"],
+               "name",
+               data_["name"],
            )
 
 
-   def converter_88(data_):
-       global add_label_, get_by_label_
-       return [dict(optional_items_generator_89(i_88_848)) for i_88_848 in data_]
+   def converter_qn(data_):
+       global labels_
+       return dict(optional_items_generator_we(data_))
 
 5. Passing/calling functions & objects into conversions; defining converter signature
 _____________________________________________________________________________________
@@ -422,7 +414,9 @@ ________________________________________
 
 Points to learn:
 
- 1. :ref:`c.filter<ref_c_filter>` iterates through the iterable, filtering it
+ 0. :ref:`c.iter<ref_c_iter>` iterates through an iterable, applying conversion
+     to each element
+ 1. :ref:`c.filter<ref_c_filter>` iterates through an iterable, filtering it
     by a passed conversion, taking items for which the conversion resolves to true
  2. :ref:`(...).pipe<ref_pipes>` chains two conversions by passing the result of
     the first one to the second one. If piping is done at the top level of a
@@ -448,6 +442,13 @@ A simple pipe first:
 .. code-block:: python
 
    conv = c.generator_comp(
+       c.this() * 2
+   ).pipe(
+       sum
+   ).gen_converter(debug=True)
+
+   # OR THE SAME
+   conv = c.this().iter(
        c.this() * 2
    ).pipe(
        sum
@@ -484,23 +485,19 @@ A bit more complex ones:
    }
 
    # UNDER THE HOOD GENERATES:
-   def converter72_941(data_):
+   def pipe_ib(input_i2):
+       global labels_
+       return Decimal_8i(input_i2) if input_i2 else None
+
+
+   def converter_6c(data_):
+       global labels_
        return {
-           i72_722["name"]: [
-               {
-                   "id": str(i71_913[0]),
-                   "amount": (
-                       Decimal60_929(cached_val_75)
-                       if (
-                           globals().__setitem__("cached_val_75", i71_913[1])
-                           or globals()["cached_val_75"]
-                       )
-                       else None
-                   ),
-               }
-               for i71_913 in i72_722["transactions"]
+           i_nh["name"]: [
+               {"id": str(i_1t[0]), "amount": pipe_ib(i_1t[1])}
+               for i_1t in i_nh["transactions"]
            ]
-           for i72_722 in data_
+           for i_nh in data_
        }
 
 ____
@@ -545,44 +542,43 @@ Generates:
 
 .. code-block:: python
 
-   def converter137_941(data_):
-       pipe137_725 = (
-           globals().__setitem__(
-               "cached_val_106",
-               (
-                   globals().__setitem__("cached_val_89", data_)
-                   or globals().__setitem__("input", globals()["cached_val_89"])
-                   or globals()["cached_val_89"]
-               ),
-           )
-           or globals().__setitem__(
-               "input_type", type(globals()["cached_val_106"])
-           )
-           or globals()["cached_val_106"]
-       )
-       input_type = globals()["input_type"]
-       pipe137_489 = (
-           i122_258 for i122_258 in pipe137_725 if ((i122_258 % 3) == 0)
-       )
-       pipe137_362 = (
-           globals().__setitem__(
-               "cached_val_124", [str(i123_386) for i123_386 in pipe137_489]
-           )
-           or globals().__setitem__(
-               "list_length", len(globals()["cached_val_124"])
-           )
-           or globals().__setitem__(
-               "separator", ("," if (globals()["list_length"] > 10) else ";")
-           )
-           or globals()["cached_val_124"]
-       )
-       list_length = globals()["list_length"]
-       separator = globals()["separator"]
+   def pipe_hh(input_ag):
+       global labels_
+       labels_["input"] = input_ag
+       result_w9 = input_ag
+       pass
+       return result_w9
+
+
+   def pipe_74(input_uf):
+       global labels_
+       labels_["input_type"] = type(input_uf)
+       result_dj = (i_bl for i_bl in input_uf if ((i_bl % 3) == 0))
+       pass
+       return result_dj
+
+
+   def pipe_ns(input_i7):
+       global labels_
+       pass
+       result_le = [str(i_sy) for i_sy in input_i7]
+       labels_["list_length"] = len(result_le)
+       labels_["separator"] = "," if (labels_["list_length"] > 10) else ";"
+       return result_le
+
+
+   def pipe_yo(input_s8):
+       global labels_
        return {
-           "result": separator.join(pipe137_362),
-           "input_type": input_type,
-           "input_data": input,
+           "result": labels_["separator"].join(input_s8),
+           "input_type": labels_["input_type"],
+           "input_data": labels_["input"],
        }
+
+
+   def converter_yo(data_):
+       global labels_
+       return pipe_yo(pipe_ns(pipe_74(pipe_hh(data_))))
 
 It works as follows: if it finds any function calls, index/attribute lookups,
 it just caches the input, because the IF cannot be sure whether it's cheap or
@@ -626,72 +622,72 @@ reduce functions:
 
 .. code-block:: python
 
-   def group_by_un(data_):
-      global add_label_, get_by_label_
-      _none = v_hs
-      signature_to_agg_data_ = defaultdict(AggData_y7)
-      for row_ in data_:
-          agg_data_ = signature_to_agg_data_[row_["company_name"]]
+   def group_by_xu(data_):
+       global labels_
+       _none = v_hk
+       signature_to_agg_data_ = defaultdict(AggData_wl)
+       for row_ in data_:
+           agg_data_ = signature_to_agg_data_[row_["company_name"]]
 
-          if agg_data_.v0 is _none:
-              agg_data_.v0 = row_["sales"]
-              agg_data_.v2 = row_["company_hq"]
-              agg_data_.v3 = _d = defaultdict(dict)
-              _d[row_["app_name"]][row_["country"]] = None
-              agg_data_.v4 = _d = defaultdict(int)
-              _d[row_["app_name"]] = row_["sales"] or 0
+           if agg_data_.v0 is _none:
+               agg_data_.v0 = row_["sales"]
+               agg_data_.v2 = row_["company_hq"]
+               agg_data_.v3 = _d = defaultdict(dict)
+               _d[row_["app_name"]][row_["country"]] = None
+               agg_data_.v4 = _d = defaultdict(int)
+               _d[row_["app_name"]] = row_["sales"] or 0
 
-          else:
-              if row_["sales"] is None:
-                  agg_data_.v0 = None
-              elif agg_data_.v0 is not None:
-                  agg_data_.v0 = agg_data_.v0 + row_["sales"]
-              pass
-              agg_data_.v3[row_["app_name"]][row_["country"]] = None
-              agg_data_.v4[row_["app_name"]] = agg_data_.v4[row_["app_name"]] + (
-                  row_["sales"] or 0
-              )
+           else:
+               if row_["sales"] is None:
+                   agg_data_.v0 = None
+               elif agg_data_.v0 is not None:
+                   agg_data_.v0 = agg_data_.v0 + row_["sales"]
+               pass
+               agg_data_.v3[row_["app_name"]][row_["country"]] = None
+               agg_data_.v4[row_["app_name"]] = agg_data_.v4[row_["app_name"]] + (
+                   row_["sales"] or 0
+               )
 
-          if agg_data_.v1 is _none:
-              if row_["sales"] is not None:
-                  agg_data_.v1 = (row_["sales"], row_)
+           if agg_data_.v1 is _none:
+               if row_["sales"] is not None:
+                   agg_data_.v1 = (row_["sales"], row_)
 
-          else:
-              if row_["sales"] is not None and agg_data_.v1[0] < row_["sales"]:
-                  agg_data_.v1 = (row_["sales"], row_)
+           else:
+               if row_["sales"] is not None and agg_data_.v1[0] < row_["sales"]:
+                   agg_data_.v1 = (row_["sales"], row_)
 
-      result_ = [
-          {
-              "company_name": signature_.upper(),
-              "none_sensitive_sum": (
-                  None if agg_data_.v0 is _none else agg_data_.v0
-              ),
-              "top_sales_app": (
-                  None if agg_data_.v1 is _none else agg_data_.v1[1]
-              )["app_name"],
-              "top_sales_day": strptime_qd(
-                  (None if agg_data_.v1 is _none else agg_data_.v1[1])["date"],
-                  "%Y-%m-%d",
-              ).date(),
-              "company_hq": (None if agg_data_.v2 is _none else agg_data_.v2),
-              "app_name_to_countries": (
-                  None
-                  if agg_data_.v3 is _none
-                  else ({k_: list(v_) for k_, v_ in agg_data_.v3.items()})
-              ),
-              "app_name_to_sales": (
-                  None if agg_data_.v4 is _none else (dict(agg_data_.v4))
-              ),
-          }
-          for signature_, agg_data_ in signature_to_agg_data_.items()
-      ]
+       result_ = [
+           {
+               "company_name": signature_.upper(),
+               "none_sensitive_sum": (
+                   None if agg_data_.v0 is _none else agg_data_.v0
+               ),
+               "top_sales_app": (
+                   None if agg_data_.v1 is _none else agg_data_.v1[1]
+               )["app_name"],
+               "top_sales_day": strptime_4q(
+                   (None if agg_data_.v1 is _none else agg_data_.v1[1])["date"],
+                   "%Y-%m-%d",
+               ).date(),
+               "company_hq": (None if agg_data_.v2 is _none else agg_data_.v2),
+               "app_name_to_countries": (
+                   None
+                   if agg_data_.v3 is _none
+                   else ({k_: list(v_) for k_, v_ in agg_data_.v3.items()})
+               ),
+               "app_name_to_sales": (
+                   None if agg_data_.v4 is _none else (dict(agg_data_.v4))
+               ),
+           }
+           for signature_, agg_data_ in signature_to_agg_data_.items()
+       ]
 
-      return result_
+       return result_
 
 
-   def converter_7y(data_):
-      global add_label_, get_by_label_
-      return group_by_un(data_)
+   def converter_4q(data_):
+       global labels_
+       return group_by_xu(data_)
 
 
 9. Joins
@@ -760,7 +756,11 @@ of joined pairs into dicts:
 _____________
 
 Alongside pipes, there's a way to tap into any conversion and define
-mutation of its result by using :ref:`(...).tap(*mutations)<ref_mutations>`:
+mutation of its result by using:
+ * :ref:`c.iter_mut(*mutations)<ref_c_iter_mut>`
+ * :ref:`c.tap(*mutations)<ref_mutations>`
+
+The following mutations are available:
 
  * ``c.Mut.set_item``
  * ``c.Mut.set_attr``
@@ -768,7 +768,35 @@ mutation of its result by using :ref:`(...).tap(*mutations)<ref_mutations>`:
  * ``c.Mut.del_attr``
  * ``c.Mut.custom``
 
-Example:
+``iter_mut`` example:
+
+.. code-block:: python
+
+   input_data = [{"a": 1, "b": 2}]
+
+   converter = c.iter_mut(
+       c.Mut.set_item("c", c.item("a") + c.item("b")),
+       c.Mut.del_item("a"),
+       c.Mut.custom(c.this().call_method("update", c.input_arg("data")))
+   ).as_type(list).gen_converter(debug=True)
+
+   assert converter(input_data, data={"d": 4}) == [{"b": 2, "c": 3, "d": 4}]
+
+   # GENERATED CODE:
+   def iter_mut_2o(data_, data):
+       for item_ in data_:
+           item_["c"] = item_["a"] + item_["b"]
+           item_.pop("a")
+           item_.update(data)
+           yield item_
+
+
+   def converter_w6(data_, *, data):
+       global labels_
+       return list(iter_mut_2o(data_, data))
+
+
+``tap`` example:
 
 .. code-block:: python
 
@@ -782,21 +810,20 @@ Example:
        )
    ).gen_converter(debug=True)
 
-   converter(input_data, data={"d": 4}) == [{"b": 2, "c": 3, "d": 4}]
+   assert converter(input_data, data={"d": 4}) == [{"b": 2, "c": 3, "d": 4}]
 
-generated code:
 
-.. code-block:: python
-
-   def tap_70_949(data_, data):
+   # GENERATED CODE
+   def tap_e6(data_, data):
        data_["c"] = data_["a"] + data_["b"]
        data_.pop("a")
        data_.update(data)
        return data_
 
-   def converter_71(data_, *, data):
-       global add_label_, get_by_label_
-       return [tap_70_949(i_71_940, data) for i_71_940 in data_]
+   def converter_0p(data_, *, data):
+       global labels_
+       return [tap_e6(i_6w, data) for i_6w in data_]
+
 
 11. Debugging & setting Options
 _______________________________

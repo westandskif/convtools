@@ -6,6 +6,7 @@ from .base import (
     And,
     BaseConversion,
     CallFunc,
+    CodeGenerationOptionsCtx,
     ConversionException,
     ConverterOptionsCtx,
     Dict,
@@ -31,7 +32,7 @@ from .base import (
     TupleComp,
     ensure_conversion,
 )
-from .joins import _JoinConditions, join
+from .joins import JoinConversion, _JoinConditions
 from .mutations import Mutations
 
 
@@ -63,6 +64,9 @@ class _Conversion:
     ConversionException = ConversionException  # pylint: disable=invalid-name
     BaseConversion = BaseConversion  # pylint: disable=invalid-name
     OptionsCtx = ConverterOptionsCtx  # pylint: disable=invalid-name
+    CodeGenerationOptionsCtx = (  # pylint: disable=invalid-name
+        CodeGenerationOptionsCtx
+    )
 
     ReduceFuncs = ReduceFuncs  # pylint: disable=invalid-name
     #: Shortcut to `Mutations`
@@ -92,16 +96,16 @@ class _Conversion:
     dict = Dict
     optional = OptionalCollectionItem
 
+    generator_comp = GeneratorComp
     list_comp = ListComp
     tuple_comp = TupleComp
-    generator_comp = GeneratorComp
     set_comp = SetComp
     dict_comp = DictComp
 
     group_by = GroupBy
     aggregate = staticmethod(Aggregate)
 
-    join = staticmethod(join)
+    join = JoinConversion
     LEFT = _JoinConditions.LEFT
     RIGHT = _JoinConditions.RIGHT
 
@@ -120,7 +124,7 @@ class _Conversion:
         """Shortcut for ``NaiveConversion``"""
         return NaiveConversion(obj)
 
-    def this(self):
+    def this(self) -> "GetItem":
         """Gets compiled into the code which returns the input: ``data_``.
 
         This conversion is not that useful by itself, but you can pass it to
@@ -132,6 +136,15 @@ class _Conversion:
 
     def call(self, *args, **kwargs):
         return self.this().call(*args, **kwargs)
+
+    def tap(self, *args, **kwargs):
+        return self.this().tap(*args, **kwargs)
+
+    def iter(self, *args, **kwargs):
+        return self.this().iter(*args, **kwargs)
+
+    def iter_mut(self, *args, **kwargs):
+        return self.this().iter_mut(*args, **kwargs)
 
 
 conversion = _Conversion()

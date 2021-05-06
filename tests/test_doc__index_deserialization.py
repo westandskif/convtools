@@ -37,7 +37,8 @@ def test_doc__index_deserialization():
     first_name = c.item("first_name").call_method("capitalize")
     last_name = c.item("last_name").call_method("capitalize")
 
-    # call "format" method of a string and pass first & last names as parameters
+    # call "format" method of a string and pass first & last names as
+    # parameters
     full_name = c("{} {}").call_method("format", first_name, last_name)
     date_of_birth = c.item("dob")
 
@@ -64,7 +65,8 @@ def test_doc__index_deserialization():
                         Decimal,
                         c.item("salary").call_method("replace", ",", ""),
                     ),
-                    # pass a hardcoded dict and to get value by "department" key
+                    # pass a hardcoded dict and to get value by "department"
+                    # key
                     "department_id": c.naive(
                         {
                             "D1": 10,

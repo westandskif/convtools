@@ -104,29 +104,33 @@ Under the hood the compiled code is as follows:
 
 .. code-block:: python
 
-   def converter_i5(data_):
-      global add_label_, get_by_label_
-      pipe_ua = data_["objects"]
-      pipe_ro = (
-          {
-              "id": i_j4["id"],
-              "first_name": i_j4["first_name"].capitalize(),
-              "last_name": i_j4["last_name"].capitalize(),
-              "full_name": "{} {}".format(
-                  i_j4["first_name"].capitalize(), i_j4["last_name"].capitalize()
-              ),
-              "date_of_birth": (
-                  strptime_pa(i_j4["dob"], "%Y-%m-%d").date()
-                  if i_j4["dob"]
-                  else None
-              ),
-              "salary": Decimal_sb(i_j4["salary"].replace(",", "")),
-              "department_id": v_o1[i_j4["department"].strip()],
-              "date": strptime_pa(i_j4["date"], "%Y-%m-%d").date(),
-          }
-          for i_j4 in pipe_ua
-      )
-      return {i_tj["id"]: (Employee_1y(**i_tj)) for i_tj in pipe_ro}
+   def converter_2n(data_):
+       global labels_
+       return {
+           i_0t["id"]: (Employee_vk(**i_0t))
+           for i_0t in (
+               {
+                   "id": i_n7["id"],
+                   "first_name": i_n7["first_name"].capitalize(),
+                   "last_name": i_n7["last_name"].capitalize(),
+                   "full_name": "{} {}".format(
+                       i_n7["first_name"].capitalize(),
+                       i_n7["last_name"].capitalize(),
+                   ),
+                   "date_of_birth": (
+                       (
+                           strptime_db(i_n7["dob"], "%Y-%m-%d").date()
+                           if i_n7["dob"]
+                           else None
+                       )
+                   ),
+                   "salary": Decimal_tr(i_n7["salary"].replace(",", "")),
+                   "department_id": v_g6[i_n7["department"].strip()],
+                   "date": strptime_db(i_n7["date"], "%Y-%m-%d").date(),
+               }
+               for i_n7 in data_["objects"]
+           )
+       }
 
 
 All-in-one example #2: word count
@@ -140,57 +144,66 @@ All-in-one example #2: word count
 
 .. code-block:: python
 
-   def aggregate_1d(data_):
-      global add_label_, get_by_label_
-      _none = v_nn
-      agg_data_v0_ = _none
-      expected_checksum_ = 1
-      checksum_ = 0
-      it_ = iter(data_)
-      for row_ in it_:
+   def aggregate_u5(data_):
+       global labels_
+       _none = v_lj
+       agg_data_v0_ = _none
+       expected_checksum_ = 1
+       checksum_ = 0
+       it_ = iter(data_)
+       for row_ in it_:
 
-          if agg_data_v0_ is _none:
-              agg_data_v0_ = {row_: 1}
+           if agg_data_v0_ is _none:
+               agg_data_v0_ = {row_: 1}
 
-              if agg_data_v0_ is not _none:
-                  checksum_ |= 1
-                  if checksum_ == expected_checksum_:
-                      break
+               if agg_data_v0_ is not _none:
+                   checksum_ |= 1
+                   if checksum_ == expected_checksum_:
+                       break
 
-          else:
-              if row_ not in agg_data_v0_:
-                  agg_data_v0_[row_] = 1
-              else:
-                  agg_data_v0_[row_] = agg_data_v0_[row_] + 1
+           else:
+               if row_ not in agg_data_v0_:
+                   agg_data_v0_[row_] = 1
+               else:
+                   agg_data_v0_[row_] = agg_data_v0_[row_] + 1
 
-      for row_ in it_:
+       for row_ in it_:
 
-          if row_ not in agg_data_v0_:
-              agg_data_v0_[row_] = 1
-          else:
-              agg_data_v0_[row_] = agg_data_v0_[row_] + 1
+           if row_ not in agg_data_v0_:
+               agg_data_v0_[row_] = 1
+           else:
+               agg_data_v0_[row_] = agg_data_v0_[row_] + 1
 
-      result_ = dict() if agg_data_v0_ is _none else agg_data_v0_
+       result_ = dict() if agg_data_v0_ is _none else agg_data_v0_
 
-      return result_
+       return result_
 
 
-   def converter_dd(data_, top_n=None):
-      global add_label_, get_by_label_
-      pipe_zb = (lambda_nf(i_oa) for i_oa in data_)
-      pipe_3m = from_iterable_ry(pipe_zb)
-      pipe_i2 = (
-          (i_bn.group(0).lower() for i_bn in v_rl.finditer(i_pu))
-          for i_pu in pipe_3m
-      )
-      pipe_4q = from_iterable_ry(pipe_i2)
-      pipe_v0 = aggregate_1d(pipe_4q)
-      return (
-          dict(
-              sorted(pipe_v0.items(), key=lambda_o1, reverse=True)[
-                  (slice(None, top_n, None))
-              ]
-          )
-          if (top_n is not None)
-          else pipe_v0
-      )
+   def pipe_2h(input_om, top_n):
+       global labels_
+       return (
+           dict(
+               sorted(input_om.items(), key=lambda_ik, reverse=True)[
+                   (slice(None, top_n, None))
+               ]
+           )
+           if (top_n is not None)
+           else input_om
+       )
+
+
+   def converter_wz(data_, top_n=None):
+       global labels_
+       return pipe_2h(
+           aggregate_u5(
+               from_iterable_c4(
+                   (
+                       (i_ry.group(0).lower() for i_ry in v_ql.finditer(i_fi))
+                       for i_fi in from_iterable_c4(
+                           (lambda_6b(i_jq) for i_jq in data_)
+                       )
+                   )
+               )
+           ),
+           top_n,
+       )

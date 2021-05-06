@@ -1,14 +1,12 @@
 import linecache
 from collections import namedtuple
-from datetime import date, datetime
-from decimal import Decimal
+from datetime import date
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
 from convtools import conversion as c
 from convtools.base import (
-    CachingConversion,
     ConversionWrapper,
     InlineExpr,
     NamedConversion,
@@ -291,7 +289,7 @@ def test_debug_true():
 
 def test_if():
     conv1 = c.if_(True, c.this() * 2, c.this() - 1000).gen_converter(
-        debug=False
+        debug=True
     )
     assert conv1(0) == -1000
     assert conv1(10) == 20
@@ -474,79 +472,6 @@ def test_dict_comprehension():
         .gen_converter()(data)
         .items()
     ) == [(1, "John"), (2, "Bill")]
-
-
-def test_pipes():
-    assert c.list_comp(c.inline_expr("{0} ** 2").pass_args(c.this())).pipe(
-        c.call_func(sum, c.this())
-    ).pipe(
-        c.call_func(
-            lambda x, a: x + a,
-            c.this(),
-            c.naive({"abc": 10}).item(c.input_arg("key_name")),
-        )
-    ).pipe(
-        [c.this(), c.this()]
-    ).execute(
-        [1, 2, 3], key_name="abc", debug=False
-    ) == [
-        24,
-        24,
-    ]
-    assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d").pipe(
-        c.call_func(lambda dt: dt.date(), c.this())
-    ).execute(["2019-01-01"], debug=False) == date(2019, 1, 1)
-
-    assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d").pipe(
-        c.this().call_method("date")
-    ).execute(["2019-01-01"], debug=False) == date(2019, 1, 1)
-
-    with c.OptionsCtx() as options:
-        max_pipe_length = options.max_pipe_length = 10
-        with pytest.raises(c.ConversionException):
-            conv = c.this()
-            for i in range(max_pipe_length + 1):
-                conv = c.this().pipe(conv)
-
-    conv = c.dict_comp(
-        c.item("name"),
-        c.item("transactions").pipe(
-            c.list_comp(
-                {
-                    "id": c.item(0).as_type(str),
-                    "amount": c.item(1).pipe(
-                        c.if_(c.this(), c.this().as_type(Decimal), None)
-                    ),
-                }
-            )
-        ),
-    ).gen_converter(debug=True)
-    assert conv([{"name": "test", "transactions": [(0, 0), (1, 10)]}]) == {
-        "test": [
-            {"id": "0", "amount": None},
-            {"id": "1", "amount": Decimal("10")},
-        ]
-    }
-
-    with c.OptionsCtx() as options:
-        max_pipe_length = options.max_pipe_length = 10
-        conv1 = c.item(0).pipe(c.item(1).pipe(c.item(2)))
-
-        def measure_pipe_length(conv):
-            length = 0
-            for i in range(max_pipe_length):
-                if conv._predefined_input is not None:
-                    length += 1
-                    conv = conv._predefined_input
-                else:
-                    break
-            return length
-
-        pipe_length_before = measure_pipe_length(conv1)
-        for i in range(max_pipe_length + 20):
-            c.generator_comp(c.this().pipe(conv1))
-        pipe_length_after = measure_pipe_length(conv1)
-        assert pipe_length_after == pipe_length_before
 
 
 def test_filter():
@@ -1009,8 +934,6 @@ def test_reducers():
 
 
 def test_base_reducer():
-    from convtools.aggregations import MultiStatementReducer
-
     assert c.aggregate(
         (
             c.reduce(lambda a, b: a + b, c.this(), initial=0),
@@ -1104,10 +1027,6 @@ def test_simple_label():
 
     with pytest.raises(c.ConversionException):
         c.this().pipe(c.this(), label_input=1)
-    with pytest.raises(c.ConversionException):
-        CachingConversion(c.this()).add_label("a", c.this()).add_label(
-            "a", c.this()
-        )
 
 
 def test_complex_labeling():
@@ -1278,7 +1197,7 @@ def test_conversion_wrapper():
     ) == 41
 
 
-def test_aggregate():
+def test_aggregate_func():
     input_data = [
         {"a": 5, "b": "foo"},
         {"a": 10, "b": "bar"},
@@ -1475,3 +1394,8 @@ def test_group_by_with_double_ended_pipes():
         .gen_converter()
     )
     assert conv(input_data, test={"v": 7}) == [{"v1": 14, "v2": 3}]
+
+
+def test_call_like_methods():
+    assert c.inline_expr("1").is_itself_callable_like()
+    assert c.item(1).is_itself_callable_like() is None

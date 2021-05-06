@@ -1,7 +1,4 @@
-import pytest
-
 from convtools import conversion as c
-from convtools.base import Call
 
 
 def test_cloning_functionality():
@@ -19,18 +16,15 @@ def test_cloning_functionality():
     assert conv2.execute({"a": {"b": 2}}) == 2
 
 
-def test_set_predefined_self():
-    conv = Call().set_predefined_self(c.this())
-    with pytest.raises(c.ConversionException):
-        conv.set_predefined_self(c.this())
-
-
 def test_group_by_reducer_clones():
+    data = [
+        {"value": 2},
+        {"value": 3},
+    ]
     conv = c.aggregate(
         c.item("value").pipe(c.ReduceFuncs.Sum(c.this()).pipe(c.this() + 1))
     )
-    conv.gen_converter(debug=True)
-    assert len(conv.agg_items) == 1
+    assert conv.execute(data) == 6
 
     reducer = c.ReduceFuncs.DictSum(c.item("k"), c.item("v"))
     reducer1 = c.item("item1").pipe(reducer)

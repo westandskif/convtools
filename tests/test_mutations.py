@@ -63,3 +63,64 @@ def test_mutation_attr():
         )
     ).execute(obj, debug=True)
     assert not hasattr(obj, "a") and obj.b == 2 and obj.c == 3
+
+    obj = A()
+    obj.a = 1
+    obj.b = 2
+
+    obj = (
+        c.tap(
+            c.Mut.del_attr("a"),
+            c.Mut.set_attr("c", 3),
+        )
+    ).execute(obj, debug=True)
+    assert not hasattr(obj, "a") and obj.b == 2 and obj.c == 3
+
+
+def test_iter_mut_method():
+    assert c.iter(c.item(0)).as_type(list).execute([[1], [2]]) == [1, 2]
+    assert c.iter_mut(c.Mut.custom(c.this().call_method("append", 7))).as_type(
+        list
+    ).execute([[1], [2]]) == [[1, 7], [2, 7]]
+    assert (
+        c.this()
+        .iter({"a": c.this()})
+        .iter_mut(
+            c.Mut.set_item("b", c.item("a") + 1),
+            c.Mut.set_item("c", c.item("a") + 2),
+        )
+        .iter_mut(
+            c.Mut.set_item("d", c.item("a") + 3),
+        )
+        .as_type(list)
+        .execute([1, 2, 3], debug=True)
+    ) == [
+        {"a": 1, "b": 2, "c": 3, "d": 4},
+        {"a": 2, "b": 3, "c": 4, "d": 5},
+        {"a": 3, "b": 4, "c": 5, "d": 6},
+    ]
+
+    result = (
+        c.group_by(c.item(0))
+        .aggregate(
+            c(
+                [
+                    {c.item(0): c.item(1).pipe(c.ReduceFuncs.Max(c.this()))},
+                    {c.item(1).pipe(c.ReduceFuncs.Max(c.this())): c.item(0)},
+                ]
+            )
+            .iter_mut(
+                c.Mut.set_item(
+                    "x",
+                    c.call_func(sum, c.this().call_method("values"))
+                    + c.input_arg("base"),
+                )
+            )
+            .as_type(tuple)
+        )
+        .execute([(0, 1), (0, 2), (1, 7)], base=100, debug=True)
+    )
+    assert result == [
+        ({0: 2, "x": 102}, {2: 0, "x": 100}),
+        ({1: 7, "x": 107}, {7: 1, "x": 101}),
+    ]

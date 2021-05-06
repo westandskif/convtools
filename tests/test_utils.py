@@ -8,33 +8,46 @@ def test_code_generation_ctx():
     with CodeGenerationOptionsCtx() as options:
         assert isinstance(options, CodeGenerationOptions)
 
-        assert options.labeling is False
-        assert CodeGenerationOptionsCtx.get_option_value("labeling") is False
+        assert options.inline_pipes_only is False
+        assert (
+            CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+            is False
+        )
 
-        options.labeling = True
-        assert CodeGenerationOptionsCtx.get_option_value("labeling") is True
+        options.inline_pipes_only = True
+        assert (
+            CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+            is True
+        )
 
         with CodeGenerationOptionsCtx() as options2:
-            assert options2.labeling is True
+            assert options2.inline_pipes_only is True
             assert (
-                CodeGenerationOptionsCtx.get_option_value("labeling") is True
+                CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+                is True
             )
 
-            options2.to_defaults("labeling")
-            assert options2.labeling is False
+            options2.to_defaults("inline_pipes_only")
+            assert options2.inline_pipes_only is False
 
-            options2.labeling = True
+            options2.inline_pipes_only = True
             options2.to_defaults()
-            assert options2.labeling is False
+            assert options2.inline_pipes_only is False
             assert (
-                CodeGenerationOptionsCtx.get_option_value("labeling") is False
+                CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+                is False
             )
 
-            assert options.labeling is True
+            assert options.inline_pipes_only is True
 
-        assert CodeGenerationOptionsCtx.get_option_value("labeling") is True
+        assert (
+            CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+            is True
+        )
 
-    assert CodeGenerationOptionsCtx.get_option_value("labeling") is False
+    assert (
+        CodeGenerationOptionsCtx.get_option_value("inline_pipes_only") is False
+    )
 
 
 def test_ru_cache():

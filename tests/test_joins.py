@@ -2,7 +2,7 @@ import pytest
 
 from convtools import conversion as c
 from convtools.base import Eq
-from convtools.conversion import _JoinConditions, join
+from convtools.conversion import _JoinConditions
 
 
 def test_join_conditions():
@@ -153,10 +153,9 @@ def test_join_conditions():
 
 
 def test_hash_joins():
-    from convtools.conversion import join
 
     join1 = (
-        join(c.item(0), c.item(1), c.LEFT.item("id") == c.RIGHT.item("id"))
+        c.join(c.item(0), c.item(1), c.LEFT.item("id") == c.RIGHT.item("id"))
         .as_type(list)
         .gen_converter(debug=False)
     )
@@ -172,7 +171,7 @@ def test_hash_joins():
     ]
 
     join2 = (
-        join(
+        c.join(
             c.item(0),
             c.item(1),
             c.and_(
@@ -208,7 +207,7 @@ def test_hash_joins():
     )
 
     join2 = (
-        join(
+        c.join(
             c.item(0),
             c.item(1),
             c.and_(
@@ -235,10 +234,8 @@ def test_hash_joins():
 
 
 def test_nested_loop_joins():
-    from convtools.conversion import join
-
     join1 = (
-        join(
+        c.join(
             c.item(0),
             c.item(1),
             c.and_(
@@ -265,7 +262,7 @@ def test_nested_loop_joins():
     ]
 
     join2 = (
-        join(
+        c.join(
             c.item(0),
             c.item(1),
             c.and_(c.LEFT * c.RIGHT < 30, c.LEFT + c.RIGHT > 8),
@@ -283,7 +280,7 @@ def test_nested_loop_joins():
         (7, 4),
     ]
     join3 = (
-        join(c.item(0), c.item(1), Eq(c.LEFT + c.RIGHT, 1))
+        c.join(c.item(0), c.item(1), Eq(c.LEFT + c.RIGHT, 1))
         .as_type(list)
         .gen_converter(debug=True)
     )
@@ -292,7 +289,7 @@ def test_nested_loop_joins():
 
 def test_left_join():
     join1 = (
-        join(
+        c.join(
             c.item(0),
             c.item(1),
             c.and_(
@@ -318,7 +315,7 @@ def test_left_join():
 
 def test_right_join():
     join1 = (
-        join(
+        c.join(
             c.item(0),
             c.item(1),
             c.and_(
@@ -343,7 +340,7 @@ def test_right_join():
 
 def test_outer_join():
     join1 = (
-        join(
+        c.join(
             c.item(0),
             c.item(1),
             Eq(c.LEFT, c.RIGHT, 2),
@@ -362,7 +359,7 @@ def test_outer_join():
         (None, 5),
     ]
     join2 = (
-        join(
+        c.join(
             c.item(0),
             c.item(1),
             c.and_(
@@ -394,7 +391,7 @@ def test_outer_join():
 
 def test_cross_join():
     join1 = (
-        join(c.item(0), c.item(1), True)
+        c.join(c.item(0), c.item(1), True)
         .as_type(list)
         .gen_converter(debug=True)
     )
@@ -406,3 +403,8 @@ def test_cross_join():
         (3, 5),
         (3, 6),
     ]
+
+
+def test_join_bad_inputs():
+    with pytest.raises(ValueError):
+        c.join(c.item(0), c.item(1), True, "hz")

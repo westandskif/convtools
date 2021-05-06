@@ -8,10 +8,10 @@ from .aggregations import Aggregate, ReduceFuncs
 from .base import (
     And,
     BaseConversion,
-    Call,
     CallFunc,
     ConversionWrapper,
     Eq,
+    EscapedString,
     GeneratorComp,
     GetItem,
     If,
@@ -71,7 +71,7 @@ class _JoinConditions:
     @classmethod
     def from_condition(cls, condition, **kwargs):
         join_conditions = cls(**kwargs)
-        if condition is True:
+        if isinstance(condition, NaiveConversion) and condition.value is True:
             return join_conditions
 
         if isinstance(condition, Eq):
@@ -144,12 +144,7 @@ class _JoinConditions:
                 self.consume_other(arg)
 
 
-def join(
-    left_conversion: BaseConversion,
-    right_conversion: BaseConversion,
-    condition: BaseConversion,
-    how="inner",
-) -> Call:
+class JoinConversion(BaseConversion):
     """Generates conversion which joins left_conversion and right_conversion
     using condition. The result is a generator of joined pairs
 
@@ -160,231 +155,260 @@ def join(
         join
       how (str): one of the following: ``"inner"``, ``"left"``, ``"right"``,
         ``"outer"``
+    """
 
-    Returns:
-      BaseConversion: which processes the input and returns generator of
-      joined pairs"""
-    left_right_swapped = False
-    if how == "right":
-        left_right_swapped = True
-        how = "left"
-        left_conversion, right_conversion = right_conversion, left_conversion
+    def __init__(
+        self,
+        left_conversion: BaseConversion,
+        right_conversion: BaseConversion,
+        condition: BaseConversion,
+        how="inner",
+    ):
+        super().__init__()
+        self.left_conversion = self.ensure_conversion(left_conversion)
+        self.right_conversion = self.ensure_conversion(right_conversion)
+        self.condition = self.ensure_conversion(condition)
+        if how not in ("inner", "left", "right", "outer", "full"):
+            raise ValueError(how)
+        self.how = how
 
-    join_conditions = _JoinConditions.from_condition(condition, how=how)
-    if condition is True:
-        condition = NaiveConversion(True)
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        how = self.how
+        condition = self.condition
+        left_conversion = self.left_conversion
+        right_conversion = self.right_conversion
 
-    right_collection: BaseConversion = InputArg("right")
-    right_collection_filters = (
-        join_conditions.left_collection_filters
-        if left_right_swapped
-        else join_conditions.right_collection_filters
-    )
-    if right_collection_filters:
-        right_collection = right_collection.pipe(
-            GeneratorComp(GetItem()).filter(
-                And(
-                    right_collection_filters[0],
-                    right_collection_filters[1],
-                    *right_collection_filters[2:],
+        left_right_swapped = False
+        if how == "right":
+            left_right_swapped = True
+            how = "left"
+            left_conversion, right_conversion = (
+                right_conversion,
+                left_conversion,
+            )
+
+        join_conditions = _JoinConditions.from_condition(condition, how=how)
+
+        right_collection: BaseConversion = InputArg("right_")
+        right_collection_filters = (
+            join_conditions.left_collection_filters
+            if left_right_swapped
+            else join_conditions.right_collection_filters
+        )
+        if right_collection_filters:
+            right_collection = right_collection.pipe(
+                GeneratorComp(GetItem()).filter(
+                    And(
+                        right_collection_filters[0],
+                        right_collection_filters[1],
+                        *right_collection_filters[2:],
+                    )
+                    if len(right_collection_filters) > 1
+                    else right_collection_filters[0]
                 )
-                if len(right_collection_filters) > 1
-                else right_collection_filters[0]
+            )
+        if join_conditions.outer_join:
+            right_collection = right_collection.as_type(list)
+        right_collection = right_collection.add_label("right_collection")
+
+        left_collection: BaseConversion = InputArg("left_")
+        left_collection_filters = (
+            join_conditions.right_collection_filters
+            if left_right_swapped
+            else join_conditions.left_collection_filters
+        )
+        if left_collection_filters:
+            left_collection = left_collection.pipe(
+                GeneratorComp(GetItem()).filter(
+                    And(
+                        left_collection_filters[0],
+                        left_collection_filters[1],
+                        *left_collection_filters[2:],
+                    )
+                    if len(left_collection_filters) > 1
+                    else left_collection_filters[0]
+                )
+            )
+
+        inner_loop_condition: typing.Optional[ConversionWrapper] = None
+        resulting_inner_loop_conditions = list(
+            chain(
+                join_conditions.left_row_filters,
+                join_conditions.right_row_filters,
+                join_conditions.inner_loop_conditions,
             )
         )
-    if join_conditions.outer_join:
-        right_collection = right_collection.as_type(list)
-    right_collection = right_collection.add_label("right_collection")
-
-    left_collection: BaseConversion = InputArg("left")
-    left_collection_filters = (
-        join_conditions.right_collection_filters
-        if left_right_swapped
-        else join_conditions.left_collection_filters
-    )
-    if left_collection_filters:
-        left_collection = left_collection.pipe(
-            GeneratorComp(GetItem()).filter(
-                And(
-                    left_collection_filters[0],
-                    left_collection_filters[1],
-                    *left_collection_filters[2:],
+        if resulting_inner_loop_conditions:
+            if len(resulting_inner_loop_conditions) > 1:
+                condition_ = And(
+                    resulting_inner_loop_conditions[0],
+                    resulting_inner_loop_conditions[1],
+                    *resulting_inner_loop_conditions[2:],
                 )
-                if len(left_collection_filters) > 1
-                else left_collection_filters[0]
+            else:
+                condition_ = resulting_inner_loop_conditions[0]
+            inner_loop_condition = ConversionWrapper(
+                condition_,
+                name_to_code_input=(
+                    {
+                        _JoinConditions.LEFT_NAME: "right_item",
+                        _JoinConditions.RIGHT_NAME: "left_item",
+                    }
+                    if left_right_swapped
+                    else {
+                        _JoinConditions.LEFT_NAME: "left_item",
+                        _JoinConditions.RIGHT_NAME: "right_item",
+                    }
+                ),
             )
-        )
 
-    inner_loop_condition: typing.Optional[ConversionWrapper] = None
-    resulting_inner_loop_conditions = list(
-        chain(
-            join_conditions.left_row_filters,
-            join_conditions.right_row_filters,
-            join_conditions.inner_loop_conditions,
-        )
-    )
-    if resulting_inner_loop_conditions:
-        if len(resulting_inner_loop_conditions) > 1:
-            condition_ = And(
-                resulting_inner_loop_conditions[0],
-                resulting_inner_loop_conditions[1],
-                *resulting_inner_loop_conditions[2:],
+        if join_conditions.left_row_hashers:
+            left_row_conv_to_hash = (
+                Tuple(*join_conditions.left_row_hashers)
+                if len(join_conditions.left_row_hashers) > 1
+                else join_conditions.left_row_hashers[0]
+            )
+            right_row_conv_to_hash = (
+                Tuple(*join_conditions.right_row_hashers)
+                if len(join_conditions.right_row_hashers) > 1
+                else join_conditions.right_row_hashers[0]
+            )
+
+            right_collection_conversion = right_collection.pipe(
+                Aggregate(
+                    ReduceFuncs.DictArray(
+                        right_row_conv_to_hash,
+                        GetItem(),
+                        default=dict,
+                    )
+                ),
+                label_output="hash_to_items",
+            )
+            right_items = (
+                InlineExpr("left_item").pipe(left_row_conv_to_hash)
+            ).pipe(
+                If(
+                    GetItem().in_(LabelConversion("hash_to_items")),
+                    LabelConversion("hash_to_items").item(GetItem()),
+                    NaiveConversion(()),
+                )
             )
         else:
-            condition_ = resulting_inner_loop_conditions[0]
-        inner_loop_condition = ConversionWrapper(
-            condition_,
-            name_to_code_input=(
-                {
-                    _JoinConditions.LEFT_NAME: "right_item",
-                    _JoinConditions.RIGHT_NAME: "left_item",
-                }
-                if left_right_swapped
-                else {
-                    _JoinConditions.LEFT_NAME: "left_item",
-                    _JoinConditions.RIGHT_NAME: "right_item",
-                }
-            ),
-        )
+            right_collection_conversion = right_collection
+            right_items = LabelConversion("right_collection")
 
-    if join_conditions.left_row_hashers:
-        left_row_conv_to_hash = (
-            Tuple(*join_conditions.left_row_hashers)
-            if len(join_conditions.left_row_hashers) > 1
-            else join_conditions.left_row_hashers[0]
-        )
-        right_row_conv_to_hash = (
-            Tuple(*join_conditions.right_row_hashers)
-            if len(join_conditions.right_row_hashers) > 1
-            else join_conditions.right_row_hashers[0]
-        )
-
-        right_collection_conversion = right_collection.pipe(
-            Aggregate(
-                ReduceFuncs.DictArray(
-                    right_row_conv_to_hash,
-                    GetItem(),
-                    default=dict,
-                )
-            ),
-            label_output="hash_to_items",
-        )
-        right_items = (
-            InlineExpr("left_item").pipe(left_row_conv_to_hash)
-        ).pipe(
-            If(
-                GetItem().in_(LabelConversion("hash_to_items")),
-                LabelConversion("hash_to_items").item(GetItem()),
-                NaiveConversion(()),
-            )
-        )
-    else:
-        right_collection_conversion = right_collection
-        right_items = LabelConversion("right_collection")
-
-    if join_conditions.inner_join:
-        conv = right_collection_conversion.pipe(
-            left_collection.pipe(
-                InlineExpr(
-                    "((left_item, right_item)"
-                    + " for left_item in {left_items}"
-                    + " for right_item in {right_items}"
-                    + (" if {condition}" if inner_loop_condition else "")
-                    + ")"
-                ).pass_args(
-                    left_items=GetItem(),
-                    right_items=right_items,
-                    condition=inner_loop_condition,
+        if join_conditions.inner_join:
+            conv = right_collection_conversion.pipe(
+                left_collection.pipe(
+                    InlineExpr(
+                        "((left_item, right_item)"
+                        + " for left_item in {left_items}"
+                        + " for right_item in {right_items}"
+                        + (" if {condition}" if inner_loop_condition else "")
+                        + ")"
+                    ).pass_args(
+                        left_items=GetItem(),
+                        right_items=right_items,
+                        condition=inner_loop_condition,
+                    ),
                 ),
-            ),
-        )
-    else:
-        if left_right_swapped:
+            )
+        else:
+            if left_right_swapped:
 
-            def _left_joiner_swapped(left_to_right_ones_gen):
-                none_ = object()
-                for left_item, right_ones in left_to_right_ones_gen:
-                    right_item = next(right_ones, none_)
-                    if right_item is none_:
-                        yield None, left_item
-                    else:
-                        yield right_item, left_item
-                        for right_item in right_ones:
+                def _left_joiner_swapped(left_to_right_ones_gen):
+                    none_ = object()
+                    for left_item, right_ones in left_to_right_ones_gen:
+                        right_item = next(right_ones, none_)
+                        if right_item is none_:
+                            yield None, left_item
+                        else:
                             yield right_item, left_item
+                            for right_item in right_ones:
+                                yield right_item, left_item
 
-            left_joiner = _left_joiner_swapped
-        else:
+                left_joiner = _left_joiner_swapped
+            else:
 
-            def _left_joiner(left_to_right_ones_gen):
-                none_ = object()
-                for left_item, right_ones in left_to_right_ones_gen:
-                    right_item = next(right_ones, none_)
-                    if right_item is none_:
-                        yield left_item, None
-                    else:
-                        yield left_item, right_item
-                        for right_item in right_ones:
+                def _left_joiner(left_to_right_ones_gen):
+                    none_ = object()
+                    for left_item, right_ones in left_to_right_ones_gen:
+                        right_item = next(right_ones, none_)
+                        if right_item is none_:
+                            yield left_item, None
+                        else:
                             yield left_item, right_item
+                            for right_item in right_ones:
+                                yield left_item, right_item
 
-            left_joiner = _left_joiner
-        conv = right_collection_conversion.pipe(
-            left_collection.pipe(
-                InlineExpr(
-                    "(left_item, (right_item for right_item in {right_items}"
-                    + (" if {condition}" if inner_loop_condition else "")
-                    + "))"
-                    + " for left_item in {left_items}"
-                ).pass_args(
-                    left_items=GetItem(),
-                    right_items=right_items,
-                    condition=inner_loop_condition,
-                ),
-            )
-        ).pipe(left_joiner)
-
-    if join_conditions.outer_join:
-
-        def _add_right_part(left_join_gen, get_by_label_):
-            yielded_right_ids = set()
-            for left_right in left_join_gen:
-                yielded_right_ids.add(id(left_right[1]))
-                yield left_right
-
-            yield from (
-                (None, right)
-                for right in get_by_label_("right_collection")
-                if id(right) not in yielded_right_ids
-            )
-
-        conv = conv.pipe(
-            _add_right_part,
-            get_by_label_=InlineExpr("get_by_label_"),
-        )
-    if join_conditions.pre_filter:
-        conv = If(
-            (
-                And(
-                    join_conditions.pre_filter[0],
-                    join_conditions.pre_filter[1],
-                    *join_conditions.pre_filter[2:],
+                left_joiner = _left_joiner
+            conv = right_collection_conversion.pipe(
+                left_collection.pipe(
+                    InlineExpr(
+                        "(left_item, (right_item "
+                        "for right_item in {right_items}"
+                        + (" if {condition}" if inner_loop_condition else "")
+                        + "))"
+                        + " for left_item in {left_items}"
+                    ).pass_args(
+                        left_items=GetItem(),
+                        right_items=right_items,
+                        condition=inner_loop_condition,
+                    ),
                 )
-                if len(join_conditions.pre_filter) > 1
-                else join_conditions.pre_filter[0]
-            ),
-            conv,
-            [],
+            ).pipe(left_joiner)
+
+        if join_conditions.outer_join:
+
+            def _add_right_part(left_join_gen, labels_):
+                yielded_right_ids = set()
+                for left_right in left_join_gen:
+                    yielded_right_ids.add(id(left_right[1]))
+                    yield left_right
+
+                yield from (
+                    (None, right)
+                    for right in labels_["right_collection"]
+                    if id(right) not in yielded_right_ids
+                )
+
+            conv = conv.pipe(
+                _add_right_part,
+                labels_=EscapedString("labels_"),
+            )
+        if join_conditions.pre_filter:
+            conv = If(
+                (
+                    And(
+                        join_conditions.pre_filter[0],
+                        join_conditions.pre_filter[1],
+                        *join_conditions.pre_filter[2:],
+                    )
+                    if len(join_conditions.pre_filter) > 1
+                    else join_conditions.pre_filter[0]
+                ),
+                conv,
+                CallFunc(list),
+            )
+        code_join = conv.gen_code_and_update_ctx("___TEST___", ctx)
+        if "___TEST___" in code_join:
+            raise AssertionError(
+                "join conversion has a bug, please submit an issue"
+            )
+        converter_name = self.gen_name("join", ctx, self)
+        code_args = self.get_args_def_code(as_kwargs=False)
+        code = f"""
+def {converter_name}(left_, right_{code_args}):
+    global labels_
+    return {code_join}
+        """
+        self._code_to_converter(
+            converter_name=converter_name, code=code, ctx=ctx
         )
-    converter = conv.gen_converter(
-        signature="left, right{}".format(
-            condition.get_args_def_code(as_kwargs=False)
-        ),
-        converter_name="join",
-    )
-    join_conversion = CallFunc(
-        converter,
-        left_conversion,
-        right_conversion,
-        *condition.get_args_as_func_args(),
-    )
-    join_conversion.depends_on(*condition.get_args())
-    return join_conversion
+        join_conversion = EscapedString(converter_name).call(
+            left_conversion,
+            right_conversion,
+            *condition.get_args_as_func_args(),
+        )
+        join_conversion.depends_on(*condition.get_args())
+        return join_conversion.gen_code_and_update_ctx(code_input, ctx)

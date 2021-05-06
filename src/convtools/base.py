@@ -123,9 +123,8 @@ class _ConverterCallableMethod:
 
 
 class CodeGenerationOptions(BaseOptions):
-    labeling = False
-    expressions_only = False
     converter_callable_cls = _ConverterCallable
+    inline_pipes_only = False
 
 
 class CodeGenerationOptionsCtx(BaseCtx):
@@ -136,12 +135,10 @@ class ConverterOptions(BaseOptions):
     """Converter options (+ see default values below):
 
     * ``debug = False`` - same as ``.gen_converter(debug=...)``
-    * ``max_pipe_length = 100``
 
     """
 
     debug = False
-    max_pipe_length = 100
 
 
 class ConverterOptionsCtx(BaseCtx):
@@ -162,14 +159,14 @@ class ConverterOptionsCtx(BaseCtx):
 
 CONVERTER_TEMPLATE = """
 def {converter_name}({code_signature}):
-    global add_label_, get_by_label_
+    global labels_
 {code}
 """
 
 
 GET_OR_DEFAULT_TEMPLATE = """
 def {converter_name}({code_args}):
-    global add_label_, get_by_label_
+    global labels_
     try:
         return {get_or_default_code}
     except (TypeError, KeyError, IndexError, AttributeError):
@@ -227,6 +224,7 @@ class ConversionException(Exception):
 
 
 CT = typing.TypeVar("CT", bound="BaseConversion")
+MT = typing.TypeVar("MT", bound="BaseMutation")
 MCT = typing.TypeVar("MCT", bound="BaseMethodConversion")
 
 
@@ -260,13 +258,11 @@ class BaseConversion(typing.Generic[CT, MCT]):
     counter = count()
     max_counter = 2 ** 30
     valid_pipe_output = True
-    method_calls_override_input = False
-    multi_step_calculation = False
+    method_calls_replace_input_with_self = False
 
     def __init__(self):
         self.number = self._gen_number()
         self._depends_on = {}
-        self._predefined_input = None
 
     def __hash__(self):
         return id(self)
@@ -277,18 +273,8 @@ class BaseConversion(typing.Generic[CT, MCT]):
             BaseConversion.counter = count()
         return number
 
-    @property
-    def max_pipe_length(self):
-        return ConverterOptionsCtx.get_option_value("max_pipe_length")
-
     def _add_dependency(self, dep):
         self._depends_on[dep.number] = dep
-
-    def _delete_dependency(self, dep):
-        del self._depends_on[dep.number]
-
-    def set_dependencies(self, deps):
-        self._depends_on = dict(deps.items())
 
     def depends_on(self, *args):
         for arg in args:
@@ -316,65 +302,18 @@ class BaseConversion(typing.Generic[CT, MCT]):
         clone: CT = self.__class__.__new__(self.__class__)
         clone.__dict__.update(self.__dict__)
         clone.number = self._gen_number()
-        clone.set_dependencies(self._depends_on)
+        clone._depends_on = dict(  # pylint:disable=protected-access
+            self._depends_on
+        )
         return clone
-
-    def _set_predefined_input(self: CT, input_conversion: CT) -> CT:
-        cloned_self = self.clone()
-        cloned_self.depends_on(input_conversion)
-        cloned_self._predefined_input = input_conversion
-        return cloned_self
-
-    def set_predefined_input(self: CT, input_conversion) -> CT:
-        conversions_chain = []
-        conversion = self
-        for _ in range(self.max_pipe_length - 1):
-            conversions_chain.append(conversion)
-            if conversion._predefined_input is None:
-                break
-            conversion = conversion._predefined_input
-        else:
-            raise ConversionException("failed to set predefined_input", self)
-
-        input_conversion = ensure_conversion(input_conversion)
-        dependencies_to_be_dropped = []  # type: typing.List[CT]
-        for conversion in reversed(conversions_chain):
-            # pylint: disable=protected-access
-            input_conversion = conversion._set_predefined_input(
-                input_conversion
-            )
-            for dep in dependencies_to_be_dropped:
-                input_conversion._delete_dependency(dep)
-            dependencies_to_be_dropped.append(conversion)
-        return input_conversion
 
     def gen_code_and_update_ctx(self, code_input, ctx) -> str:
         """The main method which generates the code and stores necessary info
         in the context (which will be passed as locals() and globals() on to
         the exec function).  However you should not override this method
         directly, please implement the `_gen_code_and_update_ctx` one.
-
-        Also there's a tricky thing here: there's a chance every conversion
-        down the pipe has the predefined input set, while we do have the code
-        input which needs to be run (e.g. it has side effects, like adding
-        labels).  Then we attach the code anyway, see below."""
-        code_to_be_attached = None
-        if self._predefined_input is not None:
-            code_input = self._predefined_input.gen_code_and_update_ctx(
-                code_input, ctx
-            )
-            if not If.input_is_simple(code_input):
-                code_to_be_attached = code_input
-        resulting_code = self._gen_code_and_update_ctx(code_input, ctx)
-        if (
-            not self.multi_step_calculation
-            and code_to_be_attached
-            and code_to_be_attached not in resulting_code
-        ):
-            return "({} and None or {})".format(
-                code_to_be_attached, resulting_code
-            )
-        return resulting_code
+        """
+        return self._gen_code_and_update_ctx(code_input, ctx)
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         raise NotImplementedError
@@ -389,7 +328,12 @@ class BaseConversion(typing.Generic[CT, MCT]):
             ctx["_generated_names"] = set()
         prefixed_hash_to_name = ctx["_prefixed_hash_to_name"]
         generated_names = ctx["_generated_names"]
-        prefixed_hash = "{}_{}".format(prefix, str(id(item_to_hash)))
+        try:
+            hash_ = hash(item_to_hash)
+        except TypeError:
+            hash_ = id(item_to_hash)
+        prefixed_hash = "{}_{}".format(prefix, str(hash_))
+
         if prefixed_hash in prefixed_hash_to_name:
             return prefixed_hash_to_name[prefixed_hash]
 
@@ -524,8 +468,6 @@ class BaseConversion(typing.Generic[CT, MCT]):
             "sys": sys,
             "__debug": debug,
             "__name__": "_convtools",
-            "add_label_": labels_.__setitem__,
-            "get_by_label_": labels_.__getitem__,
             "labels_": labels_,
             self.NAME_TO_CODE_INPUT: [{}],
         }
@@ -565,36 +507,12 @@ class BaseConversion(typing.Generic[CT, MCT]):
                 )
             )
 
-        converter_name = self.gen_name(converter_name, ctx, None)
-
-        conv = self
-
-        pipes = [conv]
-        while conv._predefined_input is not None:
-            conv = conv._predefined_input
-            pipes.append(conv)
-
-        last_index = len(pipes) - 1
-        code_input = initial_code_input
         code_lines = []
         indent = " " * 4
-        for index, conv in enumerate(reversed(pipes)):
-            predefined_input = conv._predefined_input
-            conv._predefined_input = None
-            if last_index == 0:
-                with CodeGenerationOptionsCtx() as options:
-                    options.expressions_only = True
-                    code_conv = conv.gen_code_and_update_ctx(code_input, ctx)
-            else:
-                code_conv = conv.gen_code_and_update_ctx(code_input, ctx)
-            conv._predefined_input = predefined_input
+        code_conv = self.gen_code_and_update_ctx(initial_code_input, ctx)
+        code_lines.append(f"{indent}return {code_conv}")
 
-            if index != last_index:
-                code_input = self.gen_name("pipe", ctx, code_input)
-                code_lines.append(f"{indent}{code_input} = {code_conv}")
-            else:
-                code_lines.append(f"{indent}return {code_conv}")
-
+        converter_name = self.gen_name(converter_name, ctx, None)
         converter_code = CONVERTER_TEMPLATE.format(
             code="\n".join(code_lines),
             converter_name=converter_name,
@@ -612,20 +530,49 @@ class BaseConversion(typing.Generic[CT, MCT]):
         """Shortcut for generating converter and running it"""
         return self.gen_converter(debug=debug)(*args, **kwargs)
 
+    def iter(self, element_conv: CT) -> "PipeConversion":
+        """Shortcut for ``self.pipe(c.generator_comp(element_conv))``
+
+        Args:
+          element_conv (object): conversion to be run on each element
+
+        """
+        return self.pipe(GeneratorComp(element_conv))
+
+    def iter_mut(self, *mutations: MT) -> "IterMutConversion":
+        """Conversion which results in a generator of mutated elements
+
+        Args:
+          mutations (BaseMutation): conversion to be run on each element
+
+        """
+        return IterMutConversion(self, *mutations)
+
     def item(self, *args, **kwargs) -> "GetItem":
-        return GetItem(*args, **kwargs).set_predefined_self(self)
+        return GetItem(*args, self_conv=self, **kwargs)
 
     def __getitem__(self, k) -> "GetItem":
         return self.item(k)
 
     def attr(self, *attrs, **kwargs) -> "GetAttr":
-        return GetAttr(*attrs, **kwargs).set_predefined_self(self)
+        return GetAttr(*attrs, self_conv=self, **kwargs)
+
+    def is_itself_callable_like(self) -> typing.Optional[bool]:
+        pass
+
+    def is_itself_callable(self) -> typing.Optional[bool]:
+        pass
+
+    def call_like(self, *args, **kwargs):
+        if self.is_itself_callable_like():
+            return self.call(*args, **kwargs)
+        raise AssertionError("unexpected callable", self)
 
     def call(self, *args, **kwargs) -> "Call":
         """Gets compiled into the code which calls the input with params.
         Each ``*args`` and ``**kwargs`` are wrapped with ``ensure_conversion``.
         """
-        return Call(*args, **kwargs).set_predefined_self(self)
+        return Call(*args, self_conv=self, **kwargs)
 
     def call_method(self, method_name: str, *args, **kwargs) -> "Call":
         """Gets compiled into the code which calls the ``method_name`` method
@@ -747,17 +694,7 @@ class BaseConversion(typing.Generic[CT, MCT]):
 
     def filter(self, condition_conv, cast=None) -> "BaseConversion":
         """Shortcut for calling :py:obj:`convtools.base.Filter` on self"""
-        conversion = Filter(condition_conv, cast=cast)
-        return conversion.set_predefined_input(self)
-
-    def _prepare_labels(self, label_arg):
-        if isinstance(label_arg, str):
-            return {label_arg: GetItem()}
-
-        elif isinstance(label_arg, dict):
-            return label_arg
-
-        raise ConversionException("unexpected label_input type", label_arg)
+        return self.pipe(Filter(condition_conv, cast=cast))
 
     def add_label(
         self, label_name: str, conversion: typing.Optional[typing.Any] = None
@@ -792,64 +729,16 @@ class BaseConversion(typing.Generic[CT, MCT]):
         label_input=None,
         label_output=None,
         **kwargs,
-    ) -> "BaseConversion":
-        """Passes the result of current conversion as an input to the
-        `next_conversion`.
-        If `next_conversion` is callable, it gets called with self as the first
-        param.
-        If piping is done at the top level of a resulting conversion (not
-        nested), then it's going to be represented as several statements.
-
-        Supports labeling both pipe input and output data (allows to apply
-        conversions before labeling).
-
-        Args:
-          next_conversion (object): to be wrapped with
-            :py:obj:`ensure_conversion` and called if callable is passed
-          args (tuple): to be wrapped with :py:obj:`ensure_conversion` and
-            passed to `next_conversion` if it's callable
-          kwargs (dict): to be wrapped with :py:obj:`ensure_conversion` and
-            passed to `next_conversion` if it's callable
-          label_input (str or dict): Labels to be put on pipe input data.
-            If a ``str`` is passed, then it is used as a label name.
-            If a ``dict`` is passed, keys are label names, values
-            are conversions to be applied before labeling.
-          label_output (str or dict): Labels to be put on pipe output data.
-            The rest is all the same as with ``label_input``
-
-        """
-
-        if (
-            isinstance(next_conversion, BaseConversion)
-            and not next_conversion.valid_pipe_output
-        ):
-            raise Exception("invalid pipe output", next_conversion)
-
-        self_to_pass = self
-        next_is_callable = callable(next_conversion)
-        next_conversion = ensure_conversion(next_conversion)
-
-        if label_input:
-            self_to_pass = CachingConversion(self_to_pass)
-            for label_name, conversion in self._prepare_labels(
-                label_input
-            ).items():
-                self_to_pass.add_label(label_name, conversion)
-
-        result = (
-            next_conversion.call(self_to_pass, *args, **kwargs)
-            if next_is_callable
-            else next_conversion.set_predefined_input(self_to_pass)
+    ) -> "PipeConversion":
+        """Shortcut for PipeConversion"""
+        return PipeConversion(
+            self,
+            next_conversion,
+            *args,
+            label_input=label_input,
+            label_output=label_output,
+            **kwargs,
         )
-
-        if label_output:
-            result = CachingConversion(result)
-            for label_name, conversion in self._prepare_labels(
-                label_output
-            ).items():
-                result.add_label(label_name, conversion)
-
-        return result
 
 
 class BaseMutation(BaseConversion):
@@ -862,29 +751,23 @@ class BaseMethodConversion(BaseConversion):
 
     e.g. like obj['key'] OR obj.func() OR obj.attr1"""
 
-    def __init__(self):
+    def __init__(self, self_conv):
         super().__init__()
-        self._predefined_self = None
+        self.self_conv = (
+            None
+            if self_conv is self._none
+            else self.ensure_conversion(self_conv)
+        )
 
-    def set_predefined_self(self: MCT, input_conversion) -> MCT:
-        if self._predefined_self is not None:
-            raise ConversionException("failed to set predefined_input", self)
-
-        input_conversion = ensure_conversion(input_conversion)
-        self.depends_on(input_conversion)
-        self._predefined_self = input_conversion
-        if input_conversion.method_calls_override_input:
-            return self.set_predefined_input(input_conversion)
-        return self
-
-    def get_self_code(self, code_input: str, ctx: dict) -> str:
-        if self._predefined_self is None:
-            code_self = code_input
-        else:
-            code_self = self._predefined_self.gen_code_and_update_ctx(
-                code_input, ctx
-            )
-        return code_self
+    def get_self_and_input_code(
+        self, code_input: str, ctx: dict
+    ) -> typing.Tuple[str, str]:
+        if self.self_conv is None:
+            return (code_input, code_input)
+        self_code = self.self_conv.gen_code_and_update_ctx(code_input, ctx)
+        if self.self_conv.method_calls_replace_input_with_self:
+            code_input = self_code
+        return (self_code, code_input)
 
 
 _pattern_illegal_chars = re.compile("[^0-9a-zA-Z_]")
@@ -946,7 +829,11 @@ class NaiveConversion(BaseConversion):
             return "True"
         if self.value is False:
             return "False"
-        if isinstance(self.value, (int, str)):
+        if (
+            isinstance(self.value, int)
+            or isinstance(self.value, str)
+            and len(self.value) < 255
+        ):
             return repr(self.value)
         value_name = self.value_name or self.gen_name(
             self.name_prefix, ctx, self.value
@@ -954,80 +841,11 @@ class NaiveConversion(BaseConversion):
         ctx[value_name] = self.value
         return value_name
 
+    def is_itself_callable_like(self) -> typing.Optional[bool]:
+        return callable(self.value)
 
-class CachingConversion(BaseConversion):
-    """Caches the result of the passed conversion globally, so it is possible
-    to use the result twice without double evaluation.
-
-    Provides the API to add labels to the result, supports result
-    post-processing."""
-
-    def __init__(self, conversion: typing.Any, name=None):
-        """Takes a conversion to cache its result.
-
-        Args:
-          conversion (BaseConversion or object): to be wrapped with
-            :py:obj:`ensure_conversion` and then its result is cached
-          name (str): optional - it's possible to overwrite internally
-            generated name, which also can be references as a label
-        """
-        super().__init__()
-        self.conversion = self.ensure_conversion(conversion)
-        self.labels: typing.Dict[str, BaseConversion] = {}
-        self._name = name
-
-    @property
-    def name(self) -> str:
-        if self._name is None:
-            self._name = f"cached_val_{self.number}"
-        return self._name
-
-    def add_label(
-        self, label_name: str, conversion: typing.Optional[typing.Any] = None
-    ) -> "CachingConversion":
-        """Adds a label to a result of the cached conversion,
-        received into the ``__init__`` method. The cached result is first
-        processed with ``conversion``.
-
-        Args:
-          label_name (str): name of a label
-          conversion (BaseConversion or object): to be wrapped with
-            :py:obj:`ensure_conversion` and applied to the cached result before
-            the actual labeling
-        Returns:
-          CachingConversion: labeled conversion
-        """
-        if label_name in self.labels or label_name == self._name:
-            raise ConversionException("label_name is already used", label_name)
-        conversion = self.ensure_conversion(
-            GetItem() if conversion is None else conversion
-        )
-        if (
-            self._name is None
-            and isinstance(conversion, GetItem)
-            and not conversion.indexes
-        ):
-            self._name = label_name
-        else:
-            self.labels[label_name] = conversion
-        return self
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        with CodeGenerationOptionsCtx() as options:
-            options.labeling = True
-            code = self.conversion.gen_code_and_update_ctx(code_input, ctx)
-            cache_lines = [f"add_label_('{self.name}', {code})"]
-            output_code = LabelConversion(self.name).gen_code_and_update_ctx(
-                None, ctx
-            )
-            for label_name, label_conversion in self.labels.items():
-                conv_code = label_conversion.gen_code_and_update_ctx(
-                    output_code, ctx
-                )
-                cache_lines.append(f"add_label_('{label_name}', {conv_code})")
-
-        cache_lines_code = " or ".join(cache_lines)
-        return f"({cache_lines_code} or {output_code})"
+    def is_itself_callable(self) -> typing.Optional[bool]:
+        return callable(self.value)
 
 
 class EscapedString(BaseConversion):
@@ -1060,7 +878,7 @@ class InputArg(BaseConversion):
 
 class LabelConversion(InputArg):
     """Allows to reference a conversion result by label, after it was cached by
-    :py:obj:`CachingConversion`."""
+    :py:obj:`PipeConversion` or :py:obj:`BaseConversion.add_label`."""
 
     def __init__(self, label_name: str):
         """
@@ -1071,7 +889,7 @@ class LabelConversion(InputArg):
         self.caching_conversion = None
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return f"get_by_label_('{self.arg_name}')"
+        return f"labels_['{self.arg_name}']"
 
 
 class ConversionWrapper(BaseConversion):
@@ -1194,13 +1012,17 @@ class If(BaseConversion):
         """
         super().__init__()
         self.if_conv = (
-            None if condition is True else self.ensure_conversion(condition)
+            GetItem()
+            if condition is True
+            else self.ensure_conversion(condition)
         )
         self.if_true = (
-            None if if_true is self._none else self.ensure_conversion(if_true)
+            GetItem()
+            if if_true is self._none
+            else self.ensure_conversion(if_true)
         )
         self.if_false = (
-            None
+            GetItem()
             if if_false is self._none
             else self.ensure_conversion(if_false)
         )
@@ -1210,7 +1032,7 @@ class If(BaseConversion):
 
     @classmethod
     def input_is_simple(cls, code_input):
-        if code_input.startswith("(") and code_input.endswith(")"):
+        while code_input.startswith("(") and code_input.endswith(")"):
             code_input = code_input[1:-1]
         if (
             next(cls.symbols_making_expr_complex.finditer(code_input), None)
@@ -1220,32 +1042,24 @@ class If(BaseConversion):
         return False
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        if self.input_is_simple(code_input) or self.no_input_caching:
-            if_conv = if_true = if_false = code_input
-        else:
-            caching_conv = CachingConversion(GetItem())
-            if_conv = caching_conv.gen_code_and_update_ctx(code_input, ctx)
-            if_true = LabelConversion(
-                caching_conv.name
-            ).gen_code_and_update_ctx(None, ctx)
-            if_false = if_true
-
-        if_conv = EscapedString(if_conv)
-        if_true = EscapedString(if_true)
-        if_false = EscapedString(if_false)
-
-        if self.if_conv is not None:
-            if_conv = if_conv.pipe(self.if_conv)
-        if self.if_true is not None:
-            if_true = if_true.pipe(self.if_true)
-        if self.if_false is not None:
-            if_false = if_false.pipe(self.if_false)
-
-        return "({code_if_true} if {code_if} else {code_if_false})".format(
-            code_if_true=(if_true.gen_code_and_update_ctx(code_input, ctx)),
-            code_if=(if_conv.gen_code_and_update_ctx(code_input, ctx)),
-            code_if_false=(if_false.gen_code_and_update_ctx(code_input, ctx)),
-        )
+        if self.no_input_caching:
+            return (
+                InlineExpr("({if_true} if {if_cond} else {if_false})")
+                .pass_args(
+                    if_cond=self.if_conv,
+                    if_true=self.if_true,
+                    if_false=self.if_false,
+                )
+                .gen_code_and_update_ctx(code_input, ctx)
+            )
+        return PipeConversion(
+            EscapedString(code_input),
+            InlineExpr("({if_true} if {if_cond} else {if_false})").pass_args(
+                if_cond=self.if_conv,
+                if_true=self.if_true,
+                if_false=self.if_false,
+            ),
+        ).gen_code_and_update_ctx(None, ctx)
 
 
 class Not(BaseConversion):
@@ -1272,6 +1086,7 @@ class GetItem(BaseMethodConversion):
         self,
         *indexes,
         default=BaseConversion._none,
+        self_conv=BaseConversion._none,
     ):
         """
         Args:
@@ -1279,7 +1094,7 @@ class GetItem(BaseMethodConversion):
           default (:obj:`object`, optional): to be returned on fail,
            like ``{}.get`` method, but now applicable to arrays too
         """
-        super().__init__()
+        super().__init__(self_conv)
         self.indexes = [self.ensure_conversion(index) for index in indexes]
         self.default = (
             self.ensure_conversion(default)
@@ -1291,7 +1106,7 @@ class GetItem(BaseMethodConversion):
         return f"{code_input}[{path_item}]"
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        code_self = self.get_self_code(code_input, ctx)
+        code_self, code_input = self.get_self_and_input_code(code_input, ctx)
         if self.default is None:
             code_output = code_self
             for index in self.indexes:
@@ -1362,15 +1177,15 @@ class Call(BaseMethodConversion):
 
     symbols_to_filter_out = re.compile(r"\W")
 
-    def __init__(self, *args, **kwargs):
-        super().__init__()
+    def __init__(self, *args, self_conv=BaseConversion._none, **kwargs):
+        super().__init__(self_conv)
         self.args = [self.ensure_conversion(arg) for arg in args]
         self.kwargs = {
             k: self.ensure_conversion(v) for k, v in (kwargs or {}).items()
         }
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        code_self = self.get_self_code(code_input, ctx)
+        code_self, code_input = self.get_self_and_input_code(code_input, ctx)
 
         params = [
             param.gen_code_and_update_ctx(code_input, ctx)
@@ -1461,6 +1276,12 @@ class InlineExpr(BaseConversion):
             },
         )
         return f"({code})"
+
+    def is_itself_callable_like(self) -> typing.Optional[bool]:
+        return True
+
+    def call_like(self, *args, **kwargs):
+        return self.pass_args(*args, **kwargs)
 
 
 class BaseComprehensionConversion(BaseConversion):
@@ -1666,6 +1487,7 @@ class BaseCollectionConversion(BaseConversion):
         code_args = self.get_args_def_code(as_kwargs=False)
         code = f"""
 def {converter_name}(data_{code_args}):
+    global labels_
 {code_lines}
         """
         generator_converter = self._code_to_converter(
@@ -1878,9 +1700,185 @@ class Dict(BaseCollectionConversion):
         return "{%s}" % joined_items_code
 
 
+class PipeConversion(BaseConversion):
+    """Passes the result of one conversion as an input to another.  If
+    `next_conversion` is callable, it gets called with the previous result
+    passed as the first param.
+
+    Supports labeling both pipe input and output data (allows to apply
+    conversions before labeling)."""
+
+    def __init__(
+        self,
+        what,
+        where,
+        *args,
+        label_input=None,
+        label_output=None,
+        **kwargs,
+    ):
+        """
+
+        Args:
+          next_conversion (object): to be wrapped with
+            :py:obj:`ensure_conversion` and called if callable is passed
+          args (tuple): to be wrapped with :py:obj:`ensure_conversion` and
+            passed to `next_conversion` if it's callable
+          kwargs (dict): to be wrapped with :py:obj:`ensure_conversion` and
+            passed to `next_conversion` if it's callable
+          label_input (str or dict): Labels to be put on pipe input data.
+            If a ``str`` is passed, then it is used as a label name.
+            If a ``dict`` is passed, keys are label names, values
+            are conversions to be applied before labeling.
+          label_output (str or dict): Labels to be put on pipe output data.
+            The rest is all the same as with ``label_input``
+        """
+        super().__init__()
+        if (
+            CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+        ) and (label_input or label_output):
+            raise AssertionError(
+                "inline pipes requested: no labeling is supported"
+            )
+
+        self.what = self.ensure_conversion(what)
+        self.where = self.ensure_conversion(where)
+        if not self.where.valid_pipe_output:
+            raise ValueError("invalid output, check where conversion")
+        self.replace_where_with_called_one = self.where.is_itself_callable()
+        if not self.replace_where_with_called_one and (args or kwargs):
+            raise AssertionError(
+                "args or kwargs won't be used when 'where' is not callable"
+            )
+
+        self.args = tuple(self.ensure_conversion(arg) for arg in args)
+        self.kwargs = {k: self.ensure_conversion(v) for k, v in kwargs.items()}
+        self.label_input = (
+            label_input
+            if label_input is None
+            else self._prepare_labels(label_input)
+        )
+        self.label_output = (
+            label_output
+            if label_output is None
+            else self._prepare_labels(label_output)
+        )
+
+    def _prepare_labels(self, label_arg: typing.Union[str, dict]):
+        if isinstance(label_arg, str):
+            return {label_arg: GetItem()}
+
+        elif isinstance(label_arg, dict):
+            return {
+                label_name: self.ensure_conversion(conv)
+                for label_name, conv in label_arg.items()
+            }
+
+        raise ConversionException(
+            "unexpected label_input type", type(label_arg), label_arg
+        )
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        var_input = self.gen_name("input", ctx, self)
+        what_code = self.what.gen_code_and_update_ctx(code_input, ctx)
+        pipe_to_be_inlined = (
+            If.input_is_simple(what_code)
+            and self.label_input is None
+            and self.label_output is None
+        ) or CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+        if self.replace_where_with_called_one:
+            where = self.where.call(
+                EscapedString(what_code)
+                if pipe_to_be_inlined
+                else EscapedString(var_input),
+                *self.args,
+                **self.kwargs,
+            )
+        else:
+            where = self.where
+
+        if pipe_to_be_inlined:
+            return where.gen_code_and_update_ctx(what_code, ctx)
+
+        converter_name = self.gen_name("pipe", ctx, self)
+        var_result = self.gen_name("result", ctx, self)
+
+        code_args = where.get_args_def_code()
+        where_args = where.get_args_as_func_args()
+        where_code = where.gen_code_and_update_ctx(var_input, ctx)
+
+        # input hasn't been used twice or more, input doesn't define/use any
+        # labels, so we can inline anyway
+        still_can_be_inlined = (
+            where_code.count(var_input) < 2
+            and self.label_input is None
+            and self.label_output is None
+        ) and not ("labels_[" in what_code or "pipe_" in what_code)
+        if still_can_be_inlined:
+            return where_code.replace(var_input, what_code)
+
+        if self.label_input or self.label_output:
+            label_input_code = (
+                "\n".join(
+                    "    labels_['{var_label}'] = {code_label}".format(
+                        var_label=label_name,
+                        code_label=label_conv.gen_code_and_update_ctx(
+                            var_input, ctx
+                        ),
+                    )
+                    for label_name, label_conv in self.label_input.items()
+                )
+                if self.label_input
+                else "    pass"
+            )
+            label_output_code = (
+                "\n".join(
+                    "    labels_['{var_label}'] = {code_label}".format(
+                        var_label=label_name,
+                        code_label=label_conv.gen_code_and_update_ctx(
+                            var_result, ctx
+                        ),
+                    )
+                    for label_name, label_conv in self.label_output.items()
+                )
+                if self.label_output
+                else "    pass"
+            )
+            code = f"""
+def {converter_name}({var_input}{code_args}):
+    global labels_
+{label_input_code}
+    {var_result} = {where_code}
+{label_output_code}
+    return {var_result}
+        """
+        else:
+            code = f"""
+def {converter_name}({var_input}{code_args}):
+    global labels_
+    return {where_code}
+        """
+
+        # no need in catching the function, we'll just use it by the name
+        self._code_to_converter(
+            converter_name=converter_name,
+            code=code,
+            ctx=ctx,
+        )
+
+        return (
+            EscapedString(converter_name)
+            .call(
+                EscapedString(what_code),
+                *where_args,
+            )
+            .gen_code_and_update_ctx(None, ctx)
+        )
+
+
 class TapConversion(BaseConversion):
-    """This conversion generates the code which mutates the input date in-place.
-    TapConversion takes any number of mutations"""
+    """This conversion generates the code which mutates the input data
+    in-place.  TapConversion takes any number of mutations"""
 
     def __init__(self, obj, *mutations: BaseMutation):
         super().__init__()
@@ -1891,7 +1889,7 @@ class TapConversion(BaseConversion):
         ]
 
     code_template = """
-def {f_name}(data_{code_args}):
+def {converter_name}(data_{code_args}):
 {mut_stmts}
     return data_
 """
@@ -1906,13 +1904,51 @@ def {f_name}(data_{code_args}):
             for mut in self.mutations
         ]
         code = self.code_template.format(
-            f_name=converter_name,
+            converter_name=converter_name,
             code_args=self.get_args_def_code(
                 as_kwargs=False, exclude_labels=True
             ),
             mut_stmts="\n".join(mut_stmts),
         )
-        converter = self._code_to_converter(converter_name, code, ctx)
-        return CallFunc(
-            converter, EscapedString(obj_code), *self.get_args_as_func_args()
-        ).gen_code_and_update_ctx(code_input, ctx)
+        self._code_to_converter(converter_name, code, ctx)
+        return (
+            EscapedString(converter_name)
+            .call(EscapedString(obj_code), *self.get_args_as_func_args())
+            .gen_code_and_update_ctx(code_input, ctx)
+        )
+
+
+class IterMutConversion(TapConversion):
+    """This conversion generates the code which iterates and mutates the
+    elements in-place. The result is a generator.
+    IterMutConversion takes any number of mutations"""
+
+    code_template = """
+def {converter_name}(data_{code_args}):
+    for item_ in data_:
+{mut_stmts}
+        yield item_
+"""
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        converter_name = self.gen_name("iter_mut", ctx, self)
+        obj_code = self.obj.gen_code_and_update_ctx(code_input, ctx)
+        mut_stmts = [
+            self.indent_statements(
+                mut.gen_code_and_update_ctx("item_", ctx), 2
+            )
+            for mut in self.mutations
+        ]
+        code = self.code_template.format(
+            converter_name=converter_name,
+            code_args=self.get_args_def_code(
+                as_kwargs=False, exclude_labels=True
+            ),
+            mut_stmts="\n".join(mut_stmts),
+        )
+        self._code_to_converter(converter_name, code, ctx)
+        return (
+            EscapedString(converter_name)
+            .call(EscapedString(obj_code), *self.get_args_as_func_args())
+            .gen_code_and_update_ctx(code_input, ctx)
+        )
