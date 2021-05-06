@@ -4,7 +4,7 @@
 Features
 ++++++++
 
-`#26 <https://github.com/itechart/convtools/issues/25>`_
+`#26 <https://github.com/itechart/convtools/issues/26>`_
 
 - reimplemented pipes as a separate conversion + smart inlining
 - now pipes are the only conversions which take care of adding labels
