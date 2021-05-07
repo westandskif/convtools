@@ -277,3 +277,16 @@ def test_median_with_group_by(series):
             for key in ordered_set(x[0] for x in series)
         ],
     )
+
+
+def test_multiple_aggregations(dict_series):
+    assert (
+        c.aggregate(c.ReduceFuncs.Array(c.item("name")))
+        .pipe(
+            c.aggregate(c.ReduceFuncs.ArrayDistinct(c.this())).pipe(
+                c.aggregate(c.ReduceFuncs.Max(c.this()))
+            )
+        )
+        .execute(dict_series, debug=True)
+        == "Nick"
+    )

@@ -1,3 +1,15 @@
+0.11.1 (2021-05-07)
+-------------------
+
+Bugfix
+++++++
+
+- fixed complex conversion cases where there are multiple aggregations
+  `#27 <https://github.com/itechart/convtools/issues/27>`_
+
+----
+
+
 0.11.0 (2021-05-06)
 -------------------
 

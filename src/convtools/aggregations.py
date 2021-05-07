@@ -302,13 +302,13 @@ class BaseReducer(BaseConversion, typing.Generic[RBT]):
         raise NotImplementedError
 
     def _add_dependency(self, dep):
-        if isinstance(dep, BaseReducer):
+        if isinstance(dep, (BaseReducer, GroupBy)):
             raise ValueError("nested aggregation", self.__dict__)
         return super()._add_dependency(dep)
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         reducer_name = self.gen_name("reducer", ctx, (self.number, code_input))
-        reducers_info = ctx.setdefault("_reducers_info", [])
+        reducers_info = ctx["_reducers_info"]
         reducers_info.append(
             {
                 "code_input": code_input,
@@ -674,6 +674,10 @@ class GroupBy(BaseConversion, typing.Generic[CT]):
                 }
             )
 
+        if "_reducers_info" in ctx:
+            raise AssertionError("it's a bug, please submit an issue")
+        ctx["_reducers_info"] = []
+
         # populates reducers with their code inputs
         with CodeGenerationOptionsCtx() as options:
             options.inline_pipes_only = True
@@ -681,10 +685,7 @@ class GroupBy(BaseConversion, typing.Generic[CT]):
                 var_row, ctx
             )
 
-        if "_reducers_info" in ctx:
-            reducers_info = ctx["_reducers_info"]
-        else:
-            reducers_info = {}
+        reducers_info = ctx.pop("_reducers_info")
 
         def gen_agg_data_value(value_index):
             if aggregate_mode:

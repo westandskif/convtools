@@ -962,7 +962,11 @@ def test_base_reducer():
 
     with pytest.raises(ValueError):
         c.aggregate(
-            (c.ReduceFuncs.Sum(c.reduce(c.ReduceFuncs.Count)),)
+            c.ReduceFuncs.Sum(c.reduce(c.ReduceFuncs.Count))
+        ).gen_converter()
+    with pytest.raises(ValueError):
+        c.aggregate(
+            c.ReduceFuncs.Sum(c.group_by(c.item(0)).aggregate(c.item(0)))
         ).gen_converter()
 
     conv = c.aggregate(
