@@ -12,7 +12,7 @@ from .base import (
     Dict,
     DictComp,
     EscapedString,
-    Filter,
+    FilterConversion,
     GeneratorComp,
     GetAttr,
     GetItem,
@@ -28,6 +28,7 @@ from .base import (
     Or,
     Set,
     SetComp,
+    SortConversion,
     Tuple,
     TupleComp,
     ensure_conversion,
@@ -81,7 +82,8 @@ class _Conversion:
     attr = GetAttr
     call_func = staticmethod(CallFunc)
 
-    filter = staticmethod(Filter)
+    filter = FilterConversion
+    sort = SortConversion
 
     #: Shortcut to `InputArg`
     input_arg = InputArg

@@ -409,25 +409,27 @@ Next:
         pipe80_338 = data_.items()
         return ((key, item) for key, items in pipe80_338 for item in items if key)
 
-7. Filters, pipes, labels and conditions
-________________________________________
+7. Filters, sorting, pipes, labels and conditions
+_________________________________________________
 
 Points to learn:
 
  0. :ref:`c.iter<ref_c_iter>` iterates through an iterable, applying conversion
      to each element
- 1. :ref:`c.filter<ref_c_filter>` iterates through an iterable, filtering it
-    by a passed conversion, taking items for which the conversion resolves to true
- 2. :ref:`(...).pipe<ref_pipes>` chains two conversions by passing the result of
+ 1. :ref:`c.filter<ref_c_filter>` iterates through an iterable, filtering it by
+     a passed conversion, taking items for which the conversion resolves to
+     true
+ 2. :ref:`c.sort<ref_c_sort>` passes the input to :py:obj:`sorted`
+ 3. :ref:`(...).pipe<ref_pipes>` chains two conversions by passing the result of
     the first one to the second one. If piping is done at the top level of a
     resulting conversion (not nested), then it's going to be represented as
     several statements in the resulting code.
- 3. :ref:`c.if_<ref_c_conditions>` allows to build ``1 if a else 2`` expressions.
+ 4. :ref:`c.if_<ref_c_conditions>` allows to build ``1 if a else 2`` expressions.
     It's possible to pass not every parameter:
 
       * if a condition is not passed, then the input is used as a condition
       * if any branch is not passed, then the input is passed untouched
- 4. :ref:`labels<ref_labels>` extend pipe and regular conversions
+ 5. :ref:`labels<ref_labels>` extend pipe and regular conversions
     functionality:
 
       * ``(...).add_label("first_el", c.item(0))`` allows to apply
@@ -757,6 +759,7 @@ _____________
 
 Alongside pipes, there's a way to tap into any conversion and define
 mutation of its result by using:
+
  * :ref:`c.iter_mut(*mutations)<ref_c_iter_mut>`
  * :ref:`c.tap(*mutations)<ref_mutations>`
 

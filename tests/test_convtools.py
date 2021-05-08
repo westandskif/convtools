@@ -1,4 +1,5 @@
 import linecache
+import types
 from collections import namedtuple
 from datetime import date
 from unittest.mock import MagicMock, Mock
@@ -502,21 +503,31 @@ def test_manually_defined_reducers():
         {"name": "Nick", "category": "Games", "debit": 18, "balance": 32},
         {"name": "Bill", "category": "Games", "debit": 18, "balance": 120},
     ]
-    grouper = (
-        c.group_by(c.item("name"))
-        .aggregate(
-            c.reduce(
-                lambda a, b: a + b,
-                c.item(c.input_arg("group_key")),
-                initial=int,
-                default=int,
-            )
+    grouper_base = c.group_by(c.item("name")).aggregate(
+        c.reduce(
+            lambda a, b: a + b,
+            c.item(c.input_arg("group_key")),
+            initial=int,
+            default=int,
         )
-        .filter(c.this() > 20)
-        .gen_converter(signature="data_, group_key='debit'")
+    )
+    grouper = grouper_base.filter(c.this() > 20).gen_converter(
+        signature="data_, group_key='debit'", debug=True
+    )
+    result = grouper(data)
+    assert isinstance(result, types.GeneratorType)
+    assert list(result) == [540, 25]
+    assert list(grouper(data, group_key="balance")) == [82, 120]
+
+    grouper = grouper_base.filter((c.this() > 20), cast=list).gen_converter(
+        signature="data_, group_key='debit'", debug=True
     )
     assert grouper(data) == [540, 25]
-    assert grouper(data, group_key="balance") == [82, 120]
+
+    grouper = grouper_base.filter((c.this() > 20), cast=set).gen_converter(
+        signature="data_, group_key='debit'", debug=True
+    )
+    assert grouper(data, group_key="balance") == {82, 120}
 
 
 def test_grouping():

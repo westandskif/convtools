@@ -1,3 +1,15 @@
+0.11.2 (2021-05-08)
+-------------------
+
+Misc
+++++
+
+- implemented ``GroupBy.filter``, which returns generator of results without
+  creating an intermediate list
+
+----
+
+
 0.11.1 (2021-05-07)
 -------------------
 
@@ -23,6 +35,12 @@ Features
 - introduced ``c.iter``: shortcut for ``self.pipe(c.generator_comp(element_conv))``
 - introduced ``c.iter_mut``: generates the code which iterates and mutates the
   elements in-place. The result is a generator.
+
+Bugfix
+++++++
+
+- fixed ``GroupBy.filter`` method to return generator by default, instead of
+  list
 
 ----
 

@@ -224,8 +224,6 @@ class ConversionException(Exception):
 
 
 CT = typing.TypeVar("CT", bound="BaseConversion")
-MT = typing.TypeVar("MT", bound="BaseMutation")
-MCT = typing.TypeVar("MCT", bound="BaseMethodConversion")
 
 
 class _None:
@@ -235,7 +233,7 @@ class _None:
     pass
 
 
-class BaseConversion(typing.Generic[CT, MCT]):
+class BaseConversion(typing.Generic[CT]):
     """This is the base class  of every conversion (so you are not going to use
     this directly).
 
@@ -291,7 +289,7 @@ class BaseConversion(typing.Generic[CT, MCT]):
             deps = (dep for dep in deps if not isinstance(dep, exclude_types))
         return deps
 
-    def ensure_conversion(self, conversion, **kwargs) -> CT:
+    def ensure_conversion(self, conversion, **kwargs) -> "BaseConversion":
         """Runs ensure_conversion on the input object and adds the resulting
         conversion to the list of dependencies"""
         conversion = ensure_conversion(conversion, **kwargs)
@@ -530,7 +528,7 @@ class BaseConversion(typing.Generic[CT, MCT]):
         """Shortcut for generating converter and running it"""
         return self.gen_converter(debug=debug)(*args, **kwargs)
 
-    def iter(self, element_conv: CT) -> "PipeConversion":
+    def iter(self, element_conv: "BaseConversion") -> "BaseConversion":
         """Shortcut for ``self.pipe(c.generator_comp(element_conv))``
 
         Args:
@@ -539,7 +537,7 @@ class BaseConversion(typing.Generic[CT, MCT]):
         """
         return self.pipe(GeneratorComp(element_conv))
 
-    def iter_mut(self, *mutations: MT) -> "IterMutConversion":
+    def iter_mut(self, *mutations: "BaseMutation") -> "IterMutConversion":
         """Conversion which results in a generator of mutated elements
 
         Args:
@@ -693,12 +691,18 @@ class BaseConversion(typing.Generic[CT, MCT]):
         return self.floor_div(b)
 
     def filter(self, condition_conv, cast=None) -> "BaseConversion":
-        """Shortcut for calling :py:obj:`convtools.base.Filter` on self"""
-        return self.pipe(Filter(condition_conv, cast=cast))
+        """Shortcut for calling :py:obj:`convtools.base.FilterConversion` on
+        self"""
+        return self.pipe(FilterConversion(condition_conv, cast=cast))
+
+    def sort(self, key=None, reverse=False) -> "BaseConversion":
+        """Shortcut for calling :py:obj:`convtools.base.SortConversion` on
+        self"""
+        return self.pipe(SortConversion(key=key, reverse=reverse))
 
     def add_label(
         self, label_name: str, conversion: typing.Optional[typing.Any] = None
-    ):
+    ) -> "BaseConversion":
         """Wraps the conversion into :py:obj:`LabelConversion` to allow further
         reuse.
 
@@ -729,7 +733,7 @@ class BaseConversion(typing.Generic[CT, MCT]):
         label_input=None,
         label_output=None,
         **kwargs,
-    ) -> "PipeConversion":
+    ) -> "BaseConversion":
         """Shortcut for PipeConversion"""
         return PipeConversion(
             self,
@@ -1204,30 +1208,65 @@ def CallFunc(func, *args, **kwargs):
     return NaiveConversion(func).call(*args, **kwargs)
 
 
-def Filter(condition_conv, cast=None) -> BaseConversion:
+class FilterConversion(BaseConversion):
     """Generates the code to iterate the input, taking items for which the
-    provided conversion resolves to a truth value.
+    provided conversion resolves to a truth value."""
 
-    Args:
-      condition_conv (object): to be wrapped with :py:obj:`ensure_conversion`
-        and used on each item of a collection to filter it
-      cast (callable): to wrap the generator of filtered items
-    Returns:
-      BaseConversion: the generator of filtered items, wrapped with `cast`
-      if provided
-    """
-    if cast is None:
-        return GeneratorComp(GetItem()).filter(condition_conv)
-    if cast is list:
-        return ListComp(GetItem()).filter(condition_conv)
-    if cast is tuple:
-        return TupleComp(GetItem()).filter(condition_conv)
-    if cast is set:
-        return SetComp(GetItem()).filter(condition_conv)
-    if callable(cast):
-        gen = GeneratorComp(GetItem()).filter(condition_conv)
-        return NaiveConversion(cast).call(gen)
-    raise AssertionError("cannot cast generator to cast={}".format(cast))
+    def __init__(self, condition_conv, cast=None):
+        """
+        Args:
+          condition_conv (object): to be wrapped with
+            :py:obj:`ensure_conversion` and used on each item of a collection
+            to filter it
+          cast (callable): to wrap the generator of filtered items
+        Returns:
+          BaseConversion: the generator of filtered items, wrapped with `cast`
+          if provided
+        """
+        super().__init__()
+        if cast is None:
+            result = GeneratorComp(GetItem()).filter(condition_conv)
+        elif cast is list:
+            result = ListComp(GetItem()).filter(condition_conv)
+        elif cast is tuple:
+            result = TupleComp(GetItem()).filter(condition_conv)
+        elif cast is set:
+            result = SetComp(GetItem()).filter(condition_conv)
+        elif callable(cast):
+            gen = GeneratorComp(GetItem()).filter(condition_conv)
+            result = NaiveConversion(cast).call(gen)
+        else:
+            raise AssertionError(
+                "cannot cast generator to cast={}".format(cast)
+            )
+        self.conversion = self.ensure_conversion(result)
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return self.conversion.gen_code_and_update_ctx(code_input, ctx)
+
+
+class SortConversion(BaseConversion):
+    """Generates the code to sort the input."""
+
+    def __init__(self, key=None, reverse=False):
+        """
+        Args:
+          key (callable): to be passed to :py:obj:`sorted`
+          reverse (bool): to be passed to :py:obj:`sorted`
+        """
+        super().__init__()
+        self.sorted_kwargs = {}
+        if key is not None:
+            self.sorted_kwargs["key"] = key
+        if reverse:
+            self.sorted_kwargs["reverse"] = reverse
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return (
+            NaiveConversion(sorted)
+            .call(EscapedString(code_input), **self.sorted_kwargs)
+            .gen_code_and_update_ctx("NOT_NEEDED_OR_BUG", ctx)
+        )
 
 
 class InlineExpr(BaseConversion):
@@ -1320,7 +1359,7 @@ class BaseComprehensionConversion(BaseConversion):
         )
         return self_clone
 
-    def sort(self, key=None, reverse=False):
+    def sort(self, key=None, reverse=False) -> "BaseConversion":
         """
         Args:
           key (object): to be wrapped with
@@ -1416,7 +1455,7 @@ class SetComp(BaseComprehensionConversion):
     def gen_comprehension_pre_sort(self, generator_code, ctx):
         return "{%s}" % generator_code
 
-    def sort(self, key=None, reverse=False):
+    def sort(self, key=None, reverse=False) -> "BaseConversion":
         raise ConversionException("attempt to build sorted set")
 
 

@@ -5,12 +5,12 @@ from collections import defaultdict
 from functools import reduce as functools_reduce
 
 from .base import (
-    CT,
     BaseConversion,
     CallFunc,
     CodeGenerationOptionsCtx,
     ConversionException,
     EscapedString,
+    FilterConversion,
     GetItem,
     InlineExpr,
     List,
@@ -57,7 +57,7 @@ class ReduceBlock:
         self.var_agg_data_value = var_agg_data_value
         return self
 
-    def union(self, reduce_block: RBT):
+    def union(self, reduce_block: RBT) -> RBT:
         clone = self.__class__.__new__(self.__class__)
         clone.__dict__.update(self.__dict__)
         clone.reduce_initial = (
@@ -237,9 +237,7 @@ def {converter_name}(data_{code_args}):
         {var_agg_data} = {var_signature_to_agg_data}[{code_signature}]
 {code_reduce_blocks}
 
-    result_ = {code_result}
-    {code_sorting}
-    return result_
+{code_result}
 """
 AGGREGATE_TEMPLATE = """
 def {converter_name}(data_{code_args}):
@@ -255,9 +253,7 @@ def {converter_name}(data_{code_args}):
     for {var_row} in it_:
 {code_reduce_blocks_no_init}
 
-    result_ = {code_result}
-    {code_sorting}
-    return result_
+{code_result}
 """
 
 
@@ -567,7 +563,7 @@ class Reduce(BaseReducer):
         return block_cls(unconditional_init=self.unconditional_init, **kwargs)
 
 
-class GroupBy(BaseConversion, typing.Generic[CT]):
+class GroupBy(BaseConversion):
     """Generates the function which aggregates the data, grouping by
     conversions, specified in `__init__` method and returns list of items in a
     format defined by the parameter passed to ``aggregate`` method.
@@ -593,10 +589,10 @@ class GroupBy(BaseConversion, typing.Generic[CT]):
         """
         super().__init__()
         self.by = [self.ensure_conversion(by_) for by_ in by]
-        self.agg_result: typing.Optional[CT] = None
-        self.sort_key = False
-        self.sort_key_reverse = None
+        self.agg_result: typing.Optional[BaseConversion] = None
         self.aggregate_mode = len(self.by) == 0
+        self.filter_conversion = None
+        self.filter_cast = None
 
     def aggregate(
         self, reducer: typing.Union[dict, list, set, tuple, BaseConversion]
@@ -609,20 +605,14 @@ class GroupBy(BaseConversion, typing.Generic[CT]):
             raise AssertionError("unexpected reducer type", type(reducer))
         return self_clone
 
-    def filter(self, condition_conv, cast=_none) -> BaseConversion:
-        """Same as :py:obj:`convtools.base.BaseComprehensionConversion.filter`.
-        The only exception is that it works with results, not initial items."""
-        cast = list if cast is self._none else cast
-        return super().filter(condition_conv, cast=cast)
-
-    def sort(self, key=None, reverse=False) -> "GroupBy":
-        """Same as :py:obj:`convtools.base.BaseComprehensionConversion.sort`.
-        The only exception is that it works with results, not initial items."""
-        if self.sort_key is not False:
-            raise AssertionError("sort has already been called")
+    def filter(self, condition_conv, cast=None) -> "BaseConversion":
+        if self.aggregate_mode or self.filter_conversion is not None:
+            return super().filter(condition_conv, cast=cast)
         self_clone = self.clone()
-        self_clone.sort_key = key
-        self_clone.sort_key_reverse = reverse
+        self_clone.filter_conversion = self_clone.ensure_conversion(
+            condition_conv
+        )
+        self_clone.filter_cast = cast
         return self_clone
 
     def _gen_agg_data_container(self, number_of_reducers, initial_val=_none):
@@ -754,24 +744,30 @@ class GroupBy(BaseConversion, typing.Generic[CT]):
                 "neither group by key nor a field used in a reducer",
                 code_agg_result,
             )
-
-        if not self.aggregate_mode:
-            code_agg_result = (
-                f"[{code_agg_result} "
-                f"for {var_signature}, {var_agg_data} "
-                f"in {var_signature_to_agg_data}.items()]"
-            )
-
-        if self.sort_key is not False:
-            code_sorting = (
-                EscapedString("result_")
-                .call_method(
-                    "sort", key=self.sort_key, reverse=self.sort_key_reverse
-                )
-                .gen_code_and_update_ctx("", ctx)
-            )
+        if self.aggregate_mode:
+            code_agg_result = f"    return {code_agg_result}"
         else:
-            code_sorting = ""
+            if self.filter_conversion is None:
+                code_agg_result = (
+                    f"    return [{code_agg_result} "
+                    f"for {var_signature}, {var_agg_data} "
+                    f"in {var_signature_to_agg_data}.items()]"
+                )
+            else:
+                code_filtered_result = FilterConversion(
+                    self.filter_conversion,
+                    self.filter_cast,
+                ).gen_code_and_update_ctx("result_", ctx)
+                code_agg_result = (
+                    f"    result_ = ({code_agg_result} "
+                    f"for {var_signature}, {var_agg_data} "
+                    f"in {var_signature_to_agg_data}.items())\n"
+                    f"    filtered_result_ = {code_filtered_result}\n"
+                ) + (
+                    "    yield from filtered_result_"
+                    if self.filter_cast is None
+                    else "    return filtered_result_"
+                )
 
         agg_template_kwargs = dict(
             code_args=self.get_args_def_code(as_kwargs=False),
@@ -780,7 +776,6 @@ class GroupBy(BaseConversion, typing.Generic[CT]):
             ),
             code_reduce_blocks=reduce_blocks.to_code(),
             code_result=code_agg_result,
-            code_sorting=code_sorting,
             var_row=var_row,
         )
 

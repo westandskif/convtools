@@ -30,9 +30,14 @@ Contents
 .. toctree::
    :maxdepth: 1
 
+   Changelog <changelog>
+   Incompatible Changes <incompatible_changes>
+
+.. toctree::
+   :maxdepth: 1
+
    License <license>
    Authors <authors>
-   Changelog <changelog>
    Module Reference <api/modules>
 
 Indices and tables

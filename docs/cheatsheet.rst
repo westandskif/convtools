@@ -154,6 +154,20 @@ __________________________________________________
  * - in
    - out
    - conversion
+
+ * - .. code-block:: python
+
+      input_data = [3, 2, 1]
+
+   - .. code-block:: python
+
+      # just sort the list
+      result = [1, 2, 3]
+
+   - .. code-block:: python
+
+      c.this().sort().execute(input_data)
+
  * - .. code-block:: python
 
       input_data = [1, 2, 3]

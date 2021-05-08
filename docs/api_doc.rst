@@ -371,6 +371,15 @@ c.filter
 .. automethod:: convtools.base.BaseConversion.filter
    :noindex:
 
+.. _ref_c_sort:
+
+c.sort
+======
+
+.. automethod:: convtools.conversion.sort
+   :noindex:
+.. automethod:: convtools.base.BaseConversion.sort
+   :noindex:
 
 .. _ref_labels:
 
@@ -452,9 +461,6 @@ c.group_by
      :noindex:
 
   .. automethod:: convtools.aggregations.GroupBy.filter
-     :noindex:
-
-  .. automethod:: convtools.aggregations.GroupBy.sort
      :noindex:
 
 

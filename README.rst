@@ -461,7 +461,7 @@ All-in-one example #2: word count
         take_top_n = (
             c.this()
             .call_method("items")
-            .pipe(sorted, key=lambda t: t[1], reverse=True)
+            .sort(key=lambda t: t[1], reverse=True)
             .pipe(c.this()[: c.input_arg("top_n")])
             .as_type(dict)
         )

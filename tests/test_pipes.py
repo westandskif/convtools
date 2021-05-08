@@ -121,3 +121,16 @@ def test_iter_method():
         (0, 200),
         (100, 700),
     ]
+
+
+def test_pipe_filter_sort():
+    assert (
+        c.this()
+        .as_type(list)
+        .pipe(c.iter(c.this() + 1))
+        .filter(c.this() > 3)
+        .sort(key=lambda x: x, reverse=True)
+        .execute(range(7), debug=True)
+    ) == [7, 6, 5, 4]
+
+    assert c.this().sort().execute([3, 1, 2]) == [1, 2, 3]
