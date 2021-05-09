@@ -493,6 +493,19 @@ def test_filter():
     ]
 
 
+def test_sort():
+    assert c.sort().execute([2, 3, 1]) == [1, 2, 3]
+    assert c.sort(key=lambda x: x, reverse=True).execute([2, 3, 1]) == [
+        3,
+        2,
+        1,
+    ]
+    assert c.this().sort().execute([2, 3, 1]) == [1, 2, 3]
+    assert c.this().sort(key=lambda x: x, reverse=False).execute(
+        [2, 3, 1]
+    ) == [1, 2, 3]
+
+
 def test_manually_defined_reducers():
     data = [
         {"name": "John", "category": "Games", "debit": 10, "balance": 90},

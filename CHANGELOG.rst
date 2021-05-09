@@ -1,6 +1,14 @@
 0.11.2 (2021-05-08)
 -------------------
 
+
+Features
+++++++++
+
+- introduced ``c.sort``  & ``(...).sort`` conversions, which are helpers for
+  ``sorted``; this is done for the sake of unification with methods of
+  comprehension conversions
+
 Misc
 ++++
 
