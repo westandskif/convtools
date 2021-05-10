@@ -329,13 +329,10 @@ Next:
     * ``c.set_comp``
     * ``c.tuple_comp``, see :ref:`comprehensions section<ref_comprehensions>` for details:
 
-  2. every comprehension, except ``c.set_comp`` supports sorting by calling e.g.
-     ``c.list_comp(...).sort(key=None, reverse=False)``
+  2. every comprehension supports if clauses to filter input:
+     ``c.list_comp(..., where=condition_conv)``
 
-  3. every comprehension supports filtering:
-     ``c.list_comp(...).filter(condition_conv)``
-
-  4. to avoid unnecessary function call overhead, there is a way to pass an inline
+  3. to avoid unnecessary function call overhead, there is a way to pass an inline
      python expression :ref:`c.inline_expr<ref_c_inline_expr>`
 
 
@@ -353,9 +350,8 @@ Next:
    c.list_comp(
        c.inline_expr(
            "({number}).bit_length()"
-       ).pass_args(number=c.item("value"))
-   ).filter(
-       c.item("country") == "US"
+       ).pass_args(number=c.item("value")),
+       where=c.item("country") == "US"
    ).sort(
        # working with the resulting item here
        key=lambda item: item,

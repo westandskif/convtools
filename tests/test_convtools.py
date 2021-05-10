@@ -11,6 +11,7 @@ from convtools.base import (
     ConversionWrapper,
     InlineExpr,
     NamedConversion,
+    PipeConversion,
     _ConverterCallable,
 )
 
@@ -448,8 +449,13 @@ def test_set_comprehension():
         {"name": "Bill"},
     ]
     assert c.set_comp(c.item("name")).gen_converter()(data) == {"John", "Bill"}
-    with pytest.raises(c.ConversionException):
-        c.set_comp(c.item("name")).sort(key=lambda x: x)
+
+    assert (
+        c.set_comp(c.item("name")).sort(key=lambda x: x).execute(data)
+    ) == [
+        "Bill",
+        "John",
+    ]
 
 
 def test_dict_comprehension():
@@ -483,14 +489,24 @@ def test_filter():
     assert c.filter(c.this().gt(1), cast=lambda x: list(x)).execute(
         [1, 2, 3]
     ) == [2, 3]
-    assert c.list_comp(c.this()).filter(c.this().gt(1)).execute([1, 2, 3]) == [
+    assert c.list_comp(c.this()).filter(c.this().gt(1)).execute(
+        [1, 2, 3], debug=True
+    ) == [
         2,
         3,
     ]
-    assert c.this().filter(c.this().gt(1), cast=list).execute([1, 2, 3]) == [
+    assert c.this().filter(c.this().gt(1), cast=list).execute(
+        [1, 2, 3], debug=True
+    ) == [
         2,
         3,
     ]
+    converter = c.list_comp(c.this()).filter(
+        c.this() > 1, cast=lambda x: list(x)
+    )
+    assert c.list_comp(c.this()).filter(
+        c.this() > 1, cast=lambda x: list(x)
+    ).execute(range(4)) == [2, 3]
 
 
 def test_sort():
@@ -527,9 +543,7 @@ def test_manually_defined_reducers():
     grouper = grouper_base.filter(c.this() > 20).gen_converter(
         signature="data_, group_key='debit'", debug=True
     )
-    result = grouper(data)
-    assert isinstance(result, types.GeneratorType)
-    assert list(result) == [540, 25]
+    assert grouper(data) == [540, 25]
     assert list(grouper(data, group_key="balance")) == [82, 120]
 
     grouper = grouper_base.filter((c.this() > 20), cast=list).gen_converter(
@@ -577,7 +591,8 @@ def test_grouping():
                     c.item("debit"),
                     prepare_first=lambda a: a,
                     default=c.input_arg("arg1"),
-                ).filter(c.call_func(lambda x: x < 0, c.item("balance"))),
+                    where=c.call_func(lambda x: x < 0, c.item("balance")),
+                ),
                 c.call_func(
                     lambda max_debit, n: max_debit * n,
                     c.reduce(
@@ -585,7 +600,8 @@ def test_grouping():
                         c.item("debit"),
                         prepare_first=lambda a: a,
                         default=0,
-                    ).filter(c.call_func(lambda x: x < 0, c.item("balance"))),
+                        where=c.call_func(lambda x: x < 0, c.item("balance")),
+                    ),
                     1000,
                 ),
                 c.call_func(
@@ -594,11 +610,10 @@ def test_grouping():
                         c.ReduceFuncs.Max,
                         c.item("debit"),
                         default=1000,
-                    ).filter(
-                        c.inline_expr("{0} > {1}").pass_args(
+                        where=c.inline_expr("{0} > {1}").pass_args(
                             c.item("balance"),
                             c.input_arg("arg2"),
-                        )
+                        ),
                     ),
                     -1,
                 ),
@@ -818,9 +833,7 @@ reducers_in_out = [
     ),
     dict(
         groupby=c.item("name"),
-        reduce=c.ReduceFuncs.Count(c.item("debit")).filter(
-            c.item("debit").is_(None)
-        ),
+        reduce=c.ReduceFuncs.Count(c.item("debit"), where=c.item("debit").is_(None)),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', 1), ('Nick', 0)],
         raises=None,
@@ -975,14 +988,12 @@ def test_base_reducer():
                 default=0,
             ),
         )
-    ).filter(c.this() > 5, cast=tuple).gen_converter(debug=True)(
-        [1, 2, 3]
-    ) == (
+    ).filter(c.this() > 5).gen_converter(debug=True)([1, 2, 3]) == [
         6,
         6,
         6,
         6,
-    )
+    ]
 
     with pytest.raises(ValueError):
         c.aggregate(

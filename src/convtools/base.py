@@ -6,7 +6,6 @@ import re
 import string
 import sys
 import typing
-from collections import OrderedDict
 from itertools import chain, count
 from random import choice
 from types import GeneratorType
@@ -690,7 +689,7 @@ class BaseConversion(typing.Generic[CT]):
     def __floordiv__(self, b) -> "InlineExpr":
         return self.floor_div(b)
 
-    def filter(self, condition_conv, cast=None) -> "BaseConversion":
+    def filter(self, condition_conv, cast=_none) -> "BaseConversion":
         """Shortcut for calling :py:obj:`convtools.base.FilterConversion` on
         self"""
         return self.pipe(FilterConversion(condition_conv, cast=cast))
@@ -1212,7 +1211,7 @@ class FilterConversion(BaseConversion):
     """Generates the code to iterate the input, taking items for which the
     provided conversion resolves to a truth value."""
 
-    def __init__(self, condition_conv, cast=None):
+    def __init__(self, condition_conv, cast=BaseConversion._none):
         """
         Args:
           condition_conv (object): to be wrapped with
@@ -1224,22 +1223,31 @@ class FilterConversion(BaseConversion):
           if provided
         """
         super().__init__()
-        if cast is None:
-            result = GeneratorComp(GetItem()).filter(condition_conv)
+        if cast is None or cast is self._none:
+            result = GeneratorComp(GetItem(), where=condition_conv)
         elif cast is list:
-            result = ListComp(GetItem()).filter(condition_conv)
+            result = ListComp(GetItem(), where=condition_conv)
         elif cast is tuple:
-            result = TupleComp(GetItem()).filter(condition_conv)
+            result = TupleComp(GetItem(), where=condition_conv)
         elif cast is set:
-            result = SetComp(GetItem()).filter(condition_conv)
+            result = SetComp(GetItem(), where=condition_conv)
         elif callable(cast):
-            gen = GeneratorComp(GetItem()).filter(condition_conv)
+            gen = GeneratorComp(GetItem(), where=condition_conv)
             result = NaiveConversion(cast).call(gen)
         else:
             raise AssertionError(
                 "cannot cast generator to cast={}".format(cast)
             )
         self.conversion = self.ensure_conversion(result)
+
+    def as_type(self, callable_):
+        return self.conversion.as_type(callable_)
+
+    def filter(self, condition_conv, cast=BaseConversion._none):
+        return self.conversion.filter(condition_conv, cast=cast)
+
+    def sort(self, key=None, reverse=False):
+        return self.conversion.sort(key, reverse)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return self.conversion.gen_code_and_update_ctx(code_input, ctx)
@@ -1327,142 +1335,111 @@ class BaseComprehensionConversion(BaseConversion):
     """This is the base conversion to generate a code, which creates a
     collection like: list/dict/etc."""
 
-    def __init__(self, item):
+    sorting_requested = None
+
+    def __init__(self, item, *, where=None):
         """
         Args:
           item (object): to be wrapped with :py:obj:`ensure_conversion`
             and used as a conversion on each item of a collection.
+          where: conversion to be used in ``if`` clause of a comprehension
 
-            e.g. for ``[i * 2 for i in l]`` an item would be ``c.this() * 2``
+            e.g. for ``[i * 2 for i in l if i > 0]`` an item would be
+            ``c.generator_comp(c.this() * 2, where=c.this() > 0)``
         """
         super().__init__()
-        self.sort_key = None
-        self.sort_key_reverse = None
-        self.condition_conversion = None
         self.item = self.ensure_conversion(item)
-
-    def filter(self, condition_conversion):
-        """
-        Args:
-          condition_conversion (object): to be wrapped with
-            :py:obj:`ensure_conversion` and used as a condition within the
-            comprehension.
-        Returns:
-          BaseComprehensionConversion: cloned and filtered comprehension
-          conversion
-        """
-        if self.condition_conversion:
-            raise AssertionError("condition_conversion is already present")
-        self_clone = self.clone()
-        self_clone.condition_conversion = self_clone.ensure_conversion(
-            condition_conversion
-        )
-        return self_clone
-
-    def sort(self, key=None, reverse=False) -> "BaseConversion":
-        """
-        Args:
-          key (object): to be wrapped with
-            :py:obj:`ensure_conversion` and used as a key to sort the
-            collection
-          reverse (bool): if `True`, sorts DESC
-        Returns:
-          BaseComprehensionConversion: cloned and filtered comprehension
-          conversion
-        """
-        if self.sort_key:
-            raise AssertionError("sort has already been called")
-        self_clone = self.clone()
-        self_clone.sort_key = True if key is None else key
-        self_clone.sort_key_reverse = reverse
-        return self_clone
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        param_name = self.gen_name("i", ctx, code_input)
-        gen_code_str = self.gen_generator_code(code_input, param_name, ctx)
-        code_str = self.gen_comprehension_pre_sort(gen_code_str, ctx)
-        if self.sort_key:
-            code_str = self.gen_sort_code(
-                code_str,
-                ctx,
-                self.ensure_conversion(
-                    None if self.sort_key is True else self.sort_key
-                ).gen_code_and_update_ctx(None, ctx),
-                self.ensure_conversion(
-                    self.sort_key_reverse
-                ).gen_code_and_update_ctx(None, ctx),
-            )
-        return code_str
+        self.where = None if where is None else self.ensure_conversion(where)
 
     def gen_item_code(self, code_input, ctx):
         return self.item.gen_code_and_update_ctx(code_input, ctx)
 
-    def gen_generator_code(self, code_input, param_name, ctx):
+    def gen_generator_code(self, code_input, ctx):
+        param_name = self.gen_name("i", ctx, code_input)
         item_code = self.gen_item_code(param_name, ctx)
         gen_code = f"{item_code} for {param_name} in {code_input}"
-        if self.condition_conversion is not None:
-            condition_code = self.condition_conversion.gen_code_and_update_ctx(
+        if self.where is not None:
+            condition_code = self.where.gen_code_and_update_ctx(
                 param_name, ctx
             )
             gen_code = f"{gen_code} if {condition_code}"
         return gen_code
 
-    def gen_comprehension_pre_sort(self, generator_code, ctx):
-        raise NotImplementedError
-
-    def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
-        raise NotImplementedError
-
 
 class GeneratorComp(BaseComprehensionConversion):
     """Generates python generator comprehension code."""
 
-    def gen_comprehension_pre_sort(self, generator_code, ctx):
-        return f"({generator_code})"
+    def as_type(self, callable_):
+        if callable_ in (list, set, tuple):
+            kwargs = dict(item=self.item, where=self.where)
+            if callable_ is list:
+                comp = ListComp(**kwargs)
+            elif callable_ is tuple:
+                comp = TupleComp(**kwargs)
+            else:
+                comp = SetComp(**kwargs)
+            return comp
+        return super().as_type(callable_)
 
-
-class ListComp(BaseComprehensionConversion):
-    """Generates python list comprehension code."""
-
-    def gen_comprehension_pre_sort(self, generator_code, ctx):
-        return f"[{generator_code}]"
-
-    def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
-        return (
-            f"sorted({code_input}, key={sort_key_code},"
-            f"reverse={reverse_code})"
-        )
-
-
-class TupleComp(BaseComprehensionConversion):
-    """Generates python tuple comprehension code."""
-
-    def gen_comprehension_pre_sort(self, generator_code, ctx):
-        if self.sort_key:
-            return f"({generator_code})"
-        return f"tuple({generator_code})"
-
-    def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
-        return (
-            f"tuple(sorted({code_input}, key={sort_key_code},"
-            f"reverse={reverse_code}))"
-        )
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return "({})".format(self.gen_generator_code(code_input, ctx))
 
 
 class SetComp(BaseComprehensionConversion):
     """Generates python set comprehension code (obviously non-sortable)"""
 
-    def gen_comprehension_pre_sort(self, generator_code, ctx):
-        return "{%s}" % generator_code
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return "{%s}" % self.gen_generator_code(code_input, ctx)
+
+    def filter(self, condition_conv, cast=BaseConversion._none):
+        if cast is self._none:
+            cast = set
+
+        return super().filter(condition_conv, cast=cast)
+
+
+class ListComp(BaseComprehensionConversion):
+    """Generates python list comprehension code."""
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return "[%s]" % self.gen_generator_code(code_input, ctx)
+
+    def filter(self, condition_conv, cast=BaseConversion._none):
+        if cast is self._none:
+            return GeneratorComp(self.item, where=self.where).filter(
+                condition_conv, cast=list
+            )
+        return super().filter(condition_conv, cast=cast)
 
     def sort(self, key=None, reverse=False) -> "BaseConversion":
-        raise ConversionException("attempt to build sorted set")
+        return GeneratorComp(self.item, where=self.where).sort(key, reverse)
+
+
+class TupleComp(BaseComprehensionConversion):
+    """Generates python tuple comprehension code."""
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return "tuple(%s)" % self.gen_generator_code(code_input, ctx)
+
+    def filter(self, condition_conv, cast=BaseConversion._none):
+        if cast is self._none:
+            return GeneratorComp(self.item, where=self.where).filter(
+                condition_conv, cast=tuple
+            )
+        return super().filter(condition_conv, cast=cast)
+
+    def sort(self, key=None, reverse=False) -> "BaseConversion":
+        return (
+            GeneratorComp(self.item, where=self.where)
+            .sort(key, reverse)
+            .as_type(tuple)
+        )
 
 
 class DictComp(BaseComprehensionConversion):
     """Generates python dict comprehension code."""
 
-    def __init__(self, key, value):
+    def __init__(self, key, value, *, where=None):
         """
         Args:
           key (object): to be wrapped with :py:obj:`ensure_conversion` and
@@ -1470,27 +1447,33 @@ class DictComp(BaseComprehensionConversion):
           value (object): to be wrapped with :py:obj:`ensure_conversion` and
             used on each item of a collection to form values
         """
-        super().__init__(item=None)
+        super().__init__(item=None, where=where)
         self.key = self.ensure_conversion(key)
         self.value = self.ensure_conversion(value)
 
     def gen_item_code(self, code_input, ctx):
         key_code = self.key.gen_code_and_update_ctx(code_input, ctx)
         value_code = self.value.gen_code_and_update_ctx(code_input, ctx)
-        if self.sort_key:
-            return f"({key_code}, {value_code})"
         return f"{key_code}: {value_code}"
 
-    def gen_comprehension_pre_sort(self, generator_code, ctx):
-        if self.sort_key:
-            return f"({generator_code})"
-        return "{%s}" % generator_code
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return "{%s}" % self.gen_generator_code(code_input, ctx)
 
-    def gen_sort_code(self, code_input, ctx, sort_key_code, reverse_code):
-        ctx["OrderedDict"] = OrderedDict
+    def filter(self, condition_conv, cast=BaseConversion._none):
+        if cast is self._none:
+            cast = dict
+        return GeneratorComp((self.key, self.value), where=self.where).filter(
+            condition_conv, cast=dict
+        )
+
+    def sort(self, key=None, reverse=False) -> "BaseConversion":
         return (
-            f"OrderedDict(sorted({code_input}, key={sort_key_code},"
-            f"reverse={reverse_code}))"
+            GeneratorComp(
+                (self.key, self.value),
+                where=self.where,
+            )
+            .sort(key, reverse)
+            .as_type(dict)
         )
 
 
@@ -1802,6 +1785,25 @@ class PipeConversion(BaseConversion):
             if label_output is None
             else self._prepare_labels(label_output)
         )
+
+    def replace(self, where):
+        return PipeConversion(
+            what=self.what,
+            where=where,
+            *self.args,
+            label_input=self.label_input,
+            label_output=self.label_output,
+            **self.kwargs,
+        )
+
+    def as_type(self, callable_):
+        return self.replace(self.where.as_type(callable_))
+
+    def filter(self, condition_conv, cast=BaseConversion._none):
+        return self.replace(self.where.filter(condition_conv, cast=cast))
+
+    def sort(self, key=None, reverse=False):
+        return self.replace(self.where.sort(key, reverse))
 
     def _prepare_labels(self, label_arg: typing.Union[str, dict]):
         if isinstance(label_arg, str):

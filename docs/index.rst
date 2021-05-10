@@ -31,7 +31,7 @@ Contents
    :maxdepth: 1
 
    Changelog <changelog>
-   Incompatible Changes <incompatible_changes>
+   Breaking Changes <breaking_changes>
 
 .. toctree::
    :maxdepth: 1

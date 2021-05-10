@@ -269,24 +269,8 @@ class BaseReducer(BaseConversion, typing.Generic[RBT]):
     post_conversion: typing.Optional[BaseConversion] = None
     default: typing.Any
     initial: typing.Any
-    condition: typing.Optional[BaseConversion] = None
+    where: typing.Optional[BaseConversion] = None
     unconditional_init: bool = False
-
-    def filter(self, condition_conversion):
-        """Defines a conversion to be used as a condition. Only true values
-        will be aggregated.
-
-        Args:
-          condition_conversion (object): to be wrapped with
-            :py:obj:`ensure_conversion` and used as a condition
-        """
-        if getattr(self, "condition", None):
-            raise AssertionError("condition is already present")
-        cloned_self = self.clone()
-        cloned_self.condition = cloned_self.ensure_conversion(
-            condition_conversion
-        )
-        return cloned_self
 
     def gen_reduce_code_block(
         self,
@@ -343,8 +327,9 @@ class MultiStatementReducer(BaseReducer):
     prepare_first: typing.Tuple[str, ...]
     reduce: typing.Tuple[str, ...]
 
-    def __init__(self, *expressions, initial=_none, default=_none):
+    def __init__(self, *expressions, initial=_none, default=_none, where=None):
         super().__init__()
+        self.where = None if where is None else self.ensure_conversion(where)
         self.expressions = tuple(
             self.ensure_conversion(expr)
             for expr in (
@@ -440,13 +425,13 @@ class MultiStatementReducer(BaseReducer):
             checksum_flag=checksum_flag,
         )
 
-        if self.condition is not None:
-            kwargs["condition_code"] = self.condition.gen_code_and_update_ctx(
+        if self.where is not None:
+            kwargs["condition_code"] = self.where.gen_code_and_update_ctx(
                 var_row, ctx
             )
 
         block_cls = (
-            ReduceBlock if self.condition is None else ReduceConditionalBlock
+            ReduceBlock if self.where is None else ReduceConditionalBlock
         )
         return block_cls(unconditional_init=self.unconditional_init, **kwargs)
 
@@ -465,6 +450,7 @@ class Reduce(BaseReducer):
         ] = _none,
         default: typing.Union[_None, typing.Callable, typing.Any] = _none,
         unconditional_init: bool = False,
+        where=None,
     ):
         """
         Args:
@@ -486,6 +472,7 @@ class Reduce(BaseReducer):
             aggregation value OR there is a condition for that
         """
         super().__init__()
+        self.where = None if where is None else self.ensure_conversion(where)
         self.to_call_with_2_args = self.ensure_conversion(to_call_with_2_args)
         self.expressions = tuple(
             self.ensure_conversion(expr) for expr in expressions
@@ -552,13 +539,13 @@ class Reduce(BaseReducer):
             checksum_flag=checksum_flag,
         )
 
-        if self.condition is not None:
-            kwargs["condition_code"] = self.condition.gen_code_and_update_ctx(
+        if self.where is not None:
+            kwargs["condition_code"] = self.where.gen_code_and_update_ctx(
                 var_row, ctx
             )
 
         block_cls = (
-            ReduceBlock if self.condition is None else ReduceConditionalBlock
+            ReduceBlock if self.where is None else ReduceConditionalBlock
         )
         return block_cls(unconditional_init=self.unconditional_init, **kwargs)
 
@@ -596,7 +583,7 @@ class GroupBy(BaseConversion):
 
     def aggregate(
         self, reducer: typing.Union[dict, list, set, tuple, BaseConversion]
-    ) -> BaseConversion:
+    ) -> "GroupBy":
         """Takes the conversion which defines the desired output of
         aggregation"""
         self_clone = self.clone()
@@ -605,7 +592,11 @@ class GroupBy(BaseConversion):
             raise AssertionError("unexpected reducer type", type(reducer))
         return self_clone
 
-    def filter(self, condition_conv, cast=None) -> "BaseConversion":
+    def filter(
+        self, condition_conv, cast=BaseConversion._none
+    ) -> "BaseConversion":
+        if cast is self._none:
+            cast = list
         if self.aggregate_mode or self.filter_conversion is not None:
             return super().filter(condition_conv, cast=cast)
         self_clone = self.clone()

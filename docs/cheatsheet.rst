@@ -380,7 +380,7 @@ ____________________________________________
               ),
           ),
           cast=list,
-      ).gen_converter()
+      ).gen_converter(debug=True)
 
       converter(
           input_data,
@@ -736,8 +736,7 @@ _______________________________
               "company": c.item("company"),
               "total_sales": c.ReduceFuncs.Sum(
                   c.item("sales"),
-              ).filter(
-                  c.item("sales") > 155
+                  where=c.item("sales") > 155
               ),
               "top_sales_person": c.ReduceFuncs.MaxRow(
                   c.item("sales")
@@ -756,8 +755,7 @@ _______________________________
                   c.this(), # passing full row
                   initial=StreamConsumer,
                   default=None, # in case all sales <= 155
-              ).filter(
-                  c.item("sales") > 155
+                  where=c.item("sales") > 155
               ),
           }
       ).gen_converter()

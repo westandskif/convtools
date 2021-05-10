@@ -4,4 +4,4 @@
 Incompatible changes
 ====================
 
-.. include:: ../INCOMPATIBLE_CHANGES.rst
+.. include:: ../BREAKING_CHANGES.rst

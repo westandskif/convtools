@@ -90,7 +90,6 @@ def test_pipe_conversion():
         c.this()
         .pipe(c.list_comp(c.this() + 1))
         .filter(c.this() > 3)
-        .as_type(list)
         .execute([1, 2, 3, 4, 5, 6], debug=True)
     ) == [4, 5, 6, 7]
 

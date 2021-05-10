@@ -101,7 +101,7 @@ below.
         conv = c.aggregate(
             {
                 # list of "a" values where "b" equals to "bar"
-                "a": c.ReduceFuncs.Array(c.item("a")).filter(c.item("b") == "bar"),
+                "a": c.ReduceFuncs.Array(c.item("a"), where=c.item("b") == "bar"),
                 # "b" value of a row where "a" has Max value
                 "b": c.ReduceFuncs.MaxRow(
                     c.item("a"),

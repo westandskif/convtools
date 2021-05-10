@@ -197,14 +197,17 @@ class JoinConversion(BaseConversion):
         )
         if right_collection_filters:
             right_collection = right_collection.pipe(
-                GeneratorComp(GetItem()).filter(
-                    And(
-                        right_collection_filters[0],
-                        right_collection_filters[1],
-                        *right_collection_filters[2:],
-                    )
-                    if len(right_collection_filters) > 1
-                    else right_collection_filters[0]
+                GeneratorComp(
+                    GetItem(),
+                    where=(
+                        And(
+                            right_collection_filters[0],
+                            right_collection_filters[1],
+                            *right_collection_filters[2:],
+                        )
+                        if len(right_collection_filters) > 1
+                        else right_collection_filters[0]
+                    ),
                 )
             )
         if join_conditions.outer_join:
@@ -219,14 +222,17 @@ class JoinConversion(BaseConversion):
         )
         if left_collection_filters:
             left_collection = left_collection.pipe(
-                GeneratorComp(GetItem()).filter(
-                    And(
-                        left_collection_filters[0],
-                        left_collection_filters[1],
-                        *left_collection_filters[2:],
-                    )
-                    if len(left_collection_filters) > 1
-                    else left_collection_filters[0]
+                GeneratorComp(
+                    GetItem(),
+                    where=(
+                        And(
+                            left_collection_filters[0],
+                            left_collection_filters[1],
+                            *left_collection_filters[2:],
+                        )
+                        if len(left_collection_filters) > 1
+                        else left_collection_filters[0]
+                    ),
                 )
             )
 
