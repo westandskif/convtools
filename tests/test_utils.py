@@ -1,6 +1,10 @@
 import pytest
 
-from convtools.base import CodeGenerationOptions, CodeGenerationOptionsCtx
+from convtools.base import (
+    BaseConversion,
+    CodeGenerationOptions,
+    CodeGenerationOptionsCtx,
+)
 from convtools.utils import RUCache
 
 
@@ -107,3 +111,24 @@ def test_ru_cache():
         cache.has(i, bump_up=True)
     cache.set(3, 3)
     assert cache.has(3)
+
+
+def test_replace_word():
+    cases = [
+        ("abc", "abc", "cde", "cde"),
+        ("aabc", "abc", "cde", "aabc"),
+        ("abcc", "abc", "cde", "abcc"),
+        ("aabcc", "abc", "cde", "aabcc"),
+        ("aabc 1", "abc", "cde", "aabc 1"),
+        ("1 abcc", "abc", "cde", "1 abcc"),
+        ("abc 1", "abc", "cde", "cde 1"),
+        ("1 abc", "abc", "cde", "1 cde"),
+        ("1 abccabc _abc abc 2", "abc", "cde", "1 abccabc _abc cde 2"),
+        (" aabc ", "abc", "cde", " aabc "),
+        (" abcc ", "abc", "cde", " abcc "),
+        (" abc ", "abc", "cde", " cde "),
+        (" abc abc abc abc  ", "abc", "cde", " cde cde cde cde  "),
+    ]
+    for (where, word, with_what, expected_result) in cases:
+        result = BaseConversion.replace_word(where, word, with_what)
+        assert result == expected_result

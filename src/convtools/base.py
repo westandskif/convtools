@@ -346,6 +346,33 @@ class BaseConversion(typing.Generic[CT]):
                 return name
         raise AssertionError("failed to generate unique filename", name)
 
+    _non_word_symbol = re.compile(r"\W")
+
+    @classmethod
+    def replace_word(cls, where: str, word: str, with_what: str) -> str:
+        non_word_symbol = cls._non_word_symbol
+        start_position = 0
+        max_index = len(where) - 1
+        word_len = len(word)
+        boundaries = [0]
+        while True:
+            index = where.find(word, start_position)
+            if index == -1:
+                break
+            if (index == 0 or non_word_symbol.match(where[index - 1])) and (
+                index + word_len > max_index
+                or non_word_symbol.match(where[index + word_len])
+            ):
+                boundaries.append(index)
+                boundaries.append(index + word_len)
+            start_position = index + 1
+        boundaries.append(len(where))
+
+        return with_what.join(
+            where[boundaries[index] : boundaries[index + 1]]
+            for index in range(0, len(boundaries), 2)
+        )
+
     @classmethod
     def indent_statements(
         cls,
@@ -1856,7 +1883,7 @@ class PipeConversion(BaseConversion):
             and self.label_output is None
         ) and not ("labels_[" in what_code or "pipe_" in what_code)
         if still_can_be_inlined:
-            return where_code.replace(var_input, what_code)
+            return self.replace_word(where_code, var_input, what_code)
 
         if self.label_input or self.label_output:
             label_input_code = (

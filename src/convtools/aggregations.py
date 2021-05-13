@@ -48,11 +48,11 @@ class ReduceBlock:
         self.unconditional_init = unconditional_init
 
     def replace_var_agg_data_value(self, var_agg_data_value):
-        self.reduce_initial = self.reduce_initial.replace(
-            self.var_agg_data_value, var_agg_data_value
+        self.reduce_initial = BaseConversion.replace_word(
+            self.reduce_initial, self.var_agg_data_value, var_agg_data_value
         )
-        self.reduce_two = self.reduce_two.replace(
-            self.var_agg_data_value, var_agg_data_value
+        self.reduce_two = BaseConversion.replace_word(
+            self.reduce_two, self.var_agg_data_value, var_agg_data_value
         )
         self.var_agg_data_value = var_agg_data_value
         return self
@@ -118,9 +118,13 @@ class ReduceBlock:
 
     def code_hash(self) -> str:
         code_hash = self.to_code()
-        code_hash = code_hash.replace(self.var_agg_data_value, "")
+        code_hash = BaseConversion.replace_word(
+            code_hash, self.var_agg_data_value, ""
+        )
         if self.checksum_flag:
-            code_hash = code_hash.replace(str(self.checksum_flag), "")
+            code_hash = BaseConversion.replace_word(
+                code_hash, str(self.checksum_flag), ""
+            )
         return code_hash
 
 
@@ -728,7 +732,9 @@ class GroupBy(BaseConversion):
             )
 
         for code_from, code_to in replacements.items():
-            code_agg_result = code_agg_result.replace(code_from, code_to)
+            code_agg_result = self.replace_word(
+                code_agg_result, code_from, code_to
+            )
 
         if var_row in code_agg_result:
             raise ConversionException(

@@ -1,3 +1,16 @@
+0.12.1 (2021-05-13)
+-------------------
+
+Bugfix
+++++++
+
+- fixed sporadic issues caused by code substring replacements (now it uses word
+  replacements)
+
+
+----
+
+
 0.12.0 (2021-05-10)
 -------------------
 
@@ -412,8 +425,8 @@ Features
     * ``c.item("companies").add_label("first_company", c.item(0))`` labels the first
       company in the list as `first_company` and allows to use it as
       ``c.label("first_company")`` further in next and even nested conversions
-  
-    * ``(...).pipe`` now receives 2 new arguments: 
+
+    * ``(...).pipe`` now receives 2 new arguments:
 
       * `label_input`, to put some labels on the pipe input data
       * `label_output` to put labels on the output data.
