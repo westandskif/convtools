@@ -23,7 +23,7 @@ def test_pipes():
     ]
     assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d").pipe(
         c.call_func(lambda dt: dt.date(), c.this())
-    ).execute(["2019-01-01"], debug=True) == date(2019, 1, 1)
+    ).execute(["2019-01-01"], debug=False) == date(2019, 1, 1)
 
     assert c.item(0).pipe(datetime.strptime, "%Y-%m-%d").pipe(
         c.this().call_method("date")
@@ -41,7 +41,7 @@ def test_pipes():
                 }
             )
         ),
-    ).gen_converter(debug=True)
+    ).gen_converter(debug=False)
     assert conv([{"name": "test", "transactions": [(0, 0), (1, 10)]}]) == {
         "test": [
             {"id": "0", "amount": None},
@@ -70,7 +70,7 @@ def test_pipe_single_call_functions():
                     c.this() + 2,
                 )
             )
-        ).gen_converter(debug=True)([1])
+        ).gen_converter(debug=False)([1])
         == [(2, 3)]
     )
 
@@ -82,7 +82,7 @@ def test_pipe_conversion():
     assert PipeConversion(c.naive([1, 2, 3]), c.item(1)).execute(None) == 2
     assert (
         PipeConversion(c.item("key1"), c.item("key2")).execute(
-            {"key1": {"key2": 3}}, debug=True
+            {"key1": {"key2": 3}}, debug=False
         )
         == 3
     )
@@ -90,8 +90,18 @@ def test_pipe_conversion():
         c.this()
         .pipe(c.list_comp(c.this() + 1))
         .filter(c.this() > 3)
-        .execute([1, 2, 3, 4, 5, 6], debug=True)
+        .execute([1, 2, 3, 4, 5, 6], debug=False)
     ) == [4, 5, 6, 7]
+
+    c.aggregate(
+        c.ReduceFuncs.Array(c.item("key"), default=list).pipe(
+            c.if_(
+                c.call_func(any, c.generator_comp(c.this().is_(None))),
+                c.call_func(list),
+                c.this(),
+            )
+        )
+    ).gen_converter(debug=False)
 
 
 def test_iter_method():
@@ -129,7 +139,7 @@ def test_pipe_filter_sort():
         .pipe(c.iter(c.this() + 1))
         .filter(c.this() > 3)
         .sort(key=lambda x: x, reverse=True)
-        .execute(range(7), debug=True)
+        .execute(range(7), debug=False)
     ) == [7, 6, 5, 4]
 
     assert c.this().sort().execute([3, 1, 2]) == [1, 2, 3]

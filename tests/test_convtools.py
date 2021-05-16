@@ -24,19 +24,14 @@ def test_docs():
 
 def test_naive_conversion():
     d = {1: 2}
-    prev_max_counter = c.BaseConversion.max_counter
-    c.BaseConversion.max_counter = 3
-    try:
-        assert c.naive(d).gen_converter()(1) == d
-        assert c.naive("abc").gen_converter()(1) == "abc"
-        assert c.naive(1).gen_converter()(10) == 1
-        assert c.naive(True).gen_converter()(10) is True
-        assert c.naive(False).gen_converter()(10) is False
-        assert c.naive(None).gen_converter()(10) is None
-        assert c.naive("1").as_type(int).gen_converter()(10) == 1
-        assert c.naive(1).gen_converter(method=True)(None, 10) == 1
-    finally:
-        c.BaseConversion.max_counter = prev_max_counter
+    assert c.naive(d).gen_converter()(1) == d
+    assert c.naive("abc").gen_converter()(1) == "abc"
+    assert c.naive(1).gen_converter()(10) == 1
+    assert c.naive(True).gen_converter()(10) is True
+    assert c.naive(False).gen_converter()(10) is False
+    assert c.naive(None).gen_converter()(10) is None
+    assert c.naive("1").as_type(int).gen_converter()(10) == 1
+    assert c.naive(1).gen_converter(method=True)(None, 10) == 1
 
 
 def test_gen_converter():
@@ -291,7 +286,7 @@ def test_debug_true():
 
 def test_if():
     conv1 = c.if_(True, c.this() * 2, c.this() - 1000).gen_converter(
-        debug=True
+        debug=False
     )
     assert conv1(0) == -1000
     assert conv1(10) == 20
@@ -314,7 +309,7 @@ def test_if():
         (c.this() - 5).pipe(
             c.if_(c.this() % 2 == 0, c.this() * 10, c.this() * 100)
         )
-    ).gen_converter(debug=True)
+    ).gen_converter(debug=False)
     assert conv4([1, 2, 3, 4]) == [-40, -300, -20, -100]
 
     conv5 = c.if_().gen_converter(debug=False)
@@ -322,7 +317,7 @@ def test_if():
 
     conv6 = c.list_comp(
         c.if_(c.this(), None, c.this(), no_input_caching=True)
-    ).gen_converter(debug=True)
+    ).gen_converter(debug=False)
     assert conv6([1, False, 2, None, 3, 0]) == [
         None,
         False,
@@ -332,15 +327,18 @@ def test_if():
         0,
     ]
 
-    assert c.if_().input_is_simple("'abc'")
-    assert c.if_().input_is_simple("0")
-    assert c.if_().input_is_simple("None")
-    assert c.if_().input_is_simple("True")
-    assert c.if_().input_is_simple("False")
-    assert not c.if_().input_is_simple("1 + 1")
-    assert not c.if_().input_is_simple("x.a")
-    assert not c.if_().input_is_simple("x[0]")
-    assert not c.if_().input_is_simple("x()")
+    assert PipeConversion.input_is_simple("'abc'")
+    assert PipeConversion.input_is_simple("0")
+    assert PipeConversion.input_is_simple("None")
+    assert PipeConversion.input_is_simple("True")
+    assert PipeConversion.input_is_simple("False")
+    assert PipeConversion.input_is_simple("a[1]")
+    assert PipeConversion.input_is_simple("a['1']")
+    assert PipeConversion.input_is_simple("a[1][2]")
+    assert not PipeConversion.input_is_simple("a[1][2][3]")
+    assert not PipeConversion.input_is_simple("1 + 1")
+    assert not PipeConversion.input_is_simple("x.a")
+    assert not PipeConversion.input_is_simple("x()")
 
 
 def test_callfunc():
@@ -490,13 +488,13 @@ def test_filter():
         [1, 2, 3]
     ) == [2, 3]
     assert c.list_comp(c.this()).filter(c.this().gt(1)).execute(
-        [1, 2, 3], debug=True
+        [1, 2, 3], debug=False
     ) == [
         2,
         3,
     ]
     assert c.this().filter(c.this().gt(1), cast=list).execute(
-        [1, 2, 3], debug=True
+        [1, 2, 3], debug=False
     ) == [
         2,
         3,
@@ -541,18 +539,18 @@ def test_manually_defined_reducers():
         )
     )
     grouper = grouper_base.filter(c.this() > 20).gen_converter(
-        signature="data_, group_key='debit'", debug=True
+        signature="data_, group_key='debit'", debug=False
     )
     assert grouper(data) == [540, 25]
     assert list(grouper(data, group_key="balance")) == [82, 120]
 
     grouper = grouper_base.filter((c.this() > 20), cast=list).gen_converter(
-        signature="data_, group_key='debit'", debug=True
+        signature="data_, group_key='debit'", debug=False
     )
     assert grouper(data) == [540, 25]
 
     grouper = grouper_base.filter((c.this() > 20), cast=set).gen_converter(
-        signature="data_, group_key='debit'", debug=True
+        signature="data_, group_key='debit'", debug=False
     )
     assert grouper(data, group_key="balance") == {82, 120}
 
@@ -626,7 +624,7 @@ def test_grouping():
             )
         )
         .sort(key=lambda t: t[0].lower(), reverse=True)
-        .execute(data, arg1=100, arg2=0, debug=True)
+        .execute(data, arg1=100, arg2=0, debug=False)
     )
 
     # fmt: off
@@ -664,7 +662,7 @@ def test_grouping():
     result = (
         c.group_by(c.item("category"))
         .aggregate(aggregation)
-        .execute(data, debug=True)
+        .execute(data, debug=False)
     )
     result2 = (
         c.group_by(c.item("category"))
@@ -720,7 +718,7 @@ def test_grouping():
         (
             c.group_by(by)
             .aggregate(by + (c.reduce(c.ReduceFuncs.Sum, c.item("debit")),))
-            .execute(data, debug=True)
+            .execute(data, debug=False)
         )
 
 
@@ -988,7 +986,7 @@ def test_base_reducer():
                 default=0,
             ),
         )
-    ).filter(c.this() > 5).gen_converter(debug=True)([1, 2, 3]) == [
+    ).filter(c.this() > 5).gen_converter(debug=False)([1, 2, 3]) == [
         6,
         6,
         6,
@@ -1001,12 +999,16 @@ def test_base_reducer():
         ).gen_converter()
     with pytest.raises(ValueError):
         c.aggregate(
-            c.ReduceFuncs.Sum(c.group_by(c.item(0)).aggregate(c.item(0)))
+            c.ReduceFuncs.Sum(c.ReduceFuncs.Count() + 1)
+        ).gen_converter()
+    with pytest.raises(ValueError):
+        c.aggregate(
+            (c.ReduceFuncs.Count() + 2).pipe(c.ReduceFuncs.Sum(c.this()) + 1)
         ).gen_converter()
 
     conv = c.aggregate(
         c.ReduceFuncs.DictArray(c.item(0), c.item(1))
-    ).gen_converter(debug=True)
+    ).gen_converter(debug=False)
     data = [
         ("a", 1),
         ("a", 2),
@@ -1018,7 +1020,7 @@ def test_base_reducer():
 
     conv2 = c.aggregate(
         {"key": c.ReduceFuncs.DictArray(c.item(0), c.item(1))}
-    ).gen_converter(debug=True)
+    ).gen_converter(debug=False)
     assert conv2([]) == {"key": None}
     assert conv2(data) == {"key": result}
 
@@ -1027,7 +1029,7 @@ def test_simple_label():
     conv1 = (
         c.tuple(c.item(2).add_label("a"), c.this())
         .pipe(c.item(1).pipe(c.list_comp((c.this(), c.label("a")))))
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert conv1([1, 2, 3, 4]) == [(1, 3), (2, 3), (3, 3), (4, 3)]
 
@@ -1060,7 +1062,7 @@ def test_simple_label():
     conv3 = (
         c.tuple(c.item("default").add_label("default"), c.this())
         .pipe(c.item(1).pipe(c.item("abc", default=c.label("default"))))
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert conv3({"default": 1}) == 1
 
@@ -1090,7 +1092,7 @@ def test_complex_labeling():
                 "input_data": c.label("input"),
             }
         )
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert conv1(range(30)) == {
         "result": "0;3;6;9;12;15;18;21;24;27",
@@ -1141,7 +1143,7 @@ def test_memory_freeing():
             c.list_comp(c.this() + c.label("input_data").item(0)),
             label_input=dict(input_data=c.this()),
         )
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
 
     sizes = []
@@ -1167,7 +1169,7 @@ def test_memory_freeing():
 def test_slices():
     assert c.this()[
         c.item(0) : c.input_arg("slice_to") : c.item(1)
-    ].gen_converter(debug=True)(
+    ].gen_converter(debug=False)(
         [2, 2, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], slice_to=8
     ) == [
         1,
@@ -1180,11 +1182,11 @@ def test_linecache_cleaning():
     _ConverterCallable.linecache_keys.max_size = 100
     length_before = len(linecache.cache)
     for i in range(100):
-        c.this().gen_converter(debug=True)
+        c.this().gen_converter(debug=False)
     length_after_100 = len(linecache.cache)
 
     for i in range(10):
-        c.this().gen_converter(debug=True)
+        c.this().gen_converter(debug=False)
     length_after_110 = len(linecache.cache)
 
     assert (
@@ -1194,7 +1196,7 @@ def test_linecache_cleaning():
 
     for key in list(linecache.cache.keys()):
         del linecache.cache[key]
-    converter_callable = c.this().gen_converter(debug=True)
+    converter_callable = c.this().gen_converter(debug=False)
 
     for (
         fake_filename,
@@ -1230,7 +1232,7 @@ def test_conversion_wrapper():
             name_to_code_input={"abc": "arg_abc", "foo": "arg_foo"},
         )
     ).gen_converter(
-        debug=True, signature="data_, arg_abc=10, arg_foo=20, arg_foo2=30"
+        debug=False, signature="data_, arg_abc=10, arg_foo=20, arg_foo2=30"
     )(
         1
     ) == 41
@@ -1252,7 +1254,7 @@ def test_aggregate_func():
                 "b", default=None
             ),
         }
-    ).gen_converter(debug=True)
+    ).gen_converter(debug=False)
 
     assert conv(input_data) == {
         "a": [5, 10, 10],
@@ -1291,20 +1293,26 @@ def test_piped_group_by():
 
 
 def test_name_generation():
-    max_counter_prev = c.BaseConversion.max_counter
-    c.BaseConversion.max_counter = 1
-    try:
-        c.list_comp(
-            {i: c.item(f"test{i}", default=1) for i in range(100)}
-        ).gen_converter(debug=True)
+    c.list_comp(
+        {i: c.item(f"test{i}", default=1) for i in range(100)}
+    ).gen_converter(debug=False)
 
-        item = c.this()
-        ctx = {}
-        for i in range(11):
-            item.gen_name("abc", ctx, i)
+    item = c.this()
+    ctx = c.BaseConversion._init_ctx()
+    for i in range(11):
+        item.gen_name("abc", ctx, i)
 
-    finally:
-        c.BaseConversion.max_counter = max_counter_prev
+    assert item.gen_name("_", ctx, (1, 2)) == item.gen_name("_", ctx, (1, 2))
+    obj = object()
+    assert item.gen_name("_", ctx, (1, obj)) == item.gen_name(
+        "_", ctx, (1, obj)
+    )
+    obj = (1, [])
+    assert item.gen_name("_", ctx, obj) == item.gen_name(
+        "_",
+        ctx,
+        obj,
+    )
 
 
 def test_generator_exception_handling():

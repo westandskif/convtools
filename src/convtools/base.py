@@ -6,7 +6,8 @@ import re
 import string
 import sys
 import typing
-from itertools import chain, count
+from collections import defaultdict
+from itertools import chain
 from random import choice
 from types import GeneratorType
 
@@ -46,15 +47,19 @@ class _ConverterCallable:
         self.__name__ = "not_defined_yet"
 
     def add_sources(self, fake_filename, code_str):
-        code_str_is_new = fake_filename not in self._fake_filename_to_code_str
-        if (
-            not code_str_is_new
-            and self._fake_filename_to_code_str[fake_filename] != code_str
-        ):
-            raise Exception("fake_filename already exists", fake_filename)
+        filename_exists = fake_filename in self._fake_filename_to_code_str
+        if filename_exists:
+            if self._fake_filename_to_code_str[fake_filename] == code_str:
+                return False
+            raise Exception(
+                "fake_filename with a different code already exists",
+                fake_filename,
+            )
+
         self._fake_filename_to_code_str[fake_filename] = code_str
-        if self._debug and code_str_is_new:
+        if self._debug:
             print("\n", code_str)
+        return True
 
     def set_main_converter(self, converter):
         self._main_converter = converter
@@ -124,6 +129,7 @@ class _ConverterCallableMethod:
 class CodeGenerationOptions(BaseOptions):
     converter_callable_cls = _ConverterCallable
     inline_pipes_only = False
+    reducers_run_stage = None
 
 
 class CodeGenerationOptionsCtx(BaseCtx):
@@ -252,31 +258,36 @@ class BaseConversion(typing.Generic[CT]):
      * overloaded operators"""
 
     _none = _None()
-    counter = count()
-    max_counter = 2 ** 30
     valid_pipe_output = True
     method_calls_replace_input_with_self = False
 
+    class ContentTypes:
+        REDUCER = 1
+        AGGREGATION = 2
+        NEW_LABEL = 4
+        ARG_USAGE = 8
+        LABEL_USAGE = 16
+
+    self_content_type = 0
+
     def __init__(self):
-        self.number = self._gen_number()
         self._depends_on = {}
+        self.contents = self.self_content_type
 
     def __hash__(self):
         return id(self)
 
-    def _gen_number(self):
-        number = next(self.counter)
-        if number > self.max_counter:
-            BaseConversion.counter = count()
-        return number
-
-    def _add_dependency(self, dep):
-        self._depends_on[dep.number] = dep
+    def check_dependency(self, b, for_piping=False):
+        contents = self.contents if for_piping else self.self_content_type
+        if contents & b.contents & self.ContentTypes.REDUCER:
+            raise ValueError("nested aggregation", self.__dict__)
 
     def depends_on(self, *args):
         for arg in args:
             for dep in arg.get_dependencies():
-                self._add_dependency(dep)
+                self._depends_on[dep] = dep
+            self.check_dependency(arg)
+            self.contents |= arg.contents
         return self
 
     def get_dependencies(self, types=None, exclude_types=None):
@@ -298,9 +309,8 @@ class BaseConversion(typing.Generic[CT]):
     def clone(self: CT) -> CT:
         clone: CT = self.__class__.__new__(self.__class__)
         clone.__dict__.update(self.__dict__)
-        clone.number = self._gen_number()
         clone._depends_on = dict(  # pylint:disable=protected-access
-            self._depends_on
+            self._depends_on.items()
         )
         return clone
 
@@ -317,22 +327,22 @@ class BaseConversion(typing.Generic[CT]):
 
     allowed_symbols = string.ascii_lowercase + string.digits
 
+    PREFIXED_HASH_TO_NAME = "_prefixed_hash_to_name"
+    GENERATED_NAMES = "_generated_names"
+
     def gen_name(self, prefix, ctx, item_to_hash) -> str:
         """Generates name of variable to be used in the generated code. This
         also ensures that same items_to_hash will yield same names."""
-        if "_prefixed_hash_to_name" not in ctx:
-            ctx["_prefixed_hash_to_name"] = {}
-            ctx["_generated_names"] = set()
-        prefixed_hash_to_name = ctx["_prefixed_hash_to_name"]
-        generated_names = ctx["_generated_names"]
+        prefixed_hash_to_name = ctx[self.PREFIXED_HASH_TO_NAME]
+        generated_names = ctx[self.GENERATED_NAMES]
         try:
-            hash_ = hash(item_to_hash)
+            prefixed_hash = (prefix, item_to_hash)
+            if prefixed_hash in prefixed_hash_to_name:
+                return prefixed_hash_to_name[prefixed_hash]
         except TypeError:
-            hash_ = id(item_to_hash)
-        prefixed_hash = "{}_{}".format(prefix, str(hash_))
-
-        if prefixed_hash in prefixed_hash_to_name:
-            return prefixed_hash_to_name[prefixed_hash]
+            prefixed_hash = (prefix, id(item_to_hash))
+            if prefixed_hash in prefixed_hash_to_name:
+                return prefixed_hash_to_name[prefixed_hash]
 
         name = prefix
         for _ in range(10):
@@ -346,31 +356,23 @@ class BaseConversion(typing.Generic[CT]):
                 return name
         raise AssertionError("failed to generate unique filename", name)
 
-    _non_word_symbol = re.compile(r"\W")
+    _word_pattern_format = r"((?<=\W)|^){}((?=\W)|$)"
+
+    @classmethod
+    def count_words(cls, where: str, word: str) -> int:
+        return len(
+            re.findall(
+                cls._word_pattern_format.format(re.escape(word)),
+                where,
+            )
+        )
 
     @classmethod
     def replace_word(cls, where: str, word: str, with_what: str) -> str:
-        non_word_symbol = cls._non_word_symbol
-        start_position = 0
-        max_index = len(where) - 1
-        word_len = len(word)
-        boundaries = [0]
-        while True:
-            index = where.find(word, start_position)
-            if index == -1:
-                break
-            if (index == 0 or non_word_symbol.match(where[index - 1])) and (
-                index + word_len > max_index
-                or non_word_symbol.match(where[index + word_len])
-            ):
-                boundaries.append(index)
-                boundaries.append(index + word_len)
-            start_position = index + 1
-        boundaries.append(len(where))
-
-        return with_what.join(
-            where[boundaries[index] : boundaries[index + 1]]
-            for index in range(0, len(boundaries), 2)
+        return re.sub(
+            cls._word_pattern_format.format(re.escape(word)),
+            with_what,
+            where,
         )
 
     @classmethod
@@ -445,17 +447,33 @@ class BaseConversion(typing.Generic[CT]):
             except black.InvalidInput:
                 pass
 
-        fake_filename = f"_fake_{converter_name}.py"
-        code_obj = compile(code, fake_filename, "exec")
-        exec(code_obj, ctx)  # pylint:disable=exec-used
-        converter = ctx[converter_name]
-        converter.conv_name = converter_name
-
         main_converter_callable = ctx["__main_converter_callable"]
-        main_converter_callable.add_sources(fake_filename, code)
-        return converter
+        fake_filename = f"_fake_{converter_name}.py"
+        sources_added = main_converter_callable.add_sources(
+            fake_filename, code
+        )
+
+        if sources_added:
+            code_obj = compile(code, fake_filename, "exec")
+            exec(code_obj, ctx)  # pylint:disable=exec-used
+            ctx[converter_name].conv_name = converter_name
+        return ctx[converter_name]
 
     NAME_TO_CODE_INPUT = "_name_to_code_input"
+
+    @classmethod
+    def _init_ctx(cls, debug=None):
+        labels_: typing.Dict[str, typing.Any] = {}
+        ctx = {
+            "sys": sys,
+            "__debug": debug,
+            "__name__": "_convtools",
+            "labels_": labels_,
+            cls.NAME_TO_CODE_INPUT: [{}],
+            cls.PREFIXED_HASH_TO_NAME: {},
+            cls.GENERATED_NAMES: set(),
+        }
+        return ctx
 
     def gen_converter(
         self,
@@ -485,16 +503,7 @@ class BaseConversion(typing.Generic[CT]):
         """
         # signature should contain "data_" argument
         initial_code_input = "data_"
-
-        labels_: typing.Dict[str, typing.Any] = {}
-
-        ctx = {
-            "sys": sys,
-            "__debug": debug,
-            "__name__": "_convtools",
-            "labels_": labels_,
-            self.NAME_TO_CODE_INPUT: [{}],
-        }
+        ctx = self._init_ctx(debug=debug)
 
         converter_callable_cls = CodeGenerationOptionsCtx.get_option_value(
             "converter_callable_cls"
@@ -532,11 +541,11 @@ class BaseConversion(typing.Generic[CT]):
             )
 
         code_lines = []
-        indent = " " * 4
+        indent = "    "
         code_conv = self.gen_code_and_update_ctx(initial_code_input, ctx)
         code_lines.append(f"{indent}return {code_conv}")
 
-        converter_name = self.gen_name(converter_name, ctx, None)
+        converter_name = self.gen_name(converter_name, ctx, self)
         converter_code = CONVERTER_TEMPLATE.format(
             code="\n".join(code_lines),
             converter_name=converter_name,
@@ -548,20 +557,26 @@ class BaseConversion(typing.Generic[CT]):
             ctx=ctx,
         )
         main_converter_callable.set_main_converter(main_converter)
+        del ctx[self.PREFIXED_HASH_TO_NAME]
+        del ctx[self.GENERATED_NAMES]
         return main_converter_callable
 
     def execute(self, *args, debug=False, **kwargs) -> typing.Any:
         """Shortcut for generating converter and running it"""
         return self.gen_converter(debug=debug)(*args, **kwargs)
 
-    def iter(self, element_conv: "BaseConversion") -> "BaseConversion":
-        """Shortcut for ``self.pipe(c.generator_comp(element_conv))``
+    def iter(
+        self, element_conv: "BaseConversion", *, where=None
+    ) -> "BaseConversion":
+        """Shortcut for
+        ``self.pipe(c.generator_comp(element_conv, where=condition))``
 
         Args:
           element_conv (object): conversion to be run on each element
+          where (object): condition inside the comprehension
 
         """
-        return self.pipe(GeneratorComp(element_conv))
+        return self.pipe(GeneratorComp(element_conv, where=where))
 
     def iter_mut(self, *mutations: "BaseMutation") -> "IterMutConversion":
         """Conversion which results in a generator of mutated elements
@@ -894,6 +909,8 @@ class InputArg(BaseConversion):
     input arguments used in the conversion definition will be expected as
     keyword-only arguments (affecting the resulting converter signature)."""
 
+    self_content_type = BaseConversion.ContentTypes.ARG_USAGE
+
     def __init__(self, arg_name: str):
         """
         Args:
@@ -909,6 +926,8 @@ class InputArg(BaseConversion):
 class LabelConversion(InputArg):
     """Allows to reference a conversion result by label, after it was cached by
     :py:obj:`PipeConversion` or :py:obj:`BaseConversion.add_label`."""
+
+    self_content_type = BaseConversion.ContentTypes.LABEL_USAGE
 
     def __init__(self, label_name: str):
         """
@@ -1058,38 +1077,28 @@ class If(BaseConversion):
         )
         self.no_input_caching = no_input_caching
 
-    symbols_making_expr_complex = re.compile(r"[^\w\"']")
-
-    @classmethod
-    def input_is_simple(cls, code_input):
-        while code_input.startswith("(") and code_input.endswith(")"):
-            code_input = code_input[1:-1]
-        if (
-            next(cls.symbols_making_expr_complex.finditer(code_input), None)
-            is None
-        ):
-            return True
-        return False
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
         if self.no_input_caching:
-            return (
-                InlineExpr("({if_true} if {if_cond} else {if_false})")
-                .pass_args(
-                    if_cond=self.if_conv,
-                    if_true=self.if_true,
-                    if_false=self.if_false,
-                )
-                .gen_code_and_update_ctx(code_input, ctx)
-            )
-        return PipeConversion(
-            EscapedString(code_input),
-            InlineExpr("({if_true} if {if_cond} else {if_false})").pass_args(
+            self.conversion = InlineExpr(
+                "({if_true} if {if_cond} else {if_false})"
+            ).pass_args(
                 if_cond=self.if_conv,
                 if_true=self.if_true,
                 if_false=self.if_false,
-            ),
-        ).gen_code_and_update_ctx(None, ctx)
+            )
+        else:
+            self.conversion = PipeConversion(
+                GetItem(),
+                InlineExpr(
+                    "({if_true} if {if_cond} else {if_false})"
+                ).pass_args(
+                    if_cond=self.if_conv,
+                    if_true=self.if_true,
+                    if_false=self.if_false,
+                ),
+            )
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return self.conversion.gen_code_and_update_ctx(code_input, ctx)
 
 
 class Not(BaseConversion):
@@ -1150,7 +1159,11 @@ class GetItem(BaseMethodConversion):
             code_index = index.gen_code_and_update_ctx("obj_", ctx)
             code_output = self.wrap_path_item(code_output, code_index)
 
-        converter_name = self.gen_name("get_or_default", ctx, self)
+        converter_name = self.gen_name(
+            "get_or_default",
+            ctx,
+            self,
+        )
         converter_code = GET_OR_DEFAULT_TEMPLATE.format(
             code_args=(
                 "self_, obj_, default_"
@@ -1161,24 +1174,24 @@ class GetItem(BaseMethodConversion):
             converter_name=converter_name,
             get_or_default_code=code_output,
         )
-        converter = self._code_to_converter(
+        self._code_to_converter(
             converter_name=converter_name,
             code=converter_code,
             ctx=ctx,
         )
-        default_code = self.default.gen_code_and_update_ctx(code_input, ctx)
-        result = NaiveConversion(converter)
+        # default_code = self.default.gen_code_and_update_ctx(code_input, ctx)
+        result = EscapedString(converter_name)
         if self_is_overwritten:
             result = result.call(
                 EscapedString(code_self),
                 GetItem(),
-                EscapedString(default_code),
+                self.default,
                 *self.get_args_as_func_args(),
             )
         else:
             result = result.call(
                 GetItem(),
-                EscapedString(default_code),
+                self.default,
                 *self.get_args_as_func_args(),
             )
         return result.gen_code_and_update_ctx(code_input, ctx)
@@ -1382,7 +1395,7 @@ class BaseComprehensionConversion(BaseConversion):
         return self.item.gen_code_and_update_ctx(code_input, ctx)
 
     def gen_generator_code(self, code_input, ctx):
-        param_name = self.gen_name("i", ctx, code_input)
+        param_name = self.gen_name("i", ctx, self)
         item_code = self.gen_item_code(param_name, ctx)
         gen_code = f"{item_code} for {param_name} in {code_input}"
         if self.where is not None:
@@ -1754,6 +1767,9 @@ class PipeConversion(BaseConversion):
     `next_conversion` is callable, it gets called with the previous result
     passed as the first param.
 
+    Supports predicate/sorting/type casting push down (each is directly applied
+    to the ``where`` conversion.
+
     Supports labeling both pipe input and output data (allows to apply
     conversions before labeling)."""
 
@@ -1792,8 +1808,16 @@ class PipeConversion(BaseConversion):
 
         self.what = self.ensure_conversion(what)
         self.where = self.ensure_conversion(where)
+        self.where.check_dependency(self.what, for_piping=True)
+
+        if (
+            (self.what.contents & self.ContentTypes.NEW_LABEL) or label_input
+        ) and (self.where.contents & self.ContentTypes.REDUCER):
+            raise ValueError("labeling of reducer inputs is not supported")
+
         if not self.where.valid_pipe_output:
             raise ValueError("invalid output, check where conversion")
+
         self.replace_where_with_called_one = self.where.is_itself_callable()
         if not self.replace_where_with_called_one and (args or kwargs):
             raise AssertionError(
@@ -1803,15 +1827,16 @@ class PipeConversion(BaseConversion):
         self.args = tuple(self.ensure_conversion(arg) for arg in args)
         self.kwargs = {k: self.ensure_conversion(v) for k, v in kwargs.items()}
         self.label_input = (
-            label_input
-            if label_input is None
-            else self._prepare_labels(label_input)
+            None if label_input is None else self._prepare_labels(label_input)
         )
         self.label_output = (
-            label_output
+            None
             if label_output is None
             else self._prepare_labels(label_output)
         )
+        if self.label_input or self.label_output:
+            self.self_content_type |= self.ContentTypes.NEW_LABEL
+            self.contents |= self.self_content_type
 
     def replace(self, where):
         return PipeConversion(
@@ -1846,44 +1871,77 @@ class PipeConversion(BaseConversion):
             "unexpected label_input type", type(label_arg), label_arg
         )
 
+    symbols_making_expr_complex = re.compile(r"[^\w\"'\[\]]")
+
+    @classmethod
+    def input_is_simple(cls, code_input):
+        while code_input.startswith("(") and code_input.endswith(")"):
+            code_input = code_input[1:-1].strip()
+        if not code_input or (
+            next(cls.symbols_making_expr_complex.finditer(code_input), None)
+            is None
+        ):
+            return code_input.count("][") < 2
+        return False
+
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        var_input = self.gen_name("input", ctx, self)
         what_code = self.what.gen_code_and_update_ctx(code_input, ctx)
-        pipe_to_be_inlined = (
-            If.input_is_simple(what_code)
-            and self.label_input is None
-            and self.label_output is None
-        ) or CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
         if self.replace_where_with_called_one:
             where = self.where.call(
-                EscapedString(what_code)
-                if pipe_to_be_inlined
-                else EscapedString(var_input),
+                GetItem(),
                 *self.args,
                 **self.kwargs,
             )
         else:
             where = self.where
 
-        if pipe_to_be_inlined:
-            return where.gen_code_and_update_ctx(what_code, ctx)
+        where_code = where.gen_code_and_update_ctx(what_code, ctx)
+        code_usage_count = self.count_words(where_code, what_code)
+        what_code_has_no_side_effects = not (
+            (self.what.contents & self.ContentTypes.NEW_LABEL)
+            or self.label_input
+        )
+        can_be_inlined = (
+            (code_usage_count < 2 or self.input_is_simple(what_code))
+            and what_code_has_no_side_effects
+            and self.label_output is None
+        )
+        if can_be_inlined:
+            return where_code
 
-        converter_name = self.gen_name("pipe", ctx, self)
-        var_result = self.gen_name("result", ctx, self)
+        code_input_is_ignored = (
+            code_usage_count == 0 and what_code_has_no_side_effects
+        )
+        # backing up reducer inputs, collected at the previous step
+        reducers_run_stage = CodeGenerationOptionsCtx.get_option_value(
+            "reducers_run_stage"
+        )
+        reducer_inputs_backup_needed = (
+            reducers_run_stage == "collecting_reducer_inputs"
+        )
+        key_to_backup = "_reducer_inputs_info"
+        reducer_inputs_backup = None
+        if reducer_inputs_backup_needed:
+            reducer_inputs_backup = ctx[key_to_backup]
+            ctx[key_to_backup] = defaultdict(list)
+
+        suffix = self.gen_name("_", ctx, ("pipe", self, code_input))
+        converter_name = f"pipe{suffix}"
+        var_result = f"result{suffix}"
+        var_input = f"input{suffix}"
+
+        if code_input_is_ignored:
+            if self.label_output is None:
+                raise AssertionError("what are we doing here? it's a bug")
+            what_code, where_code = (where_code, var_input)
+        else:
+            where_code = where.gen_code_and_update_ctx(var_input, ctx)
+
+            if reducer_inputs_backup_needed:
+                ctx[key_to_backup] = reducer_inputs_backup
 
         code_args = where.get_args_def_code()
         where_args = where.get_args_as_func_args()
-        where_code = where.gen_code_and_update_ctx(var_input, ctx)
-
-        # input hasn't been used twice or more, input doesn't define/use any
-        # labels, so we can inline anyway
-        still_can_be_inlined = (
-            where_code.count(var_input) < 2
-            and self.label_input is None
-            and self.label_output is None
-        ) and not ("labels_[" in what_code or "pipe_" in what_code)
-        if still_can_be_inlined:
-            return self.replace_word(where_code, var_input, what_code)
 
         if self.label_input or self.label_output:
             label_input_code = (
@@ -1928,11 +1986,12 @@ def {converter_name}({var_input}{code_args}):
         """
 
         # no need in catching the function, we'll just use it by the name
-        self._code_to_converter(
-            converter_name=converter_name,
-            code=code,
-            ctx=ctx,
-        )
+        if reducers_run_stage != "collecting_reducer_inputs":
+            self._code_to_converter(
+                converter_name=converter_name,
+                code=code,
+                ctx=ctx,
+            )
 
         return (
             EscapedString(converter_name)
@@ -1964,7 +2023,6 @@ def {converter_name}(data_{code_args}):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("tap", ctx, self)
-        obj_code = self.obj.gen_code_and_update_ctx(code_input, ctx)
         mut_stmts = [
             self.indent_statements(
                 mut.gen_code_and_update_ctx("data_", ctx), 1
@@ -1981,7 +2039,7 @@ def {converter_name}(data_{code_args}):
         self._code_to_converter(converter_name, code, ctx)
         return (
             EscapedString(converter_name)
-            .call(EscapedString(obj_code), *self.get_args_as_func_args())
+            .call(self.obj, *self.get_args_as_func_args())
             .gen_code_and_update_ctx(code_input, ctx)
         )
 
@@ -1999,8 +2057,11 @@ def {converter_name}(data_{code_args}):
 """
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        converter_name = self.gen_name("iter_mut", ctx, self)
-        obj_code = self.obj.gen_code_and_update_ctx(code_input, ctx)
+        converter_name = self.gen_name(
+            "iter_mut",
+            ctx,
+            self,
+        )
         mut_stmts = [
             self.indent_statements(
                 mut.gen_code_and_update_ctx("item_", ctx), 2
@@ -2017,6 +2078,6 @@ def {converter_name}(data_{code_args}):
         self._code_to_converter(converter_name, code, ctx)
         return (
             EscapedString(converter_name)
-            .call(EscapedString(obj_code), *self.get_args_as_func_args())
+            .call(self.obj, *self.get_args_as_func_args())
             .gen_code_and_update_ctx(code_input, ctx)
         )

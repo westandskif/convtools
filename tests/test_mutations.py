@@ -61,7 +61,7 @@ def test_mutation_attr():
             c.Mut.del_attr("a"),
             c.Mut.set_attr("c", 3),
         )
-    ).execute(obj, debug=True)
+    ).execute(obj, debug=False)
     assert not hasattr(obj, "a") and obj.b == 2 and obj.c == 3
 
     obj = A()
@@ -73,7 +73,7 @@ def test_mutation_attr():
             c.Mut.del_attr("a"),
             c.Mut.set_attr("c", 3),
         )
-    ).execute(obj, debug=True)
+    ).execute(obj, debug=False)
     assert not hasattr(obj, "a") and obj.b == 2 and obj.c == 3
 
 
@@ -93,7 +93,7 @@ def test_iter_mut_method():
             c.Mut.set_item("d", c.item("a") + 3),
         )
         .as_type(list)
-        .execute([1, 2, 3], debug=True)
+        .execute([1, 2, 3], debug=False)
     ) == [
         {"a": 1, "b": 2, "c": 3, "d": 4},
         {"a": 2, "b": 3, "c": 4, "d": 5},
@@ -118,7 +118,7 @@ def test_iter_mut_method():
             )
             .as_type(tuple)
         )
-        .execute([(0, 1), (0, 2), (1, 7)], base=100, debug=True)
+        .execute([(0, 1), (0, 2), (1, 7)], base=100, debug=False)
     )
     assert result == [
         ({0: 2, "x": 102}, {2: 0, "x": 100}),

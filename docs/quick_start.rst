@@ -330,7 +330,9 @@ Next:
     * ``c.tuple_comp``, see :ref:`comprehensions section<ref_comprehensions>` for details:
 
   2. every comprehension supports if clauses to filter input:
-     ``c.list_comp(..., where=condition_conv)``
+     
+    * ``c.list_comp(..., where=condition_conv)``
+    * ``c.this().iter(..., where=condition_conv)``
 
   3. to avoid unnecessary function call overhead, there is a way to pass an inline
      python expression :ref:`c.inline_expr<ref_c_inline_expr>`
@@ -359,17 +361,18 @@ Next:
    ).gen_converter(debug=True)
 
    # compiled converter:
-
-   def converter268_422(data_):
+   def converter_n3(data_):
+       global labels_
        return sorted(
-           [
-               ((i268_194["value"]).bit_length())
-               for i268_194 in data_
-               if (i268_194["country"] == "US")
-           ],
-           key=vlambda273_26,
+           (
+               ((i_5k["value"]).bit_length())
+               for i_5k in data_
+               if (i_5k["country"] == "US")
+           ),
+           key=lambda_vq,
            reverse=True,
        )
+
 
 **Example of custom nested comprehension:**
 
@@ -453,8 +456,9 @@ A simple pipe first:
    ).gen_converter(debug=True)
 
    # GENERATES:
-   def converter35_941(data_):
-       return sum(((i32_722 * 2) for i32_722 in data_))
+   def converter_lv(data_):
+       global labels_
+       return sum(((i_s5 * 2) for i_s5 in data_))
 
 ____
 

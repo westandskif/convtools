@@ -132,3 +132,11 @@ def test_replace_word():
     for (where, word, with_what, expected_result) in cases:
         result = BaseConversion.replace_word(where, word, with_what)
         assert result == expected_result
+
+
+def test_count_words():
+    cases = [(" abc abc abc abc abcc aabc aabcc abc", "abc", 5)]
+
+    for (where, what, expected_result) in cases:
+        result = BaseConversion.count_words(where, what)
+        assert result == expected_result

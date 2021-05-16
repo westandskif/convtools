@@ -84,7 +84,7 @@ def test_multi_statement_reducers(dict_series):
                 SumReducer5(c.item("value"), initial=5),
             )
         )
-        .execute(dict_series, debug=True)
+        .execute(dict_series, debug=False)
     )
     assert output == [("Nick", 3, 3, 3, 3, 8), ("John", 63, 63, 63, 63, 68)]
 
@@ -287,6 +287,101 @@ def test_multiple_aggregations(dict_series):
                 c.aggregate(c.ReduceFuncs.Max(c.this()))
             )
         )
-        .execute(dict_series, debug=True)
+        .execute(dict_series, debug=False)
         == "Nick"
     )
+
+
+def test_reducer_inlining(dict_series):
+    def f():
+        f.number_of_calls += 1
+        if f.number_of_calls > f.max_number_of_calls:
+            raise Exception
+        return []
+
+    f.max_number_of_calls = 1
+    f.number_of_calls = 0
+
+    converter = c.aggregate(
+        c.ReduceFuncs.Array(
+            c.item("name"), default=f, where=c.item("value") < 0
+        ).pipe(
+            c.if_(
+                if_true=c.this(),
+                if_false=c.this(),
+            )
+        )
+    ).gen_converter(debug=False)
+    assert converter(dict_series) == []
+
+
+def test_group_by_key_edge_case():
+    with pytest.raises(ValueError):
+        c.this().add_label("row").pipe(c.ReduceFuncs.Count())
+    with pytest.raises(ValueError):
+        (c.this().add_label("row") + 1).pipe(c.ReduceFuncs.Count() + 1)
+    with pytest.raises(ValueError):
+        c.this().pipe(c.ReduceFuncs.Count(), label_input="row")
+    data = [
+        (0, 1),
+        (1, 2),
+    ]
+    # TODO: try to test nested pipe (double overwrites)
+    # TODO: reducer + label then pipe to somewhere
+    assert c.group_by(c.item(0)).aggregate(
+        c.if_(c.item(1), c.item(1), c.item(1)).pipe(
+            (c.ReduceFuncs.Sum(c.this()) / c.ReduceFuncs.Count(c.this())).pipe(
+                c.this() + 10
+            )
+        )
+    ).gen_converter(debug=False)(data) == [11, 12]
+    assert c.group_by(c.item(0)).aggregate(
+        c.item(1).pipe(c.ReduceFuncs.Sum(c.this()), label_output="count")
+    ).gen_converter(debug=False)(data) == [1, 2]
+
+
+def test_nested_group_by():
+    data = [
+        [0, [1, 2, 3]],
+        [0, [4, 5, 6]],
+        [1, [2, 3, 4]],
+    ]
+    assert c.group_by(c.item(0)).aggregate(
+        (
+            c.item(0),
+            c.ReduceFuncs.Sum(
+                c.item(1).pipe(c.aggregate(c.ReduceFuncs.Sum(c.this())))
+            ),
+        )
+    ).execute(data, debug=False) == [
+        (0, 21),
+        (1, 9),
+    ]
+    agg_conv = c.aggregate(c.ReduceFuncs.Sum(c.this()))
+    assert c.group_by(c.item(0)).aggregate(
+        (
+            c.item(0),
+            c.if_(c.item(1), c.item(1), c.item(1),).pipe(
+                c.if_(c.this(), c.this(), c.this(),).pipe(
+                    c.ReduceFuncs.Sum(
+                        c.if_(
+                            c.this(),
+                            c.this(),
+                            c.this(),
+                        )
+                        .pipe((agg_conv, agg_conv))
+                        .pipe(c.item(1))
+                    ).pipe(
+                        c.if_(
+                            c.this(),
+                            c.this(),
+                            c.this(),
+                        )
+                    ),
+                )
+            ),
+        )
+    ).execute(data, debug=True) == [
+        (0, 21),
+        (1, 9),
+    ]

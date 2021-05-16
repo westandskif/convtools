@@ -1,3 +1,23 @@
+0.13.0 (2021-05-16)
+-------------------
+
+Features
+++++++++
+
+- now ``c.iter`` supports ``where`` parameters just like ``c.generator_comp``:
+
+  * ``c.iter(c.this() + 1, where=c.this() > 0)``
+
+- now it's possible to use ``.pipe`` wherever you want as long as it lets you
+  do so, even piping in and out of reducers (``c.ReduceFuncs``)
+
+  * e.g. it will raise an Exception if you try to add labels to a reducer input
+
+- now it's possible to use ``aggregate`` inside ``aggregate`` as long as you
+  don't nest reducers
+
+----
+
 0.12.1 (2021-05-13)
 -------------------
 
