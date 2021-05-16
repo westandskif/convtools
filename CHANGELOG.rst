@@ -4,6 +4,8 @@
 Features
 ++++++++
 
+`#28 <https://github.com/itechart/convtools/issues/28>`_
+
 - now ``c.iter`` supports ``where`` parameters just like ``c.generator_comp``:
 
   * ``c.iter(c.this() + 1, where=c.this() > 0)``
