@@ -182,7 +182,7 @@ def test_hash_joins():
             ),
         )
         .as_type(list)
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert join2(
         [
@@ -247,7 +247,7 @@ def test_nested_loop_joins():
             ),
         )
         .as_type(list)
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert join1(
         [
@@ -282,7 +282,7 @@ def test_nested_loop_joins():
     join3 = (
         c.join(c.item(0), c.item(1), Eq(c.LEFT + c.RIGHT, 1))
         .as_type(list)
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert join3(([-1, 0, 1], [2, 1, 1])) == [(-1, 2), (0, 1), (0, 1)]
 
@@ -300,7 +300,7 @@ def test_left_join():
             how="left",
         )
         .as_type(list)
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert join1([(0, 1, 2, 3, 3), (3, 3, 4, 5)]) == [
         (0, None),
@@ -326,7 +326,7 @@ def test_right_join():
             how="right",
         )
         .as_type(list)
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert join1([(0, 1, 2, 3, 3), (3, 3, 4, 5)]) == [
         (3, 3),
@@ -347,7 +347,7 @@ def test_outer_join():
             how="full",
         )
         .as_type(list)
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert join1(([0, 1, 2, 5], [2, 3, 4, 5])) == [
         (0, None),
@@ -370,7 +370,7 @@ def test_outer_join():
             how="outer",
         )
         .as_type(list)
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert join2([(10, 7, 8, 0, 1, 2, 3, 3), (3, 3, 4, 5, 8)]) == [
         (10, None),
@@ -393,7 +393,7 @@ def test_cross_join():
     join1 = (
         c.join(c.item(0), c.item(1), True)
         .as_type(list)
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     assert join1(([1, 2, 3], [5, 6])) == [
         (1, 5),

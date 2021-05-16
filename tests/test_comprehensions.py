@@ -92,45 +92,69 @@ def test_comprehension_filter_cast_assumptions():
 def test_comprehension_filter_concats():
     assert c.generator_comp(c.this()).filter(c.this() > 5).filter(
         c.this() < 10
-    ).as_type(list).execute(range(20), debug=True) == [6, 7, 8, 9]
+    ).as_type(list).execute(range(20), debug=False) == [6, 7, 8, 9]
     assert c.this().iter(c.this()).filter(c.this() > 5).filter(
         c.this() < 10
-    ).as_type(list).execute(range(20), debug=True) == [6, 7, 8, 9]
+    ).as_type(list).execute(range(20), debug=False) == [6, 7, 8, 9]
+
+
+def test_comprehension_where():
+    assert (
+        c.generator_comp(c.this().neg(), where=c.this() > 6)
+        .as_type(list)
+        .filter(c.this() > -9)
+        .execute(range(10), debug=False)
+    ) == [-7, -8]
+    assert (
+        c.this()
+        .iter(c.this().neg(), where=c.this() > 6)
+        .as_type(list)
+        .filter(c.this() > -9)
+        .execute(range(10), debug=False)
+    ) == [-7, -8]
+    assert (
+        c.iter(c.this().neg(), where=c.this() > 6)
+        .as_type(list)
+        .filter(c.this() > -9)
+        .execute(range(10), debug=False)
+    ) == [-7, -8]
 
 
 def test_comprehensions_sorting():
     assert c.generator_comp(c.this()).sort().execute(
-        [2, 1, 3], debug=True
+        [2, 1, 3], debug=False
     ) == [1, 2, 3]
-    assert c.list_comp(c.this()).sort().execute([2, 1, 3], debug=True) == [
+    assert c.list_comp(c.this()).sort().execute([2, 1, 3], debug=False) == [
         1,
         2,
         3,
     ]
     assert c.this().pipe(c.list_comp(c.this())).sort().execute(
-        [2, 1, 3], debug=True
+        [2, 1, 3], debug=False
     ) == [
         1,
         2,
         3,
     ]
     assert c.list_comp(c.this()).sort().sort(reverse=True).execute(
-        [2, 1, 3], debug=True
+        [2, 1, 3], debug=False
     ) == [3, 2, 1]
 
-    assert c.set_comp(c.this()).sort().execute([2, 2, 1, 3], debug=True) == [
+    assert c.set_comp(c.this()).sort().execute([2, 2, 1, 3], debug=False) == [
         1,
         2,
         3,
     ]
-    assert c.tuple_comp(c.this()).sort().execute([2, 2, 1, 3], debug=True) == (
+    assert c.tuple_comp(c.this()).sort().execute(
+        [2, 2, 1, 3], debug=False
+    ) == (
         1,
         2,
         2,
         3,
     )
     assert c.dict_comp(c.this() * -1, c.this()).sort().execute(
-        [2, 2, 1, 3], debug=True
+        [2, 2, 1, 3], debug=False
     ) == OrderedDict(
         [
             (-3, 3),

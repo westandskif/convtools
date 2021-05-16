@@ -18,7 +18,7 @@ def test_labels():
             )
         ),
         2,
-    ).gen_converter(debug=True)
+    ).gen_converter(debug=False)
     assert conv1(data_=1, x={"cde": 2}, y={"abc": 3}) == 15
 
     list(c.generator_comp(c.this().add_label("a")).execute([1, 2]))

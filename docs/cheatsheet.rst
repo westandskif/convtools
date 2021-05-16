@@ -182,9 +182,8 @@ __________________________________________________
    - .. code-block:: python
 
       converter = c.list_comp(
-          c.this()
-      ).filter(
-          c.this() >= 5
+          c.this(),
+          where=c.this() >= 5
       ).pipe(
           c.if_(
               if_true=c.this(),
@@ -633,12 +632,11 @@ ___________________________________________
           (
               c.item("app_name").call_method("upper"),
               c.ReduceFuncs.DictSum(
-                  (
-                      # key
-                      (c.item("currency"), c.item("dt")),
-                      # value to be summed
-                      c.item("amount"),
-                  )
+                  # key
+                  (c.item("currency"), c.item("dt")),
+                  # value to be summed
+                  c.item("amount"),
+                  default=dict,
               ).call_method(
                   "items"
               ).iter(
@@ -648,7 +646,8 @@ ___________________________________________
                       c.input_arg("currency_to"),
                       c.item(0, 1),
                       c.item(1),
-                  )
+                  ),
+                  where=c.item(1)
               ).pipe(
                   c.call_func(sum, c.this())
               )
