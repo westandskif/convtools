@@ -312,6 +312,46 @@ def test_left_join():
         (3, 3),
     ]
 
+    conv = (
+        c.join(
+            c.item("first"),
+            c.item("second"),
+            (
+                c.LEFT.item("name").call_method("lower")
+                == c.RIGHT.item("full_name").call_method("lower")
+            ),
+            how="left",
+        )
+        .as_type(list)
+        .gen_converter(debug=False)
+    )
+    # fmt: off
+    assert conv(
+        {
+            "first": [
+                {"name": "JOHN"},
+                {"name": "JOHN"},
+                {"name": "bob"},
+                {"name": "bob"},
+                {"name": "ron"},
+                {"name": "ron"},
+            ],
+            "second": [
+                {"full_name": "BOB"},
+                {"full_name": "John"},
+                {"full_name": "Nick"},
+            ],
+        }
+    ) == [
+        ({"name": "JOHN"}, {"full_name": "John"},),
+        ({"name": "JOHN"}, {"full_name": "John"},),
+        ({"name": "bob"}, {"full_name": "BOB"},),
+        ({"name": "bob"}, {"full_name": "BOB"},),
+        ({"name": "ron"}, None),
+        ({"name": "ron"}, None),
+    ]
+    # fmt: on
+
 
 def test_right_join():
     join1 = (
@@ -336,6 +376,44 @@ def test_right_join():
         (None, 4),
         (None, 5),
     ]
+
+    conv = (
+        c.join(
+            c.item("first"),
+            c.item("second"),
+            (
+                c.LEFT.item("name").call_method("lower")
+                == c.RIGHT.item("full_name").call_method("lower")
+            ),
+            how="right",
+        )
+        .as_type(list)
+        .gen_converter(debug=False)
+    )
+    # fmt: off
+    assert conv(
+        {
+            "first": [
+                {"name": "JOHN"},
+                {"name": "bob"},
+                {"name": "ron"},
+            ],
+            "second": [
+                {"full_name": "BOB"},
+                {"full_name": "BOB"},
+                {"full_name": "John"},
+                {"full_name": "Nick"},
+                {"full_name": "Nick"},
+            ],
+        }
+    ) == [
+        ({"name": "bob"}, {"full_name": "BOB"},),
+        ({"name": "bob"}, {"full_name": "BOB"},),
+        ({"name": "JOHN"}, {"full_name": "John"},),
+        (None, {"full_name": "Nick"}),
+        (None, {"full_name": "Nick"}),
+    ]
+    # fmt: on
 
 
 def test_outer_join():

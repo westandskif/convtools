@@ -1001,7 +1001,6 @@ class Or(BaseConversion):
     op = " or "
 
     def __init__(self, arg1, arg2, *other_args):
-        """"""
         super().__init__()
         args = [arg1, arg2]
         args.extend(other_args)
@@ -1518,7 +1517,7 @@ class DictComp(BaseComprehensionConversion):
 
 
 class BaseCollectionConversion(BaseConversion):
-    """This is a base conversion of """
+    """This is a base conversion of every collection"""
 
     def __init__(self, *items):
         """

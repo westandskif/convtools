@@ -1,3 +1,15 @@
+0.13.1 (2021-05-23)
+-------------------
+
+Bugfix
+++++++
+
+`#29 <https://github.com/itechart/convtools/issues/29>`_
+
+- fixed right join (conditions were not swapped correctly)
+
+----
+
 0.13.0 (2021-05-16)
 -------------------
 
