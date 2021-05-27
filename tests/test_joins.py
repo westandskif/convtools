@@ -486,3 +486,15 @@ def test_cross_join():
 def test_join_bad_inputs():
     with pytest.raises(ValueError):
         c.join(c.item(0), c.item(1), True, "hz")
+
+
+def test_join_with_input_args():
+    assert (
+        c.join(
+            c.input_arg("custom_left"),
+            c.input_arg("custom_right"),
+            c.LEFT == c.RIGHT,
+        )
+        .as_type(list)
+        .execute(None, custom_left=range(3), custom_right=range(3), debug=True)
+    ) == [(0, 0), (1, 1), (2, 2)]

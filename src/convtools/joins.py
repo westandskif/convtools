@@ -411,7 +411,7 @@ def {converter_name}(left_, right_{code_args}):
         join_conversion = EscapedString(converter_name).call(
             left_conversion,
             right_conversion,
-            *condition.get_args_as_func_args(),
+            *self.get_args_as_func_args(),
         )
-        join_conversion.depends_on(*condition.get_args())
+        join_conversion.depends_on(self)
         return join_conversion.gen_code_and_update_ctx(code_input, ctx)
