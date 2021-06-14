@@ -1,3 +1,18 @@
+0.13.3 (2021-06-14)
+-------------------
+
+Bugfix
+++++++
+
+- fixed nested aggregations
+
+Misc
+++++
+
+- [internals] reworked aggregate & group_by templating
+
+----
+
 0.13.2 (2021-05-27)
 -------------------
 

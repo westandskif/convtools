@@ -30,9 +30,6 @@ class ReduceBlock:
     var_checksum = "checksum_"
     var_expected_checksum = "expected_checksum_"
 
-    reduce_indent = 3
-    reduce_no_init_indent = 2
-
     def __init__(
         self,
         var_agg_data_value,
@@ -46,6 +43,7 @@ class ReduceBlock:
         self.reduce_two = reduce_two
         self.checksum_flag = checksum_flag
         self.unconditional_init = unconditional_init
+        self.condition_code = None
 
     def replace_var_agg_data_value(self, var_agg_data_value):
         self.reduce_initial = BaseConversion.replace_word(
@@ -67,110 +65,106 @@ class ReduceBlock:
         clone.checksum_flag |= reduce_block.checksum_flag
         return clone
 
-    def get_template_kwargs(self, no_init=False) -> typing.Dict[str, str]:
+    def get_template_kwargs(self) -> typing.Dict[str, str]:
         _ = BaseConversion.indent_statements
-        reduce_indent = (
-            self.reduce_no_init_indent if no_init else self.reduce_indent
-        )
         return {
             "var_agg_data_value": self.var_agg_data_value,
-            "reduce_initial": _(self.reduce_initial, reduce_indent),
-            "reduce_two": _(self.reduce_two, reduce_indent),
             "var_checksum": self.var_checksum,
             "var_expected_checksum": self.var_expected_checksum,
             "checksum_flag": self.checksum_flag,
+            "condition_code": self.condition_code,
         }
 
-    def get_template(self, no_init=False) -> str:
-        template = """
-        if {var_agg_data_value} is _none:
-{reduce_initial}
-%(optional_checksum_code)s
+    def gen_code(self, index, no_init=False, **template_kwargs_) -> str:
+        has_condition = self.condition_code
+        has_reduce_two = self.reduce_two != "pass"
+        has_init = not no_init
+        reduce_two_only = no_init
+        agg_mode = self.checksum_flag
+        is_single_block = (
+            self.checksum_flag == template_kwargs_["expected_checksum"]
+        )
+        _ = BaseConversion.indent_statements
+
+        if reduce_two_only and not has_reduce_two:
+            return ""
+
+        template_kwargs = self.get_template_kwargs()
+        template_kwargs.update(template_kwargs_)
+
+        else_is_not_needed = None
+        i_ = 0
+        lines: typing.List[str] = []
+        optional_checksum_code_lines = lines
+        if has_init and agg_mode:
+            if not self.unconditional_init:
+                else_is_not_needed = False
+                lines.append(_("if {var_agg_data_value} is not _none:", i_))
+                i_ += 1
+            if is_single_block:
+                if else_is_not_needed is None:
+                    else_is_not_needed = True
+                lines.append(_("break", i_))
+            else:
+                lines.append(_("{var_checksum} |= {checksum_flag}", i_))
+                lines.append(
+                    _("if {var_checksum} == {var_expected_checksum}:", i_)
+                )
+                i_ += 1
+                lines.append(_("break", i_))
+                i_ -= 1
+
+        i_ = 1
+        lines = []
+        code_lines = lines
+        if index == 0 and agg_mode:
+            lines.append(_("for {var_row} in it_:", i_))
+        i_ += 1
+
+        if has_condition:
+            lines.append(_("if {condition_code}:", i_))
+            i_ += 1
+
+        if has_init:
+            lines.append(_("if {var_agg_data_value} is _none:", i_))
+            i_ += 1
+            lines.append("{reduce_initial}")
+            template_kwargs["reduce_initial"] = _(self.reduce_initial, i_)
+            lines.append(_(optional_checksum_code_lines, i_))
+            i_ -= 1
+
+            if has_reduce_two and not else_is_not_needed:
+                lines.append(_("else:", i_))
+                i_ += 1
+                lines.append("{reduce_two}")
+                template_kwargs["reduce_two"] = _(self.reduce_two, i_)
+                i_ -= 1
         else:
-{reduce_two}
-"""
-        no_init_template = """
-{reduce_two}
-"""
-        optional_checksum_code = """
-            if {var_agg_data_value} is not _none:
-                {var_checksum} |= {checksum_flag}
-                if {var_checksum} == {var_expected_checksum}:
-                    break
-"""
-        template = no_init_template if no_init else template
-        template = template % dict(
-            optional_checksum_code=optional_checksum_code
-            if self.checksum_flag
-            else ""
-        )
-        return template
+            lines.append("{reduce_two}")
+            template_kwargs["reduce_two"] = _(self.reduce_two, i_)
 
-    def to_code(self) -> str:
-        return self.get_template(no_init=False).format(
-            **self.get_template_kwargs(no_init=False)
-        )
-
-    def to_no_init_code(self) -> str:
-        return self.get_template(no_init=True).format(
-            **self.get_template_kwargs(no_init=True)
-        )
+        return "\n".join(code_lines).format(**template_kwargs)
 
     def code_hash(self) -> str:
-        code_hash = self.to_code()
-        code_hash = BaseConversion.replace_word(
-            code_hash, self.var_agg_data_value, ""
+        code = self.gen_code(
+            index=-1,
+            no_init=False,
+            var_row="_r",
+            expected_checksum=-1,
+            var_agg_data_value="_v",
+            checksum_flag=-2 if self.checksum_flag else 0,
         )
-        if self.checksum_flag:
-            code_hash = BaseConversion.replace_word(
-                code_hash, str(self.checksum_flag), ""
-            )
-        return code_hash
+        return BaseConversion.replace_word(code, self.var_agg_data_value, "_v")
 
 
 class ReduceConditionalBlock(ReduceBlock):
     """Represents a section of code of a single reducer with an incoming
     condition"""
 
-    reduce_indent = 4
-    reduce_no_init_indent = 3
-
     def __init__(self, *args, **kwargs):
-        self.condition_code = kwargs.pop("condition_code")
+        condition_code = kwargs.pop("condition_code")
         super().__init__(*args, **kwargs)
-
-    def get_template(self, no_init=False):
-        template = """
-        if {condition_code}:
-            if {var_agg_data_value} is _none:
-{reduce_initial}
-%(optional_checksum_code)s
-            else:
-{reduce_two}
-"""
-        no_init_template = """
-        if {condition_code}:
-{reduce_two}
-
-"""
-        optional_checksum_code = """
-                if {var_agg_data_value} is not _none:
-                    {var_checksum} |= {checksum_flag}
-                    if {var_checksum} == {var_expected_checksum}:
-                        break
-"""
-        template = no_init_template if no_init else template
-        template = template % dict(
-            optional_checksum_code=optional_checksum_code
-            if self.checksum_flag
-            else ""
-        )
-        return template
-
-    def get_template_kwargs(self, no_init=False):
-        template_kwargs = super().get_template_kwargs(no_init=no_init)
-        template_kwargs["condition_code"] = self.condition_code
-        return template_kwargs
+        self.condition_code = condition_code
 
 
 class ReduceBlocks(typing.Generic[RBT]):
@@ -223,12 +217,29 @@ class ReduceBlocks(typing.Generic[RBT]):
             blocks.append(block_)
         return blocks
 
-    def to_code(self) -> str:
-        return "\n\n".join(block.to_code() for block in self.reduce_blocks())
-
-    def to_no_init_code(self) -> str:
+    def to_code(self, var_row, expected_checksum) -> str:
         return "\n\n".join(
-            block.to_no_init_code() for block in self.reduce_blocks()
+            block.gen_code(
+                index=index,
+                no_init=False,
+                var_row=var_row,
+                expected_checksum=expected_checksum,
+            )
+            for index, block in enumerate(self.reduce_blocks())
+        )
+
+    def to_no_init_code(self, var_row, expected_checksum) -> str:
+        return "\n\n".join(
+            code
+            for code in (
+                block.gen_code(
+                    index=index,
+                    no_init=True,
+                    var_row=var_row,
+                    expected_checksum=expected_checksum,
+                )
+                for index, block in enumerate(self.reduce_blocks())
+            )
         )
 
 
@@ -251,10 +262,9 @@ def {converter_name}(data_{code_args}):
     {var_expected_checksum} = {val_expected_checksum}
     {var_checksum} = 0
     it_ = iter(data_)
-    for {var_row} in it_:
+
 {code_reduce_blocks}
 
-    for {var_row} in it_:
 {code_reduce_blocks_no_init}
 
 {code_result}
@@ -292,11 +302,12 @@ class BaseReducer(BaseConversion, typing.Generic[RBT]):
             "reducers_run_stage"
         )
         if reducers_run_stage == "collecting_reducer_inputs":
-            reducer_inputs_info = ctx["_reducer_inputs_info"]
-            reducer_inputs_info[code_input].append(self)
+            reducer_inputs_info = ctx["_reducer_inputs_info"][-1]
+            if reducer_inputs_info is not False:
+                reducer_inputs_info[code_input].append(self)
             agg_data_item = code_input
         elif reducers_run_stage == "rendering_reducer_results":
-            overwritten_reducer_inputs = ctx["_overwritten_reducer_inputs"]
+            overwritten_reducer_inputs = ctx["_overwritten_reducer_inputs"][-1]
             agg_data_item = overwritten_reducer_inputs[(code_input, self)]
         else:
             raise AssertionError(
@@ -667,11 +678,11 @@ class GroupBy(BaseConversion):
         with CodeGenerationOptionsCtx() as options:
             options.reducers_run_stage = "collecting_reducer_inputs"
             key = "_reducer_inputs_info"
-            if key in ctx:
-                raise AssertionError("it's a bug, please submit an issue")
-            ctx[key] = defaultdict(list)
+            if key not in ctx:
+                ctx[key] = []
+            ctx[key].append(defaultdict(list))
             self.agg_result.gen_code_and_update_ctx(var_row, ctx)
-            reducer_inputs_info = ctx.pop(key)
+            reducer_inputs_info = ctx[key].pop()
 
         def gen_agg_data_value(value_index):
             if aggregate_mode:
@@ -730,13 +741,13 @@ class GroupBy(BaseConversion):
         with CodeGenerationOptionsCtx() as options:
             options.reducers_run_stage = "rendering_reducer_results"
             key = "_overwritten_reducer_inputs"
-            if key in ctx:
-                raise AssertionError("it's a bug, please submit an issue")
-            ctx[key] = overwritten_reducer_inputs
+            if key not in ctx:
+                ctx[key] = []
+            ctx[key].append(overwritten_reducer_inputs)
             code_agg_result = self.agg_result.gen_code_and_update_ctx(
                 var_row, ctx
             )
-            del ctx[key]
+            ctx[key].pop()
 
         ctx.update({"defaultdict": defaultdict})
 
@@ -789,9 +800,9 @@ class GroupBy(BaseConversion):
             var_none=NaiveConversion(self._none).gen_code_and_update_ctx(
                 "", ctx
             ),
-            code_reduce_blocks=reduce_blocks.to_code(),
             code_result=code_agg_result,
             var_row=var_row,
+            expected_checksum=expected_checksum,
         )
 
         if self.aggregate_mode:
@@ -799,7 +810,12 @@ class GroupBy(BaseConversion):
             grouper_code = AGGREGATE_TEMPLATE.format(
                 converter_name=converter_name,
                 code_init_agg_vars=code_init_agg_vars,
-                code_reduce_blocks_no_init=reduce_blocks.to_no_init_code(),
+                code_reduce_blocks=reduce_blocks.to_code(
+                    var_row, expected_checksum
+                ),
+                code_reduce_blocks_no_init=reduce_blocks.to_no_init_code(
+                    var_row, expected_checksum
+                ),
                 var_expected_checksum=ReduceBlock.var_expected_checksum,
                 val_expected_checksum=expected_checksum,
                 var_checksum=ReduceBlock.var_checksum,
@@ -813,6 +829,9 @@ class GroupBy(BaseConversion):
                 var_agg_data_cls=var_agg_data_cls,
                 var_agg_data=var_agg_data,
                 code_signature=code_signature,
+                code_reduce_blocks=reduce_blocks.to_code(
+                    var_row, expected_checksum
+                ),
                 **agg_template_kwargs,
             )
 

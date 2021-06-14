@@ -1248,6 +1248,9 @@ def test_aggregate_func():
     conv = c.aggregate(
         {
             "a": c.ReduceFuncs.Array(c.item("a")),
+            "a_sum": c.ReduceFuncs.Array(c.item("a")).pipe(
+                c.aggregate(c.ReduceFuncs.Sum(c.this()))
+            ),
             "ab_sum": c.ReduceFuncs.Sum(c.item("a")) + c.ReduceFuncs.Count(),
             "b": c.ReduceFuncs.ArrayDistinct(c.item("b")),
             "b_max_a": c.ReduceFuncs.MaxRow(c.item("a")).item(
@@ -1258,6 +1261,7 @@ def test_aggregate_func():
 
     assert conv(input_data) == {
         "a": [5, 10, 10],
+        "a_sum": 25,
         "ab_sum": 28,
         "b": ["foo", "bar"],
         "b_max_a": "bar",
