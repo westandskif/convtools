@@ -1,6 +1,8 @@
 0.13.3 (2021-06-14)
 -------------------
 
+`#30 <https://github.com/itechart/convtools/issues/30>`_
+
 Bugfix
 ++++++
 

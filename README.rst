@@ -490,63 +490,50 @@ All-in-one example #2: word count
 
 .. code-block:: python
 
-   def aggregate_u5(data_):
+   def aggregate__ao(data_):
        global labels_
-       _none = v_lj
-       agg_data_v0_ = _none
+       _none = v_vl
+       agg_data__ao_v0 = _none
        expected_checksum_ = 1
        checksum_ = 0
        it_ = iter(data_)
-       for row_ in it_:
 
-           if agg_data_v0_ is _none:
-               agg_data_v0_ = {row_: 1}
+       for row__ao in it_:
+           if agg_data__ao_v0 is _none:
+               agg_data__ao_v0 = {row__ao: 1}
+               break
 
-               if agg_data_v0_ is not _none:
-                   checksum_ |= 1
-                   if checksum_ == expected_checksum_:
-                       break
-
+       for row__ao in it_:
+           if row__ao not in agg_data__ao_v0:
+               agg_data__ao_v0[row__ao] = 1
            else:
-               if row_ not in agg_data_v0_:
-                   agg_data_v0_[row_] = 1
-               else:
-                   agg_data_v0_[row_] = agg_data_v0_[row_] + 1
+               agg_data__ao_v0[row__ao] = agg_data__ao_v0[row__ao] + 1
 
-       for row_ in it_:
-
-           if row_ not in agg_data_v0_:
-               agg_data_v0_[row_] = 1
-           else:
-               agg_data_v0_[row_] = agg_data_v0_[row_] + 1
-
-       result_ = dict() if agg_data_v0_ is _none else agg_data_v0_
-
-       return result_
+       return dict() if agg_data__ao_v0 is _none else agg_data__ao_v0
 
 
-   def pipe_2h(input_om, top_n):
+   def pipe__ho(input__ho, top_n):
        global labels_
        return (
            dict(
-               sorted(input_om.items(), key=lambda_ik, reverse=True)[
+               sorted(input__ho.items(), key=lambda_0r, reverse=True)[
                    (slice(None, top_n, None))
                ]
            )
            if (top_n is not None)
-           else input_om
+           else input__ho
        )
 
 
-   def converter_wz(data_, top_n=None):
+   def converter_dg(data_, top_n=None):
        global labels_
-       return pipe_2h(
-           aggregate_u5(
-               from_iterable_c4(
+       return pipe__ho(
+           aggregate__ao(
+               from_iterable_tq(
                    (
-                       (i_ry.group(0).lower() for i_ry in v_ql.finditer(i_fi))
-                       for i_fi in from_iterable_c4(
-                           (lambda_6b(i_jq) for i_jq in data_)
+                       (i_3u.group(0).lower() for i_3u in v_vq.finditer(i_zs))
+                       for i_zs in from_iterable_tq(
+                           (lambda_cq(i_y4) for i_y4 in data_)
                        )
                    )
                )
