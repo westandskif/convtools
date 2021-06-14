@@ -212,9 +212,11 @@ def test_mode_with_groupby():
     series = [(0, 1), (0, 1), (0, 2), (1, 1), (1, 2), (1, 2)]
 
     assert eq(
-        c.group_by(c.item(0))
-        .aggregate(c.ReduceFuncs.Mode(c.item(1)))
-        .execute(series),
+        (
+            c.group_by(c.item(0))
+            .aggregate(c.ReduceFuncs.Mode(c.item(1)))
+            .execute(series)
+        ),
         [
             statistics.mode([x[1] for x in series if x[0] == key])
             for key in ordered_set(x[0] for x in series)
@@ -326,8 +328,6 @@ def test_group_by_key_edge_case():
         (0, 1),
         (1, 2),
     ]
-    # TODO: try to test nested pipe (double overwrites)
-    # TODO: reducer + label then pipe to somewhere
     assert c.group_by(c.item(0)).aggregate(
         c.if_(c.item(1), c.item(1), c.item(1)).pipe(
             (c.ReduceFuncs.Sum(c.this()) / c.ReduceFuncs.Count(c.this())).pipe(
@@ -381,7 +381,48 @@ def test_nested_group_by():
                 )
             ),
         )
-    ).execute(data, debug=True) == [
+    ).execute(data, debug=False) == [
         (0, 21),
         (1, 9),
     ]
+
+    summer = c.aggregate(c.ReduceFuncs.Sum(c.this()))
+
+    merger = c.aggregate(
+        {
+            "value1": c.ReduceFuncs.First(
+                c.item("value1"), where=c("value1").in_(c.this())
+            ),
+            "value2": c.ReduceFuncs.First(
+                c.item("value2"), where=c("value2").in_(c.this())
+            ).pipe(c.if_(c.this(), c.this().pipe(summer))),
+        }
+    )
+    converter = (
+        c.group_by(c.item("id_"))
+        .aggregate(
+            {
+                "id_": c.item("id_"),
+                "data": c.ReduceFuncs.Array(c.this()).pipe(merger),
+            }
+        )
+        .gen_converter(debug=False)
+    )
+    assert converter(
+        [
+            {"id_": 1, "value1": 2},
+            {"id_": 2, "value1": 3},
+            {"id_": 2, "value2": [1, 2, 3]},
+        ]
+    ) == [
+        {"id_": 1, "data": {"value1": 2, "value2": None}},
+        {"id_": 2, "data": {"value1": 3, "value2": 6}},
+    ]
+
+    def g():
+        yield 1
+        raise Exception
+
+    assert (
+        c.aggregate(c.ReduceFuncs.First(c.this())).execute(g(), debug=False)
+    ) == 1

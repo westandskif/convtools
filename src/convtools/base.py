@@ -6,7 +6,6 @@ import re
 import string
 import sys
 import typing
-from collections import defaultdict
 from itertools import chain
 from random import choice
 from types import GeneratorType
@@ -1919,10 +1918,8 @@ class PipeConversion(BaseConversion):
             reducers_run_stage == "collecting_reducer_inputs"
         )
         key_to_backup = "_reducer_inputs_info"
-        reducer_inputs_backup = None
         if reducer_inputs_backup_needed:
-            reducer_inputs_backup = ctx[key_to_backup]
-            ctx[key_to_backup] = defaultdict(list)
+            ctx[key_to_backup].append(False)
 
         suffix = self.gen_name("_", ctx, ("pipe", self, code_input))
         converter_name = f"pipe{suffix}"
@@ -1937,7 +1934,7 @@ class PipeConversion(BaseConversion):
             where_code = where.gen_code_and_update_ctx(var_input, ctx)
 
             if reducer_inputs_backup_needed:
-                ctx[key_to_backup] = reducer_inputs_backup
+                ctx[key_to_backup].pop()
 
         code_args = where.get_args_def_code()
         where_args = where.get_args_as_func_args()
