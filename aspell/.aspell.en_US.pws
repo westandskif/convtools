@@ -1,4 +1,4 @@
-personal_ws-1.1 en 161 
+personal_ws-1.1 en 162 
 Almakov
 Anexen
 BYN
@@ -138,6 +138,7 @@ str
 strftime
 strptime
 sys
+templating
 testt
 tex
 tmp

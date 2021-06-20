@@ -1,3 +1,12 @@
+0.13.4 (2021-06-20)
+-------------------
+
+Bugfix
+++++++
+
+- fixed incorrect aggregate (not group_by) results in case of ``where``
+  conditions in reducers `#32 <https://github.com/itechart/convtools/issues/30>`_
+
 0.13.3 (2021-06-14)
 -------------------
 

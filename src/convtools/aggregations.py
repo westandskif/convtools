@@ -75,7 +75,9 @@ class ReduceBlock:
             "condition_code": self.condition_code,
         }
 
-    def gen_code(self, index, no_init=False, **template_kwargs_) -> str:
+    def gen_code(
+        self, is_first, is_last, no_init=False, **template_kwargs_
+    ) -> str:
         has_condition = self.condition_code
         has_reduce_two = self.reduce_two != "pass"
         has_init = not no_init
@@ -94,30 +96,38 @@ class ReduceBlock:
 
         else_is_not_needed = None
         i_ = 0
-        lines: typing.List[str] = []
-        optional_checksum_code_lines = lines
+        update_checksum_lines = []
+        check_sum_and_break_lines = []
         if has_init and agg_mode:
             if not self.unconditional_init:
                 else_is_not_needed = False
-                lines.append(_("if {var_agg_data_value} is not _none:", i_))
+                update_checksum_lines.append(
+                    _("if {var_agg_data_value} is not _none:", i_)
+                )
+                check_sum_and_break_lines.append(
+                    _("if {var_agg_data_value} is not _none:", i_)
+                )
                 i_ += 1
             if is_single_block:
                 if else_is_not_needed is None:
                     else_is_not_needed = True
-                lines.append(_("break", i_))
+                update_checksum_lines = []
+                check_sum_and_break_lines.append(_("break", i_))
             else:
-                lines.append(_("{var_checksum} |= {checksum_flag}", i_))
-                lines.append(
+                update_checksum_lines.append(
+                    _("{var_checksum} |= {checksum_flag}", i_)
+                )
+                check_sum_and_break_lines.append(
                     _("if {var_checksum} == {var_expected_checksum}:", i_)
                 )
                 i_ += 1
-                lines.append(_("break", i_))
+                check_sum_and_break_lines.append(_("break", i_))
                 i_ -= 1
 
         i_ = 1
-        lines = []
+        lines: typing.List[str] = []
         code_lines = lines
-        if index == 0 and agg_mode:
+        if is_first and agg_mode:
             lines.append(_("for {var_row} in it_:", i_))
         i_ += 1
 
@@ -130,7 +140,7 @@ class ReduceBlock:
             i_ += 1
             lines.append("{reduce_initial}")
             template_kwargs["reduce_initial"] = _(self.reduce_initial, i_)
-            lines.append(_(optional_checksum_code_lines, i_))
+            lines.append(_(update_checksum_lines, i_))
             i_ -= 1
 
             if has_reduce_two and not else_is_not_needed:
@@ -143,11 +153,18 @@ class ReduceBlock:
             lines.append("{reduce_two}")
             template_kwargs["reduce_two"] = _(self.reduce_two, i_)
 
+        if has_condition:
+            i_ -= 1
+
+        if is_last:
+            lines.append(_(check_sum_and_break_lines, i_))
+
         return "\n".join(code_lines).format(**template_kwargs)
 
     def code_hash(self) -> str:
         code = self.gen_code(
-            index=-1,
+            is_first=True,
+            is_last=True,
             no_init=False,
             var_row="_r",
             expected_checksum=-1,
@@ -217,30 +234,23 @@ class ReduceBlocks(typing.Generic[RBT]):
             blocks.append(block_)
         return blocks
 
-    def to_code(self, var_row, expected_checksum) -> str:
-        return "\n\n".join(
-            block.gen_code(
-                index=index,
-                no_init=False,
+    def to_code(self, var_row, expected_checksum, no_init=False) -> str:
+        code_blocks = []
+        is_first = True
+        reduce_blocks = list(self.reduce_blocks())
+        last_index = len(reduce_blocks) - 1
+        for index, block in enumerate(reduce_blocks):
+            code_block = block.gen_code(
+                is_first=is_first,
+                is_last=last_index == index,
+                no_init=no_init,
                 var_row=var_row,
                 expected_checksum=expected_checksum,
             )
-            for index, block in enumerate(self.reduce_blocks())
-        )
-
-    def to_no_init_code(self, var_row, expected_checksum) -> str:
-        return "\n\n".join(
-            code
-            for code in (
-                block.gen_code(
-                    index=index,
-                    no_init=True,
-                    var_row=var_row,
-                    expected_checksum=expected_checksum,
-                )
-                for index, block in enumerate(self.reduce_blocks())
-            )
-        )
+            code_blocks.append(code_block)
+            if is_first and code_block:
+                is_first = False
+        return "\n\n".join(code_blocks)
 
 
 GROUPER_TEMPLATE = """
@@ -813,8 +823,8 @@ class GroupBy(BaseConversion):
                 code_reduce_blocks=reduce_blocks.to_code(
                     var_row, expected_checksum
                 ),
-                code_reduce_blocks_no_init=reduce_blocks.to_no_init_code(
-                    var_row, expected_checksum
+                code_reduce_blocks_no_init=reduce_blocks.to_code(
+                    var_row, expected_checksum, no_init=True
                 ),
                 var_expected_checksum=ReduceBlock.var_expected_checksum,
                 val_expected_checksum=expected_checksum,
