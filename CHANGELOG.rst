@@ -5,7 +5,7 @@ Bugfix
 ++++++
 
 - fixed incorrect aggregate (not group_by) results in case of ``where``
-  conditions in reducers `#32 <https://github.com/itechart/convtools/issues/30>`_
+  conditions in reducers `#32 <https://github.com/itechart/convtools/issues/32>`_
 
 0.13.3 (2021-06-14)
 -------------------
