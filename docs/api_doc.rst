@@ -381,6 +381,32 @@ c.sort
 .. automethod:: convtools.base.BaseConversion.sort
    :noindex:
 
+.. _ref_zip:
+
+c.zip
+=====
+
+.. automethod:: convtools.conversion.zip
+   :noindex:
+
+.. _ref_repeat:
+
+c.repeat
+========
+
+.. automethod:: convtools.conversion.repeat
+   :noindex:
+
+.. _ref_flatten:
+
+c.flatten
+=========
+
+.. automethod:: convtools.conversion.flatten
+   :noindex:
+.. automethod:: convtools.base.BaseConversion.flatten
+   :noindex:
+
 .. _ref_labels:
 
 c.label

@@ -957,3 +957,66 @@ _____________
           )
       ).gen_converter(debug=True)
 
+14. Collection helpers: zip, repeat, flatten
+____________________________________________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 25 40
+ :header-rows: 1
+
+ * - in
+   - out
+   - conversion
+ * - .. code-block:: python
+
+      input_data = [
+          ([1,2], {"abc": 1}),
+          ([3,4], {"cde": 2}),
+      ]
+
+   - .. code-block:: python
+
+      #  - zip list with single dicts element-wise
+      #  - flatten list
+      [
+          (1, {"abc": 1}),
+          (2, {"abc": 1}),
+          (3, {"cde": 2}),
+          (4, {"cde": 2}),
+      ]
+
+   - .. code-block:: python
+
+      converter = (
+          c.iter(
+              c.zip(
+                  c.item(0),
+                  c.repeat(c.item(1))
+              )
+          )
+          .flatten()
+          .as_type(list)
+          .gen_converter(debug=True)
+      )
+
+ * - .. code-block:: python
+
+      data = {
+          "ids": [1, 2],
+          "names": ["Nick", "John"],
+      }
+
+   - .. code-block:: python
+
+      data = [
+          {"id": 1, "name": "Nick"},
+          {"id": 2, "name": "John"},
+      ]
+
+   - .. code-block:: python
+
+      converter = c.zip(
+          id=c.item("ids"),
+          name=c.item("names"),
+      ).as_type(list).gen_converter(debug=True)

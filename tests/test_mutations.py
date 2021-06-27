@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 
 from convtools import conversion as c
+from convtools.base import GetItem
 
 
 def test_mutation_item():
@@ -46,6 +47,11 @@ def test_mutation_item():
 
     with pytest.raises(Exception):
         c.item(c.Mut.set_item("abc", "cde"))
+    with pytest.raises(Exception):
+        conversion = c.item(1)
+        conversion.ensure_conversion(
+            c.Mut.set_item("abc", "cde"), explicitly_allowed_cls=GetItem
+        )
 
 
 def test_mutation_attr():

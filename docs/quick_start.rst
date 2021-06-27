@@ -408,8 +408,8 @@ Next:
         pipe80_338 = data_.items()
         return ((key, item) for key, items in pipe80_338 for item in items if key)
 
-7. Filters, sorting, pipes, labels and conditions
-_________________________________________________
+7. Processing collections: filter, sort, pipe, label, if, zip, repeat, flatten
+_______________________________________________________________________________
 
 Points to learn:
 
@@ -437,6 +437,10 @@ Points to learn:
       * any ``(...).pipe`` supports ``label_input`` and ``label_output``
         parameters, both accept either ``str`` (a label name) or ``dict`` (keys
         are label names, values are conversions to be applied before labeling)
+ 6. :ref:`c.zip<ref_zip>` wraps & extends python's zip: if args provided, returns
+     tuples; if kwargs provided, returns dicts
+ 7. :ref:`c.repeat<ref_repeat>` wraps python's ``itertools.repeat``
+ 8. :ref:`c.flatten<ref_flatten>` wraps python's ``itertools.chain.from_iterable``
 
 A simple pipe first:
 

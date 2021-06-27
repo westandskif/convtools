@@ -20,13 +20,14 @@ Also there are more after the **Installation** section.
 Why would you need this?
 ========================
 
+ * you love functional programming
  * you believe that Python is awesome enough to have powerful aggregations and
    joins
- * you like the idea of having something else write an unpleasant ad hoc
-   code for you
  * you need to serialize/deserialize objects
  * you need to define dynamic data transforms based on some input, which
    becomes available at runtime
+ * you like the idea of having something else write an unpleasant ad hoc
+   code for you
  * you want to reuse field-wise transformations across the project without
    worrying about huge overhead of calling tens of functions per row/object,
    especially when there are thousands of them to be processed
@@ -81,9 +82,8 @@ ____
 Every conversion:
  * contains the information of how to transform an input
  * can be **piped** into another conversion (same as wrapping)
- * can be labeled to be reused further in the conversions chain
  * has a method ``gen_converter`` returning a function compiled at runtime
- * despite being compiled at runtime, is debuggable with `pdb` due to `linecache` populating.
+ * despite being compiled at runtime, it remains debuggable with `pdb` due to `linecache` populating.
 
 
 Installation:

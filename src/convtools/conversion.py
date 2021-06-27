@@ -1,6 +1,8 @@
 """
 The main module exposing public API (via conversion object)
 """
+import itertools
+
 from .aggregations import Aggregate, BaseReducer, GroupBy, Reduce, ReduceFuncs
 from .base import (
     And,
@@ -147,6 +149,32 @@ class _Conversion:
 
     def iter_mut(self, *args, **kwargs):
         return self.this().iter_mut(*args, **kwargs)
+
+    def zip(self, *args, **kwargs):
+        """Conversion which calls :py:obj:`zip` on conversions.
+
+        Args:
+          args: conversions to zip - returns tuples
+          kwargs: named conversions to zip - returns dicts
+
+        """
+        if args and kwargs:
+            raise ValueError("pass either args or kwargs")
+        if args:
+            return self.call_func(zip, *args)
+
+        return self.call_func(zip, *kwargs.values()).iter(
+            {name: self.item(index) for index, name in enumerate(kwargs)}
+        )
+
+    def repeat(self, obj, times=None):
+        """shortcut to call :py:obj:`itertools.repeat`"""
+        args = () if times is None else (times,)
+        return self.call_func(itertools.repeat, obj, *args)
+
+    def flatten(self):
+        """c.this().flatten() shortcut"""
+        return self.this().flatten()
 
 
 conversion = _Conversion()

@@ -179,7 +179,7 @@ def {converter_name}({code_args}):
 
 
 def ensure_conversion(
-    conversion: typing.Any, accept_mutations=False
+    conversion: typing.Any, explicitly_allowed_cls=None
 ) -> "BaseConversion":
     r"""Helps to define conversions based on its type:
         * any conversion is returned untouched
@@ -205,8 +205,14 @@ def ensure_conversion(
        * object -> :py:class:`NaiveConversion` (conversion)
     """
     if isinstance(conversion, BaseConversion):
-        if not accept_mutations and isinstance(conversion, BaseMutation):
-            raise Exception("BaseMutation instances are not allowed")
+        if conversion.used_in_narrow_context and (
+            explicitly_allowed_cls is None
+            or not isinstance(conversion, explicitly_allowed_cls)
+        ):
+            raise Exception(
+                f"{conversion} cannot be used in this context unless "
+                "explicitly allowed"
+            )
         return conversion
     if isinstance(conversion, dict):
         return Dict(*conversion.items())
@@ -259,6 +265,7 @@ class BaseConversion(typing.Generic[CT]):
     _none = _None()
     valid_pipe_output = True
     method_calls_replace_input_with_self = False
+    used_in_narrow_context = False
 
     class ContentTypes:
         REDUCER = 1
@@ -564,9 +571,7 @@ class BaseConversion(typing.Generic[CT]):
         """Shortcut for generating converter and running it"""
         return self.gen_converter(debug=debug)(*args, **kwargs)
 
-    def iter(
-        self, element_conv: "BaseConversion", *, where=None
-    ) -> "BaseConversion":
+    def iter(self, element_conv, *, where=None) -> "BaseConversion":
         """Shortcut for
         ``self.pipe(c.generator_comp(element_conv, where=condition))``
 
@@ -585,6 +590,11 @@ class BaseConversion(typing.Generic[CT]):
 
         """
         return IterMutConversion(self, *mutations)
+
+    def flatten(self) -> "Call":
+        """Conversion which calls :py:obj:`itertools.chain.from_iterable` on
+        self. Returns iterable"""
+        return CallFunc(chain.from_iterable, self)
 
     def item(self, *args, **kwargs) -> "GetItem":
         return GetItem(*args, self_conv=self, **kwargs)
@@ -786,7 +796,7 @@ class BaseConversion(typing.Generic[CT]):
 
 
 class BaseMutation(BaseConversion):
-    pass
+    used_in_narrow_context = True
 
 
 class BaseMethodConversion(BaseConversion):
@@ -1202,7 +1212,7 @@ class GetAttr(GetItem):
     If an index is a conversion itself, then it is being calculated
     against an input."""
 
-    valid_attr = re.compile(r"^'[A-Za-z][a-zA-Z0-9_]*'$")
+    valid_attr = re.compile(r"^'[A-Za-z_][a-zA-Z0-9_]*'$")
 
     def wrap_path_item(self, code_input, path_item):
         if self.valid_attr.match(path_item):
@@ -1239,7 +1249,7 @@ class Call(BaseMethodConversion):
         return f"{code_self}({','.join(params)})"
 
 
-def CallFunc(func, *args, **kwargs):
+def CallFunc(func, *args, **kwargs) -> "Call":
     """Shortcut to ``NaiveConversion(func).call(*args, **kwargs)``"""
     assert callable(func)
     return NaiveConversion(func).call(*args, **kwargs)
@@ -2007,7 +2017,7 @@ class TapConversion(BaseConversion):
         super().__init__()
         self.obj = self.ensure_conversion(obj)
         self.mutations = [
-            self.ensure_conversion(mut, accept_mutations=True)
+            self.ensure_conversion(mut, explicitly_allowed_cls=BaseMutation)
             for mut in mutations
         ]
 

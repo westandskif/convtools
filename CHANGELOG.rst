@@ -1,3 +1,14 @@
+0.14.0 (2021-06-27)
+___________________
+
+Features
+++++++++
+
+- introduced ``c.zip``, which supports both args to yield tuples and kwargs to yield dicts
+- introduced ``c.repeat`` -- the one from ``itertools``
+- introduced ``c.flatten`` -- shortcut for ``itertools.chain.from_iterable``
+
+
 0.13.4 (2021-06-20)
 -------------------
 
