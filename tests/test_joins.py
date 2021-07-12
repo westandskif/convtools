@@ -498,3 +498,26 @@ def test_join_with_input_args():
         .as_type(list)
         .execute(None, custom_left=range(3), custom_right=range(3), debug=True)
     ) == [(0, 0), (1, 1), (2, 2)]
+
+
+def test_join_with_complex_pipe():
+    def f(l):
+        return l + [1, 3]
+
+    pipeline = (
+        c.aggregate(c.ReduceFuncs.Array(c.item("a")))
+        .pipe(c.join(c.this(), c.call_func(f, c.this()), c.LEFT == c.RIGHT))
+        .iter(c.item(1))
+        .as_type(list)
+    )
+
+    assert (
+        pipeline.execute(
+            [
+                {"a": 1},
+                {"a": 2},
+                {"a": 3},
+            ]
+        )
+        == [1, 1, 2, 3, 3]
+    )

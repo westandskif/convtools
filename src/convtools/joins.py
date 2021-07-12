@@ -398,7 +398,7 @@ class JoinConversion(BaseConversion):
             raise AssertionError(
                 "join conversion has a bug, please submit an issue"
             )
-        converter_name = self.gen_name("join", ctx, self)
+        converter_name = self.gen_name("join", ctx, (self, code_input))
         code_args = self.get_args_def_code(as_kwargs=False)
         code = f"""
 def {converter_name}(left_, right_{code_args}):

@@ -10,7 +10,7 @@ from itertools import chain
 from random import choice
 from types import GeneratorType
 
-from .utils import BaseCtx, BaseOptions, RUCache
+from .utils import BaseCtx, BaseOptions, Code, RUCache
 
 
 try:
@@ -381,20 +381,6 @@ class BaseConversion(typing.Generic[CT]):
             where,
         )
 
-    @classmethod
-    def indent_statements(
-        cls,
-        statements: typing.Union[str, typing.Iterable[str]],
-        indentation_level: int,
-    ) -> str:
-        indentation = "    " * indentation_level
-        lines = (
-            statements.splitlines()
-            if isinstance(statements, str)
-            else statements
-        )
-        return "\n".join(f"{indentation}{line}" for line in lines)
-
     def get_args(self, exclude_types=None):
         return sorted(
             {
@@ -546,20 +532,19 @@ class BaseConversion(typing.Generic[CT]):
                 )
             )
 
-        code_lines = []
-        indent = "    "
-        code_conv = self.gen_code_and_update_ctx(initial_code_input, ctx)
-        code_lines.append(f"{indent}return {code_conv}")
-
+        code = Code()
         converter_name = self.gen_name(converter_name, ctx, self)
-        converter_code = CONVERTER_TEMPLATE.format(
-            code="\n".join(code_lines),
-            converter_name=converter_name,
-            code_signature=signature,
+        code.add_line(f"def {converter_name}({signature}):", 1)
+        code.add_line("global labels_", 0)
+        code.add_line(
+            "return {}".format(
+                self.gen_code_and_update_ctx(initial_code_input, ctx)
+            ),
+            0,
         )
         main_converter = self._code_to_converter(
             converter_name=converter_name,
-            code=converter_code,
+            code=code.to_string(base_indent_level=0),
             ctx=ctx,
         )
         main_converter_callable.set_main_converter(main_converter)
@@ -1226,26 +1211,28 @@ class Call(BaseMethodConversion):
     It takes both positional and keyword arguments to be passed.
     """
 
-    symbols_to_filter_out = re.compile(r"\W")
-
     def __init__(self, *args, self_conv=BaseConversion._none, **kwargs):
         super().__init__(self_conv)
         self.args = [self.ensure_conversion(arg) for arg in args]
-        self.kwargs = {
-            k: self.ensure_conversion(v) for k, v in (kwargs or {}).items()
-        }
+        self.kwargs = (
+            {k: self.ensure_conversion(v) for k, v in kwargs.items()}
+            if kwargs
+            else {}
+        )
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         code_self, code_input = self.get_self_and_input_code(code_input, ctx)
 
-        params = [
-            param.gen_code_and_update_ctx(code_input, ctx)
-            for param in self.args
-        ]
-        for k, v in self.kwargs.items():
-            params.append(
+        params = chain(
+            (
+                param.gen_code_and_update_ctx(code_input, ctx)
+                for param in self.args
+            ),
+            (
                 "{}={}".format(k, v.gen_code_and_update_ctx(code_input, ctx))
-            )
+                for k, v in self.kwargs.items()
+            ),
+        )
         return f"{code_self}({','.join(params)})"
 
 
@@ -1535,34 +1522,54 @@ class BaseCollectionConversion(BaseConversion):
             every item gets wrapped with :py:obj:`ensure_conversion`
         """
         super().__init__()
-        self.items = [self.ensure_conversion(item) for item in items]
+        resulting_items = []
+        condition_to_item_pairs = None
+        for item in items:
+            item = self.ensure_conversion(item)
+            if condition_to_item_pairs is None:
+                if isinstance(item, OptionalCollectionItem):
+                    condition_to_item_pairs = [
+                        (None, item_) for item_ in resulting_items
+                    ]
+                    condition_to_item_pairs.append(
+                        (item.condition, item.conversion)
+                    )
+                    resulting_items = None
+                else:
+                    resulting_items.append(item)
+            else:
+                condition_to_item_pairs.append(
+                    (item.condition, item.conversion)
+                    if isinstance(item, OptionalCollectionItem)
+                    else (None, item)
+                )
+        self.items = resulting_items
+        self.condition_to_item_pairs = condition_to_item_pairs
 
-    def gen_optional_items_generator_code(
-        self, condition_to_item_pairs, code_input, ctx
-    ):
-        code_lines = []
+    def gen_optional_items_generator_code(self, code_input, ctx):
         inner_code_input = "data_"
-        for condition, item in condition_to_item_pairs:
-            value_code = item.gen_code_and_update_ctx(inner_code_input, ctx)
+        code = Code()
+        converter_name = self.gen_name("optional_items_generator", ctx, self)
+        code_args = self.get_args_def_code(as_kwargs=False)
+        code.add_line(f"def {converter_name}(data_{code_args}):", 1)
+        code.add_line("global labels_", 0)
+
+        for condition, item in self.condition_to_item_pairs:
+            value_code = ensure_conversion(item).gen_code_and_update_ctx(
+                inner_code_input, ctx
+            )
             if condition is not None:
                 condition_code = condition.gen_code_and_update_ctx(
                     inner_code_input, ctx
                 )
-                code_lines.append(f"    if {condition_code}:")
-                code_lines.append(f"        yield {value_code}")
+                code.add_line(f"if {condition_code}:", 1)
+                code.add_line(f"yield {value_code}", -1)
             else:
-                code_lines.append(f"    yield {value_code}")
-        code_lines = "\n".join(code_lines)
-        converter_name = self.gen_name("optional_items_generator", ctx, self)
-        code_args = self.get_args_def_code(as_kwargs=False)
-        code = f"""
-def {converter_name}(data_{code_args}):
-    global labels_
-{code_lines}
-        """
+                code.add_line(f"yield {value_code}", 0)
+
         generator_converter = self._code_to_converter(
             converter_name=converter_name,
-            code=code,
+            code=code.to_string(base_indent_level=0),
             ctx=ctx,
         )
         return CallFunc(
@@ -1570,11 +1577,10 @@ def {converter_name}(data_{code_args}):
         ).gen_code_and_update_ctx(code_input, ctx)
 
     def gen_joined_items_code(self, code_input, ctx):
-        params = [
+        return ",".join(
             item.gen_code_and_update_ctx(code_input, ctx)
             for item in self.items
-        ]
-        return ",".join(params)
+        )
 
     def gen_collection_from_items_code(
         self, joined_items_code, code_input, ctx
@@ -1584,31 +1590,10 @@ def {converter_name}(data_{code_args}):
     def gen_collection_from_generator(self, generator_code, code_input, ctx):
         raise NotImplementedError
 
-    def prepare_optional_items(self):
-        condition_to_item_pairs = []
-        for item in self.items:
-            if isinstance(item, OptionalCollectionItem):
-                condition_to_item_pairs.append(
-                    (item.condition, item.conversion)
-                )
-            else:
-                condition_to_item_pairs.append((None, item))
-        return condition_to_item_pairs
-
-    def has_optional_items(self):
-        return any(
-            isinstance(item, OptionalCollectionItem) for item in self.items
-        )
-
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        has_optional_items = self.has_optional_items()
-
-        if has_optional_items:
-            condition_to_item_pairs = self.prepare_optional_items()
+        if self.condition_to_item_pairs is not None:
             return self.gen_collection_from_generator(
-                self.gen_optional_items_generator_code(
-                    condition_to_item_pairs, code_input, ctx
-                ),
+                self.gen_optional_items_generator_code(code_input, ctx),
                 code_input,
                 ctx,
             )
@@ -1715,54 +1700,58 @@ class Dict(BaseCollectionConversion):
             Every key and value gets wrapped with ``ensure_conversion``
         """
         super().__init__()
-        self.key_value_pairs = [
-            (self.ensure_conversion(k), self.ensure_conversion(v))
-            for k, v in key_value_pairs
-        ]
+        pairs = []
+        condition_to_item_pairs = None
+        for pair in key_value_pairs:
+            pair = tuple(self.ensure_conversion(item_) for item_ in pair)
+            conditions = [
+                item_.condition
+                for item_ in pair
+                if isinstance(item_, OptionalCollectionItem)
+            ]
+            condition = (
+                (
+                    And(conditions[0], conditions[1])
+                    if len(conditions) == 2
+                    else conditions[0]
+                )
+                if conditions
+                else None
+            )
+            if condition is not None:
+                pair = tuple(
+                    item_.conversion
+                    if isinstance(item_, OptionalCollectionItem)
+                    else item_
+                    for item_ in pair
+                )
+
+            if condition_to_item_pairs is None:
+                if condition:
+                    condition_to_item_pairs = [
+                        (None, pair_) for pair_ in pairs
+                    ]
+                    pairs = None
+                    condition_to_item_pairs.append((condition, pair))
+                else:
+                    pairs.append(pair)
+            else:
+                condition_to_item_pairs.append((condition, pair))
+
+        self.key_value_pairs = pairs
+        self.condition_to_item_pairs = condition_to_item_pairs
 
     def gen_joined_items_code(self, code_input, ctx):
-        params = [
+        return ",".join(
             "{}:{}".format(
                 key.gen_code_and_update_ctx(code_input, ctx),
                 value.gen_code_and_update_ctx(code_input, ctx),
             )
             for key, value in self.key_value_pairs
-        ]
-        return ",".join(params)
+        )
 
     def gen_collection_from_generator(self, generator_code, code_input, ctx):
         return f"dict({generator_code})"
-
-    def prepare_optional_items(self):
-        condition_to_item_pairs = []
-        for key_value in self.key_value_pairs:
-            conditions = []
-            tuple_items = []
-            for item in key_value:
-                if isinstance(item, OptionalCollectionItem):
-                    conditions.append(item.condition)
-                    tuple_items.append(item.conversion)
-                else:
-                    tuple_items.append(item)
-            if conditions:
-                condition = (
-                    And(conditions[0], conditions[1], *conditions[2:])
-                    if len(conditions) > 1
-                    else conditions[0]
-                )
-                condition_to_item_pairs.append(
-                    (condition, Tuple(*tuple_items))
-                )
-            else:
-                condition_to_item_pairs.append((None, Tuple(*tuple_items)))
-        return condition_to_item_pairs
-
-    def has_optional_items(self):
-        return any(
-            isinstance(item, OptionalCollectionItem)
-            for key_value in self.key_value_pairs
-            for item in key_value
-        )
 
     def gen_collection_from_items_code(
         self, joined_items_code, code_input, ctx
@@ -1928,8 +1917,6 @@ class PipeConversion(BaseConversion):
             reducers_run_stage == "collecting_reducer_inputs"
         )
         key_to_backup = "_reducer_inputs_info"
-        if reducer_inputs_backup_needed:
-            ctx[key_to_backup].append(False)
 
         suffix = self.gen_name("_", ctx, ("pipe", self, code_input))
         converter_name = f"pipe{suffix}"
@@ -1941,6 +1928,9 @@ class PipeConversion(BaseConversion):
                 raise AssertionError("what are we doing here? it's a bug")
             what_code, where_code = (where_code, var_input)
         else:
+            if reducer_inputs_backup_needed:
+                ctx[key_to_backup].append(False)
+
             where_code = where.gen_code_and_update_ctx(var_input, ctx)
 
             if reducer_inputs_backup_needed:
@@ -2021,28 +2011,20 @@ class TapConversion(BaseConversion):
             for mut in mutations
         ]
 
-    code_template = """
-def {converter_name}(data_{code_args}):
-{mut_stmts}
-    return data_
-"""
-
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("tap", ctx, self)
-        mut_stmts = [
-            self.indent_statements(
-                mut.gen_code_and_update_ctx("data_", ctx), 1
-            )
-            for mut in self.mutations
-        ]
-        code = self.code_template.format(
-            converter_name=converter_name,
-            code_args=self.get_args_def_code(
-                as_kwargs=False, exclude_labels=True
-            ),
-            mut_stmts="\n".join(mut_stmts),
+        code_args = self.get_args_def_code(
+            as_kwargs=False, exclude_labels=True
         )
-        self._code_to_converter(converter_name, code, ctx)
+        code = Code()
+        code.add_line(f"def {converter_name}(data_{code_args}):", 1)
+        for mut in self.mutations:
+            code.add_line(mut.gen_code_and_update_ctx("data_", ctx), 0)
+        code.add_line("return data_", 0)
+
+        self._code_to_converter(
+            converter_name, code.to_string(base_indent_level=0), ctx
+        )
         return (
             EscapedString(converter_name)
             .call(self.obj, *self.get_args_as_func_args())
@@ -2068,20 +2050,19 @@ def {converter_name}(data_{code_args}):
             ctx,
             self,
         )
-        mut_stmts = [
-            self.indent_statements(
-                mut.gen_code_and_update_ctx("item_", ctx), 2
-            )
-            for mut in self.mutations
-        ]
-        code = self.code_template.format(
-            converter_name=converter_name,
-            code_args=self.get_args_def_code(
-                as_kwargs=False, exclude_labels=True
-            ),
-            mut_stmts="\n".join(mut_stmts),
+        code_args = self.get_args_def_code(
+            as_kwargs=False, exclude_labels=True
         )
-        self._code_to_converter(converter_name, code, ctx)
+        code = Code()
+        code.add_line(f"def {converter_name}(data_{code_args}):", 1)
+        code.add_line("for item_ in data_:", 1)
+        for mut in self.mutations:
+            code.add_line(mut.gen_code_and_update_ctx("item_", ctx), 0)
+        code.add_line("yield item_", 0)
+
+        self._code_to_converter(
+            converter_name, code.to_string(base_indent_level=0), ctx
+        )
         return (
             EscapedString(converter_name)
             .call(self.obj, *self.get_args_as_func_args())

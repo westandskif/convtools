@@ -434,7 +434,7 @@ def test_aggregate_no_init_loops():
             "first_a": c.ReduceFuncs.First(c.item("a"), where=c.item("b") > 0),
             "list_b": c.ReduceFuncs.Array(c.item("b"), where=c.item("a") > 0),
         }
-    ).gen_converter(debug=True)
+    ).gen_converter(debug=False)
     assert converter(
         [
             {"a": 1, "b": 0},

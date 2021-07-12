@@ -1,3 +1,18 @@
+0.14.1 (2021-07-12)
+___________________
+
+Bugfix
+++++++
+
+- fixed piping something complex to ``c.join``
+
+Misc
+++++
+
+- [internals] reworked aggregate & group_by templating
+- [internals] reworked optional items processing
+
+
 0.14.0 (2021-06-27)
 ___________________
 

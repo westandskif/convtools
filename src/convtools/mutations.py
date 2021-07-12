@@ -28,26 +28,26 @@ class SetItem(BaseNameValueMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         name_code = self.name.gen_code_and_update_ctx(code_input, ctx)
         value_code = self.value.gen_code_and_update_ctx(code_input, ctx)
-        return (f"{code_input}[{name_code}] = {value_code}",)
+        return f"{code_input}[{name_code}] = {value_code}"
 
 
 class SetAttr(BaseNameValueMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         name_code = self.name.gen_code_and_update_ctx(code_input, ctx)
         value_code = self.value.gen_code_and_update_ctx(code_input, ctx)
-        return (f"setattr({code_input}, {name_code}, {value_code})",)
+        return f"setattr({code_input}, {name_code}, {value_code})"
 
 
 class DelItem(BaseIndexMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
-        return (f"{code_input}.pop({index_code})",)
+        return f"{code_input}.pop({index_code})"
 
 
 class DelAttr(BaseIndexMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
-        return (f"delattr({code_input}, {index_code})",)
+        return f"delattr({code_input}, {index_code})"
 
 
 class Custom(BaseMutation):

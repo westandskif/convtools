@@ -2,7 +2,6 @@
 import statistics
 import typing
 from collections import defaultdict
-from functools import reduce as functools_reduce
 
 from .base import (
     BaseConversion,
@@ -18,6 +17,7 @@ from .base import (
     Tuple,
     _None,
 )
+from .utils import Code
 
 
 _none = BaseConversion._none
@@ -32,146 +32,75 @@ class ReduceBlock:
 
     def __init__(
         self,
-        var_agg_data_value,
-        reduce_initial,
-        reduce_two,
-        checksum_flag,
-        unconditional_init,
+        reduce_initial: typing.Iterable[str],
+        reduce_two: typing.Iterable[str],
+        var_row: str,
+        var_agg_data_value: str,
+        checksum_flag: int,
+        unconditional_init: bool,
     ):
-        self.var_agg_data_value = var_agg_data_value
-        self.reduce_initial = reduce_initial
-        self.reduce_two = reduce_two
-        self.checksum_flag = checksum_flag
-        self.unconditional_init = unconditional_init
+        self.reduce_initial = {var_agg_data_value: reduce_initial}
+        self.reduce_two = {var_agg_data_value: reduce_two}
+        self.var_row = var_row
         self.condition_code = None
+        self.unconditional_init = unconditional_init
+        self.checksum_flag = checksum_flag
 
-    def replace_var_agg_data_value(self, var_agg_data_value):
-        self.reduce_initial = BaseConversion.replace_word(
-            self.reduce_initial, self.var_agg_data_value, var_agg_data_value
-        )
-        self.reduce_two = BaseConversion.replace_word(
-            self.reduce_two, self.var_agg_data_value, var_agg_data_value
-        )
-        self.var_agg_data_value = var_agg_data_value
+    def consume(self: RBT, reduce_block: RBT) -> RBT:
+        if (
+            self.condition_code != reduce_block.condition_code
+            or self.unconditional_init != reduce_block.unconditional_init
+            or self.var_row != reduce_block.var_row
+        ):
+            raise AssertionError
+
+        for k, v in reduce_block.reduce_initial.items():
+            if k in self.reduce_initial:
+                raise AssertionError
+            self.reduce_initial[k] = v
+
+        for k, v in reduce_block.reduce_two.items():
+            if k in self.reduce_two:
+                raise AssertionError
+            self.reduce_two[k] = v
+
+        self.checksum_flag |= reduce_block.checksum_flag
         return self
 
-    def union(self, reduce_block: RBT) -> RBT:
-        clone = self.__class__.__new__(self.__class__)
-        clone.__dict__.update(self.__dict__)
-        clone.reduce_initial = (
-            f"{self.reduce_initial}\n{reduce_block.reduce_initial}"
+    def iter_reduce_lines(self, lines_info_dict) -> typing.Iterable[str]:
+        for var_agg_data_value, lines in lines_info_dict.items():
+            template_kwargs = {
+                "result": var_agg_data_value,
+                "row": self.var_row,
+            }
+            yield from (line % template_kwargs for line in lines)
+
+    def iter_reduce_initial_lines(self) -> typing.Iterable[str]:
+        yield from self.iter_reduce_lines(self.reduce_initial)
+
+    def iter_reduce_two_lines(self) -> typing.Iterable[str]:
+        yield from self.iter_reduce_lines(self.reduce_two)
+
+    def same_as(self, other):
+        return (
+            self.condition_code == other.condition_code
+            and self.unconditional_init == other.unconditional_init
+            and self.var_row == other.var_row
+            and len(self.reduce_initial) == len(other.reduce_initial)
+            and len(self.reduce_two) == len(other.reduce_two)
+            and all(
+                l1 == l2
+                for l1, l2 in zip(
+                    self.reduce_initial.values(), other.reduce_initial.values()
+                )
+            )
+            and all(
+                l1 == l2
+                for l1, l2 in zip(
+                    self.reduce_two.values(), other.reduce_two.values()
+                )
+            )
         )
-        clone.reduce_two = f"{self.reduce_two}\n{reduce_block.reduce_two}"
-        clone.checksum_flag |= reduce_block.checksum_flag
-        return clone
-
-    def get_template_kwargs(self) -> typing.Dict[str, str]:
-        _ = BaseConversion.indent_statements
-        return {
-            "var_agg_data_value": self.var_agg_data_value,
-            "var_checksum": self.var_checksum,
-            "var_expected_checksum": self.var_expected_checksum,
-            "checksum_flag": self.checksum_flag,
-            "condition_code": self.condition_code,
-        }
-
-    def gen_code(
-        self, is_first, is_last, no_init=False, **template_kwargs_
-    ) -> str:
-        has_condition = self.condition_code
-        has_reduce_two = self.reduce_two != "pass"
-        has_init = not no_init
-        reduce_two_only = no_init
-        agg_mode = self.checksum_flag
-        is_single_block = (
-            self.checksum_flag == template_kwargs_["expected_checksum"]
-        )
-        _ = BaseConversion.indent_statements
-
-        if reduce_two_only and not has_reduce_two:
-            return ""
-
-        template_kwargs = self.get_template_kwargs()
-        template_kwargs.update(template_kwargs_)
-
-        else_is_not_needed = None
-        i_ = 0
-        update_checksum_lines = []
-        check_sum_and_break_lines = []
-        if has_init and agg_mode:
-            if not self.unconditional_init:
-                else_is_not_needed = False
-                update_checksum_lines.append(
-                    _("if {var_agg_data_value} is not _none:", i_)
-                )
-                check_sum_and_break_lines.append(
-                    _("if {var_agg_data_value} is not _none:", i_)
-                )
-                i_ += 1
-            if is_single_block:
-                if else_is_not_needed is None:
-                    else_is_not_needed = True
-                update_checksum_lines = []
-                check_sum_and_break_lines.append(_("break", i_))
-            else:
-                update_checksum_lines.append(
-                    _("{var_checksum} |= {checksum_flag}", i_)
-                )
-                check_sum_and_break_lines.append(
-                    _("if {var_checksum} == {var_expected_checksum}:", i_)
-                )
-                i_ += 1
-                check_sum_and_break_lines.append(_("break", i_))
-                i_ -= 1
-
-        i_ = 1
-        lines: typing.List[str] = []
-        code_lines = lines
-        if is_first and agg_mode:
-            lines.append(_("for {var_row} in it_:", i_))
-        i_ += 1
-
-        if has_condition:
-            lines.append(_("if {condition_code}:", i_))
-            i_ += 1
-
-        if has_init:
-            lines.append(_("if {var_agg_data_value} is _none:", i_))
-            i_ += 1
-            lines.append("{reduce_initial}")
-            template_kwargs["reduce_initial"] = _(self.reduce_initial, i_)
-            lines.append(_(update_checksum_lines, i_))
-            i_ -= 1
-
-            if has_reduce_two and not else_is_not_needed:
-                lines.append(_("else:", i_))
-                i_ += 1
-                lines.append("{reduce_two}")
-                template_kwargs["reduce_two"] = _(self.reduce_two, i_)
-                i_ -= 1
-        else:
-            lines.append("{reduce_two}")
-            template_kwargs["reduce_two"] = _(self.reduce_two, i_)
-
-        if has_condition:
-            i_ -= 1
-
-        if is_last:
-            lines.append(_(check_sum_and_break_lines, i_))
-
-        return "\n".join(code_lines).format(**template_kwargs)
-
-    def code_hash(self) -> str:
-        code = self.gen_code(
-            is_first=True,
-            is_last=True,
-            no_init=False,
-            var_row="_r",
-            expected_checksum=-1,
-            var_agg_data_value="_v",
-            checksum_flag=-2 if self.checksum_flag else 0,
-        )
-        return BaseConversion.replace_word(code, self.var_agg_data_value, "_v")
 
 
 class ReduceConditionalBlock(ReduceBlock):
@@ -188,69 +117,156 @@ class ReduceBlocks(typing.Generic[RBT]):
     """Represents a set of reduce blocks"""
 
     def __init__(self):
-        self.condition_to_blocks = defaultdict(list)
-        self.unconditional_init_condition_to_blocks = defaultdict(list)
-        self.unconditional_init_blocks = []
-        self.other_blocks = []
+        self.conditional_init_blocks = {}
+        self.unconditional_init_blocks = {}
         self.number = 0
 
     def add_block(self, reduce_block: RBT):
         self.number += 1
-        if isinstance(reduce_block, ReduceConditionalBlock):
-            if reduce_block.unconditional_init:
-                list_ = self.unconditional_init_condition_to_blocks[
-                    reduce_block.condition_code
-                ]
-            else:
-                list_ = self.condition_to_blocks[reduce_block.condition_code]
+        if reduce_block.unconditional_init:
+            key_to_block = self.unconditional_init_blocks
         else:
-            if reduce_block.unconditional_init:
-                list_ = self.unconditional_init_blocks
-            else:
-                list_ = self.other_blocks
-        list_.append(reduce_block)
+            key_to_block = self.conditional_init_blocks
+        key = (
+            (
+                reduce_block.condition_code
+                if isinstance(reduce_block, ReduceConditionalBlock)
+                else None
+            ),
+            reduce_block.var_row,
+        )
+        if key in key_to_block:
+            key_to_block[key].consume(reduce_block)
+        else:
+            key_to_block[key] = reduce_block
 
-    @classmethod
-    def _reduce_blocks(cls, reduce_blocks) -> typing.Optional[RBT]:
-        if not reduce_blocks:
-            return None
-        if len(reduce_blocks) == 1:
-            return reduce_blocks[0]
-        return functools_reduce((lambda b1, b2: b1.union(b2)), reduce_blocks)
+    def iter_blocks(self) -> typing.Iterable[RBT]:
+        yield from self.unconditional_init_blocks.values()
+        yield from self.conditional_init_blocks.values()
 
-    def reduce_blocks(self) -> typing.Iterable[RBT]:
-        blocks = []
-        for blocks_ in self.condition_to_blocks.values():
-            for block_ in blocks_:
-                blocks.append(block_)
-        for blocks_ in self.unconditional_init_condition_to_blocks.values():
-            blocks.append(self._reduce_blocks(blocks_))
+    def gen_group_by_code(
+        self, var_row, var_agg_data, var_signature_to_agg_data, code_signature
+    ) -> Code:
+        code = Code()
+        code.add_line(f"for {var_row} in data_:", 1)
+        code.add_line(
+            f"{var_agg_data} = {var_signature_to_agg_data}[{code_signature}]",
+            0,
+        )
 
-        block_ = self._reduce_blocks(self.unconditional_init_blocks)
-        if block_:
-            blocks.append(block_)
+        for block in self.iter_blocks():
+            reduce_initial_lines = list(block.iter_reduce_initial_lines())
+            reduce_two_lines = list(block.iter_reduce_two_lines())
+            any_var_agg_data_value = next(iter(block.reduce_initial))
 
-        for block_ in self.other_blocks:
-            blocks.append(block_)
-        return blocks
+            if block.condition_code:
+                code.add_line(f"if {block.condition_code}:", 1)
 
-    def to_code(self, var_row, expected_checksum, no_init=False) -> str:
-        code_blocks = []
-        is_first = True
-        reduce_blocks = list(self.reduce_blocks())
-        last_index = len(reduce_blocks) - 1
-        for index, block in enumerate(reduce_blocks):
-            code_block = block.gen_code(
-                is_first=is_first,
-                is_last=last_index == index,
-                no_init=no_init,
-                var_row=var_row,
-                expected_checksum=expected_checksum,
+            code.add_line(f"if {any_var_agg_data_value} is _none:", 1)
+            for line in reduce_initial_lines:
+                code.add_line(line, 0)
+            code.incr_indent_level(-1)
+
+            if reduce_two_lines:
+                code.add_line("else:", 1)
+                for line in reduce_two_lines:
+                    code.add_line(line, 0)
+                code.incr_indent_level(-1)
+
+            if block.condition_code:
+                code.incr_indent_level(-1)
+        return code
+
+    def gen_aggregate_code(
+        self, var_row, var_checksum, var_expected_checksum
+    ) -> Code:
+        first_phase_code = Code()
+        second_phase_code = Code()
+
+        needs_sum_checking = False
+
+        reduce_blocks = list(self.iter_blocks())
+        is_single_block = len(reduce_blocks) == 1
+        for block in reduce_blocks:
+            reduce_initial_lines = list(block.iter_reduce_initial_lines())
+            reduce_two_lines = list(block.iter_reduce_two_lines())
+            any_var_agg_data_value = next(iter(block.reduce_initial))
+
+            init_phase_needs_else = not (
+                is_single_block and block.unconditional_init
             )
-            code_blocks.append(code_block)
-            if is_first and code_block:
-                is_first = False
-        return "\n\n".join(code_blocks)
+
+            if block.condition_code:
+                first_phase_code.add_line(f"if {block.condition_code}:", 1)
+
+            first_phase_code.add_line(
+                f"if {any_var_agg_data_value} is _none:", 1
+            )
+            for line in reduce_initial_lines:
+                first_phase_code.add_line(line, 0)
+
+            if is_single_block:
+                if block.unconditional_init:
+                    first_phase_code.add_line("break", 0)
+                else:
+                    first_phase_code.add_line(
+                        f"if {any_var_agg_data_value} is not _none:", 1
+                    )
+                    first_phase_code.add_line("break", -1)
+
+            else:
+                if block.unconditional_init:
+                    first_phase_code.add_line(
+                        f"{var_checksum} |= {block.checksum_flag}", 0
+                    )
+                else:
+                    first_phase_code.add_line(
+                        f"if {any_var_agg_data_value} is not _none:", 1
+                    )
+                    first_phase_code.add_line(
+                        f"{var_checksum} |= {block.checksum_flag}", -1
+                    )
+                needs_sum_checking = True
+
+            first_phase_code.incr_indent_level(-1)
+
+            if init_phase_needs_else and reduce_two_lines:
+                first_phase_code.add_line("else:", 1)
+                for line in reduce_two_lines:
+                    first_phase_code.add_line(line, 0)
+                first_phase_code.incr_indent_level(-1)
+
+            if block.condition_code:
+                first_phase_code.incr_indent_level(-1)
+
+            if reduce_two_lines:
+                if block.condition_code:
+                    second_phase_code.add_line(
+                        f"if {block.condition_code}:", 1
+                    )
+
+                for line in reduce_two_lines:
+                    second_phase_code.add_line(line, 0)
+
+                if block.condition_code:
+                    second_phase_code.incr_indent_level(-1)
+
+        resulting_code = Code()
+        resulting_code.add_line("it_ = iter(data_)", 0)
+        resulting_code.add_line(f"for {var_row} in it_:", 1)
+        resulting_code.add_code(first_phase_code)
+        if needs_sum_checking:
+            resulting_code.add_line(
+                f"if {var_checksum} == {var_expected_checksum}: break", 0
+            )
+        resulting_code.incr_indent_level(-1)
+
+        if second_phase_code.has_lines():
+            resulting_code.add_line("", 0)
+            resulting_code.add_line(f"for {var_row} in it_:", 1)
+            resulting_code.add_code(second_phase_code)
+            resulting_code.incr_indent_level(-1)
+        return resulting_code
 
 
 GROUPER_TEMPLATE = """
@@ -258,9 +274,8 @@ def {converter_name}(data_{code_args}):
     global labels_
     _none = {var_none}
     {var_signature_to_agg_data} = defaultdict({var_agg_data_cls})
-    for {var_row} in data_:
-        {var_agg_data} = {var_signature_to_agg_data}[{code_signature}]
-{code_reduce_blocks}
+
+{code_group_by}
 
 {code_result}
 """
@@ -271,11 +286,8 @@ def {converter_name}(data_{code_args}):
     {code_init_agg_vars}
     {var_expected_checksum} = {val_expected_checksum}
     {var_checksum} = 0
-    it_ = iter(data_)
 
-{code_reduce_blocks}
-
-{code_reduce_blocks_no_init}
+{code_aggregate}
 
 {code_result}
 """
@@ -389,26 +401,15 @@ class MultiStatementReducer(BaseReducer):
 
     def _format_statements(
         self,
-        var_agg_data_value,
-        var_row,
         statements,
         args,
+        var_row,
         ctx,
     ):
-        if not statements:
-            statements = []
-        if not statements:
-            statements.append("pass")
-
-        code = "\n".join(
-            [
-                statement % dict(result=var_agg_data_value, row=var_row)
-                for statement in statements
-            ]
+        code_args = tuple(
+            arg.gen_code_and_update_ctx(var_row, ctx) for arg in args
         )
-        return code.format(
-            *(arg.gen_code_and_update_ctx(var_row, ctx) for arg in args)
-        )
+        return [statement.format(*code_args) for statement in statements]
 
     def gen_reduce_code_block(
         self,
@@ -419,47 +420,45 @@ class MultiStatementReducer(BaseReducer):
     ) -> RBT:
         if hasattr(self, "initial"):
             reduce_initial = self._format_statements(
-                var_agg_data_value,
-                var_row,
                 self.reduce,
                 (self.initial,) + self.expressions,
+                var_row,
                 ctx,
             )
         elif hasattr(self, "prepare_first"):
             reduce_initial = self._format_statements(
-                var_agg_data_value,
-                var_row,
                 self.prepare_first,
                 self.expressions,
+                var_row,
                 ctx,
             )
         else:
             raise AssertionError
 
         reduce_two = self._format_statements(
-            var_agg_data_value,
-            var_row,
             self.reduce,
             (EscapedString(var_agg_data_value),) + self.expressions,
+            var_row,
             ctx,
         )
 
-        kwargs = dict(
-            var_agg_data_value=var_agg_data_value,
-            reduce_initial=reduce_initial,
-            reduce_two=reduce_two,
-            checksum_flag=checksum_flag,
+        block_cls = (
+            ReduceBlock if self.where is None else ReduceConditionalBlock
         )
-
+        kwargs = {
+            "reduce_initial": reduce_initial,
+            "reduce_two": reduce_two,
+            "var_row": var_row,
+            "var_agg_data_value": var_agg_data_value,
+            "checksum_flag": checksum_flag,
+            "unconditional_init": self.unconditional_init,
+        }
         if self.where is not None:
             kwargs["condition_code"] = self.where.gen_code_and_update_ctx(
                 var_row, ctx
             )
 
-        block_cls = (
-            ReduceBlock if self.where is None else ReduceConditionalBlock
-        )
-        return block_cls(unconditional_init=self.unconditional_init, **kwargs)
+        return block_cls(**kwargs)
 
 
 class Reduce(BaseReducer):
@@ -547,36 +546,40 @@ class Reduce(BaseReducer):
         else:
             raise AssertionError
 
-        reduce_initial = "{var_agg_data_value} = {code}".format(
-            var_agg_data_value=var_agg_data_value,
-            code=initial_conversion.gen_code_and_update_ctx(var_row, ctx),
-        )
-        reduce_two = "{var_agg_data_value} = {code}".format(
-            var_agg_data_value=var_agg_data_value,
-            code=self.to_call_with_2_args.call_like(
-                EscapedString(var_agg_data_value),
-                *self.expressions,
-            ).gen_code_and_update_ctx(var_row, ctx),
-        )
-        kwargs = dict(
-            var_agg_data_value=var_agg_data_value,
-            reduce_initial=reduce_initial,
-            reduce_two=reduce_two,
-            checksum_flag=checksum_flag,
-        )
+        reduce_initial = [
+            "%(result)s = {}".format(
+                initial_conversion.gen_code_and_update_ctx(var_row, ctx),
+            )
+        ]
+        reduce_two = [
+            "%(result)s = {}".format(
+                self.to_call_with_2_args.call_like(
+                    EscapedString(var_agg_data_value),
+                    *self.expressions,
+                ).gen_code_and_update_ctx(var_row, ctx),
+            )
+        ]
 
+        block_cls = (
+            ReduceBlock if self.where is None else ReduceConditionalBlock
+        )
+        kwargs = {
+            "reduce_initial": reduce_initial,
+            "reduce_two": reduce_two,
+            "var_row": var_row,
+            "var_agg_data_value": var_agg_data_value,
+            "checksum_flag": checksum_flag,
+            "unconditional_init": self.unconditional_init,
+        }
         if self.where is not None:
             kwargs["condition_code"] = self.where.gen_code_and_update_ctx(
                 var_row, ctx
             )
 
-        block_cls = (
-            ReduceBlock if self.where is None else ReduceConditionalBlock
-        )
-        return block_cls(unconditional_init=self.unconditional_init, **kwargs)
+        return block_cls(**kwargs)
 
 
-class GroupBy(BaseConversion):
+class GroupBy(BaseConversion, typing.Generic[RBT]):
     """Generates the function which aggregates the data, grouping by
     conversions, specified in `__init__` method and returns list of items in a
     format defined by the parameter passed to ``aggregate`` method.
@@ -707,45 +710,47 @@ class GroupBy(BaseConversion):
                 )
 
         expected_checksum = 0
-        reduce_blocks: ReduceBlocks = ReduceBlocks()
         var_agg_data_values = []
-        code_signature_to_agg_index: typing.Dict[str, int] = {}
 
+        blocks: typing.List[RBT] = []
         overwritten_reducer_inputs = {}
         # reusing same reducers, remembering code replacements for reducers
-        for index, (reducer_code_input, reducer,) in enumerate(
+        for reducer_code_input, reducer in (
             (reducer_code_input, reducer)
             for reducer_code_input, reducers in reducer_inputs_info.items()
             for reducer in reducers
         ):
-            checksum_flag = 1 << index if self.aggregate_mode else 0
+            reduce_block_index = len(blocks)
+            checksum_flag = (
+                1 << reduce_block_index if self.aggregate_mode else 0
+            )
+            var_agg_data_value = gen_agg_data_value(reduce_block_index)
             reduce_block = reducer.gen_reduce_code_block(
-                gen_agg_data_value(index),
+                var_agg_data_value,
                 reducer_code_input,
                 checksum_flag,
                 ctx,
             )
 
-            code_hash = reduce_block.code_hash()
+            such_block_exists = False
+            for index, block in enumerate(blocks):
+                if reduce_block.same_as(block):
+                    reduce_block_index = index
+                    such_block_exists = True
+                    break
 
-            if code_hash in code_signature_to_agg_index:
-                reduce_block_index = code_signature_to_agg_index[code_hash]
-            else:
-                reduce_block_index = reduce_blocks.number
-                code_signature_to_agg_index[code_hash] = reduce_block_index
-
+            if not such_block_exists:
+                blocks.append(reduce_block)
+                var_agg_data_values.append(var_agg_data_value)
                 expected_checksum |= checksum_flag
-                # updating var_agg_data_value because multiple reducers may be
-                # skipped because of de-duplication
-                reduce_block.replace_var_agg_data_value(
-                    gen_agg_data_value(reduce_block_index)
-                )
-                reduce_blocks.add_block(reduce_block)
-                var_agg_data_values.append(reduce_block.var_agg_data_value)
 
             overwritten_reducer_inputs[
                 (reducer_code_input, reducer)
             ] = gen_agg_data_value(reduce_block_index)
+
+        reduce_blocks: ReduceBlocks = ReduceBlocks()
+        for block in blocks:
+            reduce_blocks.add_block(block)
 
         # populates reducers with their code inputs
         with CodeGenerationOptionsCtx() as options:
@@ -820,15 +825,16 @@ class GroupBy(BaseConversion):
             grouper_code = AGGREGATE_TEMPLATE.format(
                 converter_name=converter_name,
                 code_init_agg_vars=code_init_agg_vars,
-                code_reduce_blocks=reduce_blocks.to_code(
-                    var_row, expected_checksum
-                ),
-                code_reduce_blocks_no_init=reduce_blocks.to_code(
-                    var_row, expected_checksum, no_init=True
-                ),
                 var_expected_checksum=ReduceBlock.var_expected_checksum,
                 val_expected_checksum=expected_checksum,
                 var_checksum=ReduceBlock.var_checksum,
+                code_aggregate=reduce_blocks.gen_aggregate_code(
+                    var_row=var_row,
+                    var_checksum=ReduceBlock.var_checksum,
+                    var_expected_checksum=expected_checksum,
+                ).to_string(
+                    base_indent_level=1,
+                ),
                 **agg_template_kwargs,
             )
         else:
@@ -839,9 +845,12 @@ class GroupBy(BaseConversion):
                 var_agg_data_cls=var_agg_data_cls,
                 var_agg_data=var_agg_data,
                 code_signature=code_signature,
-                code_reduce_blocks=reduce_blocks.to_code(
-                    var_row, expected_checksum
-                ),
+                code_group_by=reduce_blocks.gen_group_by_code(
+                    var_row=var_row,
+                    var_agg_data=var_agg_data,
+                    var_signature_to_agg_data=var_signature_to_agg_data,
+                    code_signature=code_signature,
+                ).to_string(base_indent_level=1),
                 **agg_template_kwargs,
             )
 
