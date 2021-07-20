@@ -5,7 +5,8 @@ table.cheatsheet-table {
 	width: 100%
 }
 table.cheatsheet-table td{
-	vertical-align: top
+	vertical-align: top;
+	text-align: left
 }
 .cheatsheet-table pre {
 	padding: 7px

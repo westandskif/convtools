@@ -1,2 +1,2 @@
-sphinx
-furo
+sphinx==4.*
+furo==2021.7.5b38
