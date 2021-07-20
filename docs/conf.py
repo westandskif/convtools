@@ -184,7 +184,7 @@ else:
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 html_css_files = [
-    "custom.css",
+    "custom-20210720-1.css",
 ]
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
