@@ -1019,8 +1019,8 @@ _____________
           )
       ).gen_converter(debug=True)
 
-14. Shortcuts I: zip, repeat, flatten
-_____________________________________
+14. Shortcuts I: zip, repeat, flatten, min, max
+_______________________________________________
 
 .. list-table::
  :class: cheatsheet-table
