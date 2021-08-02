@@ -1,9 +1,6 @@
 pytest
 pytest-cov
 towncrier
-sphinx==4.*
-furo==2021.7.5b38
 flake8
-rst_include
 isort==5.7.0
 black==20.8b1

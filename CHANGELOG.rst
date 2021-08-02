@@ -1,3 +1,18 @@
+0.15.0 (2021-08-02)
+___________________
+
+Features
+++++++++
+
+- introduced ``c.breakpoint`` and ``(...).breakpoint()`` to simplify debugging long pipelines
+
+Misc
+++++
+
+- [internals] created a separate conversion for ``c.this()``
+- [internals] now ``c.naive`` is a direct init of ``NaiveConversion``
+- improved quick start, cheatsheet and api docs
+
 0.14.1 (2021-07-12)
 ___________________
 

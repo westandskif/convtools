@@ -77,7 +77,10 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
+    "sphinx_copybutton",
+    "sphinx_tabs.tabs",
 ]
+sphinx_tabs_disable_tab_closing = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -184,7 +187,7 @@ else:
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 html_css_files = [
-    "custom-20210720-1.css",
+    "custom-2.css",
 ]
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,

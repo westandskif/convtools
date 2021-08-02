@@ -31,6 +31,7 @@ from .base import (
     Set,
     SetComp,
     SortConversion,
+    This,
     Tuple,
     TupleComp,
     ensure_conversion,
@@ -80,6 +81,8 @@ class _Conversion:
     not_ = Not
     if_ = If
 
+    this = This
+    naive = NaiveConversion
     item = GetItem
     attr = GetAttr
     call_func = staticmethod(CallFunc)
@@ -124,20 +127,6 @@ class _Conversion:
         """Shortcut for ``ensure_conversion``"""
         return ensure_conversion(obj)
 
-    def naive(self, obj: object):
-        """Shortcut for ``NaiveConversion``"""
-        return NaiveConversion(obj)
-
-    def this(self) -> "GetItem":
-        """Gets compiled into the code which returns the input: ``data_``.
-
-        This conversion is not that useful by itself, but you can pass it to
-        other conversions to feed a current input as is.
-
-        Also, provided that you use this inside comprehension conversions,
-        it references an item from an iterator."""
-        return GetItem()
-
     def call(self, *args, **kwargs):
         return self.this().call(*args, **kwargs)
 
@@ -175,6 +164,18 @@ class _Conversion:
     def flatten(self):
         """c.this().flatten() shortcut"""
         return self.this().flatten()
+
+    def min(self, arg1, arg2, *args):
+        """c.call_func(min, ...) shortcut"""
+        return self.call_func(min, arg1, arg2, *args)
+
+    def max(self, arg1, arg2, *args):
+        """c.call_func(max, ...) shortcut"""
+        return self.call_func(max, arg1, arg2, *args)
+
+    def breakpoint(self):
+        """c.this().breakpoint() shortcut"""
+        return self.this().breakpoint()
 
 
 conversion = _Conversion()

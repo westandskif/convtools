@@ -143,8 +143,8 @@ _____________
       }).gen_converter()
       converter(input_data)
 
-2.2 Comprehensions, logical operators & conditions
-__________________________________________________
+2.2 Collections & Comprehensions
+________________________________
 
 .. list-table::
  :class: cheatsheet-table
@@ -157,16 +157,67 @@ __________________________________________________
 
  * - .. code-block:: python
 
-      input_data = [3, 2, 1]
+      input_data = [{"id": 1}, {"id": 2}]
 
    - .. code-block:: python
 
-      # just sort the list
-      result = [1, 2, 3]
+      # generator of IDs
+      result = (item["id"] for item in input_data)
 
    - .. code-block:: python
 
-      c.this().sort().execute(input_data)
+      c.iter(c.item("id")).execute(input_data)
+
+ * - .. code-block:: python
+
+      input_data = [{"id": 1}, {"id": 2}]
+
+   - .. code-block:: python
+
+      # list of IDs
+      result = [1, 2]
+
+   - .. code-block:: python
+
+      c.list_comp(c.item("id")).execute(input_data)
+      # OR
+      c.iter(c.item("id")).as_type(list).execute(input_data)
+
+ * - .. code-block:: python
+
+      input_data = [{"id": 1}, {"id": 2}]
+
+   - .. code-block:: python
+
+      # ID-to-object mapping
+      result = {
+          1: {"id": 1},
+          2: {"id": 2},
+      }
+
+   - .. code-block:: python
+
+      c.dict_comp(
+          c.item("id"),
+          c.this()
+      ).execute(input_data)
+      # OR
+      c.iter(
+          (c.item("id"), c.this())
+      ).as_type(dict).execute(input_data)
+
+
+2.3 Logical operators & conditions
+__________________________________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 25 40
+ :header-rows: 1
+
+ * - in
+   - out
+   - conversion
 
  * - .. code-block:: python
 
@@ -232,7 +283,18 @@ __________________________________________________
 
       converter(input_data)
 
+ * - .. code-block:: python
 
+      input_data = [3, 2, 1]
+
+   - .. code-block:: python
+
+      # just sort the list
+      result = [1, 2, 3]
+
+   - .. code-block:: python
+
+      c.this().sort().execute(input_data)
 
 
 3. Parametrized conversion with some baked in arguments and optional items
@@ -957,8 +1019,8 @@ _____________
           )
       ).gen_converter(debug=True)
 
-14. Collection helpers: zip, repeat, flatten
-____________________________________________
+14. Shortcuts I: zip, repeat, flatten
+_____________________________________
 
 .. list-table::
  :class: cheatsheet-table
@@ -1020,3 +1082,73 @@ ____________________________________________
           id=c.item("ids"),
           name=c.item("names"),
       ).as_type(list).gen_converter(debug=True)
+
+ * - .. code-block:: python
+
+      data = {"a": 1, "b": 2}
+
+   - .. code-block:: python
+
+      # take min among "a" and "b"
+      1
+
+   - .. code-block:: python
+
+      converter = c.min(
+          c.item("a"),
+          c.item("b"),
+      ).gen_converter(debug=True)
+
+15. Debugging
+_____________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 25 40
+ :header-rows: 1
+
+ * - in
+   - out
+   - conversion
+ * - .. code-block:: python
+
+      input_data = [
+          {"name": "John"},
+          {"name": "Nick"},
+      ]
+
+   - .. code-block:: python
+
+      #  INVESTIGATE WHAT WE GET INSIDE LIST_COMP
+      [
+          {"name": "John"},
+          {"name": "Nick"},
+      ]
+
+   - .. code-block:: python
+
+      converter = (
+          c.list_comp(c.breakpoint())
+          .gen_converter()
+      )
+      converter(input_data)
+
+ * - .. code-block:: python
+
+      input_data = [
+          {"name": "John"},
+          {"name": "Nick"},
+      ]
+
+   - .. code-block:: python
+
+      #  INVESTIGATE WHAT WE GET AFTER "name" LOOKUP
+      ["John", "Nick"]
+
+   - .. code-block:: python
+
+      converter = (
+          c.list_comp(c.item("name").breakpoint())
+          .gen_converter()
+      )
+      converter(input_data)

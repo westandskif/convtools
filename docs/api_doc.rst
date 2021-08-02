@@ -17,15 +17,15 @@ This is an object which exposes public API.
 c.BaseConversion
 ================
 
- .. autoclass:: convtools.base.BaseConversion()
-    :noindex:
+.. autoclass:: convtools.base.BaseConversion()
+   :noindex:
 
- .. _ref_c_gen_converter:
+.. _ref_c_gen_converter:
 
- .. automethod:: convtools.base.BaseConversion.gen_converter
-    :noindex:
+.. automethod:: convtools.base.BaseConversion.gen_converter
+   :noindex:
 
- .. note::
+.. note::
 
   At first use ``.gen_converter(debug=True)`` everywhere to see the
   generated code
@@ -36,13 +36,13 @@ c.BaseConversion
 c.OptionsCtx
 ============
 
- .. autoattribute:: convtools.conversion.OptionsCtx
+.. autoattribute:: convtools.conversion.OptionsCtx
 
- .. autoclass:: convtools.base.ConverterOptionsCtx()
-    :noindex:
+.. autoclass:: convtools.base.ConverterOptionsCtx()
+   :noindex:
 
- .. autoclass:: convtools.base.ConverterOptions()
-    :noindex:
+.. autoclass:: convtools.base.ConverterOptions()
+   :noindex:
 
 
 
@@ -52,7 +52,10 @@ c.OptionsCtx
 c.this
 ======
 
- .. automethod:: convtools.conversion.this
+.. autoattribute:: convtools.conversion.this
+
+.. autoclass:: convtools.base.This()
+   :noindex:
 
 
 .. _ref_c_input_arg:
@@ -60,26 +63,36 @@ c.this
 c.input_arg
 ===========
 
- .. autoattribute:: convtools.conversion.input_arg
+.. autoattribute:: convtools.conversion.input_arg
 
- .. autoclass:: convtools.base.InputArg()
-  :noindex:
+.. autoclass:: convtools.base.InputArg()
+   :noindex:
 
- .. automethod:: convtools.base.InputArg.__init__
+.. automethod:: convtools.base.InputArg.__init__
 
 
 **Example of changing the signature:**
 
- .. code-block:: python
+.. code-block:: python
 
-  c.this().and_(
-      c.input_arg("x").as_type(int)
-  ).or_(None).gen_converter(
-      debug=True,
-      signature="x, data_",
+  conversion = (
+      c.and_(
+          c.this(),
+          c.input_arg("x").as_type(int)
+      )
+      .or_(None)
   )
+
+  conversion.gen_converter(debug=True)
   # is compiled to
-  def converter37_306(x, data_):
+  def converter_ah(data_, *, x):
+      global labels_
+      return (data_ and int(x)) or None
+
+  conversion.gen_converter(debug=True, signature="x, data_")
+  # changes converter signature accordingly
+  def converter_2m(x, data_):
+      global labels_
       return (data_ and int(x)) or None
 
 .. _ref_c_naive:
@@ -87,12 +100,12 @@ c.input_arg
 c.naive
 =======
 
- .. automethod:: convtools.conversion.naive()
+.. automethod:: convtools.conversion.naive()
 
- .. autoclass:: convtools.base.NaiveConversion()
-    :noindex:
+.. autoclass:: convtools.base.NaiveConversion()
+   :noindex:
 
- .. automethod:: convtools.base.NaiveConversion.__init__(value)
+.. automethod:: convtools.base.NaiveConversion.__init__(value)
 
 
 .. _ref_c_wrapper:
@@ -100,13 +113,13 @@ c.naive
 c() wrapper
 ===========
 
- .. automethod:: convtools.conversion.__call__
+.. automethod:: convtools.conversion.__call__
 
- .. automethod:: convtools.base.ensure_conversion
-    :noindex:
+.. automethod:: convtools.base.ensure_conversion
+   :noindex:
 
- .. note::
-    It is used under the hood on every argument passed to any conversion.
+.. note::
+   It is used under the hood on every argument passed to any conversion.
 
 
 .. _ref_c_item:
@@ -114,12 +127,12 @@ c() wrapper
 c.item
 ======
 
- .. autoattribute:: convtools.conversion.item
+.. autoattribute:: convtools.conversion.item
 
- .. autoclass:: convtools.base.GetItem()
-    :noindex:
+.. autoclass:: convtools.base.GetItem()
+   :noindex:
 
- .. automethod:: convtools.base.GetItem.__init__
+.. automethod:: convtools.base.GetItem.__init__
 
 
 .. _ref_c_attr:
@@ -147,20 +160,20 @@ There are 3 different actions related to calling something:
 
 **1. c.call -- Calling __call__ of an input**
 
- .. automethod:: convtools.base.BaseConversion.call
-    :noindex:
+.. automethod:: convtools.base.BaseConversion.call
+   :noindex:
 
 **2. c.call_func -- Regular function calling, passing a function to call**
 
- .. autoattribute:: convtools.conversion.call_func
+.. autoattribute:: convtools.conversion.call_func
 
- .. autofunction:: convtools.base.CallFunc
-    :noindex:
+.. autofunction:: convtools.base.CallFunc
+   :noindex:
 
 **3. (...).call_method -- Calling a method of an input**
 
- .. automethod:: convtools.base.BaseConversion.call_method
-    :noindex:
+.. automethod:: convtools.base.BaseConversion.call_method
+   :noindex:
 
 
 .. _ref_c_inline_expr:
@@ -191,37 +204,37 @@ Wraps conversions with logical / math / comparison operators
 
 .. code-block:: python
 
- # logical
- c.not_(conversion)
- c.or_(*conversions)
- c.and_(*conversions)
+  # logical
+  c.not_(conversion)
+  c.or_(*conversions)
+  c.and_(*conversions)
 
- c.this()[conv1:conv2:conv3]       # slices
+  c.this()[conv1:conv2:conv3]       # slices
 
- c.this().or_(*conversions)        # OR c.this() | ...
- c.this().and_(*conversions)       # OR c.this() & ...
- c.this().not_()                   # OR ~c.this()
- c.this().is_(conversion)
- c.this().is_not(conversion)
- c.this().in_(conversion)
- c.this().not_in(conversion)
+  c.this().or_(*conversions)        # OR c.this() | ...
+  c.this().and_(*conversions)       # OR c.this() & ...
+  c.this().not_()                   # OR ~c.this()
+  c.this().is_(conversion)
+  c.this().is_not(conversion)
+  c.this().in_(conversion)
+  c.this().not_in(conversion)
 
- # comparisons
- c.this().eq(conversion)           # OR c.this() == ...
- c.this().not_eq(conversion)       # OR c.this() != ...
- c.this().gt(conversion)           # OR c.this() > ...
- c.this().gte(conversion)          # OR c.this() >= ...
- c.this().lt(conversion)           # OR c.this() < ...
- c.this().lte(conversion)          # OR c.this() <= ...
+  # comparisons
+  c.this().eq(conversion)           # OR c.this() == ...
+  c.this().not_eq(conversion)       # OR c.this() != ...
+  c.this().gt(conversion)           # OR c.this() > ...
+  c.this().gte(conversion)          # OR c.this() >= ...
+  c.this().lt(conversion)           # OR c.this() < ...
+  c.this().lte(conversion)          # OR c.this() <= ...
 
- # math
- c.this().neg()                    # OR -c.this()
- c.this().add(conversion)          # OR c.this() + ...
- c.this().mul(conversion)          # OR c.this() * ...
- c.this().sub(conversion)          # OR c.this() - ...
- c.this().div(conversion)          # OR c.this() / ...
- c.this().mod(conversion)          # OR c.this() % ...
- c.this().floor_div(conversion)    # OR c.this() // ...
+  # math
+  c.this().neg()                    # OR -c.this()
+  c.this().add(conversion)          # OR c.this() + ...
+  c.this().mul(conversion)          # OR c.this() * ...
+  c.this().sub(conversion)          # OR c.this() - ...
+  c.this().div(conversion)          # OR c.this() / ...
+  c.this().mod(conversion)          # OR c.this() % ...
+  c.this().floor_div(conversion)    # OR c.this() // ...
 
 
 .. _ref_c_collections:
@@ -231,7 +244,7 @@ Collections
 Converts an input into a collection, same is achievable by using
 `c() wrapper`_, see below:
 
- * **c.list or c([])**
+* **c.list or c([])**
 
   .. autoattribute:: convtools.conversion.list
 
@@ -240,7 +253,7 @@ Converts an input into a collection, same is achievable by using
 
   .. automethod:: convtools.base.List.__init__
 
- * **c.tuple or c(())**
+* **c.tuple or c(())**
 
   .. autoattribute:: convtools.conversion.tuple
 
@@ -249,7 +262,7 @@ Converts an input into a collection, same is achievable by using
 
   .. automethod:: convtools.base.Tuple.__init__
 
- * **c.set or c(set())**
+* **c.set or c(set())**
 
   .. autoattribute:: convtools.conversion.set
 
@@ -258,7 +271,7 @@ Converts an input into a collection, same is achievable by using
 
   .. automethod:: convtools.base.Set.__init__
 
- * **c.dict or c({})**
+* **c.dict or c({})**
 
   .. autoattribute:: convtools.conversion.dict
 
@@ -273,12 +286,12 @@ Converts an input into a collection, same is achievable by using
 Optional items:
 +++++++++++++++
 
-  .. autoattribute:: convtools.conversion.optional
+.. autoattribute:: convtools.conversion.optional
 
-  .. autoclass:: convtools.base.OptionalCollectionItem()
-     :noindex:
+.. autoclass:: convtools.base.OptionalCollectionItem()
+   :noindex:
 
-  .. automethod:: convtools.base.OptionalCollectionItem.__init__
+.. automethod:: convtools.base.OptionalCollectionItem.__init__
 
 
 .. _ref_comprehensions:
@@ -350,15 +363,15 @@ c.iter
 c.iter_mut
 ==========
 
- .. automethod:: convtools.base.BaseConversion.iter_mut
+.. automethod:: convtools.base.BaseConversion.iter_mut
   :noindex:
 
 ____
 
- .. autoclass:: convtools.base.IterMutConversion()
-  :noindex:
- .. automethod:: convtools.base.IterMutConversion.__init__
-  :noindex:
+.. autoclass:: convtools.base.IterMutConversion()
+ :noindex:
+.. automethod:: convtools.base.IterMutConversion.__init__
+ :noindex:
 
 
 .. _ref_c_filter:
@@ -379,6 +392,16 @@ c.sort
 .. automethod:: convtools.conversion.sort
    :noindex:
 .. automethod:: convtools.base.BaseConversion.sort
+   :noindex:
+
+.. _ref_min_max:
+
+c.min & c.max
+=============
+
+.. automethod:: convtools.conversion.min
+   :noindex:
+.. automethod:: convtools.conversion.max
    :noindex:
 
 .. _ref_zip:
@@ -441,27 +464,28 @@ Pipes
 Conditions
 ==========
 
- * **IF expressions**
+* **IF expressions**
 
-     .. autoattribute:: convtools.conversion.if_
+  .. autoattribute:: convtools.conversion.if_
 
-     .. autoclass:: convtools.base.If()
-        :noindex:
+  .. autoclass:: convtools.base.If()
+     :noindex:
 
-     .. automethod:: convtools.base.If.__init__
+  .. automethod:: convtools.base.If.__init__
 
- * **AND/OR expressions**
-     .. autoattribute:: convtools.conversion.and_
-     .. autoattribute:: convtools.conversion.or_
+* **AND/OR expressions**
 
-     .. autoclass:: convtools.base.And()
-        :noindex:
+  .. autoattribute:: convtools.conversion.and_
+  .. autoattribute:: convtools.conversion.or_
 
-     .. autoclass:: convtools.base.Or()
-        :noindex:
+  .. autoclass:: convtools.base.And()
+     :noindex:
 
-     .. automethod:: convtools.base.And.__init__
-     .. automethod:: convtools.base.Or.__init__
+  .. autoclass:: convtools.base.Or()
+     :noindex:
+
+  .. automethod:: convtools.base.And.__init__
+  .. automethod:: convtools.base.Or.__init__
 
 
 .. _ref_c_aggregations:
@@ -635,5 +659,20 @@ c.Mut - Mutations
 ``c.Mut`` is a shortcut for ``Mutations`` container.
 
 .. autoclass:: convtools.mutations.Mutations
+   :noindex:
+   :members:
+
+.. _ref_c_breakpoint:
+
+c.breakpoint / (...).breakpoint()
+=================================
+
+.. automethod:: convtools.conversion.breakpoint
+   :noindex:
+
+.. automethod:: convtools.base.BaseConversion.breakpoint
+   :noindex:
+
+.. autoclass:: convtools.base.Breakpoint
    :noindex:
    :members:

@@ -1,6 +1,7 @@
 import pytest
 
 from convtools import conversion as c
+from convtools.base import Breakpoint
 
 
 def test_base_zip():
@@ -88,3 +89,35 @@ def test_zip_in_aggregate():
 
 def test_flatten():
     assert c.flatten().as_type(list).execute([[1], [2]]) == [1, 2]
+
+
+def test_min_max():
+    assert c.min(0, 1).execute(None) == 0
+    assert c.min(2, 1).execute(None) == 1
+    assert c.max(0, 1).execute(None) == 1
+    assert c.max(2, 1).execute(None) == 2
+
+    assert c.min(c.item(0), c.item(1)).execute((0, 1)) == 0
+    assert c((2, 1)).pipe(c.min(c.item(0), c.item(1))).execute(None) == 1
+
+    with pytest.raises(TypeError):
+        c.min(c.this()).execute(-1)
+    with pytest.raises(TypeError):
+        c.max(c.this()).execute(-1)
+
+
+def test_breakpoint():
+    before = Breakpoint.debug_func
+    l = []
+
+    def add_to_list(obj):
+        l.append(obj)
+        return obj
+
+    Breakpoint.debug_func = staticmethod(add_to_list)
+    try:
+        c.list_comp(c.this().breakpoint()).execute([1, 2, 3])
+        c.list_comp(c.breakpoint()).execute([3, 4])
+    finally:
+        Breakpoint.debug_func = before
+    assert l == [1, 2, 3, 3, 4]

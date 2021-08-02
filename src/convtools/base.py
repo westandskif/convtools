@@ -2,6 +2,7 @@
 Base and basic conversions are defined here.
 """
 import linecache
+import pdb
 import re
 import string
 import sys
@@ -254,13 +255,12 @@ class BaseConversion(typing.Generic[CT]):
     (method calling or piping).
 
     Every conversion has many important methods like:
-
-     * `gen_converter`
-     * `item`, `attr`, `call`, `call_methods`, `as_type`
-     * `and_`, `or_`, `not_`, `is_`, `is not`, `in_`, `not_in`
-     * `filter`
-     * `pipe`
-     * overloaded operators"""
+      * `gen_converter`
+      * `item`, `attr`, `call`, `call_methods`, `as_type`
+      * `and_`, `or_`, `not_`, `is_`, `is not`, `in_`, `not_in`
+      * `filter`
+      * `pipe`
+      * overloaded operators"""
 
     _none = _None()
     valid_pipe_output = True
@@ -273,6 +273,7 @@ class BaseConversion(typing.Generic[CT]):
         NEW_LABEL = 4
         ARG_USAGE = 8
         LABEL_USAGE = 16
+        BREAKPOINT = 32
 
     self_content_type = 0
 
@@ -434,7 +435,7 @@ class BaseConversion(typing.Generic[CT]):
         if is_debug and "black" in globals():
             try:
                 code = black.format_str(
-                    code, mode=black.FileMode(line_length=79)
+                    code, mode=black.FileMode(line_length=79)  # type: ignore
                 )
             except black.InvalidInput:
                 pass
@@ -495,6 +496,7 @@ class BaseConversion(typing.Generic[CT]):
         """
         # signature should contain "data_" argument
         initial_code_input = "data_"
+        debug = debug or (self.contents & self.ContentTypes.BREAKPOINT)
         ctx = self._init_ctx(debug=debug)
 
         converter_callable_cls = CodeGenerationOptionsCtx.get_option_value(
@@ -779,6 +781,10 @@ class BaseConversion(typing.Generic[CT]):
             **kwargs,
         )
 
+    def breakpoint(self):
+        """Shortcut to Breakpoint(self)"""
+        return Breakpoint(self)
+
 
 class BaseMutation(BaseConversion):
     used_in_narrow_context = True
@@ -888,12 +894,25 @@ class NaiveConversion(BaseConversion):
 
 
 class EscapedString(BaseConversion):
+    """Defines the conversion which returns the result of running the
+    python code, passed to init"""
+
     def __init__(self, s):
         super().__init__()
         self.s = s
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return self.s
+
+
+class This(BaseConversion):
+    """Defines the conversion which just returns the input.
+
+    Also, provided that you use this inside comprehension conversions,
+    it references an item from an iterator."""
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return code_input
 
 
 class InputArg(BaseConversion):
@@ -2068,3 +2087,34 @@ def {converter_name}(data_{code_args}):
             .call(self.obj, *self.get_args_as_func_args())
             .gen_code_and_update_ctx(code_input, ctx)
         )
+
+
+if sys.version_info[:2] < (3, 7):
+
+    def debug_func(obj):  # pragma: no cover
+        pdb.set_trace()
+        return obj
+
+
+else:
+
+    def debug_func(obj):  # pragma: no cover
+        breakpoint()  # pylint: disable=undefined-variable # noqa: F821
+        return obj
+
+
+class Breakpoint(BaseConversion):
+    """Defines the conversion which wraps another one and puts a breakpoint
+    after it"""
+
+    self_content_type = BaseConversion.ContentTypes.BREAKPOINT
+    debug_func = staticmethod(debug_func)
+
+    def __init__(self, to_debug):
+        super().__init__()
+        self.conversion = self.ensure_conversion(to_debug).pipe(
+            self.debug_func
+        )
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return self.conversion.gen_code_and_update_ctx(code_input, ctx)

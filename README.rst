@@ -49,13 +49,13 @@ Docs
 What's the workflow?
 ====================
 
- 1. ``from convtools import conversion as c``
- 2. define conversions
- 3. (optional) store them somewhere for further reuse
- 4. call ``gen_converter`` method to compile the conversion into a function,
-    written with an ad hoc code
- 5. (optional) it's totally fine to generate converters at runtime, for simple
-    conversions it takes less than 0.1-0.2 milliseconds to get compiled.
+#. ``from convtools import conversion as c``
+#. define conversions
+#. (optional) store them somewhere for further reuse
+#. call ``gen_converter`` method to compile the conversion into a function,
+   written with an ad hoc code
+#. (optional) it's totally fine to generate converters at runtime, for simple
+   conversions it takes less than 0.1-0.2 milliseconds to get compiled.
 
 Please, see simple examples of `group by`, `aggregate` and `join` conversions
 below.
@@ -159,18 +159,17 @@ Also there are more after the **Installation** section.
 
 Why would you need this?
 ========================
-
- * you love functional programming
- * you believe that Python is awesome enough to have powerful aggregations and
-   joins
- * you need to serialize/deserialize objects
- * you need to define dynamic data transforms based on some input, which
-   becomes available at runtime
- * you like the idea of having something else write an unpleasant ad hoc
-   code for you
- * you want to reuse field-wise transformations across the project without
-   worrying about huge overhead of calling tens of functions per row/object,
-   especially when there are thousands of them to be processed
+  * you love functional programming
+  * you believe that Python is awesome enough to have powerful aggregations and
+    joins
+  * you need to serialize/deserialize objects
+  * you need to define dynamic data transforms based on some input, which
+    becomes available at runtime
+  * you like the idea of having something else write an unpleasant ad hoc
+    code for you
+  * you want to reuse field-wise transformations across the project without
+    worrying about huge overhead of calling tens of functions per row/object,
+    especially when there are thousands of them to be processed
 
 
 Is it any different from tools like Pandas?
