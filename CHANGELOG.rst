@@ -1,3 +1,14 @@
+0.15.1 (2021-08-08)
+___________________
+
+Bugfix
+++++++
+
+- replaced ``linecache`` populating code with real dumping generated code to
+  files in either ``PY_CONVTOOLS_DEBUG_DIR`` (*if env variable is defined*) or
+  to python's ``tempfile.gettempdir``
+
+
 0.15.0 (2021-08-02)
 ___________________
 

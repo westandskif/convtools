@@ -222,7 +222,7 @@ Every conversion:
  * contains the information of how to transform an input
  * can be **piped** into another conversion (same as wrapping)
  * has a method ``gen_converter`` returning a function compiled at runtime
- * despite being compiled at runtime, it remains debuggable with `pdb` due to `linecache` populating.
+ * despite being compiled at runtime, it remains debuggable with both `pdb` and `pydevd`
 
 
 Installation:

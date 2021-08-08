@@ -4,8 +4,8 @@ from convtools.base import (
     BaseConversion,
     CodeGenerationOptions,
     CodeGenerationOptionsCtx,
+    This,
 )
-from convtools.utils import RUCache
 
 
 def test_code_generation_ctx():
@@ -54,65 +54,6 @@ def test_code_generation_ctx():
     )
 
 
-def test_ru_cache():
-    pairs = []
-
-    def on_evict(key, value):
-        try:
-            pairs.pop()
-        except IndexError:
-            pass
-        pairs.append((key, value))
-
-    cache = RUCache(3, on_evict)
-
-    cache.set(1, 1)
-    cache.set(2, 2)
-    cache.set(3, 3)
-    assert pairs == []
-    cache.set(4, 4)
-    assert pairs == [(1, 1)]
-    cache.set(5, 5)
-    assert pairs == [(2, 2)]
-    cache.set(6, 6)
-    assert pairs == [(3, 3)]
-
-    assert cache.get(4) == 4 and cache.get(10, default=-1) == -1
-    cache.set(7, 7)
-    assert pairs == [(5, 5)]
-    cache.set(8, 8)
-    assert pairs == [(6, 6)]
-    cache.set(9, 9)
-    assert pairs == [(4, 4)]
-    cache.set(10, 10)
-    assert pairs == [(7, 7)]
-
-    with pytest.raises(Exception):
-        RUCache(1, False)
-
-    cache = RUCache(3)
-    for i in range(10):
-        cache.set(i, i)
-    assert cache.has(7) and cache.has(8) and cache.has(9)
-    cache.set(10, 10)
-    assert not cache.has(7)
-    assert cache.has(8, bump_up=True)
-    cache.set(11, 11)
-    assert cache.has(8) and cache.has(11) and not cache.has(9)
-    cache.set(10, 100)
-    cache.set(12, 12)
-    assert (
-        cache.has(12) and cache.has(10) and cache.has(11) and not cache.has(8)
-    )
-
-    cache = RUCache(3)
-    for i in range(3):
-        cache.set(i, i)
-        cache.has(i, bump_up=True)
-    cache.set(3, 3)
-    assert cache.has(3)
-
-
 def test_replace_word():
     cases = [
         ("abc", "abc", "cde", "cde"),
@@ -140,3 +81,17 @@ def test_count_words():
     for (where, what, expected_result) in cases:
         result = BaseConversion.count_words(where, what)
         assert result == expected_result
+
+
+def test_add_sources():
+    converter_callable = This().gen_converter(debug=False)
+
+    for (
+        converter_name,
+        item,
+    ) in converter_callable._name_to_converter.items():
+        converter_callable.add_sources(converter_name, item["code_str"])
+        with pytest.raises(Exception):
+            converter_callable.add_sources(
+                converter_name, item["code_str"] + " "
+            )

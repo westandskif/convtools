@@ -638,23 +638,22 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
         self_clone.filter_cast = cast
         return self_clone
 
-    def _gen_agg_data_container(self, number_of_reducers, initial_val=_none):
-        attrs = []
-        init_lines = []
-        for i in range(number_of_reducers):
-            attr = "v%d" % i
-            attrs.append("'%s'" % attr)
-            init_lines.append(f"        self.{attr} = _none")
+    def _gen_agg_data_container(self, container_name, number_of_reducers, ctx):
+        attrs = ["v%d" % i for i in range(number_of_reducers)]
 
-        agg_data_container_code = (
-            "class AggData:\n    __slots__ = [{}]\n    def __init__(self):\n{}"
-        ).format(
-            ", ".join(attrs),
-            "\n".join(init_lines) if init_lines else "        pass",
+        code = Code()
+        code.add_line(f"class {container_name}:", 1)
+        code.add_line(
+            "__slots__ = [{}]".format(",".join(f"'{attr}'" for attr in attrs)),
+            0,
         )
-        ctx = {"_none": initial_val, "__name__": "_convtools_agg"}
-        exec(agg_data_container_code, ctx, ctx)  # pylint:disable=exec-used
-        return ctx["AggData"]
+        code.add_line("def __init__(self):", 1)
+        if attrs:
+            for attr in attrs:
+                code.add_line(f"self.{attr} = _none", 0)
+        else:
+            code.add_line("pass", 0)
+        return self._code_to_converter(container_name, code.to_string(0), ctx)
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         if self.agg_result is None:
@@ -772,7 +771,7 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
             )
         else:
             ctx[var_agg_data_cls] = self._gen_agg_data_container(
-                reduce_blocks.number, self._none
+                var_agg_data_cls, reduce_blocks.number, ctx
             )
 
         for code_from, code_to in replacements.items():

@@ -1,5 +1,3 @@
-import linecache
-import types
 from collections import namedtuple
 from datetime import date
 from unittest.mock import MagicMock, Mock
@@ -12,7 +10,6 @@ from convtools.base import (
     InlineExpr,
     NamedConversion,
     PipeConversion,
-    _ConverterCallable,
 )
 
 from .utils import total_size
@@ -499,9 +496,6 @@ def test_filter():
         2,
         3,
     ]
-    converter = c.list_comp(c.this()).filter(
-        c.this() > 1, cast=lambda x: list(x)
-    )
     assert c.list_comp(c.this()).filter(
         c.this() > 1, cast=lambda x: list(x)
     ).execute(range(4)) == [2, 3]
@@ -1176,35 +1170,6 @@ def test_slices():
         3,
         5,
     ]
-
-
-def test_linecache_cleaning():
-    _ConverterCallable.linecache_keys.max_size = 100
-    length_before = len(linecache.cache)
-    for i in range(100):
-        c.this().gen_converter(debug=False)
-    length_after_100 = len(linecache.cache)
-
-    for i in range(10):
-        c.this().gen_converter(debug=False)
-    length_after_110 = len(linecache.cache)
-
-    assert (
-        length_after_110 == length_after_100
-        and length_before + 100 >= length_after_100
-    )
-
-    for key in list(linecache.cache.keys()):
-        del linecache.cache[key]
-    converter_callable = c.this().gen_converter(debug=False)
-
-    for (
-        fake_filename,
-        code_str,
-    ) in converter_callable._fake_filename_to_code_str.items():
-        converter_callable.add_sources(fake_filename, code_str)
-        with pytest.raises(Exception):
-            converter_callable.add_sources(fake_filename, code_str + " ")
 
 
 def test_named_conversion():

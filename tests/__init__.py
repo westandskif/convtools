@@ -1,18 +1,11 @@
 from types import GeneratorType
 
-from convtools.base import (
-    CodeGenerationOptionsCtx,
-    _ConverterCallable,
-    clean_line_cache,
-)
-from convtools.utils import RUCache
+from convtools.base import CodeGenerationOptionsCtx, _ConverterCallable
 
 from .utils import total_size
 
 
 class MemoryProfilingConverterCallable(_ConverterCallable):
-    linecache_keys = RUCache(10, clean_line_cache)
-
     def __call__(self, *args, **kwargs):
         size_before = total_size(self.__dict__)
         result = super().__call__(*args, **kwargs)

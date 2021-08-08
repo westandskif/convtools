@@ -169,8 +169,7 @@ For example, to convert a tuple to a dict:
 
        """ Under the hood the conversion generates and compiles the following code.
 
-       This is a normal python function, debuggable with pdb (since it is using
-       linecache under the hood for getting source file lines)"""
+       This is a normal python function, debuggable with both pdb and pydevd"""
 
        def converter42_67(data_):
            return {
@@ -899,10 +898,13 @@ The following mutations are available:
 12. Debugging & setting Options
 _______________________________
 
-Compiled converters are debuggable callables, which populate linecache with generated code in each of these cases:
-  * on exception inside a converter
-  * on ``.gen_converter(debug=True)``
-  * if :ref:`breakpoint() method<ref_c_breakpoint>` is used.
+Compiled converters are debuggable callables, which dump generated code on disk
+to ``PY_CONVTOOLS_DEBUG_DIR`` (*if env variable is defined*) or to
+:py:obj:`tempfile.gettempdir` on any of the following cases:
+
+* on exception inside a converter
+* on ``.gen_converter(debug=True)``
+* if :ref:`breakpoint() method<ref_c_breakpoint>` is used.
 
 So there are 3 options to help you debug:
 

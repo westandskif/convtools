@@ -1,4 +1,4 @@
-personal_ws-1.1 en 168 
+personal_ws-1.1 en 172 
 Almakov
 Anexen
 BYN
@@ -67,6 +67,7 @@ el
 elif
 endif
 enum
+env
 exc
 expr
 favicon
@@ -104,6 +105,7 @@ kwarg
 kwargs
 len
 lte
+makedirs
 mct
 mul
 multiplicator
@@ -117,8 +119,10 @@ optionsctx
 param
 params
 pdb
+pragma
 pre
 prev
+pydevd
 pygments
 pylint
 pypi

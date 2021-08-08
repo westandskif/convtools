@@ -5,57 +5,6 @@
 import sys
 import threading
 import typing
-from collections import deque
-
-
-class RUCache:
-    """Recently used cache - naive implementation"""
-
-    def __init__(self, max_size, on_evict=None):
-        self.max_size = max_size
-        self._on_evict = on_evict
-        if not (self._on_evict is None or callable(on_evict)):
-            raise Exception("neither None nor callable")
-        self._keys = deque()
-        self._keys_to_be_put_back = set()
-        self._data = {}
-
-    def get(self, key, default=None):
-        if key in self._data:
-            self._keys_to_be_put_back.add(key)
-            return self._data[key]
-        return default
-
-    def set(self, key, value):
-        if key in self._data:
-            self._data[key] = value
-            self._keys_to_be_put_back.add(key)
-        else:
-            self._data[key] = value
-            if len(self._keys) > self.max_size - 1:
-                self._evict(self.max_size - 1)
-            self._keys.appendleft(key)
-
-    def has(self, key, bump_up=False):
-        if key in self._data:
-            if bump_up:
-                self._keys_to_be_put_back.add(key)
-            return True
-        return False
-
-    def _evict(self, expected_size):
-        for _ in range(self.max_size + 1):
-            if len(self._keys) > expected_size:
-                key = self._keys.pop()
-                if key in self._keys_to_be_put_back:
-                    self._keys.appendleft(key)
-                    self._keys_to_be_put_back.remove(key)
-                else:
-                    value = self._data.pop(key)
-                    if self._on_evict:
-                        self._on_evict(key, value)
-            else:
-                break
 
 
 if sys.version_info[:2] == (3, 6):

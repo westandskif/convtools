@@ -1,17 +1,18 @@
 """
 Base and basic conversions are defined here.
 """
-import linecache
+import os
 import pdb
 import re
 import string
 import sys
+import tempfile
 import typing
 from itertools import chain
 from random import choice
 from types import GeneratorType
 
-from .utils import BaseCtx, BaseOptions, Code, RUCache
+from .utils import BaseCtx, BaseOptions, Code
 
 
 try:
@@ -20,52 +21,67 @@ except ImportError:
     pass
 
 
-def clean_line_cache(key, _):
-    try:
-        del linecache.cache[key]
-    except KeyError:
-        pass
-
-
 class _ConverterCallable:
     """A wrapper which collects all source code, generated every conversion,
     used in the main converter.
 
-    If an exception is raised, it populates the linecache for beautiful
-    stacktraces and easy pdb debugging.  If black is installed, it's applied to
-    the code.
-    """
+    If an exception is raised, it dumps generated code on disk to
+    ``PY_CONVTOOLS_DEBUG_DIR`` (*if env variable is defined*) or to
+    :py:obj:`tempfile.gettempdir` for beautiful stacktraces and proper
+    debugging via pdb & pydevd.  If black is installed, it is applied to the
+    code."""
 
-    linecache_keys = RUCache(1000, clean_line_cache)
+    debug_dir_initialized = False
+    debug_dir = os.environ.get("PY_CONVTOOLS_DEBUG_DIR", None) or os.path.join(
+        tempfile.gettempdir(), "py_convtools_debug"
+    )
+    os.makedirs(debug_dir, exist_ok=True)
 
     def __init__(self, ctx, debug=None):
-        self._fake_filename_to_code_str = {}
+        self._code_dumped = False
+        self._name_to_converter = {}
         self._ctx = ctx
         self._debug = debug
 
         self._main_converter = None
         self.__name__ = "not_defined_yet"
 
-    def add_sources(self, fake_filename, code_str):
-        filename_exists = fake_filename in self._fake_filename_to_code_str
-        if filename_exists:
-            if self._fake_filename_to_code_str[fake_filename] == code_str:
-                return False
+    def __del__(self):
+        if self._code_dumped:
+            try:
+                for item in self._name_to_converter.values():
+                    os.remove(item["abs_path"])
+            except FileNotFoundError:  # pragma: no cover
+                pass
+
+    def add_sources(self, converter_name, code_str):
+        if converter_name in self._name_to_converter:
+            if self._name_to_converter[converter_name]["code_str"] == code_str:
+                return (
+                    self._name_to_converter[converter_name]["abs_path"],
+                    False,
+                )
             raise Exception(
-                "fake_filename with a different code already exists",
-                fake_filename,
+                "converter with a different code already exists",
+                converter_name,
             )
 
-        self._fake_filename_to_code_str[fake_filename] = code_str
+        abs_path = os.path.join(
+            self.debug_dir, f"_{id(self)}_{converter_name}.py"
+        )
+        self._name_to_converter[converter_name] = {
+            "code_str": code_str,
+            "abs_path": abs_path,
+        }
         if self._debug:
             print("\n", code_str)
-        return True
+        return abs_path, True
 
     def set_main_converter(self, converter):
         self._main_converter = converter
         self.__name__ = getattr(self._main_converter, "__name__", "")
         if self._debug:
-            self.populate_line_cache()
+            self.dump_code()
 
     def __get__(self, instance, cls):
         return _ConverterCallableMethod(self, instance, cls)
@@ -80,7 +96,7 @@ class _ConverterCallable:
             return result
         except (Exception, KeyboardInterrupt):
             # definitely not generator
-            self.populate_line_cache()
+            self.dump_code()
             raise
         finally:
             if drop_labels_now:
@@ -93,7 +109,7 @@ class _ConverterCallable:
         try:
             yield from generator_
         except Exception:
-            self.populate_line_cache()
+            self.dump_code()
             raise
         finally:
             labels_ = self._ctx["labels_"]
@@ -101,18 +117,18 @@ class _ConverterCallable:
                 for key in list(labels_):
                     del labels_[key]
 
-    def populate_line_cache(self):
-        for fake_filename, code_str in self._fake_filename_to_code_str.items():
-            if self.linecache_keys.has(fake_filename, bump_up=True):
-                continue
+    def dump_code(self):
+        if self._code_dumped:
+            return
+        cls = self.__class__
+        if not cls.debug_dir_initialized:
+            os.makedirs(cls.debug_dir, exist_ok=True)
+            cls.debug_dir_initialized = True
+        for item in self._name_to_converter.values():
+            with open(item["abs_path"], "w") as f:
+                f.write(item["code_str"])
 
-            linecache.cache[fake_filename] = (
-                len(code_str),
-                None,
-                code_str.splitlines(True),
-                fake_filename,
-            )
-            self.linecache_keys.set(fake_filename, True)
+        self._code_dumped = True
 
 
 class _ConverterCallableMethod:
@@ -428,7 +444,7 @@ class BaseConversion(typing.Generic[CT]):
 
     def _code_to_converter(
         self, converter_name: str, code: str, ctx: dict
-    ) -> _ConverterCallable:
+    ) -> typing.Callable:
         is_debug = ctx.get(
             "__debug", False
         ) or ConverterOptionsCtx.get_option_value("debug")
@@ -441,13 +457,12 @@ class BaseConversion(typing.Generic[CT]):
                 pass
 
         main_converter_callable = ctx["__main_converter_callable"]
-        fake_filename = f"_fake_{converter_name}.py"
-        sources_added = main_converter_callable.add_sources(
-            fake_filename, code
+        abs_path, added = main_converter_callable.add_sources(
+            converter_name, code
         )
 
-        if sources_added:
-            code_obj = compile(code, fake_filename, "exec")
+        if added:
+            code_obj = compile(code, abs_path, "exec", optimize=2)
             exec(code_obj, ctx)  # pylint:disable=exec-used
             ctx[converter_name].conv_name = converter_name
         return ctx[converter_name]
@@ -462,6 +477,7 @@ class BaseConversion(typing.Generic[CT]):
             "__debug": debug,
             "__name__": "_convtools",
             "labels_": labels_,
+            "_none": cls._none,
             cls.NAME_TO_CODE_INPUT: [{}],
             cls.PREFIXED_HASH_TO_NAME: {},
             cls.GENERATED_NAMES: set(),
@@ -2089,16 +2105,25 @@ def {converter_name}(data_{code_args}):
         )
 
 
-if sys.version_info[:2] < (3, 7):
+if "pydevd" in sys.modules:  # pragma: no cover
 
-    def debug_func(obj):  # pragma: no cover
+    def debug_func(obj):
+        import pydevd  # type: ignore # pylint: disable=import-outside-toplevel
+
+        pydevd.settrace()
+        return obj
+
+
+elif sys.version_info[:2] < (3, 7):  # pragma: no cover
+
+    def debug_func(obj):
         pdb.set_trace()
         return obj
 
 
-else:
+else:  # pragma: no cover
 
-    def debug_func(obj):  # pragma: no cover
+    def debug_func(obj):
         breakpoint()  # pylint: disable=undefined-variable # noqa: F821
         return obj
 
