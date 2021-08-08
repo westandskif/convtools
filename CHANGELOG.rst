@@ -6,7 +6,7 @@ Bugfix
 
 - replaced ``linecache`` populating code with real dumping generated code to
   files in either ``PY_CONVTOOLS_DEBUG_DIR`` (*if env variable is defined*) or
-  to python's ``tempfile.gettempdir``
+  to python's ``tempfile.gettempdir``. This adds pydevd support (VS Code and PyCharm debugger).
 
 
 0.15.0 (2021-08-02)
