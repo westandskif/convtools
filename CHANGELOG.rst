@@ -1,3 +1,12 @@
+0.15.2 (2021-09-17)
+___________________
+
+Bugfix
+++++++
+
+- fixed passing strings containing ``%`` and ``{`` to ``c.aggregate`` - `#34 <https://github.com/itechart/convtools/issues/34>`_
+
+
 0.15.1 (2021-08-08)
 ___________________
 

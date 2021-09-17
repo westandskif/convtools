@@ -30,6 +30,25 @@ def test_naive_conversion():
     assert c.naive("1").as_type(int).gen_converter()(10) == 1
     assert c.naive(1).gen_converter(method=True)(None, 10) == 1
 
+    assert (
+        "%"
+        not in next(
+            iter(c.naive("%abc").gen_converter()._name_to_converter.values())
+        )["code_str"]
+    )
+    assert (
+        "{"
+        not in next(
+            iter(c.naive("{abc").gen_converter()._name_to_converter.values())
+        )["code_str"]
+    )
+    assert (
+        "abc"
+        in next(
+            iter(c.naive("abc").gen_converter()._name_to_converter.values())
+        )["code_str"]
+    )
+
 
 def test_gen_converter():
     class A:

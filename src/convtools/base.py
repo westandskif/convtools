@@ -884,22 +884,19 @@ class NaiveConversion(BaseConversion):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         if self.code_str:
             return self.code_str
-        if self.value is None:
-            return "None"
-        if self.value is True:
-            return "True"
-        if self.value is False:
-            return "False"
+        value = self.value
         if (
-            isinstance(self.value, int)
-            or isinstance(self.value, str)
-            and len(self.value) < 255
+            isinstance(value, (bool, int))
+            or isinstance(value, str)
+            and len(value) < 255
+            and "%" not in value
+            and "{" not in value
         ):
-            return repr(self.value)
+            return repr(value)
         value_name = self.value_name or self.gen_name(
-            self.name_prefix, ctx, self.value
+            self.name_prefix, ctx, value
         )
-        ctx[value_name] = self.value
+        ctx[value_name] = value
         return value_name
 
     def is_itself_callable_like(self) -> typing.Optional[bool]:
