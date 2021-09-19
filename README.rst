@@ -2,6 +2,9 @@
 convtools
 =========
 
+**THIS REPO IS NOT UP-TO-DATE, CHECK OUT** `westandskif/convtools <https://github.com/westandskif/convtools>`_ **FORK**
+++++
+
 **convtools** is a python library to declaratively define conversions for
 processing collections, doing complex aggregations and joins.
 
