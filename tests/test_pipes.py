@@ -143,3 +143,16 @@ def test_pipe_filter_sort():
     ) == [7, 6, 5, 4]
 
     assert c.this().sort().execute([3, 1, 2]) == [1, 2, 3]
+
+
+def test_pipe_label_args():
+    assert (
+        c.this()
+        .pipe(
+            c.this(),
+            label_input={"label1": c.input_arg("abc")},
+            label_output={"label2": c.input_arg("cde")},
+        )
+        .execute(None, abc=1, cde=2)
+        is None
+    )

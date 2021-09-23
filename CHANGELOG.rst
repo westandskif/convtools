@@ -1,3 +1,12 @@
+0.15.4 (2021-09-23)
+___________________
+
+Bugfix
+++++++
+
+- fixed `#2 <https://github.com/westandskif/convtools/issues/2>`_: issue with
+  input args passed to pipe labels
+
 0.15.3 (2021-09-19)
 ___________________
 

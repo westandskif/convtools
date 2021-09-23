@@ -1835,7 +1835,9 @@ class PipeConversion(BaseConversion):
                 "inline pipes requested: no labeling is supported"
             )
 
-        self.what = self.ensure_conversion(what)
+        self.input_args_container = EscapedString("None")
+
+        self.what = self.ensure_conversion(what, skip_for_input_args=True)
         self.where = self.ensure_conversion(where)
         self.where.check_dependency(self.what, for_piping=True)
 
@@ -1855,6 +1857,7 @@ class PipeConversion(BaseConversion):
 
         self.args = tuple(self.ensure_conversion(arg) for arg in args)
         self.kwargs = {k: self.ensure_conversion(v) for k, v in kwargs.items()}
+
         self.label_input = (
             None if label_input is None else self._prepare_labels(label_input)
         )
@@ -1886,7 +1889,10 @@ class PipeConversion(BaseConversion):
     def sort(self, key=None, reverse=False):
         return self.replace(self.where.sort(key, reverse))
 
-    def _prepare_labels(self, label_arg: typing.Union[str, dict]):
+    def _prepare_labels(
+        self,
+        label_arg: typing.Union[str, dict],
+    ):
         if isinstance(label_arg, str):
             return {label_arg: GetItem()}
 
@@ -1912,6 +1918,13 @@ class PipeConversion(BaseConversion):
         ):
             return code_input.count("][") < 2
         return False
+
+    def ensure_conversion(
+        self, conversion, skip_for_input_args=False, **kwargs
+    ) -> "BaseConversion":
+        if not skip_for_input_args:
+            self.input_args_container.ensure_conversion(conversion)
+        return super().ensure_conversion(conversion, **kwargs)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         what_code = self.what.gen_code_and_update_ctx(code_input, ctx)
@@ -1968,8 +1981,8 @@ class PipeConversion(BaseConversion):
             if reducer_inputs_backup_needed:
                 ctx[key_to_backup].pop()
 
-        code_args = where.get_args_def_code()
-        where_args = where.get_args_as_func_args()
+        code_args = self.input_args_container.get_args_def_code()
+        where_args = self.input_args_container.get_args_as_func_args()
 
         if self.label_input or self.label_output:
             label_input_code = (
