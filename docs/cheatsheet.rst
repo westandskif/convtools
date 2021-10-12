@@ -524,22 +524,6 @@ _____________________________________________________________
 6. Group by: simple
 ___________________
 
-# put tables into cheatsheet as well
-# add Filters to the doc
-#
-# Tables doc -> another
-#
-# tell a user that there's no way to chain table iterables to other conversions
-# prepare = c.iter(...)
-# processed_rows = (
-#     Table.from_rows(prepare.execute(data))
-#     .filter(c.col("a") > 0)
-#     .into_iter_rows(dict)
-# )
-# c.aggregate(c.ReduceFuncs.Sum(c.item("a"))).execute(processed_rows)
-
-
-
 .. list-table::
  :class: cheatsheet-table
  :widths: 25 25 40

@@ -113,12 +113,12 @@ filter rows, take / drop / rename / update columns.
 
    # pip install convtools
 
-   from convtools.contrib.tables import Table
    from convtools import conversion as c
 
    input_data = [{"StoreID": " 123", "Quantity": "123"}]
 
    # define a conversion (sometimes you may want to do this dynamically)
+   #   takes iterable and returns iterable of dicts
    conversion = c.iter({
        "id": c.item("StoreID").call_method("strip"),
        "quantity": c.item("Quantity").as_type(int),

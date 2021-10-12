@@ -278,3 +278,21 @@ There are two ways to join tables:
 **For more details see:**
 
 #. :py:obj:`convtools.contrib.tables.Table.join`
+
+
+9. Using inside other conversions
+_________________________________
+
+It's impossible to make ``Table`` work directly inside other conversions,
+because it would introduce ambiguity on which code generating layer is to
+transform the conversion into code: ``Table`` or the parent conversion.
+
+But you most definitely can leverage piping to callables like this:
+
+.. code-block:: python
+
+   input_data = [["a", "b"], [1, 2], [3, 4]]
+   conversion = c.this().pipe(
+       lambda it: Table.from_rows(it, header=True).into_iter_rows(dict)
+   ).as_type(list)
+   conversion.execute(input_data)

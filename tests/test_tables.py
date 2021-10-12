@@ -415,3 +415,13 @@ def test_table_exceptions():
     for header in [("a",), ["a"], {"a": "a"}]:
         with pytest.raises(ValueError):
             table.from_rows([[1, 2], [2, 3]], header=header)
+
+
+def test_table_integration():
+    input_data = [["a", "b"], [1, 2], [3, 4]]
+    conversion = (
+        c.this()
+        .pipe(lambda it: Table.from_rows(it, header=True).into_iter_rows(dict))
+        .as_type(list)
+    )
+    conversion.execute(input_data)

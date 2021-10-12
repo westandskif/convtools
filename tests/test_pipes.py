@@ -49,6 +49,10 @@ def test_pipes():
         ]
     }
 
+    assert c.this().pipe(lambda it: it).filter(c.this()).sort().as_type(
+        list
+    ).execute((2, 1, 0)) == [1, 2]
+
 
 def test_pipe_single_call_functions():
     class CustomException(Exception):

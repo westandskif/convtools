@@ -11,6 +11,8 @@ Bugfix
 
 - fixed inner join with inner loop with soft conditions: any condition except
   for ``==`` and ``c.and_``
+- fixed piping to callable with further calling pipe methods like ``as_type``,
+  ``filter`` and ``sort``
 
 Misc
 ++++

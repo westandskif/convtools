@@ -1868,14 +1868,16 @@ class PipeConversion(BaseConversion):
         if not self.where.valid_pipe_output:
             raise ValueError("invalid output, check where conversion")
 
-        self.replace_where_with_called_one = self.where.is_itself_callable()
-        if not self.replace_where_with_called_one and (args or kwargs):
+        if self.where.is_itself_callable():
+            self.where = self.where.call(
+                GetItem(),
+                *tuple(self.ensure_conversion(arg) for arg in args),
+                **{k: self.ensure_conversion(v) for k, v in kwargs.items()},
+            )
+        elif args or kwargs:
             raise AssertionError(
                 "args or kwargs won't be used when 'where' is not callable"
             )
-
-        self.args = tuple(self.ensure_conversion(arg) for arg in args)
-        self.kwargs = {k: self.ensure_conversion(v) for k, v in kwargs.items()}
 
         self.label_input = (
             None if label_input is None else self._prepare_labels(label_input)
@@ -1893,10 +1895,8 @@ class PipeConversion(BaseConversion):
         return PipeConversion(
             what=self.what,
             where=where,
-            *self.args,
             label_input=self.label_input,
             label_output=self.label_output,
-            **self.kwargs,
         )
 
     def as_type(self, callable_):
@@ -1947,14 +1947,7 @@ class PipeConversion(BaseConversion):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         what_code = self.what.gen_code_and_update_ctx(code_input, ctx)
-        if self.replace_where_with_called_one:
-            where = self.where.call(
-                GetItem(),
-                *self.args,
-                **self.kwargs,
-            )
-        else:
-            where = self.where
+        where = self.where
 
         where_code = where.gen_code_and_update_ctx(what_code, ctx)
         code_usage_count = self.count_words(where_code, what_code)
