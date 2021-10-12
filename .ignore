@@ -2,3 +2,4 @@ tags
 build/
 pip-wheel-metadata/
 src/convtools.egg-info/
+tmp/

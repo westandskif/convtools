@@ -12,6 +12,7 @@ To install the library run ``pip install convtools``
 .. code-block:: python
 
    from convtools import conversion as c
+   from convtools.contrib.tables import Table
 
 1. Simple conversion: keys, attrs, indexes, function calls, type casting
 ________________________________________________________________________
@@ -523,6 +524,22 @@ _____________________________________________________________
 6. Group by: simple
 ___________________
 
+# put tables into cheatsheet as well
+# add Filters to the doc
+#
+# Tables doc -> another
+#
+# tell a user that there's no way to chain table iterables to other conversions
+# prepare = c.iter(...)
+# processed_rows = (
+#     Table.from_rows(prepare.execute(data))
+#     .filter(c.col("a") > 0)
+#     .into_iter_rows(dict)
+# )
+# c.aggregate(c.ReduceFuncs.Sum(c.item("a"))).execute(processed_rows)
+
+
+
 .. list-table::
  :class: cheatsheet-table
  :widths: 25 25 40
@@ -544,20 +561,18 @@ ___________________
       # group by date, sum amounts
 
       [
-          ("2019-01-01", 25),
-          ("2019-01-02", 10),
+          {"dt": "2019-01-01", "total": 25},
+          {"dt": "2019-01-02", "total": 10},
       ]
 
    - .. code-block:: python
 
       converter = c.group_by(
           c.item(0)
-      ).aggregate(
-          (
-              c.item(0),
-              c.ReduceFuncs.Sum(c.item(1))
-          )
-      ).gen_converter()
+      ).aggregate({
+          "dt": c.item(0),
+          "total": c.ReduceFuncs.Sum(c.item(1)),
+      }).gen_converter()
       converter(input_data)
 
  * - .. code-block:: python
@@ -584,35 +599,37 @@ ___________________
       ).gen_converter()
       converter(input_data)
 
+.. _convtools_cheatsheet_reducefuncs_list:
+
 7. Reduce Funcs: list
 _____________________
 
- * Sum
- * SumOrNone
- * Max
- * MaxRow
- * Min
- * MinRow
- * Count
- * CountDistinct
- * First
- * Last
- * Average
- * Median
- * Mode
- * TopK
- * Array
- * ArrayDistinct
- * Dict
- * DictArray
- * DictSum
- * DictSumOrNone
- * DictMax
- * DictMin
- * DictCount
- * DictCountDistinct
- * DictFirst
- * DictLast
+* Sum
+* SumOrNone
+* Max
+* MaxRow
+* Min
+* MinRow
+* Count
+* CountDistinct
+* First
+* Last
+* Average
+* Median
+* Mode
+* TopK
+* Array
+* ArrayDistinct
+* Dict
+* DictArray
+* DictSum
+* DictSumOrNone
+* DictMax
+* DictMin
+* DictCount
+* DictCountDistinct
+* DictFirst
+* DictLast
 
 8. Group by: c.call_func, pipes and DictSum
 ___________________________________________
@@ -1152,3 +1169,91 @@ _____________
           .gen_converter()
       )
       converter(input_data)
+
+
+16. Tables
+__________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 65
+ :header-rows: 1
+
+ * - task
+   - conversion
+ * - .. code-block:: python
+
+      # 1) read tab-separated "tests/csvs/ac.csv"
+      # 2) take columns "a" and "b"
+      # 3) add column "C" as sum of "a" and "b"
+      # 4) rename "a" -> "A"
+      # 5) drop column "b"
+      # 6) put the output to "tests/csvs/out.csv"
+
+   - .. code-block:: python
+
+      (
+          Table
+          .from_csv(
+              "tests/csvs/ac.csv",
+              header=True,
+              dialect=Table.csv_dialect(delimiter="\t"),
+          )
+          .take("a", "c")
+          .update(B=c.col("a") + c.col("c"))
+          .rename({"a": "A"})
+          .drop("c")
+          .into_csv("tests/csvs/out.csv")
+      )
+ * - .. code-block:: python
+
+      # 1) read Iterable of dicts
+      # 2) use ["A", "B"] as a header
+      # 3) cast all columns to int
+      # 4) swap "a" and "b" places
+      # 5) output as iterable of dict/tuple/list
+
+   - .. code-block:: python
+
+      list(
+          Table
+          .from_rows(
+              [["1", "2"], ["10", "20"]],
+              header=["A", "B"],
+              # SAME:
+              # header={"A": 0, "B": 1},
+          )
+          .take("B", "A")
+          .update_all(int)
+          .into_iter_rows(tuple)
+      )
+ * - .. code-block:: python
+
+      # 1) read Iterables of tuples, use
+      #    ("a", "b") and ("a", "c") as headers
+      # 2) filter rows with "b" >= 0 and "c" >= 0
+      # 3) join tables on "a"
+      # 4) output as iterable of dict/tuple/list
+
+   - .. code-block:: python
+
+      list((
+          Table
+          .from_rows(
+              [(0, -1), (1, 2), (10, 20)],
+              header=["a", "b"],
+          )
+          .filter(c.col("b") >= 0)
+      ).join(
+          Table
+          .from_rows(
+              [(10, 5), (3, -5), (1, 7)],
+              header=["a", "c"],
+          )
+          .filter(c.col("c") >= 0),
+          on=["a"],
+          how="inner",
+
+          # SAME, but would replace "a" with "a_LEFT" and "a_RIGHT"
+          # on=c.LEFT.col("a") == c.RIGHT.col("a"),
+      ).into_iter_rows(dict))

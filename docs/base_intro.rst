@@ -1,5 +1,7 @@
-**convtools** is a python library to declaratively define conversions for
-processing collections, doing complex aggregations and joins.
+**convtools** is a python library to declaratively define pipelines for
+processing collections, doing complex aggregations and joins. It also provides
+a helper for stream processing of table-like data (e.g. CSV).
 
-Once a conversion is defined, it can be compiled into an ad hoc code OR be
-reused for building more complex conversions.
+Conversions foster extensive code reuse. Once defined, these generate ad hoc
+code with as much inlining as possible and return compiled ad hoc functions
+`(with superfluous loops and conditions removed)`.

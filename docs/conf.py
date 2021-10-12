@@ -96,7 +96,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "convtools"
-copyright = "2020, iTechArt Group"
+copyright = "2020, iTechArt Group; 2021, Nikita Almakov"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

@@ -32,20 +32,21 @@ def test_doc__index_deserialization():
         ]
     }
 
-    # get by "department" key and then call method "strip"
-    department = c.item("department").call_method("strip")
-    first_name = c.item("first_name").call_method("capitalize")
-    last_name = c.item("last_name").call_method("capitalize")
+    # prepare a few conversions to reuse
+    c_strip = c.this().call_method("strip")
+    c_capitalize = c.this().call_method("capitalize")
+    c_decimal = c.this().call_method("replace", ",", "").as_type(Decimal)
+    c_date = c.call_func(datetime.strptime, c.this(), "%Y-%m-%d").call_method(
+        "date"
+    )
+    # reusing c_date
+    c_optional_date = c.if_(c.this(), c_date, None)
 
+    first_name = c.item("first_name").pipe(c_capitalize)
+    last_name = c.item("last_name").pipe(c_capitalize)
     # call "format" method of a string and pass first & last names as
     # parameters
     full_name = c("{} {}").call_method("format", first_name, last_name)
-    date_of_birth = c.item("dob")
-
-    # partially initialized "strptime"
-    parse_date = c.call_func(
-        datetime.strptime, c.this(), "%Y-%m-%d"
-    ).call_method("date")
 
     conv = (
         c.item("objects")
@@ -56,15 +57,8 @@ def test_doc__index_deserialization():
                     "first_name": first_name,
                     "last_name": last_name,
                     "full_name": full_name,
-                    "date_of_birth": c.if_(
-                        date_of_birth,
-                        date_of_birth.pipe(parse_date),
-                        None,
-                    ),
-                    "salary": c.call_func(
-                        Decimal,
-                        c.item("salary").call_method("replace", ",", ""),
-                    ),
+                    "date_of_birth": c.item("dob").pipe(c_optional_date),
+                    "salary": c.item("salary").pipe(c_decimal),
                     # pass a hardcoded dict and to get value by "department"
                     # key
                     "department_id": c.naive(
@@ -73,22 +67,22 @@ def test_doc__index_deserialization():
                             "D2": 11,
                             "D3": 12,
                         }
-                    ).item(department),
-                    "date": c.item("date").pipe(parse_date),
+                    ).item(c.item("department").pipe(c_strip)),
+                    "date": c.item("date").pipe(c_date),
                 }
             )
         )
         .pipe(
             c.dict_comp(
                 c.item("id"),  # key
-                # write a python code expression, format with passed parameters
-                c.inline_expr("{employee_cls}(**{kwargs})").pass_args(
-                    employee_cls=Employee,
+                c.apply_func(  # value
+                    Employee,
+                    args=(),
                     kwargs=c.this(),
-                ),  # value
+                ),
             )
         )
-        .gen_converter(debug=True)
+        .gen_converter(debug=True)  # to see print generated code
     )
 
     result = conv(input_data)

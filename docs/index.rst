@@ -12,9 +12,9 @@ convtools
 Next steps:
 ===========
 
- 1. :ref:`QuickStart<convtools_quickstart>`
- 2. :ref:`Cheatsheet<convtools_cheatsheet>`
- 3. :ref:`API doc<convtools_api_doc>`
+#. :ref:`QuickStart<convtools_quickstart>`
+#. :ref:`Cheatsheet<convtools_cheatsheet>`
+#. :ref:`Table - Stream processing<convtools_tables>`
 
 
 Contents
@@ -25,7 +25,7 @@ Contents
 
    QuickStart <quick_start>
    Cheatsheet <cheatsheet>
-   API doc <api_doc>
+   Contrib / Table <tables>
 
 .. toctree::
    :maxdepth: 1
@@ -38,6 +38,7 @@ Contents
 
    License <license>
    Authors <authors>
+   API doc <api_doc>
    Module Reference <api/modules>
 
 Indices and tables

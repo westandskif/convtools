@@ -1,3 +1,26 @@
+0.16.0 (2021-10-12)
+___________________
+
+Features
+++++++++
+
+- introduced ``Table`` conversions
+
+Bugfix
+++++++
+
+- fixed inner join with inner loop with soft conditions: any condition except
+  for ``==`` and ``c.and_``
+
+Misc
+++++
+
+- reworked main converter callable wrapper so that it no longer dumps sources
+  onto disk for beautiful stacktraces when the converter returns a generator
+  (it used to make them down almost 2 times slower). If such debugging is
+  needed, just enable debug. As for simple exceptions, these still dump code to
+  disc on Exceptions because this should be cheap.
+
 0.15.4 (2021-09-23)
 ___________________
 

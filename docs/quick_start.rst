@@ -20,7 +20,7 @@ This is an object which exposes public API.
 2. Glossary
 ___________
 
-* **conversion** - any instance of :ref:`BaseConversion<ref_c_base_conversion>`
+* **conversion** - any instance of :py:obj:`convtools.base.BaseConversion`
 * **converter** - a function obtained by calling :ref:`gen_converter<ref_c_gen_converter>` method of `conversion`
 * **input** - the input data to be transformed (passed to a `converter`)
 
