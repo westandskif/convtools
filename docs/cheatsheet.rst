@@ -95,6 +95,42 @@ ________________________________________________________________________
       ).gen_converter()
       converter(input_data)
 
+ * - .. code-block:: python
+
+      # calling functions
+
+   - .. code-block:: python
+
+      f(*args, **kwargs)
+
+   - .. code-block:: python
+
+      converter = c.call_func(f, *args, **kwargs)
+      # when kwargs keys are conversions
+      converter = c.apply_func(f, args, kwargs)
+
+      # when you call conversion
+      c.this().call(*args, **kwargs)
+      c.this().apply(args, kwargs)
+
+      # and their shortcuts
+      c.apply(args, kwargs)
+      c.call(*args, **kwargs)
+
+ * - .. code-block:: python
+
+      # calling methods
+
+   - .. code-block:: python
+
+      obj.foo(*args, **kwargs)
+
+   - .. code-block:: python
+
+      converter = c.this().call_method("foo", *args, **kwargs)
+      # when kwargs keys are conversions
+      converter = c.this().apply_method("foo", args, kwargs)
+
 2.1 Operators
 _____________
 

@@ -5,6 +5,7 @@ Features
 ++++++++
 
 - introduced ``Table`` conversions
+- added ``c.apply_func``, ``c.apply`` and ``(...).apply_method`` conversions
 
 Bugfix
 ++++++
