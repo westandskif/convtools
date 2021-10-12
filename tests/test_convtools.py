@@ -21,7 +21,7 @@ def test_docs():
 
 def test_naive_conversion():
     d = {1: 2}
-    assert c.naive(d).gen_converter()(1) == d
+    assert c.naive(d).gen_converter(debug=True)(1) == d
     assert c.naive("abc").gen_converter()(1) == "abc"
     assert c.naive(1).gen_converter()(10) == 1
     assert c.naive(True).gen_converter()(10) is True
@@ -31,13 +31,13 @@ def test_naive_conversion():
     assert c.naive(1).gen_converter(method=True)(None, 10) == 1
 
     assert (
-        "%"
+        "%abc"
         not in next(
             iter(c.naive("%abc").gen_converter()._name_to_converter.values())
         )["code_str"]
     )
     assert (
-        "{"
+        "{abc"
         not in next(
             iter(c.naive("{abc").gen_converter()._name_to_converter.values())
         )["code_str"]
@@ -264,9 +264,27 @@ def test_naive_conversion_call():
     f.assert_called_with(10, test="abc")
 
 
+def test_naive_conversion_apply():
+    f = MagicMock(return_value=1)
+    c.naive(f).apply((1, 2), dict(test1=True, test2="test3")).gen_converter()(
+        100
+    )
+    f.assert_called_with(1, 2, test1=True, test2="test3")
+    c.apply((10,), dict(test="abc")).gen_converter()(f)
+    f.assert_called_with(10, test="abc")
+
+
 def test_naive_conversion_callmethod():
     mock = Mock()
     c.naive(mock).call_method("test_method", 1, abc=2).gen_converter()(100)
+    mock.test_method.assert_called_with(1, abc=2)
+
+
+def test_naive_conversion_applymethod():
+    mock = Mock()
+    c.naive(mock).apply_method(
+        "test_method", (1,), dict(abc=2)
+    ).gen_converter()(100)
     mock.test_method.assert_called_with(1, abc=2)
 
 
@@ -380,6 +398,7 @@ def test_tuple():
     assert c.tuple((c.item(1), c.item(0), 3)).gen_converter()([2, 1]) == (
         (1, 2, 3),
     )
+    assert c(()).execute(None) == ()
 
 
 def test_set():
@@ -1147,36 +1166,6 @@ def test_caching_conversion():
         c.call_func(f, c.this()).pipe(
             c.if_(c.this(), c.this() + 1, c.this() + 2, no_input_caching=True)
         ).execute(0)
-
-
-def test_memory_freeing():
-    converter = (
-        c.this()
-        .pipe(
-            c.list_comp(c.this() + c.label("input_data").item(0)),
-            label_input=dict(input_data=c.this()),
-        )
-        .gen_converter(debug=False)
-    )
-
-    sizes = []
-    sizes.append(total_size(converter.__dict__))
-
-    for i in range(100):
-        l_input = [i + j for j in range(3)]
-        l_out = [j + l_input[0] for j in l_input]
-        assert converter(l_input) == l_out
-        sizes.append(total_size(converter.__dict__))
-    assert all(sizes[0] == size for size in sizes[1:]), sizes
-
-    conv2 = (
-        c.inline_expr("globals().__setitem__('a', {}) or 1")
-        .pass_args(c.this())
-        .gen_converter()
-    )
-    with pytest.raises(AssertionError):
-        # should raise because of a memory leak
-        conv2(123)
 
 
 def test_slices():

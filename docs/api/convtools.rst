@@ -1,6 +1,14 @@
 convtools package
 =================
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   convtools.contrib
+
 Submodules
 ----------
 
@@ -16,6 +24,14 @@ convtools.base module
 ---------------------
 
 .. automodule:: convtools.base
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+convtools.columns module
+------------------------
+
+.. automodule:: convtools.columns
    :members:
    :undoc-members:
    :show-inheritance:

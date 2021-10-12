@@ -6,6 +6,7 @@ import itertools
 from .aggregations import Aggregate, BaseReducer, GroupBy, Reduce, ReduceFuncs
 from .base import (
     And,
+    ApplyFunc,
     BaseConversion,
     CallFunc,
     CodeGenerationOptionsCtx,
@@ -36,6 +37,7 @@ from .base import (
     TupleComp,
     ensure_conversion,
 )
+from .columns import ColumnRef
 from .joins import JoinConversion, _JoinConditions
 from .mutations import Mutations
 
@@ -86,6 +88,7 @@ class _Conversion:
     item = GetItem
     attr = GetAttr
     call_func = staticmethod(CallFunc)
+    apply_func = staticmethod(ApplyFunc)
 
     filter = FilterConversion
     sort = SortConversion
@@ -116,6 +119,8 @@ class _Conversion:
     LEFT = _JoinConditions.LEFT
     RIGHT = _JoinConditions.RIGHT
 
+    col = ColumnRef
+
     def reduce(self, to_call_with_2_args, *args, **kwargs):
         if isinstance(to_call_with_2_args, type) and issubclass(
             to_call_with_2_args, BaseReducer
@@ -129,6 +134,9 @@ class _Conversion:
 
     def call(self, *args, **kwargs):
         return self.this().call(*args, **kwargs)
+
+    def apply(self, args, kwargs):
+        return self.this().apply(args, kwargs)
 
     def tap(self, *args, **kwargs):
         return self.this().tap(*args, **kwargs)

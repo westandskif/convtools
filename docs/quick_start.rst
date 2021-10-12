@@ -20,7 +20,7 @@ This is an object which exposes public API.
 2. Glossary
 ___________
 
-* **conversion** - any instance of :ref:`BaseConversion<ref_c_base_conversion>`
+* **conversion** - any instance of :py:obj:`convtools.base.BaseConversion`
 * **converter** - a function obtained by calling :ref:`gen_converter<ref_c_gen_converter>` method of `conversion`
 * **input** - the input data to be transformed (passed to a `converter`)
 
@@ -260,6 +260,13 @@ Next:
     * ``c.call`` - to call a callable and pass args
     * ``(...).call_method`` - to call a method of the conversion and pass args
 
+  * also there are 3 `call` counterparts for cases where argument unpacking is
+    needed and kwargs keys contain conversions
+
+    * ``c.apply_func``
+    * ``c.apply``
+    * ``(...).apply_method``
+
 
 Imagine we have the following:
 
@@ -345,6 +352,24 @@ from a tuple:**
                   data_[1], kwargs["dt"], data_[3]
               ),
           }
+
+Let's review `apply` ones:
+
+.. code-block:: python
+
+   c.apply_func(f, args, kwargs)
+   # is same as the following, but works for kwargs with conversions as keys
+   c.call_func(f, *args, **kwargs)
+
+   c.apply(args, kwargs)
+   c.this().apply(args, kwargs)
+   # are same as
+   c.call(*args, **kwargs)
+   c.this().call(*args, **kwargs)
+
+   c.this().apply_method("foo", args, kwargs)
+   # is same as
+   c.this().call_method("foo", *args, **kwargs)
 
 
 6. List/dict/set/tuple comprehensions & inline expressions

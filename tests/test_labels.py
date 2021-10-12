@@ -1,3 +1,5 @@
+import pytest
+
 from convtools import conversion as c
 
 
@@ -23,3 +25,8 @@ def test_labels():
 
     list(c.generator_comp(c.this().add_label("a")).execute([1, 2]))
     c.list_comp(c.this().add_label("a")).execute([1, 2])
+
+    with pytest.raises(c.ConversionException):
+        c.this().add_label(123)
+    with pytest.raises(ValueError):
+        c.label(123)

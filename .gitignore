@@ -53,3 +53,4 @@ MANIFEST
 # tmp
 src/convtools/mergers.p
 tmp/
+tests/csvs/out.csv
