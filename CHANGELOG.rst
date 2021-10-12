@@ -1,10 +1,12 @@
 0.16.0 (2021-10-12)
 ___________________
 
+
 Features
 ++++++++
 
-- introduced ``Table`` conversions
+- introduced ``Table`` conversions `#3
+  <https://github.com/westandskif/convtools/pull/3>`_
 - added ``c.apply_func``, ``c.apply`` and ``(...).apply_method`` conversions
 
 Bugfix
