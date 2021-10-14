@@ -10,7 +10,7 @@ Conversions are defined in realtime based on table headers and called methods:
 """
 import csv
 import typing as t  # pylint: disable=unused-import
-from itertools import chain
+from itertools import chain, zip_longest
 
 from ..base import (
     And,
@@ -20,6 +20,7 @@ from ..base import (
     GetItem,
     If,
     InputArg,
+    NaiveConversion,
     ensure_conversion,
 )
 from ..columns import ColumnRef, MetaColumns
@@ -451,6 +452,115 @@ class Table:
         self.meta_columns = self.meta_columns.drop(*column_names)
         return self
 
+    def zip(self, table: "Table", fill_value=None) -> "Table":
+        """Zip tables one to another. Before using this method, make sure you
+        are not looking for :py:obj:`convtools.contrib.tables.Table.join`
+
+        Let's assume fill_value is set to " ":
+
+        >>> Table 1      Table 2
+        >>> | a | b |    | b | c |
+        >>> | 1 | 2 |    | 3 | 4 |
+        >>>
+        >>> table1.zip(table2, fill_value=" ")
+        >>>
+        >>> Result:
+        >>> | a | b | b | c |
+        >>> | 1 | 2 | 3 | 4 |
+        >>> |   |   | 5 | 6 |
+
+        Args:
+         - table: table to be chained
+         - fill_value: value to use for filling gaps
+
+        """
+        new_columns = MetaColumns(duplicate_columns="keep")
+        left_columns = self.meta_columns.get_name_to_column()
+        right_columns = table.meta_columns.get_name_to_column()
+
+        left_fill_value = tuple(fill_value for _ in range(len(left_columns)))
+        right_fill_value = tuple(fill_value for _ in range(len(right_columns)))
+
+        for index, name in enumerate(left_columns):
+            new_columns.add(name, None, GetItem(0, index))
+        for index, name in enumerate(right_columns):
+            new_columns.add(name, None, GetItem(1, index))
+
+        new_rows = (
+            (left_fill_value, t[1])
+            if t[0] is None
+            else ((t[0], right_fill_value) if t[1] is None else t)
+            for t in zip_longest(
+                self.into_iter_rows(tuple), table.into_iter_rows(tuple)
+            )
+        )
+        return Table(new_rows, new_columns)
+
+    def chain(
+        self,
+        table: "Table",
+        fill_value=None,
+    ) -> "Table":
+        """Chain tables, putting them one after another.
+
+        Let's assume fill_value is set to " ":
+
+        >>> Table 1      Table 2
+        >>> | a | b |    | b | c |
+        >>> | 1 | 2 |    | 3 | 4 |
+        >>>
+        >>> table1.chain(table2, fill_value=" ")
+        >>>
+        >>> Result:
+        >>> | a | b | c |
+        >>> | 1 | 2 |   |
+        >>> |   | 3 | 4 |
+
+        Args:
+         - table: table to be chained
+         - fill_value: value to use for filling gaps
+
+        """
+        first_name_to_columns = self.meta_columns.get_name_to_column()
+        second_name_to_columns = table.meta_columns.get_name_to_column()
+
+        new_columns = MetaColumns(duplicate_columns="raise")
+        first_columns = MetaColumns(
+            duplicate_columns=self.meta_columns.duplicate_columns
+        )
+        second_columns = MetaColumns(
+            duplicate_columns=table.meta_columns.duplicate_columns
+        )
+        fill_value_conversion = NaiveConversion(fill_value)
+        index = 0
+        for name, first_column in first_name_to_columns.items():
+            new_columns.add(name, index, None)
+            first_columns.add(*first_column.as_tuple())
+            if name in second_name_to_columns:
+                second_columns.add(*second_name_to_columns[name].as_tuple())
+            else:
+                second_columns.add(name, None, fill_value_conversion)
+            index += 1
+
+        for name, second_column in second_name_to_columns.items():
+            if name in first_name_to_columns:
+                continue
+            new_columns.add(name, index, None)
+            first_columns.add(name, None, fill_value_conversion)
+            second_columns.add(*second_column.as_tuple())
+            index += 1
+
+        self.meta_columns = first_columns
+        table.meta_columns = second_columns
+
+        return Table(
+            chain(
+                self.into_iter_rows(tuple),
+                table.into_iter_rows(tuple),
+            ),
+            new_columns,
+        )
+
     def join(
         self,
         table: "Table",
@@ -474,6 +584,7 @@ class Table:
             the second one is added to conflicting right ones. When ``on`` is
             an iterable of strings, these columns are excluded from suffixing.
         """
+
         how = JoinConversion.validate_how(how)
         left = self.embed_conversions()
         right = table.embed_conversions()

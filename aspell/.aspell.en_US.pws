@@ -1,8 +1,10 @@
-personal_ws-1.1 en 172 
+personal_ws-1.1 en 186 
+Abramov
 Almakov
 Anexen
 BYN
 CHF
+CSVs
 DESC
 DIY
 GBP
@@ -17,15 +19,20 @@ NumPy
 Numpy
 OptionsCtx
 Parametrized
+Pavel
+PyCharm
 Pygments
 QuickStart
 RBT
 RTD
 RUCache
 ReduceFuncs
+Rego
 Repr
 SciPy
+StoreID
 SumOrNone
+TextIO
 TopK
 USD
 Ulrich
@@ -50,6 +57,7 @@ conv
 convtools
 css
 csv
+csvs
 ctx
 declaratively
 del
@@ -63,6 +71,7 @@ dev
 dicts
 dir
 dt
+dtype
 el
 elif
 endif
@@ -94,6 +103,7 @@ init
 inlined
 inlines
 inlining
+ipython
 isinstance
 issubclass
 iter
@@ -119,6 +129,7 @@ optionsctx
 param
 params
 pdb
+polars
 pragma
 pre
 prev
@@ -138,12 +149,14 @@ rmtree
 rst
 rtd
 scipy
+sep
 shutil
 sig
 sizeof
 sklearn
 sku
 stmts
+storeid
 str
 strftime
 strptime
@@ -154,6 +167,7 @@ tex
 tmp
 toctree
 tos
+tqdm
 tst
 txt
 typ

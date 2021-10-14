@@ -31,8 +31,11 @@ What's the workflow?
 
 **Contrib / Table helper:**
 
-``Table`` helper allows to massage CSVs and table-like data, join tables,
-filter rows, take / drop / rename / update columns.
+``Table`` helper allows to massage CSVs and table-like data:
+ * join / zip / chain tables
+ * take / drop / rename columns
+ * filter rows
+ * update / update_all values
 
 .. code-block:: python
 
@@ -55,6 +58,7 @@ filter rows, take / drop / rename / update columns.
        on=["a"],
        how="inner",
    ).into_iter_rows(dict)  # this is a generator to consume (tuple, list are supported to)
+
 
 **Base conversions:**
 

@@ -279,8 +279,19 @@ There are two ways to join tables:
 
 #. :py:obj:`convtools.contrib.tables.Table.join`
 
+9. Chain tables
+_______________
 
-9. Using inside other conversions
+.. automethod:: convtools.contrib.tables.Table.chain
+   :noindex:
+
+10. Zip tables
+______________
+
+.. automethod:: convtools.contrib.tables.Table.zip
+   :noindex:
+
+11. Using inside other conversions
 _________________________________
 
 It's impossible to make ``Table`` work directly inside other conversions,

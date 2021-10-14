@@ -425,3 +425,76 @@ def test_table_integration():
         .as_type(list)
     )
     conversion.execute(input_data)
+
+
+def test_table_chain():
+    result = list(
+        Table.from_rows([["a", "b"], [1, 2]], header=True)
+        .chain(Table.from_rows([["b", "a", "c"], [4, 3, 5]], header=True))
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("a", "b", "c"),
+        (1, 2, None),
+        (3, 4, 5),
+    ]
+
+    result = list(
+        Table.from_rows([["a", "b"], [1, 2], [5, 6]], header=True)
+        .chain(Table.from_rows([["c", "a"], [4, 3]], header=True))
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("a", "b", "c"),
+        (1, 2, None),
+        (5, 6, None),
+        (3, None, 4),
+    ]
+
+    result = list(
+        Table.from_rows([["a"], ["1"]], header=True)
+        .update(a=c.col("a").as_type(int) + 10)
+        .chain(
+            Table.from_rows([["b"], ["2"]], header=True).update_all(int),
+            fill_value=False,
+        )
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("a", "b"),
+        (11, False),
+        (False, 2),
+    ]
+
+
+def test_table_zip():
+    result = list(
+        Table.from_rows([["a", "b"], [1, 2]], header=True)
+        .zip(
+            Table.from_rows([["b", "a"], [4, 3], [6, 5]], header=True),
+            fill_value=False,
+        )
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("a", "b", "b", "a"),
+        (1, 2, 4, 3),
+        (False, False, 6, 5),
+    ]
+
+    result = list(
+        Table.from_rows([["a"], ["1"], ["2"], ["3"]], header=True)
+        .update_all(int, int)
+        .zip(
+            Table.from_rows([["a"], ["4"]], header=True).update(
+                a=c.col("a").as_type(int)
+            )
+        )
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("a", "a"),
+        (1, 4),
+        (2, None),
+        (3, None),
+    ]
