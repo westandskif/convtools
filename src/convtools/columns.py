@@ -61,6 +61,9 @@ class ColumnDef:
         self.index = index
         self.conversion = conversion
 
+    def as_tuple(self):
+        return self.name, self.index, self.conversion
+
 
 class MetaColumns:
     """A helper container for naming & keeping column definitions"""
@@ -123,4 +126,4 @@ class MetaColumns:
         return new_columns
 
     def get_name_to_column(self) -> "t.Dict[str, ColumnDef]":
-        return {column.name: column for column in reversed(self.columns)}
+        return {column.name: column for column in self.columns}

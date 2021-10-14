@@ -1,3 +1,14 @@
+0.17.0 (2021-10-14)
+___________________
+
+
+Features
+++++++++
+
+- added ``Table.zip`` method to stitch tables (joining on row indexes)
+- added ``Table.chain`` method to put tables together one after another
+
+
 0.16.0 (2021-10-12)
 ___________________
 

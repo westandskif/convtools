@@ -1277,3 +1277,55 @@ __________
           # SAME, but would replace "a" with "a_LEFT" and "a_RIGHT"
           # on=c.LEFT.col("a") == c.RIGHT.col("a"),
       ).into_iter_rows(dict))
+
+ * - .. code-block:: python
+
+        # 1) chain tables
+        table1 = Table.from_rows([
+            ["a", "b"],
+            [1, 2]
+        ], header=True)
+        table2 = Table.from_rows([
+            ["b", "a", "c"],
+            [4, 3, 5]
+        ], header=True)
+
+
+   - .. code-block:: python
+
+        result = list(
+            table1
+            .chain(table2, fill_value=None)
+            .into_iter_rows(tuple, include_header=True)
+        )
+        assert result == [
+            ("a", "b", "c"),
+            (1, 2, None),
+            (3, 4, 5),
+        ]
+
+ * - .. code-block:: python
+
+        # 1) zip tables
+        table1 = Table.from_rows([
+            ["a", "b"],
+            [1, 2]
+        ], header=True)
+        table2 = Table.from_rows([
+            ["b", "a"],
+            [4, 3],
+            [6, 5]
+        ], header=True)
+
+   - .. code-block:: python
+
+        result = list(
+            table1
+            .zip(table2, fill_value=0)
+            .into_iter_rows(tuple, include_header=True)
+        )
+        assert result == [
+            ("a", "b", "b", "a"),
+            (1, 2, 4, 3),
+            (0, 0, 6, 5),
+        ]
