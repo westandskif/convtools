@@ -110,6 +110,7 @@ What's the workflow?
        how="inner",
    ).into_iter_rows(dict)  # this is a generator to consume (tuple, list are supported to)
 
+
 **Base conversions:**
 
 .. code-block:: python

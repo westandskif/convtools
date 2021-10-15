@@ -292,7 +292,7 @@ ______________
    :noindex:
 
 11. Using inside other conversions
-_________________________________
+__________________________________
 
 It's impossible to make ``Table`` work directly inside other conversions,
 because it would introduce ambiguity on which code generating layer is to

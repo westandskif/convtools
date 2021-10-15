@@ -461,6 +461,7 @@ class Table:
         >>> Table 1      Table 2
         >>> | a | b |    | b | c |
         >>> | 1 | 2 |    | 3 | 4 |
+        >>>              | 5 | 6 |
         >>>
         >>> table1.zip(table2, fill_value=" ")
         >>>
