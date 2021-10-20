@@ -44,26 +44,29 @@ _________
 ______________
 
 Let's:
-  * read ``input.csv`` file, which contains two columns ``a`` and ``b`` and a
-    header in the first row
-  * add a new column ``c``, which is a sum of ``a`` and ``b``
-  * store the result in `output.csv` file
+  * read tab-delimited ``tests/csvs/ac.csv`` file, which contains two columns
+    ``a`` and ``c`` and a header in the first row
+  * take ``a`` and ``c`` columns, omitting other imaginary ones :)
+  * add a new column ``B``, which is a sum of ``a`` and ``c``
+  * rename ``a`` column to ``A``
+  * drop ``c`` column in the end
+  * store the result in ``tests/csvs/out.csv`` file
 
 .. code-block:: python
 
-      (
-          Table
-          .from_csv(
-              "tests/csvs/ac.csv",
-              header=True,
-              dialect=Table.csv_dialect(delimiter="\t"),
-          )
-          .take("a", "c")
-          .update(B=c.col("a") + c.col("c"))
-          .rename({"a": "A"})
-          .drop("c")
-          .into_csv("tests/csvs/out.csv")
-      )
+   (
+       Table
+       .from_csv(
+           "tests/csvs/ac.csv",
+           header=True,
+           dialect=Table.csv_dialect(delimiter="\t"),
+       )
+       .take("a", "c")
+       .update(B=c.col("a") + c.col("c"))
+       .rename({"a": "A"})
+       .drop("c")
+       .into_csv("tests/csvs/out.csv")
+   )
 
 
 Reading dicts like :py:obj:`csv.DictReader`, but faster because dicts are
