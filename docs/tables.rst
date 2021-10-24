@@ -32,11 +32,11 @@ _________
     :py:obj:`ValueError` when a duplicate column name is detected
     (``duplicate_columns`` option is set to ``"raise"`` by default)
   * when initializing from CSV, by default it mangles duplicate column names
-    like: "a", "a_1", "a_2", etc. (``duplicate_columns`` option is set to
+    like: ``a``, ``a_1``, ``a_2``, etc. (``duplicate_columns`` option is set to
     ``"mangle"`` by default)
 
-  ``duplicate_columns`` option accepts the following values: "raise", "keep",
-  "drop", "mangle", please see
+  ``duplicate_columns`` option accepts the following values: ``"raise"``,
+  ``"keep"``, ``"drop"``, ``"mangle"``, please see
   :py:obj:`convtools.contrib.tables.Table.from_rows` docs for more
   information
 

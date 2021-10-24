@@ -71,11 +71,18 @@ What's the workflow?
    input_data = [{"StoreID": " 123", "Quantity": "123"}]
 
    # define a conversion (sometimes you may want to do this dynamically)
-   #   takes iterable and returns iterable of dicts
-   conversion = c.iter({
-       "id": c.item("StoreID").call_method("strip"),
-       "quantity": c.item("Quantity").as_type(int),
-   })
+   #  takes iterable and returns iterable of dicts, stopping before the first
+   #  one with quantity >= 1000
+   conversion = (
+       c.iter(
+           {
+               "id": c.item("StoreID").call_method("strip"),
+               "quantity": c.item("Quantity").as_type(int),
+           }
+       )
+       .take_while(c.item("quantity") < 1000)
+       .as_type(list)
+   )
 
    # compile the conversion into an ad hoc function and run it
    converter = conversion.gen_converter()

@@ -592,6 +592,12 @@ class BaseConversion(typing.Generic[CT]):
         self. Returns iterable"""
         return CallFunc(chain.from_iterable, self)
 
+    def take_while(self, condition) -> "BaseConversion":
+        return self.pipe(TakeWhile(condition))
+
+    def drop_while(self, condition) -> "BaseConversion":
+        return self.pipe(DropWhile(condition))
+
     def item(self, *args, **kwargs) -> "GetItem":
         return GetItem(*args, self_conv=self, **kwargs)
 
@@ -760,13 +766,38 @@ class BaseConversion(typing.Generic[CT]):
         return self.pipe(SortConversion(key=key, reverse=reverse))
 
     def add_label(
-        self, label_name: str, conversion: typing.Optional[typing.Any] = None
+        self,
+        label_name: typing.Union[str, dict],
+        conversion: typing.Optional[typing.Any] = None,
     ) -> "BaseConversion":
-        """Wraps the conversion into :py:obj:`LabelConversion` to allow further
-        reuse.
+        """Labels data so it can be reused further:
+
+        Basic:
+        >>> c.item("objects", 0).add_label("first")
+
+        Advanced:
+        >>> c.item("objects").add_label({
+        >>>     "first": c.item(0),
+        >>>     "count": c.call_func(len, c.this()),
+        >>> }).iter_mut(
+        >>>     c.Mut.set_attr("_first", c.label("first")),
+        >>>     c.Mut.set_attr("_count", c.label("count")),
+        >>> )
+
+        Rare:
+        >>> c.iter(
+        >>>     c.item(0)
+        >>> ).add_label(
+        >>>     "before_5",
+        >>>     c.take_while(c.this() < 5).as_type(list)
+        >>> ).iter(
+        >>>     c.this() + c.label("before_5").item(-1)
+        >>> )
 
         Args:
-          label_name (str): a name of the label to be applied
+          label_name: a name of the label to be applied or a dict with labels
+            to conversions
+          conversion: a conversion to be applied before labeling
         Returns:
           LabelConversion: the labeled conversion
         """
@@ -1808,6 +1839,107 @@ class Dict(BaseCollectionConversion):
         self, joined_items_code, code_input, ctx
     ):
         return "{%s}" % joined_items_code
+
+
+class TakeWhile(BaseConversion):
+    """convtools implementation of :py:obj:`itertools.takewhile`"""
+
+    def __init__(self, condition):
+        super().__init__()
+        self.condition = self.ensure_conversion(condition)
+        self.filter_results_conditions = None
+        self.cast = self._none
+
+    def filter(self, condition_conv, cast=BaseConversion._none):
+        conditions = self.filter_results_conditions
+        if conditions is None:
+            conditions = self.filter_results_conditions = [
+                self.ensure_conversion(condition_conv)
+            ]
+        else:
+            conditions.append(self.ensure_conversion(condition_conv))
+        self.cast = cast
+        return self
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        suffix = self.gen_name("_", ctx, ("take_while", self, code_input))
+        converter_name = f"take_while{suffix}"
+        var_it = f"it{suffix}"
+        var_item = f"item{suffix}"
+
+        def_args = self.get_args_def_code()
+        args = self.get_args_as_func_args()
+
+        condition_code = self.condition.gen_code_and_update_ctx(var_item, ctx)
+
+        code = Code()
+        code.add_line(f"def {converter_name}({var_it}{def_args}):", 1)
+        code.add_line(f"for {var_item} in {var_it}:", 1)
+        code.add_line(f"if {condition_code}:", 1)
+        if self.filter_results_conditions is None:
+            code.add_line(f"yield {var_item}", -1)
+        else:
+            filter_conditions = self.filter_results_conditions
+            filter_code = (
+                And(
+                    filter_conditions[0],
+                    filter_conditions[1],
+                    *filter_conditions[2:],
+                )
+                if len(filter_conditions) > 1
+                else filter_conditions[0]
+            ).gen_code_and_update_ctx(var_item, ctx)
+            code.add_line(f"if {filter_code}:", 1)
+            code.add_line(f"yield {var_item}", -2)
+
+        code.add_line("else:", 1)
+        code.add_line("break", -2)
+
+        self._code_to_converter(converter_name, code.to_string(0), ctx)
+        result = EscapedString(converter_name).call(This(), *args)
+        if self.cast is not self._none:
+            result = result.as_type(self.cast)
+        return result.gen_code_and_update_ctx(code_input, ctx)
+
+
+class DropWhile(BaseConversion):
+    """convtools implementation of :py:obj:`itertools.dropwhile`"""
+
+    def __init__(self, condition):
+        super().__init__()
+        self.condition = self.ensure_conversion(condition)
+        self.filter_results_conditions = None
+        self.cast = self._none
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        suffix = self.gen_name("_", ctx, ("take_while", self, code_input))
+        converter_name = f"drop_while{suffix}"
+        var_chain = f"chain{suffix}"
+        var_it = f"it{suffix}"
+        var_item = f"item{suffix}"
+
+        def_args = self.get_args_def_code()
+        args = self.get_args_as_func_args()
+
+        condition_code = self.condition.gen_code_and_update_ctx(var_item, ctx)
+
+        code = Code()
+        code.add_line(
+            f"def {converter_name}({var_it},{var_chain}{def_args}):", 1
+        )
+        code.add_line(f"{var_it} = iter({var_it})", 0)
+        code.add_line(f"for {var_item} in {var_it}:", 1)
+        code.add_line(f"if not ({condition_code}):", 1)
+        code.add_line("break", -2)
+        code.add_line("else:", 1)
+        code.add_line("return ()", -1)
+        code.add_line(f"return {var_chain}(({var_item},), {var_it})", -1)
+        self._code_to_converter(converter_name, code.to_string(0), ctx)
+        return (
+            EscapedString(converter_name)
+            .call(This(), NaiveConversion(chain), *args)
+            .gen_code_and_update_ctx(code_input, ctx)
+        )
 
 
 class PipeConversion(BaseConversion):

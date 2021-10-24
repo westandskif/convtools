@@ -33,9 +33,9 @@ convtools
    :target: https://pepy.tech/project/convtools
    :alt: Downloads
 
-.. image:: https://badges.gitter.im/python-convtools/community.svg
-   :target: https://gitter.im/python-convtools/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
-   :alt: Chat on Gitter
+.. image:: https://img.shields.io/twitter/url?label=convtools&style=social&url=https%3A%2F%2Ftwitter.com%2Fconvtools
+   :target: https://twitter.com/convtools
+   :alt: Twitter URL
 
 Docs
 ====

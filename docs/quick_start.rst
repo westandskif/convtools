@@ -669,6 +669,16 @@ Points to learn:
    tuples; if kwargs provided, returns dicts
 #. :ref:`c.repeat<ref_repeat>` wraps python's :py:obj:`itertools.repeat`
 #. :ref:`c.flatten<ref_flatten>` wraps python's :py:obj:`itertools.chain.from_iterable`
+#. :py:obj:`convtools.base.BaseConversion.take_while` re-implements :py:obj:`itertools.takewhile`
+#. :py:obj:`convtools.base.BaseConversion.drop_while` re-implements :py:obj:`itertools.dropwhile`
+
+.. code-block:: python
+
+   c.min(c.this(), 5)
+   c.zip(c.item("list_a"), c.repeat(None))
+   c.zip(a=c.item("list_a"), b=c.repeat(None))
+   c.take_while(c.this() < 3)
+   c.drop_while(c.this() < 3)
 
 9. Aggregations
 _______________
