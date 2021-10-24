@@ -14,6 +14,7 @@ from .base import (
     ConverterOptionsCtx,
     Dict,
     DictComp,
+    DropWhile,
     EscapedString,
     FilterConversion,
     GeneratorComp,
@@ -32,6 +33,7 @@ from .base import (
     Set,
     SetComp,
     SortConversion,
+    TakeWhile,
     This,
     Tuple,
     TupleComp,
@@ -107,6 +109,7 @@ class _Conversion:
     optional = OptionalCollectionItem
 
     generator_comp = GeneratorComp
+    iter = GeneratorComp
     list_comp = ListComp
     tuple_comp = TupleComp
     set_comp = SetComp
@@ -120,6 +123,9 @@ class _Conversion:
     RIGHT = _JoinConditions.RIGHT
 
     col = ColumnRef
+
+    take_while = TakeWhile
+    drop_while = DropWhile
 
     def reduce(self, to_call_with_2_args, *args, **kwargs):
         if isinstance(to_call_with_2_args, type) and issubclass(
@@ -140,9 +146,6 @@ class _Conversion:
 
     def tap(self, *args, **kwargs):
         return self.this().tap(*args, **kwargs)
-
-    def iter(self, *args, **kwargs):
-        return self.this().iter(*args, **kwargs)
 
     def iter_mut(self, *args, **kwargs):
         return self.this().iter_mut(*args, **kwargs)

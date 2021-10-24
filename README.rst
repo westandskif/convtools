@@ -37,9 +37,9 @@ code with as much inlining as possible and return compiled ad hoc functions
    :target: https://pepy.tech/project/convtools
    :alt: Downloads
 
-.. image:: https://badges.gitter.im/python-convtools/community.svg
-   :target: https://gitter.im/python-convtools/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
-   :alt: Chat on Gitter
+.. image:: https://img.shields.io/twitter/url?label=convtools&style=social&url=https%3A%2F%2Ftwitter.com%2Fconvtools
+   :target: https://twitter.com/convtools
+   :alt: Twitter URL
 
 Docs
 ====
@@ -122,11 +122,18 @@ What's the workflow?
    input_data = [{"StoreID": " 123", "Quantity": "123"}]
 
    # define a conversion (sometimes you may want to do this dynamically)
-   #   takes iterable and returns iterable of dicts
-   conversion = c.iter({
-       "id": c.item("StoreID").call_method("strip"),
-       "quantity": c.item("Quantity").as_type(int),
-   })
+   #  takes iterable and returns iterable of dicts, stopping before the first
+   #  one with quantity >= 1000
+   conversion = (
+       c.iter(
+           {
+               "id": c.item("StoreID").call_method("strip"),
+               "quantity": c.item("Quantity").as_type(int),
+           }
+       )
+       .take_while(c.item("quantity") < 1000)
+       .as_type(list)
+   )
 
    # compile the conversion into an ad hoc function and run it
    converter = conversion.gen_converter()

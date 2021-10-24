@@ -1136,7 +1136,50 @@ _______________________________________________
           c.item("b"),
       ).gen_converter(debug=True)
 
-15. Debugging
+15. Shortcuts II: take_while, drop_while
+________________________________________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 25 40
+ :header-rows: 1
+
+ * - in
+   - out
+   - conversion
+ * - .. code-block:: python
+
+      input_data = range(5)
+
+   - .. code-block:: python
+
+      # take while less than 3
+      [0, 1, 2]
+
+   - .. code-block:: python
+
+      (
+          c.take_while(c.this() < 3)
+          .execute(input_data)
+      )
+
+ * - .. code-block:: python
+
+      input_data = range(5)
+
+   - .. code-block:: python
+
+      # drop while less than 3
+      [3, 4]
+
+   - .. code-block:: python
+
+      (
+          c.drop_while(c.this() < 3)
+          .execute(input_data)
+      )
+
+16. Debugging
 _____________
 
 .. list-table::
@@ -1191,7 +1234,7 @@ _____________
       converter(input_data)
 
 
-16. Tables
+17. Tables
 __________
 
 .. list-table::

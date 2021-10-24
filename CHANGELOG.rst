@@ -1,3 +1,18 @@
+0.18.0 (2021-10-24)
+___________________
+
+
+Features
+++++++++
+
+`#6 <https://github.com/westandskif/convtools/issues/6>`_
+
+- added ``c.take_while`` and ``(...).take_while`` re-implementation of
+  ``itertools.takewhile``
+- added ``c.drop_while`` and ``(...).drop_while`` re-implementation of
+  ``itertools.dropwhile``
+
+
 0.17.0 (2021-10-14)
 ___________________
 
