@@ -3,7 +3,14 @@ The main module exposing public API (via conversion object)
 """
 import itertools
 
-from .aggregations import Aggregate, BaseReducer, GroupBy, Reduce, ReduceFuncs
+from .aggregations import (
+    Aggregate,
+    BaseReducer,
+    GroupBy,
+    Reduce,
+    ReduceFuncs,
+    ReducerDispatcher,
+)
 from .base import (
     And,
     ApplyFunc,
@@ -128,8 +135,10 @@ class _Conversion:
     drop_while = DropWhile
 
     def reduce(self, to_call_with_2_args, *args, **kwargs):
-        if isinstance(to_call_with_2_args, type) and issubclass(
-            to_call_with_2_args, BaseReducer
+        if (
+            isinstance(to_call_with_2_args, type)
+            and issubclass(to_call_with_2_args, BaseReducer)
+            or isinstance(to_call_with_2_args, ReducerDispatcher)
         ):
             return to_call_with_2_args(*args, **kwargs)
         return Reduce(to_call_with_2_args, *args, **kwargs)

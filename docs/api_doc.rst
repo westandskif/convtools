@@ -606,6 +606,8 @@ c.ReduceFuncs
         :noindex:
    * .. autoattribute:: convtools.aggregations.ReduceFuncs.Median
         :noindex:
+   * .. autoattribute:: convtools.aggregations.ReduceFuncs.Percentile
+        :noindex:
    * .. autoattribute:: convtools.aggregations.ReduceFuncs.Mode
         :noindex:
    * .. autoattribute:: convtools.aggregations.ReduceFuncs.TopK

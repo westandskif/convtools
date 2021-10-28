@@ -636,11 +636,12 @@ _____________________
 * Last
 * Average
 * Median
+* Percentile - ``c.ReduceFuncs.Percentile(95.0, c.item("x"))``
 * Mode
-* TopK
+* TopK - ``c.ReduceFuncs.TopK(3, c.item("x"))``
 * Array
 * ArrayDistinct
-* Dict
+* Dict - ``c.ReduceFuncs.Dict(c.item("key"), c.item("x"))``
 * DictArray
 * DictSum
 * DictSumOrNone

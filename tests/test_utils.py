@@ -1,5 +1,6 @@
 import pytest
 
+from convtools import conversion as c
 from convtools.base import (
     BaseConversion,
     CodeGenerationOptions,
@@ -95,3 +96,21 @@ def test_add_sources():
             converter_callable.add_sources(
                 converter_name, item["code_str"] + " "
             )
+
+
+def test_is_independent():
+    assert c(0).is_independent()
+    assert c(int).is_independent()
+    assert c(int).call().is_independent()
+    assert c.label("a").is_independent()
+    assert c.inline_expr("{}()").pass_args(int).is_independent()
+    assert c.escaped_string("int()").is_independent()
+    assert c({"a": c.input_arg("key")}).is_independent()
+    assert not c.iter({"a": 1}).is_independent()
+    assert not c.this().is_independent()
+    assert not c({"a": 1}).item("a").is_independent()
+    assert not c({"a": 1}).item(c.item("a")).is_independent()
+    assert not c.inline_expr("{}()").pass_args(c.this()).is_independent()
+    assert not c.aggregate({"a": 1}).is_independent()
+    assert not c.this().add_label("a").is_independent()
+    assert not c(int).call(c.item(0)).is_independent()

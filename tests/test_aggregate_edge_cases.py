@@ -1,6 +1,7 @@
 import random
 import statistics
 from collections import Counter
+from itertools import cycle
 from operator import eq
 from typing import List, Tuple
 
@@ -11,35 +12,35 @@ from convtools.aggregations import MultiStatementReducer
 
 
 class SumReducer1(MultiStatementReducer):
-    reduce = ("%(result)s = {0} + ({1} or 1)",)
+    reduce = ("%(result)s = {prev_result} + ({0} or 1)",)
     default = int
     initial = int
     unconditional_init = True
 
 
 class SumReducer2(MultiStatementReducer):
-    reduce = ("%(result)s = {0} + ({1} or 2)",)
+    reduce = ("%(result)s = {prev_result} + ({0} or 2)",)
     default = 0
     initial = 0
     unconditional_init = True
 
 
 class SumReducer3(MultiStatementReducer):
-    reduce = ("%(result)s = {0} + ({1} or 3)",)
+    reduce = ("%(result)s = {prev_result} + ({0} or 3)",)
     initial = 0
     unconditional_init = True
 
 
 class SumReducer4(MultiStatementReducer):
     prepare_first = ("%(result)s = {0}",)
-    reduce = ("%(result)s = {0} + ({1} or 4)",)
-    default = 0
+    reduce = ("%(result)s = {prev_result} + ({0} or 4)",)
+    default = c(0)
     unconditional_init = True
 
 
 class SumReducer5(MultiStatementReducer):
-    reduce = ("%(result)s = {0} + ({1} or 5)",)
-    default = 0
+    reduce = ("%(result)s = {prev_result} + ({0} or 5)",)
+    default = c.inline_expr("0")
     unconditional_init = True
 
 
@@ -88,28 +89,34 @@ def test_multi_statement_reducers(dict_series):
     )
     assert output == [("Nick", 3, 3, 3, 3, 8), ("John", 63, 63, 63, 63, 68)]
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AttributeError):
 
         class SumReducer(MultiStatementReducer):
-            reduce = ("%(result)s = {0} + ({1} or 4)",)
+            reduce = ("%(result)s = %(result)s + ({0} or 4)",)
             default = 0
             unconditional_init = True
 
-        SumReducer(c.item("value"))
+        # prepare_first is not specified
+        c.aggregate(SumReducer(c.item("value"))).gen_converter()
+
     with pytest.raises(ValueError):
 
         class SumReducer(MultiStatementReducer):
-            reduce = ("%(result)s = {0} + ({1} or 4)",)
+            reduce = ("%(result)s = %(result)s + ({0} or 4)",)
             unconditional_init = True
 
+        # default is not provided
         SumReducer(c.item("value"))
 
 
-def test_custom_reduce():
-    with pytest.raises(ValueError):
+def test_custom_reduce_initialization():
+    with pytest.raises(TypeError):
+        # initial is not provided
         c.reduce(lambda a, b: a + b, c.this())
     with pytest.raises(ValueError):
-        c.reduce(lambda a, b: a + b, c.this(), default=0)
+        # default is not provided, initial is a conversion, so it cannot be
+        # used as default
+        c.reduce(lambda a, b: a + b, c.this(), initial=c.this())
 
 
 def test_legacy_dict_reduce_approach(dict_series):
@@ -159,9 +166,7 @@ def test_blank_aggregate(series):
 
 def test_average(series):
     assert eq(
-        c.aggregate(c.ReduceFuncs.Average(c.item(1))).execute(
-            series, debug=True
-        ),
+        c.aggregate(c.ReduceFuncs.Average(c.item(1))).execute(series),
         statistics.mean(x[1] for x in series),
     )
 
@@ -189,6 +194,41 @@ def test_weighted_average(series):
         ),
         weighted_average(series),
     )
+    result = (
+        c.group_by(c.item(0) // 5)
+        .aggregate(
+            [
+                c.item(0) // 5,
+                c.ReduceFuncs.Average(c.item(1)),
+                c.ReduceFuncs.Average(
+                    c.item(1), where=c.item(0) > 10, default=-1
+                ),
+            ]
+        )
+        .execute(zip(range(10), range(10)), debug=False)
+    )
+    assert result == [
+        [0, 2, -1],
+        [1, 7, -1],
+    ]
+    result = (
+        c.group_by(c.item(0) // 5)
+        .aggregate(
+            [
+                c.item(0) // 5,
+                c.ReduceFuncs.Average(c.item(1), c.item(2)),
+                c.ReduceFuncs.Average(
+                    c.item(1), c.item(2), where=c.item(0) > 10, default=-1
+                ),
+            ]
+        )
+        .execute(zip(range(10), range(10), cycle([1, 2])), debug=False)
+    )
+
+    assert result == [
+        [0, 2, -1],
+        [1, 7, -1],
+    ]
 
 
 def test_weighted_average_with_group_by(series):
@@ -448,3 +488,146 @@ def test_aggregate_no_init_loops():
         "first_a": 2,
         "list_b": [0, 1, 2, 3],
     }
+
+
+def test_aggregate_percentile():
+    converter = c.aggregate(
+        (
+            c.ReduceFuncs.Percentile(50, c.this()),
+            c.ReduceFuncs.Percentile(100, c.this()),
+        )
+    ).gen_converter()
+    assert converter(range(10)) == (4.5, 9)
+    assert converter(range(11)) == (5, 10)
+    converter = c.aggregate(
+        (
+            c.ReduceFuncs.Percentile(0, c.this(), interpolation="linear"),
+            c.ReduceFuncs.Percentile(49, c.this(), interpolation="linear"),
+            c.ReduceFuncs.Percentile(50, c.this(), interpolation="linear"),
+            c.ReduceFuncs.Percentile(51, c.this(), interpolation="linear"),
+            c.ReduceFuncs.Percentile(100, c.this(), interpolation="linear"),
+            #
+            c.ReduceFuncs.Percentile(0, c.this(), interpolation="lower"),
+            c.ReduceFuncs.Percentile(49, c.this(), interpolation="lower"),
+            c.ReduceFuncs.Percentile(50, c.this(), interpolation="lower"),
+            c.ReduceFuncs.Percentile(51, c.this(), interpolation="lower"),
+            c.ReduceFuncs.Percentile(100, c.this(), interpolation="lower"),
+            #
+            c.ReduceFuncs.Percentile(0, c.this(), interpolation="higher"),
+            c.ReduceFuncs.Percentile(49, c.this(), interpolation="higher"),
+            c.ReduceFuncs.Percentile(50, c.this(), interpolation="higher"),
+            c.ReduceFuncs.Percentile(51, c.this(), interpolation="higher"),
+            c.ReduceFuncs.Percentile(100, c.this(), interpolation="higher"),
+            #
+            c.ReduceFuncs.Percentile(0, c.this(), interpolation="midpoint"),
+            c.ReduceFuncs.Percentile(49, c.this(), interpolation="midpoint"),
+            c.ReduceFuncs.Percentile(50, c.this(), interpolation="midpoint"),
+            c.ReduceFuncs.Percentile(51, c.this(), interpolation="midpoint"),
+            c.ReduceFuncs.Percentile(100, c.this(), interpolation="midpoint"),
+            #
+            c.ReduceFuncs.Percentile(0, c.this(), interpolation="nearest"),
+            c.ReduceFuncs.Percentile(49, c.this(), interpolation="nearest"),
+            c.ReduceFuncs.Percentile(50, c.this(), interpolation="nearest"),
+            c.ReduceFuncs.Percentile(51, c.this(), interpolation="nearest"),
+            c.ReduceFuncs.Percentile(100, c.this(), interpolation="nearest"),
+        )
+    ).gen_converter()
+    assert converter(range(9, -1, -1)) == (
+        # linear
+        0,
+        4.41,
+        4.5,
+        4.59,
+        9,
+        # lower
+        0,
+        4,
+        4,
+        4,
+        9,
+        # higher
+        0,
+        5,
+        5,
+        5,
+        9,
+        # midpoint
+        0,
+        4.5,
+        4.5,
+        4.5,
+        9,
+        # nearest
+        0,
+        4,
+        4,
+        5,
+        9,
+    )
+
+    with pytest.raises(TypeError):
+        c.ReduceFuncs.Percentile("asd", c.this())
+    with pytest.raises(ValueError):
+        c.ReduceFuncs.Percentile(200, c.this())
+    with pytest.raises(ValueError):
+        c.ReduceFuncs.Percentile(10, c.this(), interpolation="asd")
+
+
+def test_group_by_percentile():
+    input_data = [
+        {"key": key, "value": value}
+        for index, key in enumerate("abc")
+        for value in range(index + 90, -1, -1)
+    ]
+    c_round = c.call_func(round, c.this(), 2)
+    result = (
+        c.group_by(c.item("key"))
+        .aggregate(
+            {
+                "key": c.item("key"),
+                "min": c.ReduceFuncs.Percentile(0, c.item("value")).pipe(
+                    c_round
+                ),
+                "percentile_5": c.ReduceFuncs.Percentile(
+                    5, c.item("value")
+                ).pipe(c_round),
+                "median": c.ReduceFuncs.Percentile(50, c.item("value")).pipe(
+                    c_round
+                ),
+                "percentile_95": c.ReduceFuncs.Percentile(
+                    95, c.item("value")
+                ).pipe(c_round),
+                "max": c.ReduceFuncs.Percentile(100, c.item("value")).pipe(
+                    c_round
+                ),
+            }
+        )
+        .execute(input_data)
+    )
+
+    assert result == [
+        {
+            "key": "a",
+            "max": 90,
+            "median": 45.0,
+            "min": 0.0,
+            "percentile_5": 4.5,
+            "percentile_95": 85.5,
+        },
+        {
+            "key": "b",
+            "max": 91,
+            "median": 45.5,
+            "min": 0.0,
+            "percentile_5": 4.55,
+            "percentile_95": 86.45,
+        },
+        {
+            "key": "c",
+            "max": 92,
+            "median": 46.0,
+            "min": 0.0,
+            "percentile_5": 4.6,
+            "percentile_95": 87.4,
+        },
+    ]

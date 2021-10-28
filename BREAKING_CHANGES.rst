@@ -1,5 +1,21 @@
+0.19.0 (2021-10-28)
+___________________
+
+Clean-up
+++++++++
+
+Normally you use ``c.ReduceFuncs.Sum(c.this())`` to reduce something, but it's
+possible to use custom reduce functions like this:
+
+* ``c.reduce(lambda x, y: x + y, c.this(), initial=0)``
+* ``c.reduce(c.inline_expr("{} + {}"), c.this(), initial=0)``
+
+``c.reduce`` used to support ``prepare_first`` parameter which was adding
+confusion. Now it's dropped.
+
+
 0.12.0 (2021-05-10)
--------------------
+___________________
 
 Bugfix
 ++++++
@@ -41,7 +57,7 @@ Bugfix
 ----
 
 0.11.0 (2021-05-06)
--------------------
+___________________
 
 Bugfix
 ++++++
