@@ -1,3 +1,30 @@
+0.19.0 (2021-10-28)
+___________________
+
+Features
+++++++++
+
+`#8 <https://github.com/westandskif/convtools/issues/8>`_
+
+- added ``c.ReduceFuncs.Percentile``
+- ``c.reduce`` now accepts conversions as ``initial`` argument, this will be
+  resolved on the first row met. If ``initial`` conversion depends on input
+  data, it won't be used as ``default`` if default is not provided.
+- sped up ``c.ReduceFuncs.Sum`` and ``c.ReduceFuncs.Average`` for cases where
+  elements are obviously not None
+
+BREAKING CHANGES:
++++++++++++++++++
+
+Normally you use ``c.ReduceFuncs.Sum(c.this())`` to reduce something, but it's
+possible to use custom reduce functions like this:
+
+* ``c.reduce(lambda x, y: x + y, c.this(), initial=0)``
+* ``c.reduce(c.inline_expr("{} + {}"), c.this(), initial=0)``
+
+``c.reduce`` used to support ``prepare_first`` parameter which was adding
+confusion. Now it's dropped.
+
 0.18.0 (2021-10-24)
 ___________________
 
@@ -76,7 +103,7 @@ ___________________
 Bugfix
 ++++++
 
-- fixed passing strings containing ``%`` and ``{`` to ``c.aggregate`` - `#34 <https://github.com/itechart/convtools/issues/34>`_
+- fixed passing strings containing ``%`` and ``{`` to ``c.aggregate`` - `convtools-ita #34 <https://github.com/itechart/convtools/issues/34>`_
 
 
 0.15.1 (2021-08-08)
@@ -138,12 +165,12 @@ Bugfix
 ++++++
 
 - fixed incorrect aggregate (not group_by) results in case of ``where``
-  conditions in reducers `#32 <https://github.com/itechart/convtools/issues/32>`_
+  conditions in reducers `convtools-ita #32 <https://github.com/itechart/convtools/issues/32>`_
 
 0.13.3 (2021-06-14)
 -------------------
 
-`#30 <https://github.com/itechart/convtools/issues/30>`_
+`convtools-ita #30 <https://github.com/itechart/convtools/issues/30>`_
 
 Bugfix
 ++++++
@@ -173,7 +200,7 @@ Bugfix
 Bugfix
 ++++++
 
-`#29 <https://github.com/itechart/convtools/issues/29>`_
+`convtools-ita #29 <https://github.com/itechart/convtools/issues/29>`_
 
 - fixed right join (conditions were not swapped correctly)
 
@@ -185,7 +212,7 @@ Bugfix
 Features
 ++++++++
 
-`#28 <https://github.com/itechart/convtools/issues/28>`_
+`convtools-ita #28 <https://github.com/itechart/convtools/issues/28>`_
 
 - now ``c.iter`` supports ``where`` parameters just like ``c.generator_comp``:
 
@@ -283,7 +310,7 @@ Bugfix
 ++++++
 
 - fixed complex conversion cases where there are multiple aggregations
-  `#27 <https://github.com/itechart/convtools/issues/27>`_
+  `convtools-ita #27 <https://github.com/itechart/convtools/issues/27>`_
 
 ----
 
@@ -294,7 +321,7 @@ Bugfix
 Features
 ++++++++
 
-`#26 <https://github.com/itechart/convtools/issues/26>`_
+`convtools-ita #26 <https://github.com/itechart/convtools/issues/26>`_
 
 - reimplemented pipes as a separate conversion + smart inlining
 - now pipes are the only conversions which take care of adding labels
@@ -317,7 +344,7 @@ Bugfix
 Features
 ++++++++
 
-`#25 by Anexen <https://github.com/itechart/convtools/issues/25>`_
+`convtools-ita #25 by Anexen <https://github.com/itechart/convtools/issues/25>`_
 
 - introduced ``c.ReduceFuncs.Average`` - arithmetic mean or weighted mean
 - introduced ``c.ReduceFuncs.Median``
@@ -370,7 +397,7 @@ Misc
 Bugfix
 ++++++
 
-`#24 <https://github.com/itechart/convtools/issues/24>`_
+`convtools-ita #24 <https://github.com/itechart/convtools/issues/24>`_
 
 - fixed populating ``linecache`` with source code (previously new lines were not preserved) -- debugging issue
 
@@ -382,7 +409,7 @@ Bugfix
 Features
 ++++++++
 
-`#23 <https://github.com/itechart/convtools/issues/23>`_
+`convtools-ita #23 <https://github.com/itechart/convtools/issues/23>`_
 
 
 - improved reducers to be usable on their own
@@ -444,7 +471,7 @@ Misc
 Misc
 ++++
 
-- `#22 <https://github.com/itechart/convtools/issues/22>`_
+- `convtools-ita #22 <https://github.com/itechart/convtools/issues/22>`_
 
 
 ----
@@ -457,7 +484,7 @@ Bugfixes
 ++++++++
 
 - Fixed name generation uniqueness issue
-  `#21 <https://github.com/itechart/convtools/issues/21>`_
+  `convtools-ita #21 <https://github.com/itechart/convtools/issues/21>`_
 
 
 ----
@@ -470,7 +497,7 @@ Features
 ++++++++
 
 - Introduced ``c.Mut.set_item`` and other mutations to be used in ``(...).tap(...)``` method
-  `#20 <https://github.com/itechart/convtools/issues/20>`_
+  `convtools-ita #20 <https://github.com/itechart/convtools/issues/20>`_
 
 
 ----
@@ -483,7 +510,7 @@ Bugfixes
 ++++++++
 
 - fixed ``gen_name`` usages (made ``item_to_hash`` mandatory)
-  `#19 <https://github.com/itechart/convtools/issues/19>`_
+  `convtools-ita #19 <https://github.com/itechart/convtools/issues/19>`_
 
 
 ----
@@ -497,7 +524,7 @@ Features
 
 - * introduced ``c.optional`` collection items, which get omitted based on value or a condition
   * improved converter generation so that inner conversions are not getting their own callable wrapper
-  * updated generated code variable name generation `#18 <https://github.com/itechart/convtools/issues/18>`_
+  * updated generated code variable name generation `convtools-ita #18 <https://github.com/itechart/convtools/issues/18>`_
 
 
 ----
@@ -509,7 +536,7 @@ Features
 Bugfixes
 ++++++++
 
-- fixed aggregate issue: reduce(...).item(..., default=...) case `#15 <https://github.com/itechart/convtools/issues/15>`_
+- fixed aggregate issue: reduce(...).item(..., default=...) case `convtools-ita #15 <https://github.com/itechart/convtools/issues/15>`_
 
 
 ----
@@ -525,7 +552,7 @@ Bugfixes
 - added main page
 - added workflow example
 
-`#14 <https://github.com/itechart/convtools/issues/14>`_
+`convtools-ita #14 <https://github.com/itechart/convtools/issues/14>`_
 
 
 ----
@@ -549,7 +576,7 @@ Features
 - - increased the speed of ``c.aggregate`` and ``c.group_by`` by collapsing multiple ``if`` statements into one
   - updated labeling functionality
 
-  `#11 <https://github.com/itechart/convtools/issues/11>`_
+  `convtools-ita #11 <https://github.com/itechart/convtools/issues/11>`_
 
 
 ----
@@ -564,11 +591,11 @@ Features
 - Improved the way ``linecache`` is used: now the number of files to be put
   into the ``linecache`` is limited to 100. The eviction is done by implementing
   recently used strategy.
-  `#9 <https://github.com/itechart/convtools/issues/9>`_
+  `convtools-ita #9 <https://github.com/itechart/convtools/issues/9>`_
 - - introduced ``c.join``
   - improved & fixed pipes (code with side-effects piped to a constant)
 
-  `#10 <https://github.com/itechart/convtools/issues/10>`_
+  `convtools-ita #10 <https://github.com/itechart/convtools/issues/10>`_
 
 
 ----
@@ -583,7 +610,7 @@ Features
 - 1. fixed main example docs
   2. improved ``c.aggregate`` speed
 
-  `#8 <https://github.com/itechart/convtools/issues/8>`_
+  `convtools-ita #8 <https://github.com/itechart/convtools/issues/8>`_
 
 
 ----
@@ -611,7 +638,7 @@ Features
   * improved tests - memory leaks
   * improved docs - added the index page example; added an example to QuickStart
 
-  `#7 <https://github.com/itechart/convtools/issues/7>`_
+  `convtools-ita #7 <https://github.com/itechart/convtools/issues/7>`_
 
 
 ----
@@ -637,7 +664,7 @@ Features
       Both can be either ``str`` (label name to put on) or ``dict`` (keys are label names
       and values are conversions to apply to the data before labeling)
 
-  `#6 <https://github.com/itechart/convtools/issues/6>`_
+  `convtools-ita #6 <https://github.com/itechart/convtools/issues/6>`_
 
 
 Bugfixes
@@ -646,7 +673,7 @@ Bugfixes
 - Added ``__name__`` attribute to ctx. Now internal code from the generated converter is sending to Sentry (not only file name).
   Also the generated converter became a callable object, not a function.
 
-  `#5 <https://github.com/itechart/convtools/issues/5>`_
+  `convtools-ita #5 <https://github.com/itechart/convtools/issues/5>`_
 
 
 ----
@@ -662,7 +689,7 @@ Bugfixes
   Previously it was compiling successfully, now it raises ``ConversionException`` on ``gen_converter``
   because there is no explicit mention of ``c.item("name")`` field in group by keys (only tuple).
 
-  `#4 <https://github.com/itechart/convtools/issues/4>`_
+  `convtools-ita #4 <https://github.com/itechart/convtools/issues/4>`_
 
 
 ----
@@ -676,7 +703,7 @@ Bugfixes
 
 - fixed ``c.aggregate`` to return a single value for empty input
 
-  `#3 <https://github.com/itechart/convtools/issues/3>`_
+  `convtools-ita #3 <https://github.com/itechart/convtools/issues/3>`_
 
 
 ----
@@ -690,7 +717,7 @@ Bugfixes
 
 - ``c.aggregate`` now returns a single value (previously the result was a list of one item)
 
-  `#2 <https://github.com/itechart/convtools/issues/2>`_
+  `convtools-ita #2 <https://github.com/itechart/convtools/issues/2>`_
 
 
 ----
@@ -704,5 +731,5 @@ Features
 
 - added ``c.if_`` conversion and introduced QuickStart docs
 
-  `#1 <https://github.com/itechart/convtools/issues/1>`_
+  `convtools-ita #1 <https://github.com/itechart/convtools/issues/1>`_
 

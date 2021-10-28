@@ -2,6 +2,8 @@
 import statistics
 import typing
 from collections import defaultdict
+from decimal import Decimal
+from math import ceil
 
 from .base import (
     BaseConversion,
@@ -11,11 +13,13 @@ from .base import (
     EscapedString,
     FilterConversion,
     GetItem,
+    If,
     InlineExpr,
     List,
     NaiveConversion,
     Tuple,
     _None,
+    ensure_conversion,
 )
 from .utils import Code
 
@@ -300,11 +304,12 @@ class BaseReducer(BaseConversion, typing.Generic[RBT]):
     expressions: typing.Tuple[typing.Any, ...]
     post_conversion: typing.Optional[BaseConversion] = None
     default: typing.Any
-    initial: typing.Any
     where: typing.Optional[BaseConversion] = None
     unconditional_init: bool = False
 
-    self_content_type = BaseConversion.ContentTypes.REDUCER
+    self_content_type = (
+        BaseConversion.self_content_type | BaseConversion.ContentTypes.REDUCER
+    )
 
     def gen_reduce_code_block(
         self,
@@ -339,19 +344,39 @@ class BaseReducer(BaseConversion, typing.Generic[RBT]):
                     agg_data_item, ctx
                 )
             )
-        if hasattr(self, "default"):
-            default_value = self.default
-        elif hasattr(self, "initial"):
-            default_value = self.initial
-        else:
-            raise AssertionError
 
-        default_value_code = default_value.gen_code_and_update_ctx(None, ctx)
+        default_value_code = self.default.gen_code_and_update_ctx(None, ctx)
         return EscapedString(
             f"({default_value_code} "
             f"if {agg_data_item} is _none "
             f"else {processed_agg_data_item})"
         ).gen_code_and_update_ctx("", ctx)
+
+    def prepare_default_n_initial(self, default, initial):
+        if default is _none:
+            try:
+                default = self.default
+            except AttributeError:
+                pass
+
+        if initial is _none and hasattr(self, "initial"):
+            initial = self.initial
+        if initial is not _none:
+            initial = self.ensure_conversion(initial)
+            if initial.is_itself_callable_like():
+                initial = initial.call_like()
+
+            if default is _none and initial.is_independent():
+                default = initial
+
+        if default is _none:
+            raise ValueError("default is not provided")
+
+        default = self.ensure_conversion(default)
+        if default.is_itself_callable_like():
+            default = default.call_like()
+
+        return default, initial
 
 
 class MultiStatementReducer(BaseReducer):
@@ -372,28 +397,9 @@ class MultiStatementReducer(BaseReducer):
                 else expressions
             )
         )
-        if default is not _none:
-            self.default = default
-        if hasattr(self, "default"):
-            self.default = (
-                self.ensure_conversion(self.default).call()
-                if callable(self.default)
-                else self.ensure_conversion(self.default)
-            )
-
-        if initial is not _none:
-            self.initial = initial
-        if hasattr(self, "initial"):
-            self.initial = (
-                self.ensure_conversion(self.initial).call()
-                if callable(self.initial)
-                else self.ensure_conversion(self.initial)
-            )
-
-        if not hasattr(self, "initial") and not hasattr(self, "default"):
-            raise ValueError("both initial and default are none")
-        if not hasattr(self, "initial") and not hasattr(self, "prepare_first"):
-            raise ValueError("both initial and prepare_first are none")
+        self.default, self.initial = self.prepare_default_n_initial(
+            default, initial
+        )
 
     def _format_statements(
         self,
@@ -401,11 +407,15 @@ class MultiStatementReducer(BaseReducer):
         args,
         var_row,
         ctx,
+        prev_result="%(result)s",
     ):
         code_args = tuple(
             arg.gen_code_and_update_ctx(var_row, ctx) for arg in args
         )
-        return [statement.format(*code_args) for statement in statements]
+        return [
+            statement.format(*code_args, prev_result=prev_result)
+            for statement in statements
+        ]
 
     def gen_reduce_code_block(
         self,
@@ -414,14 +424,7 @@ class MultiStatementReducer(BaseReducer):
         checksum_flag: int,
         ctx: dict,
     ) -> RBT:
-        if hasattr(self, "initial"):
-            reduce_initial = self._format_statements(
-                self.reduce,
-                (self.initial,) + self.expressions,
-                var_row,
-                ctx,
-            )
-        elif hasattr(self, "prepare_first"):
+        if self.initial is _none:
             reduce_initial = self._format_statements(
                 self.prepare_first,
                 self.expressions,
@@ -429,11 +432,17 @@ class MultiStatementReducer(BaseReducer):
                 ctx,
             )
         else:
-            raise AssertionError
+            reduce_initial = self._format_statements(
+                self.reduce,
+                self.expressions,
+                var_row,
+                ctx,
+                prev_result=self.initial.gen_code_and_update_ctx(var_row, ctx),
+            )
 
         reduce_two = self._format_statements(
             self.reduce,
-            (EscapedString(var_agg_data_value),) + self.expressions,
+            self.expressions,
             var_row,
             ctx,
         )
@@ -461,14 +470,13 @@ class Reduce(BaseReducer):
     """Defines the reduce operation, which is based on a callable /  to be used
     during the aggregation"""
 
+    initial: typing.Any
+
     def __init__(
         self,
         to_call_with_2_args: typing.Union[typing.Callable, InlineExpr],
         *expressions: typing.Tuple[typing.Any, ...],
-        initial: typing.Union[_None, typing.Callable, typing.Any] = _none,
-        prepare_first: typing.Union[
-            _None, typing.Callable, InlineExpr
-        ] = _none,
+        initial: typing.Union[_None, typing.Callable, InlineExpr, typing.Any],
         default: typing.Union[_None, typing.Callable, typing.Any] = _none,
         unconditional_init: bool = False,
         where=None,
@@ -478,17 +486,16 @@ class Reduce(BaseReducer):
           to_call_with_2_args: defines the reduce function/expression
           expressions: args to be passed to `to_call_with_2_args` after the
             aggregation value
-          initial: defined the very first item to be passed to
+          initial: defines the very first item to be passed to
             `to_call_with_2_args` item. If callable, then the result of a call
-            is used.
-          prepare_first: defines the reduce function/expression to be called
-            on the first item to prepare it for subsequent calls of
-            `to_call_with_2_args`
+            is used. If a conversion is passed, it is resolved on the first
+            row met.
           default: defines the value to be returned when there was nothing to
             reduce in a group (e.g. the current reduce operation has filtered
             out some rows, while an adjacent reduce operation has got
             something to reduce, forming a group). If callable, then the result
-            of a call is used.
+            of a call is used.  When default is not passed, initial is used if
+            it doesn't depend on input data.
           unconditional_init: tells whether the first call initializes the
             aggregation value OR there is a condition for that
         """
@@ -498,30 +505,9 @@ class Reduce(BaseReducer):
         self.expressions = tuple(
             self.ensure_conversion(expr) for expr in expressions
         )
-        if initial is not _none:
-            self.initial = (
-                self.ensure_conversion(initial).call()
-                if callable(initial)
-                or isinstance(initial, NaiveConversion)
-                and callable(initial.value)
-                else self.ensure_conversion(initial)
-            )
-        if default is not _none:
-            self.default = (
-                self.ensure_conversion(default).call()
-                if callable(default)
-                or isinstance(default, NaiveConversion)
-                and callable(default.value)
-                else self.ensure_conversion(default)
-            )
-
-        if prepare_first is not _none:
-            self.prepare_first = self.ensure_conversion(prepare_first)
-
-        if not hasattr(self, "initial") and not hasattr(self, "default"):
-            raise ValueError("both initial and default are none")
-        if not hasattr(self, "initial") and not hasattr(self, "prepare_first"):
-            raise ValueError("both initial and prepare_first are none")
+        self.default, self.initial = self.prepare_default_n_initial(
+            default, initial
+        )
         self.unconditional_init = unconditional_init
 
     def gen_reduce_code_block(
@@ -531,26 +517,18 @@ class Reduce(BaseReducer):
         checksum_flag: int,
         ctx: dict,
     ) -> RBT:
-        if hasattr(self, "initial"):
-            initial_conversion = self.to_call_with_2_args.call_like(
-                self.initial, *self.expressions
-            )
-        elif hasattr(self, "prepare_first"):
-            initial_conversion = self.prepare_first.call_like(
-                *self.expressions
-            )
-        else:
-            raise AssertionError
-
         reduce_initial = [
             "%(result)s = {}".format(
-                initial_conversion.gen_code_and_update_ctx(var_row, ctx),
+                self.to_call_with_2_args.call_like(
+                    self.initial,
+                    *self.expressions,
+                ).gen_code_and_update_ctx(var_row, ctx),
             )
         ]
         reduce_two = [
             "%(result)s = {}".format(
                 self.to_call_with_2_args.call_like(
-                    EscapedString(var_agg_data_value),
+                    EscapedString("%(result)s"),
                     *self.expressions,
                 ).gen_code_and_update_ctx(var_row, ctx),
             )
@@ -590,7 +568,10 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
        for some function calls) won't result in calculating this reduce twice
     """
 
-    self_content_type = BaseConversion.ContentTypes.AGGREGATION
+    self_content_type = (
+        BaseConversion.self_content_type
+        | BaseConversion.ContentTypes.AGGREGATION
+    )
 
     def __init__(self, *by: typing.Tuple[BaseConversion, ...]):
         """Takes any number of conversions to group by
@@ -770,6 +751,9 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
                 var_agg_data_cls, reduce_blocks.number, ctx
             )
 
+        # used by SortedArrayReducer
+        ctx["ListSortedOnceWrapper"] = ListSortedOnceWrapper
+
         for code_from, code_to in replacements.items():
             code_agg_result = self.replace_word(
                 code_agg_result, code_from, code_to
@@ -861,22 +845,41 @@ def Aggregate(*args, **kwargs) -> BaseConversion:
     return GroupBy().aggregate(*args, **kwargs)
 
 
+class ReducerDispatcher:
+    pass
+
+
 class SumReducer(MultiStatementReducer):
     prepare_first = ("%(result)s = ({0} or 0)",)
-    reduce = ("%(result)s = {0} + ({1} or 0)",)
-    default = 0
+    reduce = ("%(result)s = {prev_result} + ({0} or 0)",)
+    default = NaiveConversion(0)
     unconditional_init = True
+
+
+class FastSumReducer(MultiStatementReducer):
+    prepare_first = ("%(result)s = ({0} or 0)",)
+    reduce = ("%(result)s = {prev_result} + {0}",)
+    default = NaiveConversion(0)
+    unconditional_init = True
+
+
+class SumReducerDispatcher(ReducerDispatcher):
+    def __call__(self, expression, *args, **kwargs):
+        expression = ensure_conversion(expression)
+        if expression.output_hints & expression.OutputHints.NOT_NONE:
+            return FastSumReducer(expression, *args, **kwargs)
+        return SumReducer(expression, *args, **kwargs)
 
 
 class SumOrNoneReducer(MultiStatementReducer):
     prepare_first = ("%(result)s = {0}",)
     reduce = (
-        "if {1} is None:",
+        "if {0} is None:",
         "    %(result)s = None",
-        "elif {0} is not None:",
-        "    %(result)s = {0} + {1}",
+        "elif %(result)s is not None:",
+        "    %(result)s = {prev_result} + {0}",
     )
-    default = None
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
@@ -886,10 +889,10 @@ class MaxReducer(MultiStatementReducer):
         "    %(result)s = {0}",
     )
     reduce = (
-        "if {1} is not None and {1} > {0}:",
-        "    %(result)s = {1}",
+        "if {0} is not None and {0} > %(result)s:",
+        "    %(result)s = {0}",
     )
-    default = None
+    default = NaiveConversion(None)
 
 
 class MinReducer(MultiStatementReducer):
@@ -898,40 +901,38 @@ class MinReducer(MultiStatementReducer):
         "    %(result)s = {0}",
     )
     reduce = (
-        "if {1} is not None and {1} < {0}:",
-        "    %(result)s = {1}",
+        "if {0} is not None and {0} < %(result)s:",
+        "    %(result)s = {0}",
     )
-    default = None
+    default = NaiveConversion(None)
 
 
 class CountReducer(MultiStatementReducer):
     prepare_first = ("%(result)s = 1",)
-    reduce = ("%(result)s = {0} + 1",)
-    default = 0
+    reduce = ("%(result)s = {prev_result} + 1",)
+    default = NaiveConversion(0)
     unconditional_init = True
 
 
 class CountDistinctReducer(MultiStatementReducer):
     prepare_first = ("%(result)s = {{ {0} }}",)
-    reduce = ("%(result)s.add({1})",)
-    default = 0
+    reduce = ("%(result)s.add({0})",)
+    default = NaiveConversion(0)
     unconditional_init = True
-    post_conversion = InlineExpr("{set_} and len({set_}) or 0").pass_args(
-        set_=GetItem()
-    )
+    post_conversion = CallFunc(len, GetItem())
 
 
 class FirstReducer(MultiStatementReducer):
     prepare_first = ("%(result)s = {0}",)
     reduce = ()
-    default = None
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
 class LastReducer(MultiStatementReducer):
     prepare_first = ("%(result)s = {0}",)
-    reduce = ("%(result)s = {1}",)
-    default = None
+    reduce = ("%(result)s = {0}",)
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
@@ -944,32 +945,63 @@ class MaxRowReducer(MultiStatementReducer):
         "    %(result)s = ({0}, %(row)s)",
     )
     reduce = (
-        "if {1} is not None and {0}[0] < {1}:",
-        "    %(result)s = ({1}, %(row)s)",
+        "if {0} is not None and %(result)s[0] < {0}:",
+        "    %(result)s = ({0}, %(row)s)",
     )
-    default = None
+    default = NaiveConversion(None)
     post_conversion = GetItem(1)
 
 
 class MinRowReducer(MaxRowReducer):
     reduce = (
-        "if {1} is not None and {0}[0] > {1}:",
-        "    %(result)s = ({1}, %(row)s)",
+        "if {0} is not None and %(result)s[0] > {0}:",
+        "    %(result)s = ({0}, %(row)s)",
     )
 
 
 class ArrayReducer(MultiStatementReducer):
     prepare_first = ("%(result)s = [{0}]",)
-    reduce = ("%(result)s.append({1})",)
-    default = None
+    reduce = ("%(result)s.append({0})",)
+    default = NaiveConversion(None)
     unconditional_init = True
+
+
+class ListSortedOnceWrapper:
+    """Wraps a list, exposes append method only. Once the list is filled up, it
+    is sorted (only once) in-place and is returned when get method called."""
+
+    __slots__ = ["list_", "append", "sorted"]
+
+    def __init__(self, list_: list):
+        self.list_ = list_
+        self.append = self.list_.append
+        self.sorted = False
+
+    def get(self) -> list:
+        if not self.sorted:
+            self.list_.sort()
+            self.sorted = True
+            del self.append
+        return self.list_
+
+
+class SortedArrayReducer(MultiStatementReducer):
+    # preserve this extra line to keep this different from ArrayReducer
+    prepare_first = ("%(result)s = ListSortedOnceWrapper([{0}])", "")
+    reduce = ("%(result)s.append({0})",)
+    default = NaiveConversion(None)
+    unconditional_init = True
+
+    @property
+    def post_conversion(self):
+        return GetItem().call_method("get")
 
 
 class ArrayDistinctReducer(MultiStatementReducer):
     prepare_first = ("%(result)s = {{ {0}: None }}",)
-    reduce = ("%(result)s[{1}] = None",)
+    reduce = ("%(result)s[{0}] = None",)
     post_conversion = InlineExpr("list({0})").pass_args(GetItem())
-    default = None
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
@@ -997,8 +1029,8 @@ class BaseDictReducer(MultiStatementReducer):
 
 class DictReducer(BaseDictReducer):
     prepare_first = ("%(result)s = {{ {0}: {1} }}",)
-    reduce = ("%(result)s[{1}] = {2}",)
-    default = None
+    reduce = ("%(result)s[{0}] = {1}",)
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
@@ -1007,9 +1039,9 @@ class DictArrayReducer(BaseDictReducer):
         "%(result)s = _d = defaultdict(list)",
         "_d[{0}].append({1})",
     )
-    reduce = ("%(result)s[{1}].append({2})",)
+    reduce = ("%(result)s[{0}].append({1})",)
     post_conversion = InlineExpr("dict({})").pass_args(GetItem())
-    default = None
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
@@ -1020,11 +1052,11 @@ class DictArrayDistinctReducer(BaseDictReducer):
         "%(result)s = _d = defaultdict(dict)",
         "_d[{0}][{1}] = None",
     )
-    reduce = ("%(result)s[{1}][{2}] = None",)
+    reduce = ("%(result)s[{0}][{1}] = None",)
     post_conversion = InlineExpr(
         "{{k_: list(v_) for k_, v_ in {}.items()}}"
     ).pass_args(GetItem())
-    default = None
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
@@ -1033,9 +1065,9 @@ class DictSumReducer(BaseDictReducer):
         "%(result)s = _d = defaultdict(int)",
         "_d[{0}] = {1} or 0",
     )
-    reduce = ("%(result)s[{1}] = {0}[{1}] + ({2} or 0)",)
+    reduce = ("%(result)s[{0}] = {prev_result}[{0}] + ({1} or 0)",)
     post_conversion = InlineExpr("dict({})").pass_args(GetItem())
-    default = None
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
@@ -1045,44 +1077,49 @@ class DictSumOrNoneReducer(BaseDictReducer):
 
     prepare_first = ("%(result)s = _d = defaultdict(int)", "_d[{0}] = {1}")
     reduce = (
-        "if {2} is None:",
-        "    %(result)s[{1}] = None",
-        "elif {0}[{1}] is not None:",
-        "    %(result)s[{1}] = {0}[{1}] + {2}",
+        "if {1} is None:",
+        "    %(result)s[{0}] = None",
+        "elif %(result)s[{0}] is not None:",
+        "    %(result)s[{0}] = {prev_result}[{0}] + {1}",
     )
     post_conversion = InlineExpr("dict({})").pass_args(GetItem())
-    default = None
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
 class DictMaxReducer(BaseDictReducer):
+    """DictMax reducer which takes first positional item as keys and
+    accumulates max value of second positional item"""
+
     prepare_first = (
         "if {1} is not None:",
         "    %(result)s = {{ {0}: {1} }}",
     )
     reduce = (
-        "if {2} is not None and ({1} not in {0} or {2} > {0}[{1}]):",
-        "    %(result)s[{1}] = {2}",
+        "if {1} is not None and "
+        "({0} not in %(result)s or {1} > %(result)s[{0}]):",
+        "    %(result)s[{0}] = {1}",
     )
-    default = None
+    default = NaiveConversion(None)
 
 
 class DictMinReducer(DictMaxReducer):
     reduce = (
-        "if {2} is not None and ({1} not in {0} or {2} < {0}[{1}]):",
-        "    %(result)s[{1}] = {2}",
+        "if {1} is not None and "
+        "({0} not in %(result)s or {1} < %(result)s[{0}]):",
+        "    %(result)s[{0}] = {1}",
     )
 
 
 class DictCountReducer(BaseDictReducer):
     prepare_first = ("%(result)s = {{ {0}: 1 }}",)
     reduce = (
-        "if {1} not in {0}:",
-        "    %(result)s[{1}] = 1",
+        "if {0} not in %(result)s:",
+        "    %(result)s[{0}] = 1",
         "else:",
-        "    %(result)s[{1}] = {0}[{1}] + 1",
+        "    %(result)s[{0}] = {prev_result}[{0}] + 1",
     )
-    default = None
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
@@ -1092,50 +1129,60 @@ class DictCountDistinctReducer(BaseDictReducer):
 
     prepare_first = ("%(result)s = {{ {0}: {{ {1} }} }}",)
     reduce = (
-        "if {1} not in {0}:",
-        "    %(result)s[{1}] = {{ {2} }}",
+        "if {0} not in %(result)s:",
+        "    %(result)s[{0}] = {{ {1} }}",
         "else:",
-        "    %(result)s[{1}].add({2})",
+        "    %(result)s[{0}].add({1})",
     )
     post_conversion = InlineExpr(
         "{{ k_: len(v_) for k_, v_ in {}.items() }}"
     ).pass_args(GetItem())
-    default = None
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
 class DictFirstReducer(BaseDictReducer):
     prepare_first = ("%(result)s = {{ {0}: {1} }}",)
-    reduce = ("if {1} not in {0}:", "    %(result)s[{1}] = {2}")
-    default = None
+    reduce = ("if {0} not in %(result)s:", "    %(result)s[{0}] = {1}")
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
 class DictLastReducer(BaseDictReducer):
     prepare_first = ("%(result)s = {{ {0}: {1} }}",)
-    reduce = ("%(result)s[{1}] = {2}",)
-    default = None
+    reduce = ("%(result)s[{0}] = {1}",)
+    default = NaiveConversion(None)
     unconditional_init = True
 
 
-class AverageReducer(MultiStatementReducer):
-    """
-    Calculates the arithmetic mean or weighted mean.
-    """
+class AverageReducerDispatcher(ReducerDispatcher):
+    """Dispatcher which chooses between weighted and simple averages"""
 
-    def __init__(self, value, weight=1, **kwargs):
-        super().__init__(value, weight, **kwargs)
+    sum_reducer_dispatcher = SumReducerDispatcher()
 
-    prepare_first = (
-        "if {0} is not None:",
-        "    %(result)s = ({1}, {0} * {1})",
-    )
-    reduce = (
-        "if {1} is not None:",
-        "    %(result)s = ({0}[0] + {2}, {0}[1] + {1} * {2})",
-    )
-    default = None
-    post_conversion = GetItem(1) / GetItem(0)
+    def __call__(
+        self, value, weight=1, default=None, where=None
+    ) -> "BaseConversion":
+        """
+        Calculates the arithmetic mean or weighted mean.
+        """
+        if isinstance(weight, (int, float, Decimal)) and weight == 1:
+            return If(
+                CountReducer(where=where),
+                (
+                    self.sum_reducer_dispatcher(value, where=where)
+                    / CountReducer(where=where)
+                ),
+                default,
+            )
+        return If(
+            self.sum_reducer_dispatcher(weight, where=where),
+            (
+                self.sum_reducer_dispatcher(value * weight, where=where)
+                / self.sum_reducer_dispatcher(weight, where=where)
+            ),
+            default,
+        )
 
 
 class TopReducer(DictCountReducer):
@@ -1174,13 +1221,110 @@ class MedianReducer(ArrayReducer):
     post_conversion = CallFunc(statistics.median, GetItem())
 
 
+class PercentileReducer(SortedArrayReducer):
+    """Calculates percentile (floats from 0 to 100 inclusive)
+
+    >>> c.ReduceFuncs.Percentile(95, c.item("amount"))
+    >>> c.ReduceFuncs.Percentile(95, c.item("amount"), interpolation="lower")
+
+    interpolation options:
+      * "linear"
+      * "lower"
+      * "higher"
+      * "midpoint"
+      * "nearest"
+    """
+
+    interpolation_to_method: "typing.Dict[str, typing.Callable]" = {}
+
+    def __init__(
+        self, percentile: float, conv, *args, interpolation="linear", **kwargs
+    ):
+        """
+
+        Args:
+         * interpolation: one of
+           #. "linear"
+           #. "lower"
+           #. "higher"
+           #. "midpoint"
+           #. "nearest"
+        """
+        super().__init__(conv, *args, **kwargs)
+        if not 0 <= percentile <= 100:
+            raise ValueError(
+                "percentile must be a float between 0 and 100 inclusive"
+            )
+
+        self.percentile = percentile
+        try:
+            self.method = self.interpolation_to_method[interpolation]
+        except KeyError as e:
+            raise ValueError("unsupported interpolation type") from e
+
+    @staticmethod
+    def percentile_linear(data, quantile):
+        max_index = len(data) - 1
+        index = max_index * quantile
+        left_index = int(index)
+        left_value = data[left_index]
+        if left_index == max_index:
+            return left_value
+
+        return left_value + (data[left_index + 1] - left_value) * (
+            index - left_index
+        )
+
+    @staticmethod
+    def percentile_lower(data, quantile):
+        return data[int((len(data) - 1) * quantile)]
+
+    @staticmethod
+    def percentile_higher(data, quantile):
+        return data[ceil((len(data) - 1) * quantile)]
+
+    @staticmethod
+    def percentile_midpoint(data, quantile):
+        index = (len(data) - 1) * quantile
+        left_index = int(index)
+        if left_index == index:
+            return data[left_index]
+
+        left_value = data[left_index]
+        return left_value + (data[left_index + 1] - left_value) * 0.5
+
+    @staticmethod
+    def percentile_nearest(data, quantile):
+        index = (len(data) - 1) * quantile
+        left_index = int(index)
+        if index - left_index > 0.5:
+            return data[left_index + 1]
+        else:
+            return data[left_index]
+
+    @property
+    def post_conversion(self):
+        return CallFunc(
+            self.method, super().post_conversion, self.percentile * 0.01
+        )
+
+
+PercentileReducer.interpolation_to_method = {
+    "linear": PercentileReducer.percentile_linear,
+    "lower": PercentileReducer.percentile_lower,
+    "higher": PercentileReducer.percentile_higher,
+    "midpoint": PercentileReducer.percentile_midpoint,
+    "nearest": PercentileReducer.percentile_nearest,
+}
+
+
 class ReduceFuncs:
     """Exposes the list of reduce functions"""
 
     # pylint: disable=invalid-name
 
     #: Calculates the sum, skips false values
-    Sum = SumReducer
+    Sum = SumReducerDispatcher()
     #: Calculates the sum, any ``None`` makes the total sum ``None``
     SumOrNone = SumOrNoneReducer
 
@@ -1205,9 +1349,11 @@ class ReduceFuncs:
     Last = LastReducer
 
     #: Calculates the arithmetic mean or weighted mean.
-    Average = AverageReducer
+    Average = AverageReducerDispatcher()
     #: Calculates the median value.
     Median = MedianReducer
+    #: Calculates percentile: floats in [0, 100]
+    Percentile = PercentileReducer
     #: Calculates the most common value.
     #: In case of multiple values, returns the last of them.
     Mode = ModeReducer

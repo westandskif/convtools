@@ -619,7 +619,7 @@ def test_grouping():
                 c.reduce(
                     max,
                     c.item("debit"),
-                    prepare_first=lambda a: a,
+                    initial=c.item("debit"),
                     default=c.input_arg("arg1"),
                     where=c.call_func(lambda x: x < 0, c.item("balance")),
                 ),
@@ -628,7 +628,7 @@ def test_grouping():
                     c.reduce(
                         max,
                         c.item("debit"),
-                        prepare_first=lambda a: a,
+                        initial=c.item("debit"),
                         default=0,
                         where=c.call_func(lambda x: x < 0, c.item("balance")),
                     ),
@@ -718,7 +718,7 @@ def test_grouping():
           ('John', 'Nick'): 'food'}]
     # fmt: on
     result3 = (
-        c.aggregate(c.ReduceFuncs.Sum(c.item("debit")))
+        c.aggregate(c.ReduceFuncs.Sum(c.item("debit") + 0))
         .pipe(c.inline_expr("{0} + {1}").pass_args(c.this(), c.this()))
         .execute(data, debug=False)
     )
@@ -1008,17 +1008,24 @@ def test_base_reducer():
             c.reduce(
                 InlineExpr("{0} + {1}"),
                 c.this(),
-                prepare_first=InlineExpr("{}"),
+                initial=InlineExpr("int()"),
                 default=0,
             ),
             c.reduce(
                 InlineExpr("{0} + {1}"),
                 c.this(),
-                prepare_first=int,
+                initial=c(int),
+                default=0,
+            ),
+            c.reduce(
+                InlineExpr("{0} + {1}"),
+                c.this(),
+                initial=int,
                 default=0,
             ),
         )
     ).filter(c.this() > 5).gen_converter(debug=False)([1, 2, 3]) == [
+        6,
         6,
         6,
         6,

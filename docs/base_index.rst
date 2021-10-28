@@ -116,6 +116,7 @@ ones, exposed like ``c.ReduceFuncs.Sum``:
 #. Last
 #. Average
 #. Median
+#. Percentile
 #. Mode
 #. TopK
 #. Array
@@ -143,6 +144,7 @@ Is it any different from tools like Pandas / Polars?
 * convtools is about defining and reusing conversions -- declarative
   approach, while wrapping data in high-performance containers is more of being
   imperative
+* convtools supports nested aggregations
 
 
 Is this thing debuggable?

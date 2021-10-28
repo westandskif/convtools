@@ -274,8 +274,14 @@ class BaseConversion(typing.Generic[CT]):
         ARG_USAGE = 8
         LABEL_USAGE = 16
         BREAKPOINT = 32
+        FUNCTION_OF_INPUT = 64
 
-    self_content_type = 0
+    self_content_type = ContentTypes.FUNCTION_OF_INPUT
+
+    class OutputHints:
+        NOT_NONE = 1
+
+    output_hints = 0
 
     def __init__(self):
         self._depends_on = {}
@@ -283,6 +289,10 @@ class BaseConversion(typing.Generic[CT]):
 
     def __hash__(self):
         return id(self)
+
+    def add_hint(self, hint: int):
+        self.output_hints |= hint
+        return self
 
     def check_dependency(self, b, for_piping=False):
         contents = self.contents if for_piping else self.self_content_type
@@ -613,6 +623,9 @@ class BaseConversion(typing.Generic[CT]):
     def is_itself_callable(self) -> typing.Optional[bool]:
         pass
 
+    def is_independent(self) -> typing.Optional[bool]:
+        return not self.contents & self.ContentTypes.FUNCTION_OF_INPUT
+
     def call_like(self, *args, **kwargs):
         if self.is_itself_callable_like():
             return self.call(*args, **kwargs)
@@ -714,43 +727,71 @@ class BaseConversion(typing.Generic[CT]):
         return self.lte(b)
 
     def neg(self) -> "InlineExpr":
-        return InlineExpr("-{0}").pass_args(self)
+        return (
+            InlineExpr("-{0}")
+            .pass_args(self)
+            .add_hint(self.OutputHints.NOT_NONE)
+        )
 
     def __neg__(self) -> "InlineExpr":
         return self.neg()
 
     def add(self, arg) -> "InlineExpr":
-        return InlineExpr("{0} + {1}").pass_args(self, arg)
+        return (
+            InlineExpr("{0} + {1}")
+            .pass_args(self, arg)
+            .add_hint(self.OutputHints.NOT_NONE)
+        )
 
     def __add__(self, b) -> "InlineExpr":
         return self.add(b)
 
     def mul(self, arg) -> "InlineExpr":
-        return InlineExpr("{0} * {1}").pass_args(self, arg)
+        return (
+            InlineExpr("{0} * {1}")
+            .pass_args(self, arg)
+            .add_hint(self.OutputHints.NOT_NONE)
+        )
 
     def __mul__(self, b) -> "InlineExpr":
         return self.mul(b)
 
     def sub(self, arg) -> "InlineExpr":
-        return InlineExpr("{0} - {1}").pass_args(self, arg)
+        return (
+            InlineExpr("{0} - {1}")
+            .pass_args(self, arg)
+            .add_hint(self.OutputHints.NOT_NONE)
+        )
 
     def __sub__(self, b) -> "InlineExpr":
         return self.sub(b)
 
     def div(self, arg) -> "InlineExpr":
-        return InlineExpr("{0} / {1}").pass_args(self, arg)
+        return (
+            InlineExpr("{0} / {1}")
+            .pass_args(self, arg)
+            .add_hint(self.OutputHints.NOT_NONE)
+        )
 
     def __truediv__(self, b) -> "InlineExpr":
         return self.div(b)
 
     def mod(self, arg) -> "InlineExpr":
-        return InlineExpr("{0} % {1}").pass_args(self, arg)
+        return (
+            InlineExpr("{0} % {1}")
+            .pass_args(self, arg)
+            .add_hint(self.OutputHints.NOT_NONE)
+        )
 
     def __mod__(self, b) -> "InlineExpr":
         return self.mod(b)
 
     def floor_div(self, arg) -> "InlineExpr":
-        return InlineExpr("{0} // {1}").pass_args(self, arg)
+        return (
+            InlineExpr("{0} // {1}")
+            .pass_args(self, arg)
+            .add_hint(self.OutputHints.NOT_NONE)
+        )
 
     def __floordiv__(self, b) -> "InlineExpr":
         return self.floor_div(b)
@@ -851,11 +892,10 @@ class BaseMethodConversion(BaseConversion):
 
     def __init__(self, self_conv):
         super().__init__()
-        self.self_conv = (
-            None
-            if self_conv is self._none
-            else self.ensure_conversion(self_conv)
-        )
+        if self_conv is self._none:
+            self.self_conv = None
+        else:
+            self.self_conv = self.ensure_conversion(self_conv)
 
     def get_self_and_input_code(
         self, code_input: str, ctx: dict
@@ -888,6 +928,10 @@ class NaiveConversion(BaseConversion):
     """
 
     _builtin_dict = globals()["__builtins__"]
+    self_content_type = (
+        BaseConversion.self_content_type
+        ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
 
     def __init__(self, value: typing.Any, name_prefix="v"):
         """
@@ -918,15 +962,18 @@ class NaiveConversion(BaseConversion):
                 if f_name:
                     self.name_prefix = f_name
 
+    types_to_repr = {type(None), bool, int}
+
     def _gen_code_and_update_ctx(self, code_input, ctx):
         if self.code_str:
             return self.code_str
+
         value = self.value
+        value_type = type(value)
         if (
-            value is None
-            or isinstance(value, (bool, int))
-            or isinstance(value, str)
-            and len(value) < 255
+            value_type in self.types_to_repr
+            or value_type is str
+            and len(value) < 128
             and "%" not in value
             and "{" not in value
         ):
@@ -935,7 +982,7 @@ class NaiveConversion(BaseConversion):
             self.name_prefix, ctx, value
         )
         ctx["__naive_values__"][value_name] = value
-        return f"_naive['{value_name}']"
+        return f'_naive["{value_name}"]'
 
     def is_itself_callable_like(self) -> typing.Optional[bool]:
         return callable(self.value)
@@ -947,6 +994,11 @@ class NaiveConversion(BaseConversion):
 class EscapedString(BaseConversion):
     """Defines the conversion which returns the result of running the
     python code, passed to init"""
+
+    self_content_type = (
+        BaseConversion.self_content_type
+        ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
 
     def __init__(self, s):
         super().__init__()
@@ -973,7 +1025,10 @@ class InputArg(BaseConversion):
     input arguments used in the conversion definition will be expected as
     keyword-only arguments (affecting the resulting converter signature)."""
 
-    self_content_type = BaseConversion.ContentTypes.ARG_USAGE
+    self_content_type = (
+        BaseConversion.self_content_type
+        | BaseConversion.ContentTypes.ARG_USAGE
+    ) ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
 
     def __init__(self, arg_name: str):
         """
@@ -991,7 +1046,10 @@ class LabelConversion(BaseConversion):
     """Allows to reference a conversion result by label, after it was cached by
     :py:obj:`PipeConversion` or :py:obj:`BaseConversion.add_label`."""
 
-    self_content_type = BaseConversion.ContentTypes.LABEL_USAGE
+    self_content_type = (
+        BaseConversion.self_content_type
+        | BaseConversion.ContentTypes.LABEL_USAGE
+    ) ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
 
     def __init__(self, label_name: str):
         """
@@ -1283,6 +1341,11 @@ class Call(BaseMethodConversion):
     It takes both positional and keyword arguments to be passed.
     """
 
+    self_content_type = (
+        BaseConversion.self_content_type
+        ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
+
     def __init__(self, *args, self_conv=BaseConversion._none, **kwargs):
         super().__init__(self_conv)
         self.args = [self.ensure_conversion(arg) for arg in args]
@@ -1396,6 +1459,11 @@ class SortConversion(BaseConversion):
 class InlineExpr(BaseConversion):
     """This conversion allows to avoid function call overhead.  It inlines a
     raw python code expression into the code of resulting conversion."""
+
+    self_content_type = (
+        BaseConversion.self_content_type
+        ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
 
     def __init__(self, code_str):
         """
@@ -1595,6 +1663,11 @@ class DictComp(BaseComprehensionConversion):
 
 class BaseCollectionConversion(BaseConversion):
     """This is a base conversion of every collection"""
+
+    self_content_type = (
+        BaseConversion.self_content_type
+        ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
 
     def __init__(self, *items):
         """
@@ -2280,7 +2353,10 @@ class Breakpoint(BaseConversion):
     """Defines the conversion which wraps another one and puts a breakpoint
     after it"""
 
-    self_content_type = BaseConversion.ContentTypes.BREAKPOINT
+    self_content_type = (
+        BaseConversion.self_content_type
+        | BaseConversion.ContentTypes.BREAKPOINT
+    ) ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     debug_func = staticmethod(debug_func)
 
     def __init__(self, to_debug):

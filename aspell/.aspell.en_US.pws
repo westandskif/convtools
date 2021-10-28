@@ -1,4 +1,4 @@
-personal_ws-1.1 en 186 
+personal_ws-1.1 en 189 
 Abramov
 Almakov
 Anexen
@@ -49,6 +49,7 @@ attrs
 bool
 callables
 cde
+ceil
 cls
 cmd
 cond
@@ -106,6 +107,7 @@ inlining
 ipython
 isinstance
 issubclass
+ita
 iter
 iterable
 iterables
@@ -138,6 +140,7 @@ pygments
 pylint
 pypi
 pytest
+quantile
 quickstart
 reST
 reStructuredText
