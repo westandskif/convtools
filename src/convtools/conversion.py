@@ -52,10 +52,10 @@ from .joins import JoinConversion, _JoinConditions
 from .mutations import Mutations
 
 
-__all__ = ["conversion"]
+__all__ = ["conversion", "Conversion"]
 
 
-class _Conversion:
+class Conversion:
     """The object, which exposes public API
 
     .. code-block:: python
@@ -203,4 +203,4 @@ class _Conversion:
         return self.this.breakpoint()
 
 
-conversion = _Conversion()
+conversion = Conversion()

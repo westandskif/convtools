@@ -1190,8 +1190,8 @@ ____________________________________________________
 
       c.min(c.item("a"), c.item("b"))
 
-15. Shortcuts II: take_while, drop_while
-________________________________________
+15. Shortcuts II: take_while, drop_while, chunk_by, chunk_by_condition
+______________________________________________________________________
 
 .. list-table::
  :class: cheatsheet-table
@@ -1226,6 +1226,51 @@ ________________________________________
    - .. code-block:: python
 
       c.drop_while(c.this() < 3)
+
+ * - .. code-block:: python
+
+      input_data = range(2000)
+
+   - .. code-block:: python
+
+      # slice into chunks of size = 1000
+
+   - .. code-block:: python
+
+      c.chunk_by(size=1000)
+
+      # OR
+      c.chunk_by_condition(c.CHUNK.len() < 1000)
+
+ * - .. code-block:: python
+
+      # -
+
+   - .. code-block:: python
+
+      # slice into chunks of size = 1000
+      # and by "x" key
+
+   - .. code-block:: python
+
+      c.chunk_by(
+          c.item("x"),
+          size=1000
+      ).aggregate({
+          "x": c.ReduceFuncs.Last(c.item("x")),
+          "y": c.ReduceFuncs.Sum(c.item("y")),
+      })
+
+      # OR THE SAME (but less performant)
+      c.chunk_by_condition(
+          c.and_(
+              c.CHUNK.item(-1, "x") == c.item("x"),
+              c.CHUNK.len() < 1000
+          )
+      ).aggregate({
+          "x": c.ReduceFuncs.Last(c.item("x")),
+          "y": c.ReduceFuncs.Sum(c.item("y")),
+      })
 
 16. Debugging
 _____________

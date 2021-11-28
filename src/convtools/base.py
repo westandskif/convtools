@@ -800,6 +800,7 @@ class BaseConversion(typing.Generic[CT]):
         return self.floor_div(b)
 
     def len(self) -> "BaseConversion":
+        """Shortcut for CallFunc(len, self)"""
         return CallFunc(len, self)
 
     def filter(self, condition_conv, cast=_none) -> "BaseConversion":

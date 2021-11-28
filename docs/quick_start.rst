@@ -469,8 +469,8 @@ Next:
            pipe80_338 = data_.items()
            return ((key, item) for key, items in pipe80_338 for item in items if key)
 
-7. Processing collections: filter, sort, pipe, label, if, zip, repeat, flatten
-_______________________________________________________________________________
+7.1. Processing collections - I: iter, filter, sort, pipe, label, if
+____________________________________________________________________
 
 Points to learn:
 
@@ -481,15 +481,10 @@ Points to learn:
    conversion resolves to true
 #. :py:obj:`c.sort<convtools.base.SortConversion>` passes the input to
    :py:obj:`sorted`
-#. :py:obj:`(...).pipe<convtools.base.BaseConversion.pipe>` chains two conversions
-   by passing the result of the first one to the second one. If piping is done
-   at the top level of a resulting conversion (not nested), then it's going to
-   be represented as several statements in the resulting code.
-#. :py:obj:`c.if_<convtools.base.If>` allows to build ``1 if a else 2`` expressions.
-   It's possible to pass not every parameter:
-
-   * if a condition is not passed, then the input is used as a condition
-   * if any branch is not passed, then the input is passed untouched
+#. :py:obj:`(...).pipe<convtools.base.BaseConversion.pipe>` chains two
+   conversions by passing the result of the first one to the second one. If
+   piping is done at the top level of a resulting conversion (not nested), then
+   it's going to be represented as several statements in the resulting code.
 #. :py:obj:`labels<convtools.base.LabelConversion>` extend pipe and regular
    conversions functionality:
 
@@ -502,6 +497,12 @@ Points to learn:
      ``label_input`` and ``label_output`` parameters, both accept either
      ``str`` (a label name) or ``dict`` (keys are label names, values are
      conversions to be applied before labeling)
+
+#. :py:obj:`c.if_<convtools.base.If>` allows to build ``1 if a else 2``
+   expressions.  It's possible to pass not every parameter:
+
+   * if a condition is not passed, then the input is used as a condition
+   * if any branch is not passed, then the input is passed untouched
 
 A simple pipe first:
 
@@ -663,20 +664,170 @@ It works as follows: if it finds any function calls, index/attribute lookups,
 it just caches the input, because the IF cannot be sure whether it's cheap or
 applicable to run the input code twice.
 
+7.2. Processing collections - II: chunk_by, chunk_by_condition
+______________________________________________________________
+
+Points to learn:
+
+#. :py:obj:`c.chunk_by<convtools.conversion.Conversion.chunk_by>` allows to
+   slice iterables into chunks by values and chunk sizes
+#. :py:obj:`c.chunk_by_condition<convtools.conversion.Conversion.chunk_by_condition>`
+   allows to slice iterables into chunks based on a condition, which is a
+   function of a current chunk and an element
+
+A simple pipe first:
+
+.. tabs::
+
+  .. tab:: convtools
+
+    .. code-block:: python
+
+       conv = c.chunk_by(size=1000).gen_converter(debug=True)
+
+       # OR THE SAME
+       # conv = c.chunk_by_condition(c.CHUNK.len() < 1000).gen_converter(debug=True)
+
+  .. tab:: compiled code
+
+    .. code-block:: python
+
+       # GENERATES:
+       def chunk_by_1p(items_):
+           items_ = iter(items_)
+           try:
+               item_ = next(items_)
+           except StopIteration:
+               return
+           chunk_ = [item_]
+           size_ = 1
+           for item_ in items_:
+               if size_ < 1000:
+                   chunk_.append(item_)
+                   size_ = size_ + 1
+               else:
+                   yield chunk_
+                   chunk_ = [item_]
+                   size_ = 1
+           yield chunk_
+
+
+       def converter_bh(data_):
+           global __naive_values__, __none__
+           _naive = __naive_values__
+           _none = __none__
+           _labels = _none
+           return chunk_by_1p(data_)
+____
+
+
+And a more complex one with running aggregation on each chunk:
+
+.. tabs::
+
+  .. tab:: convtools
+
+    .. code-block:: python
+
+       c.chunk_by(
+           c.item("x"),
+           size=1000
+       ).aggregate({
+           "x": c.ReduceFuncs.Last(c.item("x")),
+           "y": c.ReduceFuncs.Sum(c.item("y")),
+       }).gen_converter(debug=True)
+
+       # OR THE SAME (but less performant)
+       # c.chunk_by_condition(
+       #     c.and_(
+       #         c.CHUNK.item(-1, "x") == c.item("x"),
+       #         c.CHUNK.len() < 1000
+       #     )
+       # ).aggregate({
+       #     "x": c.ReduceFuncs.Last(c.item("x")),
+       #     "y": c.ReduceFuncs.Sum(c.item("y")),
+       # }).gen_converter(debug=True)
+
+  .. tab:: compiled code
+
+    .. code-block:: python
+
+       # GENERATES:
+       def chunk_by_8f(items_, _naive, _labels, _none):
+           items_ = iter(items_)
+           try:
+               item_ = next(items_)
+           except StopIteration:
+               return
+           chunk_ = [item_]
+           chunk_item_signature = item_["x"]
+           size_ = 1
+           for item_ in items_:
+               new_item_signature = item_["x"]
+               if chunk_item_signature == new_item_signature and size_ < 1000:
+                   chunk_.append(item_)
+                   size_ = size_ + 1
+               else:
+                   yield chunk_
+                   chunk_ = [item_]
+                   chunk_item_signature = new_item_signature
+                   size_ = 1
+           yield chunk_
+
+
+       def aggregate__yp(data_, _naive, _labels, _none):
+           agg_data__yp_v0 = agg_data__yp_v1 = _none
+           expected_checksum_ = 3
+           checksum_ = 0
+
+           it_ = iter(data_)
+           for row__yp in it_:
+               if agg_data__yp_v0 is _none:
+                   agg_data__yp_v0 = row__yp["x"]
+                   agg_data__yp_v1 = row__yp["y"] or 0
+                   break
+
+           for row__yp in it_:
+               agg_data__yp_v0 = row__yp["x"]
+               agg_data__yp_v1 = agg_data__yp_v1 + (row__yp["y"] or 0)
+
+           return {
+               "x": (None if agg_data__yp_v0 is _none else agg_data__yp_v0),
+               "y": (0 if agg_data__yp_v1 is _none else agg_data__yp_v1),
+           }
+
+
+        def converter_xh(data_):
+           global __naive_values__, __none__
+           _naive = __naive_values__
+           _none = __none__
+           _labels = _none
+           return (
+               _naive["aggregate__yp"](i_5k, _naive, _labels, _none)
+               for i_5k in chunk_by_8f(data_, _naive, _labels, _none)
+           )
 
 8. Helper shortcuts
 ___________________
 
 Points to learn:
 
-#. :py:obj:`convtools.base.BaseConversion.len` is a shortcut to python's :py:obj:`len`
-#. :ref:`c.min and c.max<ref_cheatsheet_shortcuts_i>` are shortcuts to python's :py:obj:`min` & :py:obj:`max`
-#. :ref:`c.zip<ref_cheatsheet_shortcuts_i>` wraps & extends python's :py:obj:`zip` if args provided, returns
-   tuples; if kwargs provided, returns dicts
-#. :ref:`c.repeat<ref_cheatsheet_shortcuts_i>` wraps python's :py:obj:`itertools.repeat`
-#. :ref:`c.flatten<ref_cheatsheet_shortcuts_i>` wraps python's :py:obj:`itertools.chain.from_iterable`
-#. :py:obj:`convtools.base.BaseConversion.take_while` re-implements :py:obj:`itertools.takewhile`
-#. :py:obj:`convtools.base.BaseConversion.drop_while` re-implements :py:obj:`itertools.dropwhile`
+#. :py:obj:`(...).len()<convtools.base.BaseConversion.len>` is a shortcut to
+   python's :py:obj:`len`
+#. :py:obj:`c.min<convtools.conversion.Conversion.min>` and
+   :py:obj:`c.max<convtools.conversion.Conversion.max>` are shortcuts to
+   python's :py:obj:`min` & :py:obj:`max`
+#. :ref:`c.zip<convtools.conversion.Conversion.zip>` python's :py:obj:`zip` on
+   batteries, because when args provided, it generates tuples; when kwargs
+   provided, generates dicts
+#. :ref:`c.repeat<convtools.conversion.Conversion.repeat>` wraps python's
+   :py:obj:`itertools.repeat`
+#. :ref:`c.flatten<convtools.conversion.Conversion.flatten>` wraps python's
+   :py:obj:`itertools.chain.from_iterable`
+#. :py:obj:`c.take_while<convtools.conversion.Conversion.take_while>` re-implements
+   :py:obj:`itertools.takewhile`
+#. :py:obj:`c.drop_while<convtools.conversion.Conversion.drop_while>` re-implements
+   :py:obj:`itertools.dropwhile`
 
 .. code-block:: python
 

@@ -1,6 +1,9 @@
 0.20.0 (2021-11-28)
 ___________________
 
+
+`#11 <https://github.com/westandskif/convtools/pull/11>`_
+
 Features
 ++++++++
 
