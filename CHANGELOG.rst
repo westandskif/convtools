@@ -1,3 +1,24 @@
+0.20.0 (2021-11-28)
+___________________
+
+Features
+++++++++
+
+ - added ``c.chunk_by(c.item("x"), size=100)`` for slicing iterables into
+   chunks by element values and/or size of chunk
+ - added ``c.chunk_by_condition(c.CHUNK.item(-1) - c.this() < 100)`` for
+   slicing iterables into chunks based on condition, which is a function of a
+   current chunk and a current element
+ - added ``(...).len()`` shortcut for ``c.call_func(len, c.this())``
+
+Misc
+++++
+
+ - no longer create empty ``labels_`` dict on each converter call where no
+   labels are going to be used
+ - no longer create new ``This`` instances, now reusing an existing one
+
+
 0.19.0 (2021-10-28)
 ___________________
 

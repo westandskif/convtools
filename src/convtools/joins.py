@@ -175,6 +175,11 @@ class JoinConversion(BaseConversion):
         ``"outer"``
     """
 
+    self_content_type = (
+        BaseConversion.self_content_type
+        | BaseConversion.ContentTypes.NEW_LABEL
+    )
+
     def __init__(
         self,
         left_conversion: BaseConversion,

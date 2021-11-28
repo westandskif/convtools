@@ -111,7 +111,7 @@ class _ConverterCallable:
             os.makedirs(cls.debug_dir, exist_ok=True)
             cls.debug_dir_initialized = True
         for item in self._name_to_converter.values():
-            with open(item["abs_path"], "w") as f:
+            with open(item["abs_path"], "w", encoding="utf-8") as f:
                 f.write(item["code_str"])
 
         self._code_dumped = True
@@ -507,6 +507,7 @@ class BaseConversion(typing.Generic[CT]):
         # signature should contain "data_" argument
         initial_code_input = "data_"
         debug = debug or (self.contents & self.ContentTypes.BREAKPOINT)
+        has_labels = self.contents & self.ContentTypes.NEW_LABEL
         ctx = self._init_ctx(debug=debug)
 
         converter_callable_cls = CodeGenerationOptionsCtx.get_option_value(
@@ -554,11 +555,13 @@ class BaseConversion(typing.Generic[CT]):
         code.add_line("global __naive_values__, __none__", 0)
         code.add_line("_naive = __naive_values__", 0)
         code.add_line("_none = __none__", 0)
-        code.add_line("_labels = {}", 0)
+        if has_labels:
+            code.add_line("_labels = {}", 0)
+        else:
+            code.add_line("_labels = _none", 0)
+
         code.add_line(
-            "return {}".format(
-                self.gen_code_and_update_ctx(initial_code_input, ctx)
-            ),
+            f"return {self.gen_code_and_update_ctx(initial_code_input, ctx)}",
             0,
         )
         main_converter = self._code_to_converter(
@@ -796,6 +799,9 @@ class BaseConversion(typing.Generic[CT]):
     def __floordiv__(self, b) -> "InlineExpr":
         return self.floor_div(b)
 
+    def len(self) -> "BaseConversion":
+        return CallFunc(len, self)
+
     def filter(self, condition_conv, cast=_none) -> "BaseConversion":
         """Shortcut for calling :py:obj:`convtools.base.FilterConversion` on
         self"""
@@ -865,7 +871,7 @@ class BaseConversion(typing.Generic[CT]):
         label_output=None,
         **kwargs,
     ) -> "BaseConversion":
-        """Shortcut for PipeConversion"""
+        """Shortcut for :py:obj:`PipeConversion`"""
         return PipeConversion(
             self,
             next_conversion,
@@ -1014,6 +1020,10 @@ class This(BaseConversion):
     Also, provided that you use this inside comprehension conversions,
     it references an item from an iterator."""
 
+    def __call__(self) -> "This":
+        """To allow using it as singleton"""
+        return self
+
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return code_input
 
@@ -1131,14 +1141,10 @@ class Or(BaseConversion):
         self.args = [self.ensure_conversion(a) for a in args]
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return "({})".format(
-            self.op.join(
-                [
-                    arg.gen_code_and_update_ctx(code_input, ctx)
-                    for arg in self.args
-                ]
-            )
+        code = self.op.join(
+            [arg.gen_code_and_update_ctx(code_input, ctx) for arg in self.args]
         )
+        return f"({code})"
 
 
 class And(Or):
@@ -1230,9 +1236,8 @@ class Not(BaseConversion):
         self.arg = self.ensure_conversion(arg)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return "(not {})".format(
-            self.arg.gen_code_and_update_ctx(code_input, ctx)
-        )
+        code = self.arg.gen_code_and_update_ctx(code_input, ctx)
+        return f"(not {code})"
 
 
 class GetItem(BaseMethodConversion):
@@ -1364,14 +1369,14 @@ class Call(BaseMethodConversion):
                 for param in self.args
             ),
             (
-                "{}={}".format(k, v.gen_code_and_update_ctx(code_input, ctx))
+                f"{k}={v.gen_code_and_update_ctx(code_input, ctx)}"
                 for k, v in self.kwargs.items()
             ),
         )
         return f"{code_self}({','.join(params)})"
 
 
-def CallFunc(func, *args, **kwargs) -> "Call":
+def CallFunc(func, *args, **kwargs) -> "Call":  # pylint:disable=invalid-name
     """Shortcut to ``NaiveConversion(func).call(*args, **kwargs)``"""
     assert callable(func)
     return NaiveConversion(func).call(*args, **kwargs)
@@ -1381,7 +1386,7 @@ def _applier(func, args, kwargs):
     return func(*args, **kwargs)
 
 
-def ApplyFunc(func, args, kwargs) -> "Call":
+def ApplyFunc(func, args, kwargs) -> "Call":  # pylint:disable=invalid-name
     """Shortcut to ``NaiveConversion(func).apply(args, kwargs)``"""
     return NaiveConversion(_applier).call(func, args, kwargs)
 
@@ -1414,9 +1419,7 @@ class FilterConversion(BaseConversion):
             gen = GeneratorComp(GetItem(), where=condition_conv)
             result = NaiveConversion(cast).call(gen)
         else:
-            raise AssertionError(
-                "cannot cast generator to cast={}".format(cast)
-            )
+            raise AssertionError(f"cannot cast generator to cast={cast}")
         self.conversion = self.ensure_conversion(result)
 
     def as_type(self, callable_):
@@ -1566,14 +1569,14 @@ class GeneratorComp(BaseComprehensionConversion):
         return super().as_type(callable_)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return "({})".format(self.gen_generator_code(code_input, ctx))
+        return f"({self.gen_generator_code(code_input, ctx)})"
 
 
 class SetComp(BaseComprehensionConversion):
     """Generates python set comprehension code (obviously non-sortable)"""
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return "{%s}" % self.gen_generator_code(code_input, ctx)
+        return f"{{{self.gen_generator_code(code_input, ctx)}}}"
 
     def filter(self, condition_conv, cast=BaseConversion._none):
         if cast is self._none:
@@ -1586,7 +1589,7 @@ class ListComp(BaseComprehensionConversion):
     """Generates python list comprehension code."""
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return "[%s]" % self.gen_generator_code(code_input, ctx)
+        return f"[{self.gen_generator_code(code_input, ctx)}]"
 
     def filter(self, condition_conv, cast=BaseConversion._none):
         if cast is self._none:
@@ -1603,7 +1606,7 @@ class TupleComp(BaseComprehensionConversion):
     """Generates python tuple comprehension code."""
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return "tuple(%s)" % self.gen_generator_code(code_input, ctx)
+        return f"tuple({self.gen_generator_code(code_input, ctx)})"
 
     def filter(self, condition_conv, cast=BaseConversion._none):
         if cast is self._none:
@@ -1641,7 +1644,7 @@ class DictComp(BaseComprehensionConversion):
         return f"{key_code}: {value_code}"
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return "{%s}" % self.gen_generator_code(code_input, ctx)
+        return f"{{{self.gen_generator_code(code_input, ctx)}}}"
 
     def filter(self, condition_conv, cast=BaseConversion._none):
         if cast is self._none:
@@ -1838,7 +1841,7 @@ class Set(BaseCollectionConversion):
     def gen_collection_from_items_code(
         self, joined_items_code, code_input, ctx
     ):
-        return "{%s}" % joined_items_code
+        return f"{{{joined_items_code}}}"
 
     def gen_collection_from_generator(self, generator_code, code_input, ctx):
         return f"set({generator_code})"
@@ -1898,10 +1901,8 @@ class Dict(BaseCollectionConversion):
 
     def gen_joined_items_code(self, code_input, ctx):
         return ",".join(
-            "{}:{}".format(
-                key.gen_code_and_update_ctx(code_input, ctx),
-                value.gen_code_and_update_ctx(code_input, ctx),
-            )
+            f"{key.gen_code_and_update_ctx(code_input, ctx)}:"
+            f"{value.gen_code_and_update_ctx(code_input, ctx)}"
             for key, value in self.key_value_pairs
         )
 
@@ -1911,7 +1912,7 @@ class Dict(BaseCollectionConversion):
     def gen_collection_from_items_code(
         self, joined_items_code, code_input, ctx
     ):
-        return "{%s}" % joined_items_code
+        return f"{{{joined_items_code}}}"
 
 
 class TakeWhile(BaseConversion):
@@ -2204,12 +2205,8 @@ class PipeConversion(BaseConversion):
         if self.label_input or self.label_output:
             label_input_code = (
                 "\n".join(
-                    "    _labels['{var_label}'] = {code_label}".format(
-                        var_label=label_name,
-                        code_label=label_conv.gen_code_and_update_ctx(
-                            var_input, ctx
-                        ),
-                    )
+                    f"    _labels['{label_name}'] = "
+                    f"{label_conv.gen_code_and_update_ctx(var_input, ctx)}"
                     for label_name, label_conv in self.label_input.items()
                 )
                 if self.label_input
@@ -2217,12 +2214,8 @@ class PipeConversion(BaseConversion):
             )
             label_output_code = (
                 "\n".join(
-                    "    _labels['{var_label}'] = {code_label}".format(
-                        var_label=label_name,
-                        code_label=label_conv.gen_code_and_update_ctx(
-                            var_result, ctx
-                        ),
-                    )
+                    f"    _labels['{label_name}'] = "
+                    f"{label_conv.gen_code_and_update_ctx( var_result, ctx)}"
                     for label_name, label_conv in self.label_output.items()
                 )
                 if self.label_output
@@ -2338,14 +2331,14 @@ if "pydevd" in sys.modules:  # pragma: no cover
 elif sys.version_info[:2] < (3, 7):  # pragma: no cover
 
     def debug_func(obj):
-        pdb.set_trace()
+        pdb.set_trace()  # pylint: disable=forgotten-debug-statement
         return obj
 
 
 else:  # pragma: no cover
 
     def debug_func(obj):
-        breakpoint()  # pylint: disable=undefined-variable # noqa: F821
+        breakpoint()  # pylint: disable=undefined-variable,forgotten-debug-statement # noqa: F821,E501
         return obj
 
 

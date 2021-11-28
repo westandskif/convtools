@@ -21,7 +21,7 @@ This is an object which exposes public API.
 ___________
 
 * **conversion** - any instance of :py:obj:`convtools.base.BaseConversion`
-* **converter** - a function obtained by calling :ref:`gen_converter<ref_c_gen_converter>` method of `conversion`
+* **converter** - a function obtained by calling :py:obj:`gen_converter<convtools.base.BaseConversion.gen_converter>` method of `conversion`
 * **input** - the input data to be transformed (passed to a `converter`)
 
 3. Intro
@@ -30,11 +30,11 @@ ________
 Please make sure you've read - :ref:`base info here<ref_index_intro>`.
 
 Let's review the most basic conversions:
-  * :ref:`c.this<ref_c_this>` returns an input untouched
-  * :ref:`c.item<ref_c_item>` makes any number of dictionary/index lookups, supports ``default=...``
-  * :ref:`c.attr<ref_c_attr>` makes any number of attribute lookups, supports ``default=...``
-  * :ref:`c.naive<ref_c_naive>` returns an object passed to ``naive`` untouched
-  * :ref:`c.input_arg<ref_c_input_arg>` returns an input argument of a resulting converter
+  * :py:obj:`c.this<convtools.base.This>` returns an input untouched
+  * :py:obj:`c.item<convtools.base.GetItem>` makes any number of dictionary/index lookups, supports ``default=...``
+  * :py:obj:`c.attr<convtools.base.GetAttr>` makes any number of attribute lookups, supports ``default=...``
+  * :py:obj:`c.naive<convtools.base.NaiveConversion>` returns an object passed to ``naive`` untouched
+  * :py:obj:`c.input_arg<convtools.base.InputArg>` returns an input argument of a resulting converter
 
 **Example #1:**
 
@@ -129,14 +129,14 @@ sharing conversion parts (honoring DRY principle).
 _________________________________________________________________________________________
 
 Next points to learn:
-  #. operators are overloaded for conversions - :ref:`convtools operators<ref_c_operators>`
-  #. every argument passed to a conversion is wrapped with :ref:`c() wrapper<ref_c_wrapper>` which:
+  #. operators are overloaded for conversions - :ref:`convtools operators<ref_cheatsheet_operators>`
+  #. every argument passed to a conversion is wrapped with :py:obj:`c() wrapper<convtools.base.ensure_conversion>` which:
 
      * leaves conversions untouched
-     * interprets python dict/list/tuple/set collections as :ref:`collection conversions<ref_c_collections>`
-     * everything else is being wrapped with :ref:`c.naive<ref_c_naive>`
+     * rebuilds python dict/list/tuple/set collections as literals, e.g. :ref:`collection conversions<ref_cheatsheet_collections>`
+     * everything else is being wrapped with :py:obj:`c.naive<convtools.base.NaiveConversion>`
 
-  #. collections support optional items :ref:`c.optional<ref_c_optionals>`
+  #. collections support optional items :py:obj:`c.optional<convtools.base.OptionalCollectionItem>`
 
 .. note::
   whenever you are not sure what code is going to be generated, just
@@ -249,23 +249,23 @@ appears in the output only if a condition is met:**
 _____________________________________________________________________________________
 
 Next:
-  * :ref:`gen_converter<ref_c_gen_converter>` takes ``signature`` argument
+  * :py:obj:`gen_converter<convtools.base.BaseConversion.gen_converter>` takes ``signature`` argument
     to modify a signature of the resulting converter. Also there are 2 shortcuts:
     ``method=True`` for defining methods and ``class_method=False`` for classmethods
 
-  * there are 3 different ways of calling functions, see :ref:`this section<ref_c_calls>` for details:
+  * there are 3 different ways of calling functions, see :ref:`this section<ref_cheatsheet_simple_conversions>` for examples:
 
-    * ``c.call_func`` - to call a function and pass arguments (of course each
-      is being wrapped with ``c()`` wrapper)
-    * ``c.call`` - to call a callable and pass args
-    * ``(...).call_method`` - to call a method of the conversion and pass args
+    * :py:obj:`c.call_func<convtools.base.CallFunc>` - to call a function and
+      pass arguments (of course each is being wrapped with ``c()`` wrapper)
+    * :py:obj:`(...).call_method<convtools.base.BaseConversion.call_method>` - to call a method of the conversion and pass args
+    * :py:obj:`(...).call<convtools.base.BaseConversion.call>` - to call a callable and pass args
 
   * also there are 3 `call` counterparts for cases where argument unpacking is
     needed and kwargs keys contain conversions
 
-    * ``c.apply_func``
-    * ``c.apply``
-    * ``(...).apply_method``
+    * :py:obj:`c.apply_func<convtools.base.ApplyFunc>`
+    * :py:obj:`(...).apply_method<convtools.base.BaseConversion.apply_method>`
+    * :py:obj:`(...).apply<convtools.base.BaseConversion.apply>`
 
 
 Imagine we have the following:
@@ -378,11 +378,11 @@ __________________________________________________________
 Next:
   #. the following conversions generate comprehension code:
 
-     * ``c.iter`` or ``c.generator_comp``
-     * ``c.dict_comp``
-     * ``c.list_comp``
-     * ``c.set_comp``
-     * ``c.tuple_comp``, see :ref:`comprehensions section<ref_comprehensions>` for details:
+     * :py:obj:`c.iter<convtools.base.GeneratorComp>` or :py:obj:`c.generator_comp<convtools.base.GeneratorComp>`
+     * :py:obj:`c.dict_comp<convtools.base.DictComp>`
+     * :py:obj:`c.list_comp<convtools.base.ListComp>`
+     * :py:obj:`c.set_comp<convtools.base.SetComp>`
+     * :py:obj:`c.tuple_comp<convtools.base.TupleComp>`
 
   #. every comprehension supports if clauses to filter input:
 
@@ -390,7 +390,7 @@ Next:
      * ``c.this().iter(..., where=condition_conv)``
 
   #. to avoid unnecessary function call overhead, there is a way to pass an inline
-     python expression :ref:`c.inline_expr<ref_c_inline_expr>`
+     python expression :py:obj:`c.inline_expr<convtools.base.InlineExpr>`
 
 
 **Lets do all at once:**
@@ -474,29 +474,34 @@ _______________________________________________________________________________
 
 Points to learn:
 
-#. :ref:`c.iter<ref_c_iter>` iterates through an iterable, applying conversion
-   to each element
-#. :ref:`c.filter<ref_c_filter>` iterates through an iterable, filtering it by
-   a passed conversion, taking items for which the conversion resolves to true
-#. :ref:`c.sort<ref_c_sort>` passes the input to :py:obj:`sorted`
-#. :ref:`(...).pipe<ref_pipes>` chains two conversions by passing the result of
-   the first one to the second one. If piping is done at the top level of a
-   resulting conversion (not nested), then it's going to be represented as
-   several statements in the resulting code.
-#. :ref:`c.if_<ref_c_conditions>` allows to build ``1 if a else 2`` expressions.
+#. :py:obj:`c.iter<convtools.base.GeneratorComp>` iterates through an iterable,
+   applying conversion to each element
+#. :py:obj:`c.filter<convtools.base.FilterConversion>` iterates through an
+   iterable, filtering it by a passed conversion, taking items for which the
+   conversion resolves to true
+#. :py:obj:`c.sort<convtools.base.SortConversion>` passes the input to
+   :py:obj:`sorted`
+#. :py:obj:`(...).pipe<convtools.base.BaseConversion.pipe>` chains two conversions
+   by passing the result of the first one to the second one. If piping is done
+   at the top level of a resulting conversion (not nested), then it's going to
+   be represented as several statements in the resulting code.
+#. :py:obj:`c.if_<convtools.base.If>` allows to build ``1 if a else 2`` expressions.
    It's possible to pass not every parameter:
 
    * if a condition is not passed, then the input is used as a condition
    * if any branch is not passed, then the input is passed untouched
-#. :ref:`labels<ref_labels>` extend pipe and regular conversions
-   functionality:
+#. :py:obj:`labels<convtools.base.LabelConversion>` extend pipe and regular
+   conversions functionality:
 
-   * ``(...).add_label("first_el", c.item(0))`` allows to apply
-     any conversion and then add a label to the result
-   * to reference the result ``c.label("first_el")`` is used
-   * any ``(...).pipe`` supports ``label_input`` and ``label_output``
-     parameters, both accept either ``str`` (a label name) or ``dict`` (keys
-     are label names, values are conversions to be applied before labeling)
+   * :py:obj:`(...).add_label("first_el",
+     c.item(0))<convtools.base.BaseConversion.add_label>` allows to apply any
+     conversion and then add a label to the result
+   * to reference the result
+     :py:obj:`c.label("first_el")<convtools.base.LabelConversion>` is used
+   * any :py:obj:`(...).pipe<convtools.base.BaseConversion.pipe>` supports
+     ``label_input`` and ``label_output`` parameters, both accept either
+     ``str`` (a label name) or ``dict`` (keys are label names, values are
+     conversions to be applied before labeling)
 
 A simple pipe first:
 
@@ -664,16 +669,18 @@ ___________________
 
 Points to learn:
 
-#. :ref:`c.min & c.max<ref_min_max>` are shortcuts to python's :py:obj:`min` & :py:obj:`max`
-#. :ref:`c.zip<ref_zip>` wraps & extends python's :py:obj:`zip` if args provided, returns
+#. :py:obj:`convtools.base.BaseConversion.len` is a shortcut to python's :py:obj:`len`
+#. :ref:`c.min and c.max<ref_cheatsheet_shortcuts_i>` are shortcuts to python's :py:obj:`min` & :py:obj:`max`
+#. :ref:`c.zip<ref_cheatsheet_shortcuts_i>` wraps & extends python's :py:obj:`zip` if args provided, returns
    tuples; if kwargs provided, returns dicts
-#. :ref:`c.repeat<ref_repeat>` wraps python's :py:obj:`itertools.repeat`
-#. :ref:`c.flatten<ref_flatten>` wraps python's :py:obj:`itertools.chain.from_iterable`
+#. :ref:`c.repeat<ref_cheatsheet_shortcuts_i>` wraps python's :py:obj:`itertools.repeat`
+#. :ref:`c.flatten<ref_cheatsheet_shortcuts_i>` wraps python's :py:obj:`itertools.chain.from_iterable`
 #. :py:obj:`convtools.base.BaseConversion.take_while` re-implements :py:obj:`itertools.takewhile`
 #. :py:obj:`convtools.base.BaseConversion.drop_while` re-implements :py:obj:`itertools.dropwhile`
 
 .. code-block:: python
 
+   c.this().len()
    c.min(c.this(), 5)
    c.zip(c.item("list_a"), c.repeat(None))
    c.zip(a=c.item("list_a"), b=c.repeat(None))
@@ -684,19 +691,23 @@ Points to learn:
 _______________
 
 Points to learn:
-  #. first, call :ref:`c.group_by<ref_c_group_by>` to specify one or many
-     conversions to use as group by keys (getting list of items in the end) OR
-     no conversions to aggregate (results in a single item)
-  #. then call the ``aggregate`` method to define the desired output, comprised of:
+  #. first, call :py:obj:`c.group_by<convtools.aggregations.GroupBy>` to
+     specify one or many conversions to use as group by keys (getting list of
+     items in the end) OR no conversions to aggregate (results in a single
+     item)
+  #. then call the
+     :py:obj:`aggregate<convtools.aggregations.GroupBy.aggregate>` method to
+     define the desired output, comprised of:
 
      * (optional) a container you want to get the results in
      * (optional) group by keys or further conversions of them
      * any number of available out of the box
-       :ref:`c.ReduceFuncs<ref_c_reduce_funcs>` or further conversions of them
-     * any number of custom :ref:`c.reduce<ref_c_reduce>`
+       :ref:`c.ReduceFuncs<convtools_cheatsheet_reducefuncs_list>` or further
+       conversions of them
+     * any number of custom :py:obj:`c.reduce<convtools.aggregations.Reduce>`
        and further conversions of them
 
-  #. :ref:`c.aggregate<ref_c_aggregate>` is a shortcut for
+  #. :py:obj:`c.aggregate<convtools.aggregations.Aggregate>` is a shortcut for
      ``c.group_by().aggregate(...)``
 
 
@@ -792,7 +803,7 @@ _________
 There is JOIN functionality which returns generator of joined pairs.
 Points to learn:
 
-#. :ref:`c.join<ref_c_joins>` exposes API for joins
+#. :py:obj:`c.join<convtools.joins.JoinConversion>` exposes API for joins
 
    * first two positional arguments are conversions which are considered as 2 iterables to be joined
    * the third argument is a join condition, represented as a conversion based on ``c.LEFT`` and ``c.RIGHT``
@@ -850,10 +861,10 @@ of joined pairs into dicts:
 _____________
 
 Alongside pipes, there's a way to tap into any conversion and define mutation of its result by using:
-  * :ref:`c.iter_mut(*mutations)<ref_c_iter_mut>`
-  * :ref:`c.tap(*mutations)<ref_mutations>`
+  * :py:obj:`c.iter_mut(*mutations)<convtools.base.IterMutConversion>`
+  * :py:obj:`c.tap(*mutations)<convtools.base.TapConversion>`
 
-The following mutations are available:
+The following :py:obj:`mutations<convtools.mutations.Mutations>` are available:
   * ``c.Mut.set_item``
   * ``c.Mut.set_attr``
   * ``c.Mut.del_item``
@@ -939,7 +950,7 @@ to ``PY_CONVTOOLS_DEBUG_DIR`` (*if env variable is defined*) or to
 
 * on exception inside a converter
 * on ``.gen_converter(debug=True)``
-* if :ref:`breakpoint() method<ref_c_breakpoint>` is used.
+* if :py:obj:`breakpoint() method<convtools.base.Breakpoint>` is used.
 
 So there are 3 options to help you debug:
 
@@ -960,20 +971,20 @@ So there are 3 options to help you debug:
        options.debug = True
        c.this().gen_converter()
 
-See :ref:`c.OptionsCtx()<ref_optionsctx>` API docs for the full list
-of available options.
+See :py:obj:`c.OptionsCtx()<convtools.base.ConverterOptionsCtx>` API docs for
+the full list of available options.
 
 
 13. Details: inner input data passing
 _____________________________________
 
 There are few conversions which change the input for next conversions:
-  * :ref:`Comprehensions<ref_comprehensions>`
+  * comprehensions
       *inside a comprehension the input is an item of an iterable*
-  * :ref:`Pipes<ref_pipes>`
+  * pipes
       *next conversion gets the result of a previous one*
-  * :ref:`Filters<ref_c_filter>`
+  * filters
       *next conversion gets the result of a previous one*
-  * :ref:`Aggregations<ref_c_aggregations>`
+  * aggregations
       *e.g. any further conversions done either to group by fields or
       to reduce objects take the result of aggregation as the input*

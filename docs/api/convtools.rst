@@ -28,6 +28,14 @@ convtools.base module
    :undoc-members:
    :show-inheritance:
 
+convtools.chunks module
+-----------------------
+
+.. automodule:: convtools.chunks
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 convtools.columns module
 ------------------------
 
