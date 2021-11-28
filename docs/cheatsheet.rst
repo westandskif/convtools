@@ -14,6 +14,11 @@ To install the library run ``pip install convtools``
    from convtools import conversion as c
    from convtools.contrib.tables import Table
 
+and remember to run ``(..).gen_converter()`` method to obtain a converter
+function (in some places these calls are omitted for the sake of clarity).
+
+.. _ref_cheatsheet_simple_conversions:
+
 1. Simple conversion: keys, attrs, indexes, function calls, type casting
 ________________________________________________________________________
 
@@ -131,6 +136,9 @@ ________________________________________________________________________
       # when kwargs keys are conversions
       converter = c.this().apply_method("foo", args, kwargs)
 
+
+.. _ref_cheatsheet_operators:
+
 2.1 Operators
 _____________
 
@@ -152,7 +160,7 @@ _____________
 
    - .. code-block:: python
 
-      converter = c({
+      c({
           "-a": -c.item(0),
           "a + b": c.item(0) + c.item(1),
           "a - b": c.item(0) - c.item(1),
@@ -168,7 +176,13 @@ _____________
           "a > b": c.item(0) > c.item(1),
 
           "a or b": c.item(0) | c.item(1),
+          // "a or b": c.item(0).or_(c.item(1)),
+          // "a or b": c.or_(c.item(0), c.item(1), *args)
+
           "a and b": c.item(0) & c.item(1),
+          // "a and b": c.item(0).and_(c.item(1)),
+          // "a and b": c.and_(c.item(0), c.item(1), *args)
+
           "not a": ~c.item(0),
 
           "a is b": c.item(a).is_(c.item(1)),
@@ -177,11 +191,46 @@ _____________
           "a in b": c.item(a).in_(c.item(1)),
           "a not in b": c.item(a).not_in(c.item(1)),
 
-      }).gen_converter()
-      converter(input_data)
+      })
 
-2.2 Collections & Comprehensions
-________________________________
+.. _ref_cheatsheet_collections:
+
+2.2 Collections
+_______________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 25 40
+ :header-rows: 1
+
+ * - in
+   - out
+   - conversion
+
+ * - .. code-block:: python
+
+      # n/a
+
+   - .. code-block:: python
+
+      # have convtools build code which
+      # initializes literals
+      result == {"a": 1, "b": 2}
+      result == [1, 2]
+      result == (1, 2)
+      result == {1, 2}
+
+   - .. code-block:: python
+
+      c({"a": 1, "b": 2})
+      c([1, 2])
+      c((1, 2))
+      c({1, 2})
+
+
+
+2.3 Comprehensions
+__________________
 
 .. list-table::
  :class: cheatsheet-table
@@ -203,7 +252,7 @@ ________________________________
 
    - .. code-block:: python
 
-      c.iter(c.item("id")).execute(input_data)
+      c.iter(c.item("id"))
 
  * - .. code-block:: python
 
@@ -216,9 +265,13 @@ ________________________________
 
    - .. code-block:: python
 
-      c.list_comp(c.item("id")).execute(input_data)
+      c.list_comp(c.item("id"))
       # OR
-      c.iter(c.item("id")).as_type(list).execute(input_data)
+      c.iter(c.item("id")).as_type(list)
+
+      # SAME FOR:
+      #  - c.tuple_comp
+      #  - c.set_comp
 
  * - .. code-block:: python
 
@@ -234,17 +287,14 @@ ________________________________
 
    - .. code-block:: python
 
-      c.dict_comp(
-          c.item("id"),
-          c.this()
-      ).execute(input_data)
+      c.dict_comp(c.item("id"), c.this())
       # OR
       c.iter(
           (c.item("id"), c.this())
-      ).as_type(dict).execute(input_data)
+      ).as_type(dict)
 
 
-2.3 Logical operators & conditions
+2.4 Logical operators & conditions
 __________________________________
 
 .. list-table::
@@ -269,7 +319,7 @@ __________________________________
 
    - .. code-block:: python
 
-      converter = c.list_comp(
+      c.list_comp(
           c.this(),
           where=c.this() >= 5
       ).pipe(
@@ -277,8 +327,7 @@ __________________________________
               if_true=c.this(),
               if_false=None,
           )
-      ).gen_converter(debug=True)
-      converter(input_data)
+      )
 
  * - .. code-block:: python
 
@@ -302,7 +351,7 @@ __________________________________
 
    - .. code-block:: python
 
-      converter = c.aggregate(
+      c.aggregate(
           c.ReduceFuncs.DictArrayDistinct(
               (c.item(0), c.item(1)),
               default=dict,
@@ -316,9 +365,7 @@ __________________________________
                   c.item(1).item(0),
               )
           )
-      ).gen_converter(debug=True)
-
-      converter(input_data)
+      )
 
  * - .. code-block:: python
 
@@ -331,7 +378,7 @@ __________________________________
 
    - .. code-block:: python
 
-      c.this().sort().execute(input_data)
+      c.this().sort()
 
 
 3. Parametrized conversion with some baked in arguments and optional items
@@ -587,13 +634,12 @@ ___________________
 
    - .. code-block:: python
 
-      converter = c.group_by(
+      c.group_by(
           c.item(0)
       ).aggregate({
           "dt": c.item(0),
           "total": c.ReduceFuncs.Sum(c.item(1)),
-      }).gen_converter()
-      converter(input_data)
+      })
 
  * - .. code-block:: python
 
@@ -611,13 +657,12 @@ ___________________
 
    - .. code-block:: python
 
-      converter = c.aggregate(
+      c.aggregate(
           (
               c.ReduceFuncs.Sum(c.item(1)),
               c.ReduceFuncs.Max(c.item(1)),
           )
-      ).gen_converter()
-      converter(input_data)
+      )
 
 .. _convtools_cheatsheet_reducefuncs_list:
 
@@ -857,8 +902,7 @@ _______________________________
                   where=c.item("sales") > 155
               ),
           }
-      ).gen_converter()
-      converter(input_data)
+      )
 
 10. Manipulating converter function signatures: methods, classmethods, \*args, \*\*kwargs
 _________________________________________________________________________________________
@@ -948,7 +992,7 @@ _________
 
    - .. code-block:: python
 
-      conv1 = (
+      (
           c.call_func(json.loads, c.this())
           .pipe(
               c.join(
@@ -968,9 +1012,7 @@ _________
                   "value_right": c.item(1).and_(c.item(1, "value")),
               })
           )
-          .gen_converter(debug=True)
       )
-      assert conv1(s) == expected_result
 
 
 12. Passing options to converters
@@ -1028,13 +1070,13 @@ _____________
    - .. code-block:: python
 
       # generator which mutates whole sequence
-      converter = c.iter_mut(
+      c.iter_mut(
           c.Mut.set_item("c", c.item("a") + c.item("b")),
           c.Mut.del_item("a"),
           c.Mut.custom(
               c.this().call_method("update", c.input_arg("data"))
           )
-      ).as_type(list).gen_converter(debug=True)
+      ).as_type(list)
 
  * - .. code-block:: python
 
@@ -1047,7 +1089,7 @@ _____________
    - .. code-block:: python
 
       # function call per element (if needed by some reason)
-      converter = c.list_comp(
+      c.list_comp(
           c.this().tap(
               c.Mut.set_item("c", c.item("a") + c.item("b")),
               c.Mut.del_item("a"),
@@ -1055,10 +1097,12 @@ _____________
                   c.this().call_method( "update", c.input_arg("data"))
               )
           )
-      ).gen_converter(debug=True)
+      )
 
-14. Shortcuts I: zip, repeat, flatten, min, max
-_______________________________________________
+.. _ref_cheatsheet_shortcuts_i:
+
+14. Shortcuts I: len, zip, repeat, flatten, min, max
+____________________________________________________
 
 .. list-table::
  :class: cheatsheet-table
@@ -1068,6 +1112,19 @@ _______________________________________________
  * - in
    - out
    - conversion
+ * - .. code-block:: python
+
+      input_data = [0, 1]
+
+   - .. code-block:: python
+
+      #  get length of a list
+      2
+
+   - .. code-block:: python
+
+      c.this().len()
+
  * - .. code-block:: python
 
       input_data = [
@@ -1088,7 +1145,7 @@ _______________________________________________
 
    - .. code-block:: python
 
-      converter = (
+      (
           c.iter(
               c.zip(
                   c.item(0),
@@ -1097,7 +1154,6 @@ _______________________________________________
           )
           .flatten()
           .as_type(list)
-          .gen_converter(debug=True)
       )
 
  * - .. code-block:: python
@@ -1116,10 +1172,10 @@ _______________________________________________
 
    - .. code-block:: python
 
-      converter = c.zip(
+      c.zip(
           id=c.item("ids"),
           name=c.item("names"),
-      ).as_type(list).gen_converter(debug=True)
+      ).as_type(list)
 
  * - .. code-block:: python
 
@@ -1132,10 +1188,7 @@ _______________________________________________
 
    - .. code-block:: python
 
-      converter = c.min(
-          c.item("a"),
-          c.item("b"),
-      ).gen_converter(debug=True)
+      c.min(c.item("a"), c.item("b"))
 
 15. Shortcuts II: take_while, drop_while
 ________________________________________
@@ -1159,10 +1212,7 @@ ________________________________________
 
    - .. code-block:: python
 
-      (
-          c.take_while(c.this() < 3)
-          .execute(input_data)
-      )
+      c.take_while(c.this() < 3)
 
  * - .. code-block:: python
 
@@ -1175,10 +1225,7 @@ ________________________________________
 
    - .. code-block:: python
 
-      (
-          c.drop_while(c.this() < 3)
-          .execute(input_data)
-      )
+      c.drop_while(c.this() < 3)
 
 16. Debugging
 _____________
@@ -1208,11 +1255,7 @@ _____________
 
    - .. code-block:: python
 
-      converter = (
-          c.list_comp(c.breakpoint())
-          .gen_converter()
-      )
-      converter(input_data)
+      c.list_comp(c.breakpoint())
 
  * - .. code-block:: python
 
@@ -1228,11 +1271,7 @@ _____________
 
    - .. code-block:: python
 
-      converter = (
-          c.list_comp(c.item("name").breakpoint())
-          .gen_converter()
-      )
-      converter(input_data)
+      c.list_comp(c.item("name").breakpoint())
 
 
 17. Tables

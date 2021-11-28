@@ -38,7 +38,6 @@ Contents
 
    License <license>
    Authors <authors>
-   API doc <api_doc>
    Module Reference <api/modules>
 
 Indices and tables

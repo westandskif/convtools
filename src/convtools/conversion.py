@@ -46,6 +46,7 @@ from .base import (
     TupleComp,
     ensure_conversion,
 )
+from .chunks import ChunkBy, ChunkByCondition
 from .columns import ColumnRef
 from .joins import JoinConversion, _JoinConditions
 from .mutations import Mutations
@@ -92,7 +93,7 @@ class _Conversion:
     not_ = Not
     if_ = If
 
-    this = This
+    this = This()
     naive = NaiveConversion
     item = GetItem
     attr = GetAttr
@@ -134,6 +135,10 @@ class _Conversion:
     take_while = TakeWhile
     drop_while = DropWhile
 
+    chunk_by = ChunkBy
+    chunk_by_condition = ChunkByCondition
+    CHUNK = ChunkByCondition.CHUNK
+
     def reduce(self, to_call_with_2_args, *args, **kwargs):
         if (
             isinstance(to_call_with_2_args, type)
@@ -148,16 +153,16 @@ class _Conversion:
         return ensure_conversion(obj)
 
     def call(self, *args, **kwargs):
-        return self.this().call(*args, **kwargs)
+        return self.this.call(*args, **kwargs)
 
     def apply(self, args, kwargs):
-        return self.this().apply(args, kwargs)
+        return self.this.apply(args, kwargs)
 
     def tap(self, *args, **kwargs):
-        return self.this().tap(*args, **kwargs)
+        return self.this.tap(*args, **kwargs)
 
     def iter_mut(self, *args, **kwargs):
-        return self.this().iter_mut(*args, **kwargs)
+        return self.this.iter_mut(*args, **kwargs)
 
     def zip(self, *args, **kwargs):
         """Conversion which calls :py:obj:`zip` on conversions.
@@ -182,8 +187,8 @@ class _Conversion:
         return self.call_func(itertools.repeat, obj, *args)
 
     def flatten(self):
-        """c.this().flatten() shortcut"""
-        return self.this().flatten()
+        """c.this.flatten() shortcut"""
+        return self.this.flatten()
 
     def min(self, arg1, arg2, *args):
         """c.call_func(min, ...) shortcut"""
@@ -194,8 +199,8 @@ class _Conversion:
         return self.call_func(max, arg1, arg2, *args)
 
     def breakpoint(self):
-        """c.this().breakpoint() shortcut"""
-        return self.this().breakpoint()
+        """c.this.breakpoint() shortcut"""
+        return self.this.breakpoint()
 
 
 conversion = _Conversion()

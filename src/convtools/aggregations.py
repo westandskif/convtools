@@ -1,5 +1,4 @@
 """This module brings aggregations with various reduce functions"""
-import statistics
 import typing
 from collections import defaultdict
 from decimal import Decimal
@@ -467,8 +466,8 @@ class MultiStatementReducer(BaseReducer):
 
 
 class Reduce(BaseReducer):
-    """Defines the reduce operation, which is based on a callable /  to be used
-    during the aggregation"""
+    """Defines the reduce operation, which is based on a callable / expression
+    to be used during the aggregation"""
 
     initial: typing.Any
 
@@ -517,22 +516,16 @@ class Reduce(BaseReducer):
         checksum_flag: int,
         ctx: dict,
     ) -> RBT:
-        reduce_initial = [
-            "%(result)s = {}".format(
-                self.to_call_with_2_args.call_like(
-                    self.initial,
-                    *self.expressions,
-                ).gen_code_and_update_ctx(var_row, ctx),
-            )
-        ]
-        reduce_two = [
-            "%(result)s = {}".format(
-                self.to_call_with_2_args.call_like(
-                    EscapedString("%(result)s"),
-                    *self.expressions,
-                ).gen_code_and_update_ctx(var_row, ctx),
-            )
-        ]
+        _ = self.to_call_with_2_args.call_like(
+            self.initial,
+            *self.expressions,
+        ).gen_code_and_update_ctx(var_row, ctx)
+        reduce_initial = [f"%(result)s = {_}"]
+        _ = self.to_call_with_2_args.call_like(
+            EscapedString("%(result)s"),
+            *self.expressions,
+        ).gen_code_and_update_ctx(var_row, ctx)
+        reduce_two = [f"%(result)s = {_}"]
 
         block_cls = (
             ReduceBlock if self.where is None else ReduceConditionalBlock
@@ -616,14 +609,12 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
         return self_clone
 
     def _gen_agg_data_container(self, container_name, number_of_reducers, ctx):
-        attrs = ["v%d" % i for i in range(number_of_reducers)]
+        attrs = [f"v{i}" for i in range(number_of_reducers)]
 
         code = Code()
         code.add_line(f"class {container_name}:", 1)
-        code.add_line(
-            "__slots__ = [{}]".format(",".join(f"'{attr}'" for attr in attrs)),
-            0,
-        )
+        _ = ",".join(f"'{attr}'" for attr in attrs)
+        code.add_line(f"__slots__ = [{_}]", 0)
         code.add_line("def __init__(self, _none=__none__):", 1)
         if attrs:
             for attr in attrs:
@@ -743,9 +734,8 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
         ctx.update({"defaultdict": defaultdict})
 
         if aggregate_mode:
-            code_init_agg_vars = "{} = _none".format(
-                " = ".join(var_agg_data_values)
-            )
+            _ = " = ".join(var_agg_data_values)
+            code_init_agg_vars = f"{_} = _none"
         else:
             ctx[var_agg_data_cls] = self._gen_agg_data_container(
                 var_agg_data_cls, reduce_blocks.number, ctx
@@ -840,7 +830,9 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
         ).gen_code_and_update_ctx(code_input, ctx)
 
 
-def Aggregate(*args, **kwargs) -> BaseConversion:
+def Aggregate(  # pylint:disable=invalid-name
+    *args, **kwargs
+) -> BaseConversion:
     """Shortcut for ``GroupBy().aggregate(*args, **kwargs)``"""
     return GroupBy().aggregate(*args, **kwargs)
 
@@ -1217,10 +1209,6 @@ class ModeReducer(DictCountReducer):
     ).pass_args(data=GetItem())
 
 
-class MedianReducer(ArrayReducer):
-    post_conversion = CallFunc(statistics.median, GetItem())
-
-
 class PercentileReducer(SortedArrayReducer):
     """Calculates percentile (floats from 0 to 100 inclusive)
 
@@ -1316,6 +1304,12 @@ PercentileReducer.interpolation_to_method = {
     "midpoint": PercentileReducer.percentile_midpoint,
     "nearest": PercentileReducer.percentile_nearest,
 }
+
+
+def MedianReducer(  # pylint:disable=invalid-name
+    conv, *args, **kwargs
+) -> BaseConversion:
+    return PercentileReducer(50, conv, *args, **kwargs)
 
 
 class ReduceFuncs:

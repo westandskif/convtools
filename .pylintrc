@@ -202,7 +202,7 @@ include-naming-hint=no
 property-classes=abc.abstractproperty,cached_property.cached_property,cached_property.threaded_cached_property,cached_property.cached_property_with_ttl,cached_property.threaded_cached_property_with_ttl
 
 # Regular expression matching correct function names
-function-rgx=^(?:(?P<exempt>CallFunc|ApplyFunc|Filter|Aggregate)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$
+function-rgx=^(?:(?P<snake_case>_?[a-z][a-z0-9_]*))$
 
 # Regular expression matching correct variable names
 variable-rgx=^[a-z][a-z0-9_]*$
