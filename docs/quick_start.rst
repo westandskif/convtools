@@ -685,7 +685,7 @@ A simple pipe first:
 
        conv = c.chunk_by(size=1000).gen_converter(debug=True)
 
-       # OR THE SAME
+       # OR USING A CONDITION
        # conv = c.chunk_by_condition(c.CHUNK.len() < 1000).gen_converter(debug=True)
 
   .. tab:: compiled code
@@ -718,6 +718,7 @@ A simple pipe first:
            _none = __none__
            _labels = _none
            return chunk_by_1p(data_)
+
 ____
 
 
@@ -737,7 +738,7 @@ And a more complex one with running aggregation on each chunk:
            "y": c.ReduceFuncs.Sum(c.item("y")),
        }).gen_converter(debug=True)
 
-       # OR THE SAME (but less performant)
+       # OR USING A CONDITION
        # c.chunk_by_condition(
        #     c.and_(
        #         c.CHUNK.item(-1, "x") == c.item("x"),
@@ -817,12 +818,12 @@ Points to learn:
 #. :py:obj:`c.min<convtools.conversion.Conversion.min>` and
    :py:obj:`c.max<convtools.conversion.Conversion.max>` are shortcuts to
    python's :py:obj:`min` & :py:obj:`max`
-#. :ref:`c.zip<convtools.conversion.Conversion.zip>` python's :py:obj:`zip` on
+#. :py:obj:`c.zip<convtools.conversion.Conversion.zip>` python's :py:obj:`zip` on
    batteries, because when args provided, it generates tuples; when kwargs
    provided, generates dicts
-#. :ref:`c.repeat<convtools.conversion.Conversion.repeat>` wraps python's
+#. :py:obj:`c.repeat<convtools.conversion.Conversion.repeat>` wraps python's
    :py:obj:`itertools.repeat`
-#. :ref:`c.flatten<convtools.conversion.Conversion.flatten>` wraps python's
+#. :py:obj:`c.flatten<convtools.conversion.Conversion.flatten>` wraps python's
    :py:obj:`itertools.chain.from_iterable`
 #. :py:obj:`c.take_while<convtools.conversion.Conversion.take_while>` re-implements
    :py:obj:`itertools.takewhile`

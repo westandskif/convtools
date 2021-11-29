@@ -123,7 +123,7 @@ What's the workflow?
 
    # define a conversion (sometimes you may want to do this dynamically)
    #  takes iterable and returns iterable of dicts, stopping before the first
-   #  one with quantity >= 1000
+   #  one with quantity >= 1000, splitting into chunks of size = 1000
    conversion = (
        c.iter(
            {
@@ -132,14 +132,18 @@ What's the workflow?
            }
        )
        .take_while(c.item("quantity") < 1000)
+       .pipe(
+           c.chunk_by(c.item("id"), size=1000)
+       )
        .as_type(list)
+       .gen_converter(debug=True)
    )
 
    # compile the conversion into an ad hoc function and run it
    converter = conversion.gen_converter()
    converter(input_data)
 
-   # OR in case of a single use
+   # OR in case of a one-shot use
    conversion.execute(input_data)
 
 
