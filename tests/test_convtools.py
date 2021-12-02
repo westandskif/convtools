@@ -273,6 +273,12 @@ def test_naive_conversion_apply():
     c.apply((10,), dict(test="abc")).gen_converter()(f)
     f.assert_called_with(10, test="abc")
 
+    c.apply((), {}).execute(f)
+    f.assert_called_with()
+
+    c.apply((1,), {}).execute(f)
+    f.assert_called_with(1)
+
 
 def test_naive_conversion_callmethod():
     mock = Mock()

@@ -1388,11 +1388,19 @@ def CallFunc(func, *args, **kwargs) -> "Call":  # pylint:disable=invalid-name
     return NaiveConversion(func).call(*args, **kwargs)
 
 
-def ApplyFunc(
+def ApplyFunc(  # pylint:disable=invalid-name
     func, args, kwargs
-) -> "InlineExpr":  # pylint:disable=invalid-name
+) -> "InlineExpr":
     """Shortcut to ``NaiveConversion(func).apply(args, kwargs)``"""
-    return InlineExpr("{}(*{}, **{})").pass_args(func, args, kwargs)
+    if args:
+        if kwargs:
+            return InlineExpr("{}(*{}, **{})").pass_args(func, args, kwargs)
+        return InlineExpr("{}(*{})").pass_args(func, args)
+
+    if kwargs:
+        return InlineExpr("{}(**{})").pass_args(func, kwargs)
+
+    return InlineExpr("{}()").pass_args(func)
 
 
 class FilterConversion(BaseConversion):
