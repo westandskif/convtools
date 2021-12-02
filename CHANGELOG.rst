@@ -1,3 +1,16 @@
+0.20.2 (2021-12-02)
+___________________
+
+
+`#14 <https://github.com/westandskif/convtools/issues/14`_
+
+Misc
+++++
+
+- improved performance of ``Table.chain``, ``Table.into_iter_rows`` and
+  ``Table.into_csv`` methods
+- improved performance of ``c.apply_func``
+
 0.20.1 (2021-11-29)
 ___________________
 

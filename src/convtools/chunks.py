@@ -38,6 +38,25 @@ class ChunkBy(BaseChunkBy):
     >>>     "y": c.ReduceFuncs.Sum(c.item("y")),
     >>> })
 
+
+    >>> # example #1
+    >>> c.chunk_by_condition(c.CHUNK.len() < 100)
+    >>>
+    >>> # example #2
+    >>> c.chunk_by_condition(
+    >>>     c.and_(
+    >>>         c.CHUNK.item(-1) == c.this(),
+    >>>         c.CHUNK.item(-1) - c.this() < 100
+    >>>     )
+    >>> )
+    >>> # with aggregate
+    >>> c.chunk_by_condition(
+    >>>     c.CHUNK.len() < 100
+    >>> ).aggregate({
+    >>>     "x": c.ReduceFuncs.Last(c.item("x")),
+    >>>     "y": c.ReduceFuncs.Sum(c.item("y")),
+    >>> })
+
     It also provides a shortcut for running
     :py:obj:`convtools.aggregations.Aggregate` on chunks.
     """

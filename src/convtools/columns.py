@@ -64,6 +64,20 @@ class ColumnDef:
     def as_tuple(self):
         return self.name, self.index, self.conversion
 
+    def is_same_as(self, other: "ColumnDef") -> bool:
+        return (
+            self.name == other.name
+            and self.index == other.index
+            and self.conversion is None
+            and other.conversion is None
+        )
+
+
+class ColumnChanges:
+    RENAME = 1
+    REARRANGE = 2
+    MUTATE = 4
+
 
 class MetaColumns:
     """A helper container for naming & keeping column definitions"""
@@ -79,23 +93,37 @@ class MetaColumns:
             raise ValueError("invalid duplicate_columns value")
         self.duplicate_columns = duplicate_columns
 
+    def is_same_as(self, other: "MetaColumns"):
+        left_columns = self.columns
+        right_columns = other.columns
+        if len(left_columns) != len(right_columns):
+            return False
+
+        for index in range(len(left_columns)):
+            if not left_columns[index].is_same_as(right_columns[index]):
+                return False
+
+        return True
+
     def add(self, name, index, conversion):
         column_number = self.column_to_number[name]
         self.column_to_number[name] += 1
+        state = 0
 
         if name is None:
             name = f"COLUMN_{column_number}"
         elif column_number:
             if self.duplicate_columns == "raise":
                 raise ValueError("such column already exists", name)
-            elif self.duplicate_columns == "mangle":
+            if self.duplicate_columns == "mangle":
                 name = f"{name}_{column_number}"
+                state = ColumnChanges.RENAME
             elif self.duplicate_columns == "drop":
-                return None
+                return None, ColumnChanges.REARRANGE
 
         column = ColumnDef(name, index, conversion)
         self.columns.append(column)
-        return column
+        return column, state
 
     def take(self, *column_names: str) -> "MetaColumns":
         name_to_column = self.get_name_to_column()
@@ -108,6 +136,7 @@ class MetaColumns:
         for column_name in column_names:
             column = name_to_column[column_name]
             new_columns.add(column.name, column.index, column.conversion)
+
         return new_columns
 
     def drop(self, *column_names: str) -> "MetaColumns":
@@ -123,6 +152,7 @@ class MetaColumns:
             if column.name in unique_column_names:
                 continue
             new_columns.add(column.name, column.index, column.conversion)
+
         return new_columns
 
     def get_name_to_column(self) -> "t.Dict[str, ColumnDef]":
