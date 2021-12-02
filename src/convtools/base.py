@@ -506,9 +506,14 @@ class BaseConversion(typing.Generic[CT]):
         """
         # signature should contain "data_" argument
         initial_code_input = "data_"
-        debug = debug or (self.contents & self.ContentTypes.BREAKPOINT)
+        debug = (
+            debug
+            or (self.contents & self.ContentTypes.BREAKPOINT)
+            or ConverterOptionsCtx.get_option_value("debug")
+        )
         has_labels = self.contents & self.ContentTypes.NEW_LABEL
         ctx = self._init_ctx(debug=debug)
+        ConverterOptionsCtx.get_option_value("debug")
 
         converter_callable_cls = CodeGenerationOptionsCtx.get_option_value(
             "converter_callable_cls"
@@ -1383,13 +1388,11 @@ def CallFunc(func, *args, **kwargs) -> "Call":  # pylint:disable=invalid-name
     return NaiveConversion(func).call(*args, **kwargs)
 
 
-def _applier(func, args, kwargs):
-    return func(*args, **kwargs)
-
-
-def ApplyFunc(func, args, kwargs) -> "Call":  # pylint:disable=invalid-name
+def ApplyFunc(
+    func, args, kwargs
+) -> "InlineExpr":  # pylint:disable=invalid-name
     """Shortcut to ``NaiveConversion(func).apply(args, kwargs)``"""
-    return NaiveConversion(_applier).call(func, args, kwargs)
+    return InlineExpr("{}(*{}, **{})").pass_args(func, args, kwargs)
 
 
 class FilterConversion(BaseConversion):

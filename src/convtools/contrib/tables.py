@@ -23,7 +23,7 @@ from ..base import (
     NaiveConversion,
     ensure_conversion,
 )
-from ..columns import ColumnRef, MetaColumns
+from ..columns import ColumnChanges, ColumnRef, MetaColumns
 from ..joins import JoinConversion, LeftJoinCondition, RightJoinCondition
 
 
@@ -39,10 +39,14 @@ class CloseFileIterator:
         return self
 
     def __next__(self):
+        self.file_to_close.close()
+        self.file_to_close = None
         raise StopIteration
 
     def __del__(self):
-        self.file_to_close.close()
+        if self.file_to_close:
+            self.file_to_close.close()
+            self.file_to_close = None
 
 
 class CustomCsvDialect(csv.Dialect):
@@ -94,18 +98,21 @@ class Table:
 
     def __init__(
         self,
-        rows: "t.Iterable",
+        row_type: "t.Optional[type]",
+        rows_objects: "t.List[t.Iterable]",
         meta_columns: "MetaColumns",
+        pending_changes: int,
         pipeline: "t.Optional[BaseConversion]" = None,
-        first_row=None,
         file_to_close=None,
     ):
         """It is used internally only. Use from_rows and from_csv methods."""
-        self.rows = rows
+        self.row_type = row_type
+        self.rows_objects: "t.Optional[t.List[t.Iterable]]" = rows_objects
         self.meta_columns = meta_columns
+        self.pending_changes = pending_changes
         self.pipeline = pipeline
-        self.first_row = first_row
         self.file_to_close = file_to_close
+        self.row_type = row_type
 
     def get_columns(self) -> "t.List[str]":
         """Exposes list of column names"""
@@ -171,39 +178,44 @@ class Table:
                 next(rows)
 
         first_row = next(rows)
+        row_type = type(first_row)
+        pending_changes = 0
 
         index: "t.Union[str, int]"
         if isinstance(header, (tuple, list)):
             if len(header) != len(first_row):
                 raise ValueError("non-matching number of columns")
             for index, column in enumerate(header):
-                columns.add(column, index, None)
+                pending_changes |= columns.add(column, index, None)[1]
 
         elif isinstance(header, dict):
             if len(header) != len(first_row):
                 raise ValueError("non-matching number of columns")
             for name, index in header.items():
-                columns.add(name, index, None)
+                pending_changes |= columns.add(name, index, None)[1]
 
         else:
             # inferring a header
             if isinstance(first_row, dict):
                 if header is False:
                     for key in first_row:
-                        columns.add(None, key, None)
+                        pending_changes |= columns.add(None, key, None)[1]
+                    pending_changes |= ColumnChanges.MUTATE
                 else:
                     for key in first_row:
-                        columns.add(key, key, None)
+                        pending_changes |= columns.add(key, key, None)[1]
 
             elif isinstance(first_row, (tuple, list)):
                 if header is True:
                     for index, column_name in enumerate(first_row):
-                        columns.add(column_name, index, None)
+                        pending_changes |= columns.add(
+                            column_name, index, None
+                        )[1]
                     first_row = None
 
                 else:
                     for index in range(len(first_row)):
-                        columns.add(None, index, None)
+                        pending_changes |= columns.add(None, index, None)[1]
 
             else:
                 raise ValueError(
@@ -211,8 +223,16 @@ class Table:
                     type(first_row),
                 )
 
+        rows_objects: "t.List[t.Iterable]" = [rows]
+        if first_row is not None:
+            rows_objects.insert(0, (first_row,))
+
         return cls(
-            rows, columns, first_row=first_row, file_to_close=file_to_close
+            row_type=row_type,
+            rows_objects=rows_objects,
+            meta_columns=columns,
+            pending_changes=pending_changes,
+            file_to_close=file_to_close,
         )
 
     csv_dialect = CustomCsvDialect
@@ -276,9 +296,15 @@ class Table:
                 filepath_or_buffer,
                 encoding=encoding,
             )
-            rows = csv.reader(file_to_close, dialect=dialect)
+            rows = map(
+                tuple,  # type: ignore
+                csv.reader(file_to_close, dialect=dialect),
+            )
         else:
-            rows = csv.reader(filepath_or_buffer, dialect=dialect)
+            rows = map(
+                tuple,  # type: ignore
+                csv.reader(filepath_or_buffer, dialect=dialect),
+            )
 
         return cls.from_rows(
             rows,
@@ -322,6 +348,8 @@ class Table:
                 if self.pipeline is None
                 else self.pipeline.pipe(conversion)
             )
+            self.pending_changes = 0
+            self.row_type = tuple
 
         return self
 
@@ -343,15 +371,7 @@ class Table:
             column = name_to_column[ref.name]
             ref.set_index(column.index)
 
-        self.rows = (
-            (self.pipeline or GetItem())
-            .filter(condition)
-            .execute(
-                self.move_rows(),
-                debug=ConverterOptionsCtx.get_option_value("debug"),
-            )
-        )
-        self.pipeline = None
+        self.pipeline = (self.pipeline or GetItem()).filter(condition)
         return self
 
     def update(self, **column_to_conversion) -> "Table":
@@ -384,8 +404,13 @@ class Table:
                 column.conversion = conversion
                 column.index = None
             else:
-                column = self.meta_columns.add(column_name, None, conversion)
+                column, state = self.meta_columns.add(
+                    column_name, None, conversion
+                )
+                self.pending_changes |= state
                 column_name_to_column[column.name] = column
+
+            self.pending_changes |= ColumnChanges.MUTATE
 
         return self
 
@@ -399,11 +424,7 @@ class Table:
         for conversion_ in conversions:
             conversion = conversion.pipe(conversion_)
         column_to_conversion = {
-            column.name: (
-                column.conversion.pipe(conversion)
-                if column.conversion is not None
-                else GetItem(column.index).pipe(conversion)
-            )
+            column.name: ColumnRef(column.name).pipe(conversion)
             for column in self.meta_columns.columns
         }
         return self.update(**column_to_conversion)
@@ -419,10 +440,13 @@ class Table:
             passed columns should match number of columns inside).  If dict,
             then it defines a mapping from old column names to new ones.
         """
+        renamed = False
         if isinstance(columns, dict):
             for column_ in self.meta_columns.columns:
                 if column_.name in columns:
                     column_.name = columns[column_.name]
+                    renamed = True
+
         elif isinstance(columns, (tuple, list)):
             if len(columns) != len(self.meta_columns.columns):
                 raise ValueError("non-matching number of columns")
@@ -430,8 +454,14 @@ class Table:
                 self.meta_columns.columns, columns
             ):
                 column_.name = new_column_name
+            renamed = True
+
         else:
             raise TypeError("unsupported columns type")
+
+        if renamed and self.row_type is dict:
+            self.pending_changes |= ColumnChanges.MUTATE
+
         return self
 
     def take(self, *column_names: str) -> "Table":
@@ -441,6 +471,7 @@ class Table:
           column_names: columns to keep
         """
         self.meta_columns = self.meta_columns.take(*column_names)
+        self.pending_changes |= ColumnChanges.REARRANGE
         return self
 
     def drop(self, *column_names: str) -> "Table":
@@ -450,6 +481,8 @@ class Table:
           column_names: columns to drop
         """
         self.meta_columns = self.meta_columns.drop(*column_names)
+        if column_names:
+            self.pending_changes |= ColumnChanges.REARRANGE
         return self
 
     def zip(self, table: "Table", fill_value=None) -> "Table":
@@ -495,7 +528,12 @@ class Table:
                 self.into_iter_rows(tuple), table.into_iter_rows(tuple)
             )
         )
-        return Table(new_rows, new_columns)
+        return Table(
+            row_type=tuple,
+            rows_objects=[new_rows],
+            meta_columns=new_columns,
+            pending_changes=ColumnChanges.MUTATE,
+        )
 
     def chain(
         self,
@@ -522,17 +560,30 @@ class Table:
          - fill_value: value to use for filling gaps
 
         """
+        if self.rows_objects is None:
+            raise AssertionError("move_rows called the 2nd time")
+        if (
+            self.meta_columns.is_same_as(table.meta_columns)
+            and not self.pending_changes
+            and not self.pipeline
+            and not table.pending_changes
+            and not table.pipeline
+        ):
+            self.rows_objects.extend(table.move_rows_objects())
+            return self
+
         first_name_to_columns = self.meta_columns.get_name_to_column()
         second_name_to_columns = table.meta_columns.get_name_to_column()
 
         new_columns = MetaColumns(duplicate_columns="raise")
         first_columns = MetaColumns(
-            duplicate_columns=self.meta_columns.duplicate_columns
+            duplicate_columns=self.meta_columns.duplicate_columns,
         )
         second_columns = MetaColumns(
-            duplicate_columns=table.meta_columns.duplicate_columns
+            duplicate_columns=table.meta_columns.duplicate_columns,
         )
         fill_value_conversion = NaiveConversion(fill_value)
+
         index = 0
         for name, first_column in first_name_to_columns.items():
             new_columns.add(name, index, None)
@@ -551,15 +602,23 @@ class Table:
             second_columns.add(*second_column.as_tuple())
             index += 1
 
+        if not self.meta_columns.is_same_as(first_columns):
+            self.pending_changes |= ColumnChanges.MUTATE
         self.meta_columns = first_columns
+
+        if not table.meta_columns.is_same_as(second_columns):
+            table.pending_changes |= ColumnChanges.MUTATE
         table.meta_columns = second_columns
 
+        row_type = self.row_type or tuple
+        rows_objects = (
+            self.into_list_of_iterables() + table.into_list_of_iterables()
+        )
         return Table(
-            chain(
-                self.into_iter_rows(tuple),
-                table.into_iter_rows(tuple),
-            ),
-            new_columns,
+            row_type=row_type,
+            rows_objects=rows_objects,
+            meta_columns=new_columns,
+            pending_changes=0,
         )
 
     def join(
@@ -697,44 +756,95 @@ class Table:
                 )
 
         new_rows = JoinConversion(
-            left.pipeline or GetItem(),
-            InputArg("right").pipe(right.pipeline or GetItem()),
+            GetItem(),
+            InputArg("right"),
             join_condition,
             how,
         ).execute(
-            left.move_rows(),
-            right=right.move_rows(),
+            left.into_iter_rows(left.row_type),
+            right=right.into_iter_rows(left.row_type),
             debug=ConverterOptionsCtx.get_option_value("debug"),
         )
-        new_columns = MetaColumns(self.meta_columns.duplicate_columns)
+        new_columns = MetaColumns(
+            duplicate_columns="raise",
+        )
         for column_name, conversion in zip(
             after_join_column_names, after_join_conversions
         ):
             new_columns.add(column_name, None, conversion)
 
         return Table(
-            new_rows,
-            new_columns,
+            row_type=tuple,
+            rows_objects=[new_rows],
+            meta_columns=new_columns,
+            pending_changes=ColumnChanges.MUTATE,
         )
 
-    def move_rows(self):
-        if self.rows is None:
+    def move_rows_objects(self) -> "t.List[t.Iterable]":
+        """Moves out rows objects including files to be closed later"""
+        if self.rows_objects is None:
             raise AssertionError("move_rows called the 2nd time")
 
-        iterables = []
-
-        if self.first_row is not None:
-            iterables.append((self.first_row,))
-            self.first_row = None
-
-        iterables.append(self.rows)
-        self.rows = None
+        rows_objects = self.rows_objects
+        self.rows_objects = None
 
         if self.file_to_close:
-            iterables.append(CloseFileIterator(self.file_to_close))
+            rows_objects.append(CloseFileIterator(self.file_to_close))
             self.file_to_close = None
+        return rows_objects
 
-        return chain(*iterables)
+    supported_types = (tuple, list, dict)
+
+    def into_list_of_iterables(
+        self, type_=tuple, include_header=None
+    ) -> "t.List[t.Iterable]":
+        if type_ not in self.supported_types:
+            raise TypeError("unsupported type_", type_)
+
+        no_pending_changes = (
+            type_ is self.row_type and not self.pending_changes
+        )
+
+        if no_pending_changes:
+            conversion = None if self.pipeline is None else self.pipeline
+        else:
+            row_conversion: "t.Union[dict, tuple, list]"
+            if type_ is dict:
+                row_conversion = {
+                    column.name: (
+                        column.conversion
+                        if column.index is None
+                        else GetItem(column.index)
+                    )
+                    for column in self.meta_columns.columns
+                }
+                include_header = False
+            else:
+                row_conversion = type_(
+                    (
+                        column.conversion
+                        if column.index is None
+                        else GetItem(column.index)
+                    )
+                    for column in self.meta_columns.columns
+                )
+            conversion = (self.pipeline or GetItem()).pipe(
+                GeneratorComp(row_conversion)
+            )
+
+        if conversion:
+            converter = conversion.gen_converter()
+            rows_objects = [
+                converter(chunk) for chunk in self.move_rows_objects()
+            ]
+        else:
+            rows_objects = self.move_rows_objects()
+
+        if type_ is not dict and include_header:
+            header = type_(self.get_columns())
+            rows_objects.insert(0, (header,))
+
+        return rows_objects
 
     def into_iter_rows(
         self, type_=tuple, include_header=None
@@ -749,44 +859,11 @@ class Table:
             * :py:obj:`list`
 
         """
-        if type_ not in (tuple, list, dict):
-            raise TypeError("unsupported type_", type_)
-
-        row_conversion: "t.Union[dict, tuple, list]"
-        if type_ is dict:
-            row_conversion = {
-                column.name: (
-                    column.conversion
-                    if column.index is None
-                    else GetItem(column.index)
-                )
-                for column in self.meta_columns.columns
-            }
-            include_header = False
-        else:
-            row_conversion = type_(
-                (
-                    column.conversion
-                    if column.index is None
-                    else GetItem(column.index)
-                )
-                for column in self.meta_columns.columns
-            )
-        resulting_rows = (
-            (self.pipeline or GetItem())
-            .pipe(GeneratorComp(row_conversion))
-            .execute(
-                self.move_rows(),
-                debug=ConverterOptionsCtx.get_option_value("debug"),
+        return chain.from_iterable(
+            self.into_list_of_iterables(
+                type_=type_, include_header=include_header
             )
         )
-        if include_header:
-            header = type_(self.get_columns())
-            resulting_rows = chain(
-                (header,),
-                resulting_rows,
-            )
-        return resulting_rows
 
     def into_csv(
         self,
@@ -808,16 +885,24 @@ class Table:
             dialects without defining classes
           encoding: encoding to pass to :py:obj:`open`
         """
+        row_type = list if self.row_type is list else tuple
+
+        f_to_close = None
         if isinstance(filepath_or_buffer, str):
-            with open(filepath_or_buffer, "w", encoding=encoding) as f:
-                writer = csv.writer(f, dialect=dialect)
-                if include_header:
-                    writer.writerow(self.get_columns())
-                writer.writerows(
-                    self.into_iter_rows(tuple, include_header=False)
-                )
+            f = f_to_close = open(  # pylint:disable=consider-using-with
+                filepath_or_buffer, "w", encoding=encoding
+            )
         else:
-            writer = csv.writer(filepath_or_buffer, dialect=dialect)
+            f = filepath_or_buffer
+
+        try:
+            writer = csv.writer(f, dialect=dialect)
             if include_header:
                 writer.writerow(self.get_columns())
-            writer.writerows(self.into_iter_rows(tuple, include_header=False))
+            for chunk in self.into_list_of_iterables(
+                row_type, include_header=False
+            ):
+                writer.writerows(chunk)
+        finally:
+            if f_to_close is not None:
+                f_to_close.close()

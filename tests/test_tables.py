@@ -1,8 +1,10 @@
+from unittest.mock import MagicMock
+
 import pytest
 
 from convtools import conversion as c
 from convtools.columns import ColumnDef, MetaColumns
-from convtools.contrib.tables import Table
+from convtools.contrib.tables import CloseFileIterator, Table
 
 
 def test_table_base_init():
@@ -164,6 +166,11 @@ def test_table_rename():
         .into_iter_rows(tuple, include_header=True)
     )
     assert result == [("a", "B"), (1, 2), (3, 4)]
+
+    result = list(
+        Table.from_rows([{"a": 1}]).rename({"a": "A"}).into_iter_rows(dict)
+    )
+    assert result == [{"A": 1}]
 
 
 # BEFORE
@@ -417,6 +424,19 @@ def test_table_exceptions():
             table.from_rows([[1, 2], [2, 3]], header=header)
 
 
+def test_table_edge_cases():
+    mock = MagicMock()
+    item = CloseFileIterator(mock)
+    list(item)
+    item.__del__()
+    mock.close.assert_called_once()
+
+    mock = MagicMock()
+    item = CloseFileIterator(mock)
+    item.__del__()
+    mock.close.assert_called_once()
+
+
 def test_table_integration():
     input_data = [["a", "b"], [1, 2], [3, 4]]
     conversion = (
@@ -428,11 +448,13 @@ def test_table_integration():
 
 
 def test_table_chain():
-    result = list(
-        Table.from_rows([["a", "b"], [1, 2]], header=True)
-        .chain(Table.from_rows([["b", "a", "c"], [4, 3, 5]], header=True))
-        .into_iter_rows(tuple, include_header=True)
-    )
+    with c.OptionsCtx() as o:
+        o.debug = True
+        result = list(
+            Table.from_rows([["a", "b"], [1, 2]], header=True)
+            .chain(Table.from_rows([["b", "a", "c"], [4, 3, 5]], header=True))
+            .into_iter_rows(tuple, include_header=True)
+        )
     assert result == [
         ("a", "b", "c"),
         (1, 2, None),
@@ -465,6 +487,45 @@ def test_table_chain():
         (11, False),
         (False, 2),
     ]
+
+    result = list(
+        Table.from_rows([["a"], ["1"]], header=True)
+        .chain(Table.from_rows([["a"], ["2"]], header=True))
+        .into_iter_rows(include_header=True)
+    )
+    assert result == [
+        ("a",),
+        ("1",),
+        ("2",),
+    ]
+
+    result = list(
+        Table.from_rows([["a"], ["1"]], header=True)
+        .update(a=c.col("a").as_type(int))
+        .chain(Table.from_rows([["a"], ["2"]], header=True))
+        .into_iter_rows()
+    )
+    assert result == [(1,), ("2",)]
+
+    result = list(
+        Table.from_rows([["a"], ["1"]], header=True)
+        .chain(
+            Table.from_rows([["a"], ["2"]], header=True).update(
+                a=c.col("a").as_type(int)
+            )
+        )
+        .into_iter_rows()
+    )
+    assert result == [("1",), (2,)]
+
+    result = list(
+        Table.from_rows([["a"], ["1"]], header=True)
+        .update(a=c.col("a").as_type(int))
+        .embed_conversions()
+        .chain(Table.from_rows([["a"], ["2"]], header=True))
+        .into_iter_rows()
+    )
+    assert result == [(1,), ("2",)]
 
 
 def test_table_zip():
