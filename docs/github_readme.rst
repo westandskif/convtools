@@ -29,10 +29,6 @@ convtools
 .. image:: https://badge.fury.io/py/convtools.svg
    :target: https://badge.fury.io/py/convtools
 
-.. image:: https://pepy.tech/badge/convtools
-   :target: https://pepy.tech/project/convtools
-   :alt: Downloads
-
 .. image:: https://img.shields.io/twitter/url?label=convtools&style=social&url=https%3A%2F%2Ftwitter.com%2Fconvtools
    :target: https://twitter.com/convtools
    :alt: Twitter URL
