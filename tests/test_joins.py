@@ -506,7 +506,7 @@ def test_join_with_complex_pipe():
 
     pipeline = (
         c.aggregate(c.ReduceFuncs.Array(c.item("a")))
-        .pipe(c.join(c.this(), c.call_func(f, c.this()), c.LEFT == c.RIGHT))
+        .pipe(c.join(c.this, c.call_func(f, c.this), c.LEFT == c.RIGHT))
         .iter(c.item(1))
         .as_type(list)
     )

@@ -393,7 +393,7 @@ def test_table_exceptions():
     with pytest.raises(ValueError):
         ColumnDef("abc", None, None)
     with pytest.raises(ValueError):
-        ColumnDef("abc", 0, c.this())
+        ColumnDef("abc", 0, c.this)
     with pytest.raises(ValueError):
         MetaColumns(duplicate_columns="abc")
     with pytest.raises(ValueError):
@@ -439,11 +439,9 @@ def test_table_edge_cases():
 
 def test_table_integration():
     input_data = [["a", "b"], [1, 2], [3, 4]]
-    conversion = (
-        c.this()
-        .pipe(lambda it: Table.from_rows(it, header=True).into_iter_rows(dict))
-        .as_type(list)
-    )
+    conversion = c.this.pipe(
+        lambda it: Table.from_rows(it, header=True).into_iter_rows(dict)
+    ).as_type(list)
     conversion.execute(input_data)
 
 

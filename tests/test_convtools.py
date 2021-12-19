@@ -60,28 +60,28 @@ def test_gen_converter():
         conv1 = (c.this() + c.input_arg("self").attr("x")).gen_converter(
             method=True
         )
-        conv2 = (c.this() + c.input_arg("cls").attr("x")).gen_converter(
+        conv2 = (c.this + c.input_arg("cls").attr("x")).gen_converter(
             method=True
         )
 
         conv3 = classmethod(
-            (c.this() + c.input_arg("cls").attr("x")).gen_converter(
+            (c.this + c.input_arg("cls").attr("x")).gen_converter(
                 class_method=True
             )
         )
         conv4 = classmethod(
-            (c.this() + c.input_arg("self").attr("x")).gen_converter(
+            (c.this + c.input_arg("self").attr("x")).gen_converter(
                 class_method=True
             )
         )
 
         conv5 = (
-            c.this() + c.input_arg("self").attr("x") + c.input_arg("n")
+            c.this + c.input_arg("self").attr("x") + c.input_arg("n")
         ).gen_converter(signature="self, n=1000, data_=15")
 
         conv6 = staticmethod(
             (
-                (c.this() + c.call_func(sum, c.input_arg("args")))
+                (c.this + c.call_func(sum, c.input_arg("args")))
                 * c.input_arg("kwargs").call_method("get", "multiplicator", 1)
             ).gen_converter(signature="data_, *args, **kwargs")
         )
@@ -103,20 +103,20 @@ def test_gen_converter():
     assert A.conv6(20, 1, 2, 3, multiplicator=10) == 260
 
     assert (
-        c.call_func(sum, c.this()).gen_converter(signature="*data_")(1, 2, 3)
+        c.call_func(sum, c.this).gen_converter(signature="*data_")(1, 2, 3)
         == 6
     )
     assert (
         c.call_func(
-            lambda i: globals().__setitem__("A", 1) or sum(i), c.this()
+            lambda i: globals().__setitem__("A", 1) or sum(i), c.this
         ).gen_converter(signature="*data_")(1, 2, 3)
         == 6
     )
     assert c(
         {
             c.naive("-").call_method(
-                "join", c.this().call_method("keys")
-            ): c.call_func(sum, c.this().call_method("values"))
+                "join", c.this.call_method("keys")
+            ): c.call_func(sum, c.this.call_method("values"))
         }
     ).gen_converter(signature="**data_")(a=1, b=2, c=3) == {"a-b-c": 6}
     with pytest.raises(c.ConversionException):
@@ -124,7 +124,7 @@ def test_gen_converter():
             1, 2, 3
         )
     with pytest.raises(c.ConversionException):
-        c.this().gen_converter(method=True, class_method=True)
+        c.this.gen_converter(method=True, class_method=True)
 
 
 def test_naive_conversion_item():
@@ -152,7 +152,7 @@ def test_naive_conversion_item():
     )
     assert c.item(10, "testt", default=77).gen_converter()(d) == 77
 
-    assert c.item(10, "testt", default=c.this()).gen_converter()(d) == d
+    assert c.item(10, "testt", default=c.this).gen_converter()(d) == d
 
     assert c.item(10, c.item(1)).gen_converter()(d) == 777
     assert c.item(10).item(2).gen_converter()(d) == 777
@@ -169,8 +169,7 @@ def test_naive_conversion_item():
         == 200
     )
     assert (
-        c.naive(d).item(c.this(), "test2").gen_converter(debug=False)(100)
-        == 200
+        c.naive(d).item(c.this, "test2").gen_converter(debug=False)(100) == 200
     )
     assert (
         c.naive(d)
@@ -214,14 +213,14 @@ def test_naive_conversion_item():
     assert c.naive(0).lt(1).execute(100) is True
     assert (c.naive(0) < 1).execute(100) is True
 
-    assert c.this().neg().execute(2) == -2
-    assert (-c.this()).execute(2) == -2
-    assert (c.this() + c.this()).execute(2) == 4
-    assert (c.this() * c.this()).execute(3) == 9
-    assert (c.this() - c.this()).execute(2) == 0
-    assert (c.naive(5) / c.this()).execute(2) == 2.5
-    assert (c.naive(5) // c.this()).execute(2) == 2
-    assert (c.naive(5) % c.this()).execute(2) == 1
+    assert c.this.neg().execute(2) == -2
+    assert (-c.this).execute(2) == -2
+    assert (c.this + c.this).execute(2) == 4
+    assert (c.this * c.this).execute(3) == 9
+    assert (c.this - c.this).execute(2) == 0
+    assert (c.naive(5) / c.this).execute(2) == 2.5
+    assert (c.naive(5) // c.this).execute(2) == 2
+    assert (c.naive(5) % c.this).execute(2) == 1
 
 
 def test_item():
@@ -251,7 +250,7 @@ def test_naive_conversion_attr():
 
 def test_naive_conversion_call():
     assert c.naive("TEST").attr("lower").call().gen_converter()(100) == "test"
-    assert c.call_func(str.lower, c.this()).gen_converter()("TEST") == "test"
+    assert c.call_func(str.lower, c.this).gen_converter()("TEST") == "test"
     assert (
         c.naive("TE ST").attr("replace").call(" ", "").gen_converter()(100)
         == "TEST"
@@ -311,34 +310,35 @@ def test_or_and_not():
     assert c.or_(None, 0).gen_converter()(100) == 0
     assert c.and_(None, 0).gen_converter()(100) is None
     assert c.not_(True).gen_converter()(100) is False
-    assert (~c.this()).gen_converter()(True) is False
+    assert (~c.this).gen_converter()(True) is False
     assert c.naive(None).not_().execute(100) is True
+
+    with pytest.raises(ValueError):
+        c.or_()
 
 
 def test_debug_true():
     with c.OptionsCtx() as options:
         options.debug = True
-        assert c.this().gen_converter(debug=True)(1) == 1
+        assert c.this.gen_converter(debug=True)(1) == 1
 
     with pytest.raises(TypeError):
         assert c.item(0).gen_converter(debug=True)(1) == 1
 
 
 def test_if():
-    conv1 = c.if_(True, c.this() * 2, c.this() - 1000).gen_converter(
-        debug=False
-    )
+    conv1 = c.if_(True, c.this * 2, c.this - 1000).gen_converter(debug=False)
     assert conv1(0) == -1000
     assert conv1(10) == 20
 
     conv2 = c.list_comp(
-        c.if_(c.this() % 2 == 0, c.this() * 10, c.this() * 100)
+        c.if_(c.this % 2 == 0, c.this * 10, c.this * 100)
     ).gen_converter(debug=False)
     conv3 = c.list_comp(
         c.if_(
-            c.this() % 2 == 0,
-            c.this() * 10,
-            c.this() * 100,
+            c.this % 2 == 0,
+            c.this * 10,
+            c.this * 100,
             no_input_caching=True,
         )
     ).gen_converter(debug=False)
@@ -346,9 +346,7 @@ def test_if():
     assert conv3([1, 2, 3, 4]) == [100, 20, 300, 40]
 
     conv4 = c.list_comp(
-        (c.this() - 5).pipe(
-            c.if_(c.this() % 2 == 0, c.this() * 10, c.this() * 100)
-        )
+        (c.this - 5).pipe(c.if_(c.this % 2 == 0, c.this * 10, c.this * 100))
     ).gen_converter(debug=False)
     assert conv4([1, 2, 3, 4]) == [-40, -300, -20, -100]
 
@@ -356,7 +354,7 @@ def test_if():
     assert conv5(0) == 0 and conv5(1) == 1
 
     conv6 = c.list_comp(
-        c.if_(c.this(), None, c.this(), no_input_caching=True)
+        c.if_(c.this, None, c.this, no_input_caching=True)
     ).gen_converter(debug=False)
     assert conv6([1, False, 2, None, 3, 0]) == [
         None,
@@ -386,7 +384,7 @@ def test_callfunc():
         assert i == 1 and abc == 2
 
     c.call_func(func, 1, abc=2).gen_converter()(100)
-    assert c.this().len().execute([1, 2]) == 2
+    assert c.this.len().execute([1, 2]) == 2
 
 
 def test_list():
@@ -460,7 +458,7 @@ def test_list_comprehension():
         yield 1
         raise CustomException
 
-    wrapped_generator = c.generator_comp(c.this()).execute(f())
+    wrapped_generator = c.generator_comp(c.this).execute(f())
     with pytest.raises(CustomException):
         list(wrapped_generator)
 
@@ -522,27 +520,27 @@ def test_dict_comprehension():
 
 
 def test_filter():
-    assert list(c.naive([1, 2, 3]).filter(c.this().gt(2)).execute(None)) == [3]
-    assert c.filter(c.this().gt(1), cast=list).execute([1, 2, 3]) == [2, 3]
-    assert c.filter(c.this().gt(1), cast=tuple).execute([1, 2, 3]) == (2, 3)
-    assert c.filter(c.this().gt(1), cast=set).execute([1, 2, 3]) == {2, 3}
-    assert c.filter(c.this().gt(1), cast=lambda x: list(x)).execute(
+    assert list(c.naive([1, 2, 3]).filter(c.this.gt(2)).execute(None)) == [3]
+    assert c.filter(c.this.gt(1), cast=list).execute([1, 2, 3]) == [2, 3]
+    assert c.filter(c.this.gt(1), cast=tuple).execute([1, 2, 3]) == (2, 3)
+    assert c.filter(c.this.gt(1), cast=set).execute([1, 2, 3]) == {2, 3}
+    assert c.filter(c.this.gt(1), cast=lambda x: list(x)).execute(
         [1, 2, 3]
     ) == [2, 3]
-    assert c.list_comp(c.this()).filter(c.this().gt(1)).execute(
+    assert c.list_comp(c.this).filter(c.this.gt(1)).execute(
         [1, 2, 3], debug=False
     ) == [
         2,
         3,
     ]
-    assert c.this().filter(c.this().gt(1), cast=list).execute(
+    assert c.this.filter(c.this.gt(1), cast=list).execute(
         [1, 2, 3], debug=False
     ) == [
         2,
         3,
     ]
-    assert c.list_comp(c.this()).filter(
-        c.this() > 1, cast=lambda x: list(x)
+    assert c.list_comp(c.this).filter(
+        c.this > 1, cast=lambda x: list(x)
     ).execute(range(4)) == [2, 3]
 
 
@@ -553,30 +551,31 @@ def test_sort():
         2,
         1,
     ]
-    assert c.this().sort().execute([2, 3, 1]) == [1, 2, 3]
-    assert c.this().sort(key=lambda x: x, reverse=False).execute(
-        [2, 3, 1]
-    ) == [1, 2, 3]
+    assert c.this.sort().execute([2, 3, 1]) == [1, 2, 3]
+    assert c.this.sort(key=lambda x: x, reverse=False).execute([2, 3, 1]) == [
+        1,
+        2,
+        3,
+    ]
 
 
 def test_complex_labeling():
     conv1 = (
-        c.this()
-        .add_label("input")
+        c.this.add_label("input")
         .pipe(
-            c.filter(c.this() % 3 == 0),
-            label_input={"input_type": c.call_func(type, c.this())},
+            c.filter(c.this % 3 == 0),
+            label_input={"input_type": c.call_func(type, c.this)},
         )
         .pipe(
-            c.list_comp(c.this().as_type(str)),
+            c.list_comp(c.this.as_type(str)),
             label_output={
-                "list_length": c.call_func(len, c.this()),
+                "list_length": c.call_func(len, c.this),
                 "separator": c.if_(c.label("list_length") > 10, ",", ";"),
             },
         )
         .pipe(
             {
-                "result": c.label("separator").call_method("join", c.this()),
+                "result": c.label("separator").call_method("join", c.this),
                 "input_type": c.label("input_type"),
                 "input_data": c.label("input"),
             }
@@ -608,8 +607,8 @@ def test_caching_conversion():
     f.first_time = True
 
     conv = (
-        c.call_func(f, c.this())
-        .pipe(c.if_(c.this(), c.this() + 1, c.this() + 2))
+        c.call_func(f, c.this)
+        .pipe(c.if_(c.this, c.this + 1, c.this + 2))
         .gen_converter()
     )
     assert conv(0) == 2
@@ -620,13 +619,13 @@ def test_caching_conversion():
     assert conv(1) == 2
 
     with pytest.raises(CustomException):
-        c.call_func(f, c.this()).pipe(
-            c.if_(c.this(), c.this() + 1, c.this() + 2, no_input_caching=True)
+        c.call_func(f, c.this).pipe(
+            c.if_(c.this, c.this + 1, c.this + 2, no_input_caching=True)
         ).execute(0)
 
 
 def test_slices():
-    assert c.this()[
+    assert c.this[
         c.item(0) : c.input_arg("slice_to") : c.item(1)
     ].gen_converter(debug=False)(
         [2, 2, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], slice_to=8
@@ -673,7 +672,7 @@ def test_name_generation():
         {i: c.item(f"test{i}", default=1) for i in range(100)}
     ).gen_converter(debug=False)
 
-    item = c.this()
+    item = c.this
     ctx = c.BaseConversion._init_ctx()
     for i in range(11):
         item.gen_name("abc", ctx, i)

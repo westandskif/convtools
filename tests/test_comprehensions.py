@@ -6,17 +6,17 @@ from convtools.base import Call, FilterConversion, PipeConversion
 
 
 def test_generator_type_casts():
-    assert isinstance(c.generator_comp(c.this()).as_type(list), c.list_comp)
-    assert isinstance(c.generator_comp(c.this()).as_type(tuple), c.tuple_comp)
-    assert isinstance(c.generator_comp(c.this()).as_type(set), c.set_comp)
-    conversion = c.this().iter(c.this()).as_type(set)
+    assert isinstance(c.generator_comp(c.this).as_type(list), c.list_comp)
+    assert isinstance(c.generator_comp(c.this).as_type(tuple), c.tuple_comp)
+    assert isinstance(c.generator_comp(c.this).as_type(set), c.set_comp)
+    conversion = c.this.iter(c.this).as_type(set)
     assert isinstance(conversion, PipeConversion) and isinstance(
         conversion.where, c.set_comp
     )
     assert isinstance(
-        c.generator_comp(c.this()).as_type(lambda x: list(x)), Call
+        c.generator_comp(c.this).as_type(lambda x: list(x)), Call
     )
-    conversion = c.this().iter(c.this()).as_type(lambda x: list(x))
+    conversion = c.this.iter(c.this).as_type(lambda x: list(x))
     assert isinstance(conversion, PipeConversion) and isinstance(
         conversion.where, Call
     )
@@ -24,16 +24,14 @@ def test_generator_type_casts():
 
 def test_comprehension_filter_cast_assumptions():
     assert isinstance(
-        c.generator_comp(c.this()).filter(c.this()).execute(range(10)),
+        c.generator_comp(c.this).filter(c.this).execute(range(10)),
         GeneratorType,
     )
     assert isinstance(
-        c.generator_comp(c.this())
-        .filter(c.this(), cast=None)
-        .execute(range(10)),
+        c.generator_comp(c.this).filter(c.this, cast=None).execute(range(10)),
         GeneratorType,
     )
-    assert (c.list_comp(c.this()).filter(c.this()).execute(range(3))) == [
+    assert (c.list_comp(c.this).filter(c.this).execute(range(3))) == [
         1,
         2,
     ]
@@ -48,41 +46,35 @@ def test_comprehension_filter_cast_assumptions():
     f.number_of_calls = 0
 
     assert (
-        c.set_comp(c.this())
-        .filter(c.call_func(f, c.this()))
-        .execute([0, 0, 1])
+        c.set_comp(c.this).filter(c.call_func(f, c.this)).execute([0, 0, 1])
     ) == {
         1,
     }
     assert (
-        c.set_comp(c.this()).filter(c.this(), cast=list).execute([0, 0, 1])
+        c.set_comp(c.this).filter(c.this, cast=list).execute([0, 0, 1])
     ) == [
         1,
     ]
-    assert (c.set_comp(c.this()).filter(c.this()).execute(range(3))) == {
+    assert (c.set_comp(c.this).filter(c.this).execute(range(3))) == {
         1,
         2,
     }
-    assert (c.tuple_comp(c.this()).filter(c.this()).execute(range(3))) == (
+    assert (c.tuple_comp(c.this).filter(c.this).execute(range(3))) == (
         1,
         2,
     )
-    assert (
-        c.tuple_comp(c.this()).filter(c.this(), list).execute(range(3))
-    ) == [
+    assert (c.tuple_comp(c.this).filter(c.this, list).execute(range(3))) == [
         1,
         2,
     ]
     assert (
-        c.dict_comp(c.this(), c.this()).filter(c.item(0)).execute(range(3))
+        c.dict_comp(c.this, c.this).filter(c.item(0)).execute(range(3))
     ) == {
         1: 1,
         2: 2,
     }
     assert (
-        c.dict_comp(c.this(), c.this())
-        .filter(c.item(0), dict)
-        .execute(range(3))
+        c.dict_comp(c.this, c.this).filter(c.item(0), dict).execute(range(3))
     ) == {
         1: 1,
         2: 2,
@@ -90,70 +82,84 @@ def test_comprehension_filter_cast_assumptions():
 
 
 def test_comprehension_filter_concats():
-    assert c.generator_comp(c.this()).filter(c.this() > 5).filter(
-        c.this() < 10
+    assert c.generator_comp(c.this).filter(c.this > 5).filter(
+        c.this < 10
     ).as_type(list).execute(range(20), debug=False) == [6, 7, 8, 9]
-    assert c.this().iter(c.this()).filter(c.this() > 5).filter(
-        c.this() < 10
-    ).as_type(list).execute(range(20), debug=False) == [6, 7, 8, 9]
+    assert c.this.iter(c.this).filter(c.this > 5).filter(c.this < 10).as_type(
+        list
+    ).execute(range(20), debug=False) == [6, 7, 8, 9]
 
 
 def test_comprehension_where():
     assert (
-        c.generator_comp(c.this().neg(), where=c.this() > 6)
+        c.generator_comp(c.this.neg(), where=c.this > 6)
         .as_type(list)
-        .filter(c.this() > -9)
+        .filter(c.this > -9)
         .execute(range(10), debug=False)
     ) == [-7, -8]
     assert (
-        c.this()
-        .iter(c.this().neg(), where=c.this() > 6)
+        c.this.iter(c.this.neg(), where=c.this > 6)
         .as_type(list)
-        .filter(c.this() > -9)
+        .filter(c.this > -9)
         .execute(range(10), debug=False)
     ) == [-7, -8]
     assert (
-        c.iter(c.this().neg(), where=c.this() > 6)
+        c.iter(c.this.neg(), where=c.this > 6)
         .as_type(list)
-        .filter(c.this() > -9)
+        .filter(c.this > -9)
         .execute(range(10), debug=False)
     ) == [-7, -8]
+
+    assert c.iter(c.this, where=c.and_(default=True)).as_type(list).execute(
+        range(3)
+    ) == [0, 1, 2]
+    assert c.iter(c.this, where=True).as_type(list).execute(range(3)) == [
+        0,
+        1,
+        2,
+    ]
+    assert (
+        c.iter(c.this, where=c.and_(default=False))
+        .as_type(list)
+        .execute(range(3))
+        == []
+    )
 
 
 def test_comprehensions_sorting():
-    assert c.generator_comp(c.this()).sort().execute(
-        [2, 1, 3], debug=False
-    ) == [1, 2, 3]
-    assert c.list_comp(c.this()).sort().execute([2, 1, 3], debug=False) == [
+    assert c.generator_comp(c.this).sort().execute([2, 1, 3], debug=False) == [
         1,
         2,
         3,
     ]
-    assert c.this().pipe(c.list_comp(c.this())).sort().execute(
+    assert c.list_comp(c.this).sort().execute([2, 1, 3], debug=False) == [
+        1,
+        2,
+        3,
+    ]
+    assert c.this.pipe(c.list_comp(c.this)).sort().execute(
         [2, 1, 3], debug=False
     ) == [
         1,
         2,
         3,
     ]
-    assert c.list_comp(c.this()).sort().sort(reverse=True).execute(
+    assert c.list_comp(c.this).sort().sort(reverse=True).execute(
         [2, 1, 3], debug=False
     ) == [3, 2, 1]
 
-    assert c.set_comp(c.this()).sort().execute([2, 2, 1, 3], debug=False) == [
+    assert c.set_comp(c.this).sort().execute([2, 2, 1, 3], debug=False) == [
         1,
         2,
         3,
     ]
-    assert c.tuple_comp(c.this()).sort().execute(
-        [2, 2, 1, 3], debug=False
-    ) == (
+    assert c.tuple_comp(c.this).sort().execute([2, 2, 1, 3], debug=False) == (
         1,
         2,
         2,
         3,
     )
-    assert c.dict_comp(c.this() * -1, c.this()).sort().execute(
+    assert c.dict_comp(c.this * -1, c.this).sort().execute(
         [2, 2, 1, 3], debug=False
     ) == OrderedDict(
         [

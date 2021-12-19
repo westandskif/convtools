@@ -338,14 +338,14 @@ All-in-one example #1: deserialization & data preps
         }
 
         # prepare a few conversions to reuse
-        c_strip = c.this().call_method("strip")
-        c_capitalize = c.this().call_method("capitalize")
-        c_decimal = c.this().call_method("replace", ",", "").as_type(Decimal)
-        c_date = c.call_func(datetime.strptime, c.this(), "%Y-%m-%d").call_method(
+        c_strip = c.this.call_method("strip")
+        c_capitalize = c.this.call_method("capitalize")
+        c_decimal = c.this.call_method("replace", ",", "").as_type(Decimal)
+        c_date = c.call_func(datetime.strptime, c.this, "%Y-%m-%d").call_method(
             "date"
         )
         # reusing c_date
-        c_optional_date = c.if_(c.this(), c_date, None)
+        c_optional_date = c.if_(c.this, c_date, None)
 
         first_name = c.item("first_name").pipe(c_capitalize)
         last_name = c.item("last_name").pipe(c_capitalize)
@@ -383,7 +383,7 @@ All-in-one example #1: deserialization & data preps
                     c.apply_func(  # value
                         Employee,
                         args=(),
-                        kwargs=c.this(),
+                        kwargs=c.this,
                     ),
                 )
             )
@@ -439,11 +439,11 @@ All-in-one example #2: word count
         #     with open(filename) as f:
         #         for line in f:
         #             yield line
-        # extract_strings = c.generator_comp(c.call_func(read_file, c.this()))
+        # extract_strings = c.generator_comp(c.call_func(read_file, c.this))
 
         # to simplify testing
         extract_strings = c.generator_comp(
-            c.call_func(lambda filename: [filename], c.this())
+            c.call_func(lambda filename: [filename], c.this)
         )
 
         # 1. make ``re`` pattern available to the code to be generated
@@ -454,29 +454,29 @@ All-in-one example #2: word count
         #    and call ``.lower()`` on each result
         split_words = (
             c.naive(re.compile(r"\w+"))
-            .call_method("finditer", c.this())
+            .call_method("finditer", c.this)
             .pipe(
                 c.generator_comp(
-                    c.this().call_method("group", 0).call_method("lower")
+                    c.this.call_method("group", 0).call_method("lower")
                 )
             )
         )
 
         # ``extract_strings`` is the generator of strings
         # so we iterate it and pass each item to ``split_words`` conversion
-        vectorized_split_words = c.generator_comp(c.this().pipe(split_words))
+        vectorized_split_words = c.generator_comp(c.this.pipe(split_words))
 
         # flattening the result of ``vectorized_split_words``, which is
         # a generator of generators of strings
         flatten = c.call_func(
             chain.from_iterable,
-            c.this(),
+            c.this,
         )
 
         # aggregate the input, the result is a single dict
         # words are keys, values are count of words
         dict_word_to_count = c.aggregate(
-            c.ReduceFuncs.DictCount(c.this(), c.this(), default=dict)
+            c.ReduceFuncs.DictCount(c.this, c.this, default=dict)
         )
 
         # take top N words by:
@@ -485,10 +485,9 @@ All-in-one example #2: word count
         #  - take the slice, using input argument named ``top_n``
         #  - cast to a dict
         take_top_n = (
-            c.this()
-            .call_method("items")
+            c.this.call_method("items")
             .sort(key=lambda t: t[1], reverse=True)
-            .pipe(c.this()[: c.input_arg("top_n")])
+            .pipe(c.this[: c.input_arg("top_n")])
             .as_type(dict)
         )
 
@@ -503,7 +502,7 @@ All-in-one example #2: word count
             .pipe(
                 c.if_(
                     c.input_arg("top_n").is_not(None),
-                    c.this().pipe(take_top_n),
+                    c.this.pipe(take_top_n),
                 )
             )
             # Define the resulting converter function signature.  In fact this

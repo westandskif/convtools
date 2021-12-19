@@ -831,7 +831,7 @@ class BaseConversion(typing.Generic[CT]):
         Advanced:
         >>> c.item("objects").add_label({
         >>>     "first": c.item(0),
-        >>>     "count": c.call_func(len, c.this()),
+        >>>     "count": c.call_func(len, c.this),
         >>> }).iter_mut(
         >>>     c.Mut.set_attr("_first", c.label("first")),
         >>>     c.Mut.set_attr("_count", c.label("count")),
@@ -842,9 +842,9 @@ class BaseConversion(typing.Generic[CT]):
         >>>     c.item(0)
         >>> ).add_label(
         >>>     "before_5",
-        >>>     c.take_while(c.this() < 5).as_type(list)
+        >>>     c.take_while(c.this < 5).as_type(list)
         >>> ).iter(
-        >>>     c.this() + c.label("before_5").item(-1)
+        >>>     c.this + c.label("before_5").item(-1)
         >>> )
 
         Args:
@@ -1136,17 +1136,38 @@ class NamedConversion(BaseConversion):
 class Or(BaseConversion):
     """Takes any number of objects, each is to be wrapped with
     :py:obj:`ensure_conversion` and generates the code
-    joining every argument with python ``or`` expression"""
+    joining every argument with python ``or`` expression
+
+    ``default`` defines behavior when args is empty
+      * if None is empty will raise ValueError
+      * false values - results in False
+      * true values - results in True
+
+    """
 
     op = " or "
 
-    def __init__(self, arg1, arg2, *other_args):
+    def __init__(self, *args, default=None):
+        """
+        Args:
+            args: conditions
+            default: defines behavior when args is empty
+              - if None, empty args will raise ValueError
+              - false values - results in False
+              - true values - results in True
+        """
         super().__init__()
-        args = [arg1, arg2]
-        args.extend(other_args)
-        self.args = [self.ensure_conversion(a) for a in args]
+
+        if not args and default is None:
+            raise ValueError("neither args nor default is provided")
+
+        self.args = [self.ensure_conversion(arg) for arg in args]
+        self.default = default
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
+        if not self.args:
+            return repr(bool(self.default))
+
         code = self.op.join(
             [arg.gen_code_and_update_ctx(code_input, ctx) for arg in self.args]
         )
@@ -1156,7 +1177,14 @@ class Or(BaseConversion):
 class And(Or):
     """Takes any number of objects, each is to be wrapped with
     :py:obj:`ensure_conversion` and generates the code
-    joining every argument with python ``and`` expression"""
+    joining every argument with python ``and`` expression.
+
+    ``default`` defines behavior when args is empty
+      * if None is empty will raise ValueError
+      * false values - results in False
+      * true values - results in True
+
+    """
 
     op = " and "
 
@@ -1164,7 +1192,14 @@ class And(Or):
 class Eq(Or):
     """Takes any number of objects, each is to be wrapped with
     :py:obj:`ensure_conversion` and generates the code
-    joining every argument with python `` == `` operator"""
+    joining every argument with python `` == `` operator
+
+    ``default`` defines behavior when args is empty
+      * if None is empty will raise ValueError
+      * false values - results in False
+      * true values - results in True
+
+    """
 
     op = " == "
 
@@ -1544,7 +1579,7 @@ class BaseComprehensionConversion(BaseConversion):
           where: conversion to be used in ``if`` clause of a comprehension
 
             e.g. for ``[i * 2 for i in l if i > 0]`` an item would be
-            ``c.generator_comp(c.this() * 2, where=c.this() > 0)``
+            ``c.generator_comp(c.this * 2, where=c.this > 0)``
         """
         super().__init__()
         self.item = self.ensure_conversion(item)
@@ -1561,7 +1596,12 @@ class BaseComprehensionConversion(BaseConversion):
             condition_code = self.where.gen_code_and_update_ctx(
                 param_name, ctx
             )
-            gen_code = f"{gen_code} if {condition_code}"
+            if condition_code == "True":
+                pass
+            elif condition_code == "False":
+                gen_code = f"{item_code} for {param_name} in ()"
+            else:
+                gen_code = f"{gen_code} if {condition_code}"
         return gen_code
 
 
@@ -1879,15 +1919,7 @@ class Dict(BaseCollectionConversion):
                 for item_ in pair
                 if isinstance(item_, OptionalCollectionItem)
             ]
-            condition = (
-                (
-                    And(conditions[0], conditions[1])
-                    if len(conditions) == 2
-                    else conditions[0]
-                )
-                if conditions
-                else None
-            )
+            condition = And(*conditions) if conditions else None
             if condition is not None:
                 pair = tuple(
                     item_.conversion
@@ -1965,15 +1997,8 @@ class TakeWhile(BaseConversion):
         if self.filter_results_conditions is None:
             code.add_line(f"yield {var_item}", -1)
         else:
-            filter_conditions = self.filter_results_conditions
-            filter_code = (
-                And(
-                    filter_conditions[0],
-                    filter_conditions[1],
-                    *filter_conditions[2:],
-                )
-                if len(filter_conditions) > 1
-                else filter_conditions[0]
+            filter_code = And(
+                *self.filter_results_conditions
             ).gen_code_and_update_ctx(var_item, ctx)
             code.add_line(f"if {filter_code}:", 1)
             code.add_line(f"yield {var_item}", -2)

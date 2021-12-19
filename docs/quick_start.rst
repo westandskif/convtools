@@ -81,7 +81,7 @@ Let's review the most basic conversions:
 
       # we'll cover this "c() wrapper" in the next section
       c({
-          "input": c.this(),
+          "input": c.this,
           "naive": c.naive("string to be passed"),
           "input_arg": c.input_arg("dt"),
           "by_keys_and_indexes": c.item("key1", 1),
@@ -362,14 +362,14 @@ Let's review `apply` ones:
    c.call_func(f, *args, **kwargs)
 
    c.apply(args, kwargs)
-   c.this().apply(args, kwargs)
+   c.this.apply(args, kwargs)
    # are same as
    c.call(*args, **kwargs)
-   c.this().call(*args, **kwargs)
+   c.this.call(*args, **kwargs)
 
-   c.this().apply_method("foo", args, kwargs)
+   c.this.apply_method("foo", args, kwargs)
    # is same as
-   c.this().call_method("foo", *args, **kwargs)
+   c.this.call_method("foo", *args, **kwargs)
 
 
 6. List/dict/set/tuple comprehensions & inline expressions
@@ -387,7 +387,7 @@ Next:
   #. every comprehension supports if clauses to filter input:
 
      * ``c.list_comp(..., where=condition_conv)``
-     * ``c.this().iter(..., where=condition_conv)``
+     * ``c.this.iter(..., where=condition_conv)``
 
   #. to avoid unnecessary function call overhead, there is a way to pass an inline
      python expression :py:obj:`c.inline_expr<convtools.base.InlineExpr>`
@@ -445,7 +445,7 @@ Next:
     .. code-block:: python
 
        conv = (
-           c.this()
+           c.this
            .call_method("items")
            .pipe(
                c.inline_expr(
@@ -453,7 +453,7 @@ Next:
                    " for key, items in {}"
                    " for item in items"
                    " if key"
-               ).pass_args(c.this())
+               ).pass_args(c.this)
            )
            # of course we could continue doing something interesting here
            # .pipe(
@@ -512,10 +512,10 @@ A simple pipe first:
 
     .. code-block:: python
 
-       conv = c.iter(c.this() * 2).pipe(sum).gen_converter(debug=True)
+       conv = c.iter(c.this * 2).pipe(sum).gen_converter(debug=True)
 
        # OR THE SAME
-       conv = c.generator_comp(c.this() * 2).pipe(sum).gen_converter(debug=True)
+       conv = c.generator_comp(c.this * 2).pipe(sum).gen_converter(debug=True)
 
   .. tab:: compiled code
 
@@ -543,7 +543,7 @@ A bit more complex ones:
                   {
                       "id": c.item(0).as_type(str),
                       "amount": c.item(1).pipe(
-                          c.if_(c.this(), c.this().as_type(Decimal), None)
+                          c.if_(c.this, c.this.as_type(Decimal), None)
                       ),
                   }
               )
@@ -588,22 +588,22 @@ Now let's use some labels:
     .. code-block:: python
 
       conv1 = (
-          c.this().add_label("input")
+          c.this.add_label("input")
           .pipe(
-              c.filter(c.this() % 3 == 0),
+              c.filter(c.this % 3 == 0),
               label_input={
-                  "input_type": c.call_func(type, c.this()),
+                  "input_type": c.call_func(type, c.this),
               },
           )
           .pipe(
-              c.list_comp(c.this().as_type(str)),
+              c.list_comp(c.this.as_type(str)),
               label_output={
-                  "list_length": c.call_func(len, c.this()),
+                  "list_length": c.call_func(len, c.this),
                   "separator": c.if_(c.label("list_length") > 10, ",", ";"),
               },
           )
           .pipe({
-              "result": c.label("separator").call_method("join", c.this()),
+              "result": c.label("separator").call_method("join", c.this),
               "input_type": c.label("input_type"),
               "input_data": c.label("input"),
           })
@@ -832,12 +832,12 @@ Points to learn:
 
 .. code-block:: python
 
-   c.this().len()
-   c.min(c.this(), 5)
+   c.this.len()
+   c.min(c.this, 5)
    c.zip(c.item("list_a"), c.repeat(None))
    c.zip(a=c.item("list_a"), b=c.repeat(None))
-   c.take_while(c.this() < 3)
-   c.drop_while(c.this() < 3)
+   c.take_while(c.this < 3)
+   c.drop_while(c.this < 3)
 
 9. Aggregations
 _______________
@@ -982,7 +982,7 @@ of joined pairs into dicts:
        {"id": 2, "value": 200}
    ]}'''
    conv1 = (
-       c.call_func(json.loads, c.this())
+       c.call_func(json.loads, c.this)
        .pipe(
            c.join(
                c.item("left"),
@@ -1036,7 +1036,7 @@ The following :py:obj:`mutations<convtools.mutations.Mutations>` are available:
       converter = c.iter_mut(
           c.Mut.set_item("c", c.item("a") + c.item("b")),
           c.Mut.del_item("a"),
-          c.Mut.custom(c.this().call_method("update", c.input_arg("data")))
+          c.Mut.custom(c.this.call_method("update", c.input_arg("data")))
       ).as_type(list).gen_converter(debug=True)
 
       assert converter(input_data, data={"d": 4}) == [{"b": 2, "c": 3, "d": 4}]
@@ -1069,10 +1069,10 @@ The following :py:obj:`mutations<convtools.mutations.Mutations>` are available:
       input_data = [{"a": 1, "b": 2}]
 
       converter = c.list_comp(
-          c.this().tap(
+          c.this.tap(
               c.Mut.set_item("c", c.item("a") + c.item("b")),
               c.Mut.del_item("a"),
-              c.Mut.custom(c.this().call_method("update", c.input_arg("data")))
+              c.Mut.custom(c.this.call_method("update", c.input_arg("data")))
           )
       ).gen_converter(debug=True)
 
@@ -1109,7 +1109,7 @@ So there are 3 options to help you debug:
 .. code-block:: python
 
    # No. 1: just prints black-formatted code
-   c.this().gen_converter(debug=True)
+   c.this.gen_converter(debug=True)
 
    # No. 2: both prints black-formatted code & puts a breakpoint after "name"
    # lookup
@@ -1121,7 +1121,7 @@ So there are 3 options to help you debug:
    # the context
    with c.OptionsCtx() as options:
        options.debug = True
-       c.this().gen_converter()
+       c.this.gen_converter()
 
 See :py:obj:`c.OptionsCtx()<convtools.base.ConverterOptionsCtx>` API docs for
 the full list of available options.

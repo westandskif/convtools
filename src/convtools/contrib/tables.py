@@ -671,24 +671,15 @@ class Table:
         else:
             on = [on] if isinstance(on, str) else list(on)
             join_columns = set(on)
-            join_condition = (
-                And(
-                    *(
-                        left_join_conversion.item(
-                            left_column_name_to_column[column_name].index
-                        )
-                        == right_join_conversion.item(
-                            right_column_name_to_column[column_name].index
-                        )
-                        for column_name in on
+            join_condition = And(
+                *(
+                    left_join_conversion.item(
+                        left_column_name_to_column[column_name].index
                     )
-                )
-                if len(on) > 1
-                else left_join_conversion.item(
-                    left_column_name_to_column[on[0]].index
-                )
-                == right_join_conversion.item(
-                    right_column_name_to_column[on[0]].index
+                    == right_join_conversion.item(
+                        right_column_name_to_column[column_name].index
+                    )
+                    for column_name in on
                 )
             )
         del on

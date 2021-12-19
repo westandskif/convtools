@@ -446,9 +446,6 @@ class MultiStatementReducer(BaseReducer):
             ctx,
         )
 
-        block_cls = (
-            ReduceBlock if self.where is None else ReduceConditionalBlock
-        )
         kwargs = {
             "reduce_initial": reduce_initial,
             "reduce_two": reduce_two,
@@ -458,10 +455,15 @@ class MultiStatementReducer(BaseReducer):
             "unconditional_init": self.unconditional_init,
         }
         if self.where is not None:
-            kwargs["condition_code"] = self.where.gen_code_and_update_ctx(
-                var_row, ctx
-            )
+            condition_code = self.where.gen_code_and_update_ctx(var_row, ctx)
+            if condition_code != "True":
+                kwargs["condition_code"] = condition_code
 
+        block_cls = (
+            ReduceConditionalBlock
+            if "condition_code" in kwargs
+            else ReduceBlock
+        )
         return block_cls(**kwargs)
 
 
@@ -527,9 +529,6 @@ class Reduce(BaseReducer):
         ).gen_code_and_update_ctx(var_row, ctx)
         reduce_two = [f"%(result)s = {_}"]
 
-        block_cls = (
-            ReduceBlock if self.where is None else ReduceConditionalBlock
-        )
         kwargs = {
             "reduce_initial": reduce_initial,
             "reduce_two": reduce_two,
@@ -539,9 +538,15 @@ class Reduce(BaseReducer):
             "unconditional_init": self.unconditional_init,
         }
         if self.where is not None:
-            kwargs["condition_code"] = self.where.gen_code_and_update_ctx(
-                var_row, ctx
-            )
+            condition_code = self.where.gen_code_and_update_ctx(var_row, ctx)
+            if condition_code != "True":
+                kwargs["condition_code"] = condition_code
+
+        block_cls = (
+            ReduceConditionalBlock
+            if "condition_code" in kwargs
+            else ReduceBlock
+        )
 
         return block_cls(**kwargs)
 

@@ -34,9 +34,9 @@ def test_optional_dict():
     with pytest.raises(Exception):
         c.list_comp(c.optional(c.item("key1"))).gen_converter()
     with pytest.raises(Exception):
-        c.optional(c.item("key1"), skip_value=1, skip_if=c.this())
+        c.optional(c.item("key1"), skip_value=1, skip_if=c.this)
     with pytest.raises(Exception):
-        c.this().pipe(c.optional(c.this()))
+        c.this.pipe(c.optional(c.this))
 
 
 def test_optional_list_tuple_set():

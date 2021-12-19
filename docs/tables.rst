@@ -306,7 +306,7 @@ But you most definitely can leverage piping to callables like this:
 .. code-block:: python
 
    input_data = [["a", "b"], [1, 2], [3, 4]]
-   conversion = c.this().pipe(
+   conversion = c.this.pipe(
        lambda it: Table.from_rows(it, header=True).into_iter_rows(dict)
    ).as_type(list)
    conversion.execute(input_data)

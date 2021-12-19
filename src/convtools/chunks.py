@@ -45,8 +45,8 @@ class ChunkBy(BaseChunkBy):
     >>> # example #2
     >>> c.chunk_by_condition(
     >>>     c.and_(
-    >>>         c.CHUNK.item(-1) == c.this(),
-    >>>         c.CHUNK.item(-1) - c.this() < 100
+    >>>         c.CHUNK.item(-1) == c.this,
+    >>>         c.CHUNK.item(-1) - c.this < 100
     >>>     )
     >>> )
     >>> # with aggregate
@@ -190,8 +190,8 @@ class ChunkByCondition(BaseChunkBy):
     >>> # example #2
     >>> c.chunk_by_condition(
     >>>     c.and_(
-    >>>         c.CHUNK.item(-1) == c.this(),
-    >>>         c.CHUNK.item(-1) - c.this() < 100
+    >>>         c.CHUNK.item(-1) == c.this,
+    >>>         c.CHUNK.item(-1) - c.this < 100
     >>>     )
     >>> )
     >>> # with aggregate

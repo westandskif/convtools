@@ -115,8 +115,8 @@ ________________________________________________________________________
       converter = c.apply_func(f, args, kwargs)
 
       # when you call conversion
-      c.this().call(*args, **kwargs)
-      c.this().apply(args, kwargs)
+      c.this.call(*args, **kwargs)
+      c.this.apply(args, kwargs)
 
       # and their shortcuts
       c.apply(args, kwargs)
@@ -132,9 +132,9 @@ ________________________________________________________________________
 
    - .. code-block:: python
 
-      converter = c.this().call_method("foo", *args, **kwargs)
+      converter = c.this.call_method("foo", *args, **kwargs)
       # when kwargs keys are conversions
-      converter = c.this().apply_method("foo", args, kwargs)
+      converter = c.this.apply_method("foo", args, kwargs)
 
 
 .. _ref_cheatsheet_operators:
@@ -287,10 +287,10 @@ __________________
 
    - .. code-block:: python
 
-      c.dict_comp(c.item("id"), c.this())
+      c.dict_comp(c.item("id"), c.this)
       # OR
       c.iter(
-          (c.item("id"), c.this())
+          (c.item("id"), c.this)
       ).as_type(dict)
 
 
@@ -320,11 +320,11 @@ __________________________________
    - .. code-block:: python
 
       c.list_comp(
-          c.this(),
-          where=c.this() >= 5
+          c.this,
+          where=c.this >= 5
       ).pipe(
           c.if_(
-              if_true=c.this(),
+              if_true=c.this,
               if_false=None,
           )
       )
@@ -378,7 +378,7 @@ __________________________________
 
    - .. code-block:: python
 
-      c.this().sort()
+      c.this.sort()
 
 
 3. Parametrized conversion with some baked in arguments and optional items
@@ -535,7 +535,7 @@ ____________________________________________
           )
       )
 
-5. Pipes and Labels: chaining multiple conversions & c.this()
+5. Pipes and Labels: chaining multiple conversions & c.this
 _____________________________________________________________
 
 
@@ -575,12 +575,12 @@ _____________________________________________________________
    - .. code-block:: python
 
       filter_by_dt = c.generator_comp(
-          c.this()
+          c.this
       ).filter(
           c.item("dt") >= c.input_arg("dt_start")
       )
       app_name_getter = c.generator_comp(c.item("app_name"))
-      take_distinct = c.call_func(set, c.this())
+      take_distinct = c.call_func(set, c.this)
 
       converter = c.tuple(
           c.item("timestamp").add_label("timestamp"),
@@ -756,7 +756,7 @@ ___________________________________________
               )
           )
       ).pipe(
-          c.call_func(dict, c.this())
+          c.call_func(dict, c.this)
       ).gen_converter()
       converter(input_data, currency_to="USD")
 
@@ -794,11 +794,11 @@ ___________________________________________
                   ),
                   where=c.item(1)
               ).pipe(
-                  c.call_func(sum, c.this())
+                  c.call_func(sum, c.this)
               )
           )
       ).pipe(
-          c.call_func(dict, c.this())
+          c.call_func(dict, c.this)
       ).gen_converter()
       converter(input_data, currency_to="USD")
 
@@ -896,7 +896,7 @@ _______________________________
               ),
               "stream_consumer": c.reduce(
                   lambda consumer, b: consumer.consume(b) or consumer,
-                  c.this(), # passing full row
+                  c.this, # passing full row
                   initial=StreamConsumer,
                   default=None, # in case all sales <= 155
                   where=c.item("sales") > 155
@@ -940,20 +940,20 @@ ________________________________________________________________________________
       class A:
           # ...
           sum_and_multiply_1 = (
-              c.call_func(sum, c.this())
+              c.call_func(sum, c.this)
               * c.input_arg("self").attr("multiplier")
           ).gen_converter(signature="self, \*data_")
 
           sum_and_multiply_2 = classmethod(
               (
-                  c.call_func(sum, c.this())
+                  c.call_func(sum, c.this)
                   * c.input_arg("multiplier")
               ).gen_converter(signature="cls, \*data_, multiplier=1")
           )
           # ==== SAME ===
           # sum_and_multiply_2 = classmethod(
           #     (
-          #         c.call_func(sum, c.this())
+          #         c.call_func(sum, c.this)
           #         * c.input_arg("kwargs").call_method("get", "multiplier", 1)
           #     ).gen_converter(signature="cls, \*data_, \*\*kwargs")
           # )
@@ -993,7 +993,7 @@ _________
    - .. code-block:: python
 
       (
-          c.call_func(json.loads, c.this())
+          c.call_func(json.loads, c.this)
           .pipe(
               c.join(
                   c.item("left"),
@@ -1037,12 +1037,12 @@ _________________________________
    - .. code-block:: python
 
       # No. 1
-      c.this().gen_converter(debug=True)
+      c.this.gen_converter(debug=True)
 
       # No. 2
       with c.OptionsCtx() as options:
           options.debug = True
-          c.this().gen_converter()
+          c.this.gen_converter()
 
 13. Mutations
 _____________
@@ -1074,7 +1074,7 @@ _____________
           c.Mut.set_item("c", c.item("a") + c.item("b")),
           c.Mut.del_item("a"),
           c.Mut.custom(
-              c.this().call_method("update", c.input_arg("data"))
+              c.this.call_method("update", c.input_arg("data"))
           )
       ).as_type(list)
 
@@ -1090,11 +1090,11 @@ _____________
 
       # function call per element (if needed by some reason)
       c.list_comp(
-          c.this().tap(
+          c.this.tap(
               c.Mut.set_item("c", c.item("a") + c.item("b")),
               c.Mut.del_item("a"),
               c.Mut.custom(
-                  c.this().call_method( "update", c.input_arg("data"))
+                  c.this.call_method( "update", c.input_arg("data"))
               )
           )
       )
@@ -1123,7 +1123,7 @@ ____________________________________________________
 
    - .. code-block:: python
 
-      c.this().len()
+      c.this.len()
 
  * - .. code-block:: python
 
@@ -1212,7 +1212,7 @@ ______________________________________________________________________
 
    - .. code-block:: python
 
-      c.take_while(c.this() < 3)
+      c.take_while(c.this < 3)
 
  * - .. code-block:: python
 
@@ -1225,7 +1225,7 @@ ______________________________________________________________________
 
    - .. code-block:: python
 
-      c.drop_while(c.this() < 3)
+      c.drop_while(c.this < 3)
 
  * - .. code-block:: python
 

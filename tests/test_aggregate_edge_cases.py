@@ -112,11 +112,11 @@ def test_multi_statement_reducers(dict_series):
 def test_custom_reduce_initialization():
     with pytest.raises(TypeError):
         # initial is not provided
-        c.reduce(lambda a, b: a + b, c.this())
+        c.reduce(lambda a, b: a + b, c.this)
     with pytest.raises(ValueError):
         # default is not provided, initial is a conversion, so it cannot be
         # used as default
-        c.reduce(lambda a, b: a + b, c.this(), initial=c.this())
+        c.reduce(lambda a, b: a + b, c.this, initial=c.this)
 
 
 def test_legacy_dict_reduce_approach(dict_series):
@@ -131,15 +131,17 @@ def test_legacy_dict_reduce_approach(dict_series):
         "John": 63,
     }
     with pytest.raises(ValueError):
-        c.ReduceFuncs.DictSum(c.this(), c.this(), c.this())
+        c.ReduceFuncs.DictSum(c.this, c.this, c.this)
     with pytest.raises(ValueError):
-        c.ReduceFuncs.DictSum({c.this(), c.this()})
+        c.ReduceFuncs.DictSum({c.this, c.this})
 
 
 def test_reducer_reuse(dict_series):
     f = lambda a, b: a + b
     reducer = c.reduce(f, c.item("value"), initial=0)
-    reducer2 = c.reduce(f, c.item("value"), initial=0)
+    reducer2 = c.reduce(
+        f, c.item("value"), initial=0, where=c.or_(default=True)
+    )
     output = (
         c.group_by(c.item("name"))
         .aggregate(
@@ -277,13 +279,13 @@ def test_top_k(series, k):
 @pytest.mark.parametrize("k", [0, -1])
 def test_top_k_non_positive_int(k):
     with pytest.raises(ValueError):
-        c.aggregate(c.ReduceFuncs.TopK(k, c.this())).execute([1, 2]),
+        c.aggregate(c.ReduceFuncs.TopK(k, c.this)).execute([1, 2]),
 
 
 @pytest.mark.parametrize("k", [c.item(1), "abc"])
 def test_top_k_invalid_input(k):
     with pytest.raises(TypeError):
-        c.aggregate(c.ReduceFuncs.TopK(k, c.this())).execute([1, 2]),
+        c.aggregate(c.ReduceFuncs.TopK(k, c.this)).execute([1, 2]),
 
 
 @pytest.mark.parametrize("k", [1, 5])
@@ -327,8 +329,8 @@ def test_multiple_aggregations(dict_series):
     assert (
         c.aggregate(c.ReduceFuncs.Array(c.item("name")))
         .pipe(
-            c.aggregate(c.ReduceFuncs.ArrayDistinct(c.this())).pipe(
-                c.aggregate(c.ReduceFuncs.Max(c.this()))
+            c.aggregate(c.ReduceFuncs.ArrayDistinct(c.this)).pipe(
+                c.aggregate(c.ReduceFuncs.Max(c.this))
             )
         )
         .execute(dict_series, debug=False)
@@ -351,8 +353,8 @@ def test_reducer_inlining(dict_series):
             c.item("name"), default=f, where=c.item("value") < 0
         ).pipe(
             c.if_(
-                if_true=c.this(),
-                if_false=c.this(),
+                if_true=c.this,
+                if_false=c.this,
             )
         )
     ).gen_converter(debug=False)
@@ -361,24 +363,24 @@ def test_reducer_inlining(dict_series):
 
 def test_group_by_key_edge_case():
     with pytest.raises(ValueError):
-        c.this().add_label("row").pipe(c.ReduceFuncs.Count())
+        c.this.add_label("row").pipe(c.ReduceFuncs.Count())
     with pytest.raises(ValueError):
-        (c.this().add_label("row") + 1).pipe(c.ReduceFuncs.Count() + 1)
+        (c.this.add_label("row") + 1).pipe(c.ReduceFuncs.Count() + 1)
     with pytest.raises(ValueError):
-        c.this().pipe(c.ReduceFuncs.Count(), label_input="row")
+        c.this.pipe(c.ReduceFuncs.Count(), label_input="row")
     data = [
         (0, 1),
         (1, 2),
     ]
     assert c.group_by(c.item(0)).aggregate(
         c.if_(c.item(1), c.item(1), c.item(1)).pipe(
-            (c.ReduceFuncs.Sum(c.this()) / c.ReduceFuncs.Count(c.this())).pipe(
-                c.this() + 10
+            (c.ReduceFuncs.Sum(c.this) / c.ReduceFuncs.Count(c.this)).pipe(
+                c.this + 10
             )
         )
     ).gen_converter(debug=False)(data) == [11, 12]
     assert c.group_by(c.item(0)).aggregate(
-        c.item(1).pipe(c.ReduceFuncs.Sum(c.this()), label_output="count")
+        c.item(1).pipe(c.ReduceFuncs.Sum(c.this), label_output="count")
     ).gen_converter(debug=False)(data) == [1, 2]
 
 
@@ -392,32 +394,32 @@ def test_nested_group_by():
         (
             c.item(0),
             c.ReduceFuncs.Sum(
-                c.item(1).pipe(c.aggregate(c.ReduceFuncs.Sum(c.this())))
+                c.item(1).pipe(c.aggregate(c.ReduceFuncs.Sum(c.this)))
             ),
         )
     ).execute(data, debug=False) == [
         (0, 21),
         (1, 9),
     ]
-    agg_conv = c.aggregate(c.ReduceFuncs.Sum(c.this()))
+    agg_conv = c.aggregate(c.ReduceFuncs.Sum(c.this))
     assert c.group_by(c.item(0)).aggregate(
         (
             c.item(0),
             c.if_(c.item(1), c.item(1), c.item(1),).pipe(
-                c.if_(c.this(), c.this(), c.this(),).pipe(
+                c.if_(c.this, c.this, c.this,).pipe(
                     c.ReduceFuncs.Sum(
                         c.if_(
-                            c.this(),
-                            c.this(),
-                            c.this(),
+                            c.this,
+                            c.this,
+                            c.this,
                         )
                         .pipe((agg_conv, agg_conv))
                         .pipe(c.item(1))
                     ).pipe(
                         c.if_(
-                            c.this(),
-                            c.this(),
-                            c.this(),
+                            c.this,
+                            c.this,
+                            c.this,
                         )
                     ),
                 )
@@ -428,16 +430,16 @@ def test_nested_group_by():
         (1, 9),
     ]
 
-    summer = c.aggregate(c.ReduceFuncs.Sum(c.this()))
+    summer = c.aggregate(c.ReduceFuncs.Sum(c.this))
 
     merger = c.aggregate(
         {
             "value1": c.ReduceFuncs.First(
-                c.item("value1"), where=c("value1").in_(c.this())
+                c.item("value1"), where=c("value1").in_(c.this)
             ),
             "value2": c.ReduceFuncs.First(
-                c.item("value2"), where=c("value2").in_(c.this())
-            ).pipe(c.if_(c.this(), c.this().pipe(summer))),
+                c.item("value2"), where=c("value2").in_(c.this)
+            ).pipe(c.if_(c.this, c.this.pipe(summer))),
         }
     )
     converter = (
@@ -445,7 +447,7 @@ def test_nested_group_by():
         .aggregate(
             {
                 "id_": c.item("id_"),
-                "data": c.ReduceFuncs.Array(c.this()).pipe(merger),
+                "data": c.ReduceFuncs.Array(c.this).pipe(merger),
             }
         )
         .gen_converter(debug=False)
@@ -466,7 +468,7 @@ def test_nested_group_by():
         raise Exception
 
     assert (
-        c.aggregate(c.ReduceFuncs.First(c.this())).execute(g(), debug=False)
+        c.aggregate(c.ReduceFuncs.First(c.this)).execute(g(), debug=False)
     ) == 1
 
 
@@ -493,43 +495,43 @@ def test_aggregate_no_init_loops():
 def test_aggregate_percentile():
     converter = c.aggregate(
         (
-            c.ReduceFuncs.Percentile(50, c.this()),
-            c.ReduceFuncs.Percentile(100, c.this()),
+            c.ReduceFuncs.Percentile(50, c.this),
+            c.ReduceFuncs.Percentile(100, c.this),
         )
     ).gen_converter()
     assert converter(range(10)) == (4.5, 9)
     assert converter(range(11)) == (5, 10)
     converter = c.aggregate(
         (
-            c.ReduceFuncs.Percentile(0, c.this(), interpolation="linear"),
-            c.ReduceFuncs.Percentile(49, c.this(), interpolation="linear"),
-            c.ReduceFuncs.Percentile(50, c.this(), interpolation="linear"),
-            c.ReduceFuncs.Percentile(51, c.this(), interpolation="linear"),
-            c.ReduceFuncs.Percentile(100, c.this(), interpolation="linear"),
+            c.ReduceFuncs.Percentile(0, c.this, interpolation="linear"),
+            c.ReduceFuncs.Percentile(49, c.this, interpolation="linear"),
+            c.ReduceFuncs.Percentile(50, c.this, interpolation="linear"),
+            c.ReduceFuncs.Percentile(51, c.this, interpolation="linear"),
+            c.ReduceFuncs.Percentile(100, c.this, interpolation="linear"),
             #
-            c.ReduceFuncs.Percentile(0, c.this(), interpolation="lower"),
-            c.ReduceFuncs.Percentile(49, c.this(), interpolation="lower"),
-            c.ReduceFuncs.Percentile(50, c.this(), interpolation="lower"),
-            c.ReduceFuncs.Percentile(51, c.this(), interpolation="lower"),
-            c.ReduceFuncs.Percentile(100, c.this(), interpolation="lower"),
+            c.ReduceFuncs.Percentile(0, c.this, interpolation="lower"),
+            c.ReduceFuncs.Percentile(49, c.this, interpolation="lower"),
+            c.ReduceFuncs.Percentile(50, c.this, interpolation="lower"),
+            c.ReduceFuncs.Percentile(51, c.this, interpolation="lower"),
+            c.ReduceFuncs.Percentile(100, c.this, interpolation="lower"),
             #
-            c.ReduceFuncs.Percentile(0, c.this(), interpolation="higher"),
-            c.ReduceFuncs.Percentile(49, c.this(), interpolation="higher"),
-            c.ReduceFuncs.Percentile(50, c.this(), interpolation="higher"),
-            c.ReduceFuncs.Percentile(51, c.this(), interpolation="higher"),
-            c.ReduceFuncs.Percentile(100, c.this(), interpolation="higher"),
+            c.ReduceFuncs.Percentile(0, c.this, interpolation="higher"),
+            c.ReduceFuncs.Percentile(49, c.this, interpolation="higher"),
+            c.ReduceFuncs.Percentile(50, c.this, interpolation="higher"),
+            c.ReduceFuncs.Percentile(51, c.this, interpolation="higher"),
+            c.ReduceFuncs.Percentile(100, c.this, interpolation="higher"),
             #
-            c.ReduceFuncs.Percentile(0, c.this(), interpolation="midpoint"),
-            c.ReduceFuncs.Percentile(49, c.this(), interpolation="midpoint"),
-            c.ReduceFuncs.Percentile(50, c.this(), interpolation="midpoint"),
-            c.ReduceFuncs.Percentile(51, c.this(), interpolation="midpoint"),
-            c.ReduceFuncs.Percentile(100, c.this(), interpolation="midpoint"),
+            c.ReduceFuncs.Percentile(0, c.this, interpolation="midpoint"),
+            c.ReduceFuncs.Percentile(49, c.this, interpolation="midpoint"),
+            c.ReduceFuncs.Percentile(50, c.this, interpolation="midpoint"),
+            c.ReduceFuncs.Percentile(51, c.this, interpolation="midpoint"),
+            c.ReduceFuncs.Percentile(100, c.this, interpolation="midpoint"),
             #
-            c.ReduceFuncs.Percentile(0, c.this(), interpolation="nearest"),
-            c.ReduceFuncs.Percentile(49, c.this(), interpolation="nearest"),
-            c.ReduceFuncs.Percentile(50, c.this(), interpolation="nearest"),
-            c.ReduceFuncs.Percentile(51, c.this(), interpolation="nearest"),
-            c.ReduceFuncs.Percentile(100, c.this(), interpolation="nearest"),
+            c.ReduceFuncs.Percentile(0, c.this, interpolation="nearest"),
+            c.ReduceFuncs.Percentile(49, c.this, interpolation="nearest"),
+            c.ReduceFuncs.Percentile(50, c.this, interpolation="nearest"),
+            c.ReduceFuncs.Percentile(51, c.this, interpolation="nearest"),
+            c.ReduceFuncs.Percentile(100, c.this, interpolation="nearest"),
         )
     ).gen_converter()
     assert converter(range(9, -1, -1)) == (
@@ -566,11 +568,11 @@ def test_aggregate_percentile():
     )
 
     with pytest.raises(TypeError):
-        c.ReduceFuncs.Percentile("asd", c.this())
+        c.ReduceFuncs.Percentile("asd", c.this)
     with pytest.raises(ValueError):
-        c.ReduceFuncs.Percentile(200, c.this())
+        c.ReduceFuncs.Percentile(200, c.this)
     with pytest.raises(ValueError):
-        c.ReduceFuncs.Percentile(10, c.this(), interpolation="asd")
+        c.ReduceFuncs.Percentile(10, c.this, interpolation="asd")
 
 
 def test_group_by_percentile():
@@ -579,7 +581,7 @@ def test_group_by_percentile():
         for index, key in enumerate("abc")
         for value in range(index + 90, -1, -1)
     ]
-    c_round = c.call_func(round, c.this(), 2)
+    c_round = c.call_func(round, c.this, 2)
     result = (
         c.group_by(c.item("key"))
         .aggregate(
@@ -588,6 +590,9 @@ def test_group_by_percentile():
                 "min": c.ReduceFuncs.Percentile(0, c.item("value")).pipe(
                     c_round
                 ),
+                "min": c.ReduceFuncs.Percentile(
+                    0, c.item("value"), where=c.and_(default=True)
+                ).pipe(c_round),
                 "percentile_5": c.ReduceFuncs.Percentile(
                     5, c.item("value")
                 ).pipe(c_round),

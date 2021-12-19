@@ -1,8 +1,24 @@
+0.21.0 (2021-12-19)
+___________________
+
+Features
+++++++++
+
+#. backward-compatible change: now ``c.this`` is preferred over ``c.this()``
+#. ``c.and_`` and ``c.or_`` support any number of arguments (used to be 2
+   mandatory ones). And also supports ``default: bool = None`` argument to control
+   what should happen if no arguments are passed:
+
+   * if None, raises ``ValueError``
+   * if false value, returns ``False``
+   * if true value, returns ``True``
+
+
 0.20.2 (2021-12-02)
 ___________________
 
 
-`#14 <https://github.com/westandskif/convtools/issues/14`_
+`#14 <https://github.com/westandskif/convtools/issues/14>`_
 
 Misc
 ++++

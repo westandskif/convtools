@@ -238,15 +238,7 @@ class JoinConversion(BaseConversion):
             right_collection = right_collection.pipe(
                 GeneratorComp(
                     GetItem(),
-                    where=(
-                        And(
-                            right_collection_filters[0],
-                            right_collection_filters[1],
-                            *right_collection_filters[2:],
-                        )
-                        if len(right_collection_filters) > 1
-                        else right_collection_filters[0]
-                    ),
+                    where=And(*right_collection_filters),
                 )
             )
         if self.how == "outer" or not left_row_hashers:
@@ -258,15 +250,7 @@ class JoinConversion(BaseConversion):
             left_collection = left_collection.pipe(
                 GeneratorComp(
                     GetItem(),
-                    where=(
-                        And(
-                            left_collection_filters[0],
-                            left_collection_filters[1],
-                            *left_collection_filters[2:],
-                        )
-                        if len(left_collection_filters) > 1
-                        else left_collection_filters[0]
-                    ),
+                    where=And(*left_collection_filters),
                 )
             )
 
@@ -411,15 +395,7 @@ class JoinConversion(BaseConversion):
             )
         if pre_filter:
             conv = If(
-                (
-                    And(
-                        pre_filter[0],
-                        pre_filter[1],
-                        *pre_filter[2:],
-                    )
-                    if len(pre_filter) > 1
-                    else pre_filter[0]
-                ),
+                And(*pre_filter),
                 conv,
                 CallFunc(list),
             )

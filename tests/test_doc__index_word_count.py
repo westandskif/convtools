@@ -20,11 +20,11 @@ def test_doc__index_word_count():
     #     with open(filename) as f:
     #         for line in f:
     #             yield line
-    # extract_strings = c.generator_comp(c.call_func(read_file, c.this()))
+    # extract_strings = c.generator_comp(c.call_func(read_file, c.this))
 
     # to simplify testing
     extract_strings = c.generator_comp(
-        c.call_func(lambda filename: [filename], c.this())
+        c.call_func(lambda filename: [filename], c.this)
     )
 
     # 1. make ``re`` pattern available to the code to be generated
@@ -35,29 +35,29 @@ def test_doc__index_word_count():
     #    and call ``.lower()`` on each result
     split_words = (
         c.naive(re.compile(r"\w+"))
-        .call_method("finditer", c.this())
+        .call_method("finditer", c.this)
         .pipe(
             c.generator_comp(
-                c.this().call_method("group", 0).call_method("lower")
+                c.this.call_method("group", 0).call_method("lower")
             )
         )
     )
 
     # ``extract_strings`` is the generator of strings
     # so we iterate it and pass each item to ``split_words`` conversion
-    vectorized_split_words = c.generator_comp(c.this().pipe(split_words))
+    vectorized_split_words = c.generator_comp(c.this.pipe(split_words))
 
     # flattening the result of ``vectorized_split_words``, which is
     # a generator of generators of strings
     flatten = c.call_func(
         chain.from_iterable,
-        c.this(),
+        c.this,
     )
 
     # aggregate the input, the result is a single dict
     # words are keys, values are count of words
     dict_word_to_count = c.aggregate(
-        c.ReduceFuncs.DictCount(c.this(), c.this(), default=dict)
+        c.ReduceFuncs.DictCount(c.this, c.this, default=dict)
     )
 
     # take top N words by:
@@ -66,10 +66,9 @@ def test_doc__index_word_count():
     #  - take the slice, using input argument named ``top_n``
     #  - cast to a dict
     take_top_n = (
-        c.this()
-        .call_method("items")
+        c.this.call_method("items")
         .sort(key=lambda t: t[1], reverse=True)
-        .pipe(c.this()[: c.input_arg("top_n")])
+        .pipe(c.this[: c.input_arg("top_n")])
         .as_type(dict)
     )
 
@@ -84,7 +83,7 @@ def test_doc__index_word_count():
         .pipe(
             c.if_(
                 c.input_arg("top_n").is_not(None),
-                c.this().pipe(take_top_n),
+                c.this.pipe(take_top_n),
             )
         )
         # Define the resulting converter function signature.  In fact this

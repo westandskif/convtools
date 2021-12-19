@@ -16,7 +16,7 @@ def test_mutation_item():
         }
     ).pipe(
         c.list_comp(
-            c.call_func(lambda d: d, c.this()).tap(
+            c.call_func(lambda d: d, c.this).tap(
                 c.Mut.set_item(
                     "name_before", c.label("_input").item(0, "name")
                 ),
@@ -27,7 +27,7 @@ def test_mutation_item():
                 c.Mut.set_item("_updated", c.input_arg("now")),
                 c.Mut.set_item(c.item("age"), c.item("age") >= 18),
                 c.Mut.del_item("to_del"),
-                c.Mut.custom(c.this().call_method("update", {"to_add": 2})),
+                c.Mut.custom(c.this.call_method("update", {"to_add": 2})),
             )
         ),
         label_input="_input",
@@ -63,7 +63,7 @@ def test_mutation_attr():
     obj.b = 2
 
     obj = (
-        c.this().tap(
+        c.this.tap(
             c.Mut.del_attr("a"),
             c.Mut.set_attr("c", 3),
         )
@@ -85,12 +85,11 @@ def test_mutation_attr():
 
 def test_iter_mut_method():
     assert c.iter(c.item(0)).as_type(list).execute([[1], [2]]) == [1, 2]
-    assert c.iter_mut(c.Mut.custom(c.this().call_method("append", 7))).as_type(
+    assert c.iter_mut(c.Mut.custom(c.this.call_method("append", 7))).as_type(
         list
     ).execute([[1], [2]]) == [[1, 7], [2, 7]]
     assert (
-        c.this()
-        .iter({"a": c.this()})
+        c.this.iter({"a": c.this})
         .iter_mut(
             c.Mut.set_item("b", c.item("a") + 1),
             c.Mut.set_item("c", c.item("a") + 2),
@@ -111,14 +110,14 @@ def test_iter_mut_method():
         .aggregate(
             c(
                 [
-                    {c.item(0): c.item(1).pipe(c.ReduceFuncs.Max(c.this()))},
-                    {c.item(1).pipe(c.ReduceFuncs.Max(c.this())): c.item(0)},
+                    {c.item(0): c.item(1).pipe(c.ReduceFuncs.Max(c.this))},
+                    {c.item(1).pipe(c.ReduceFuncs.Max(c.this)): c.item(0)},
                 ]
             )
             .iter_mut(
                 c.Mut.set_item(
                     "x",
-                    c.call_func(sum, c.this().call_method("values"))
+                    c.call_func(sum, c.this.call_method("values"))
                     + c.input_arg("base"),
                 )
             )

@@ -33,14 +33,14 @@ def test_doc__index_deserialization():
     }
 
     # prepare a few conversions to reuse
-    c_strip = c.this().call_method("strip")
-    c_capitalize = c.this().call_method("capitalize")
-    c_decimal = c.this().call_method("replace", ",", "").as_type(Decimal)
-    c_date = c.call_func(datetime.strptime, c.this(), "%Y-%m-%d").call_method(
+    c_strip = c.this.call_method("strip")
+    c_capitalize = c.this.call_method("capitalize")
+    c_decimal = c.this.call_method("replace", ",", "").as_type(Decimal)
+    c_date = c.call_func(datetime.strptime, c.this, "%Y-%m-%d").call_method(
         "date"
     )
     # reusing c_date
-    c_optional_date = c.if_(c.this(), c_date, None)
+    c_optional_date = c.if_(c.this, c_date, None)
 
     first_name = c.item("first_name").pipe(c_capitalize)
     last_name = c.item("last_name").pipe(c_capitalize)
@@ -78,7 +78,7 @@ def test_doc__index_deserialization():
                 c.apply_func(  # value
                     Employee,
                     args=(),
-                    kwargs=c.this(),
+                    kwargs=c.this,
                 ),
             )
         )

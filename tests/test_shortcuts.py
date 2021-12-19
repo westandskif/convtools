@@ -42,7 +42,7 @@ def test_base_zip():
         c.iter(c.zip(c.item(0), c.repeat(c.item(1))))
         .flatten()
         .iter(c.item(1, c.item(0)))
-        .pipe(c.call_func(",".join, c.this()))
+        .pipe(c.call_func(",".join, c.this))
         .gen_converter(debug=False)
     )
     assert converter(input_data) == "a,b,c,a,b,c"
@@ -101,9 +101,9 @@ def test_min_max():
     assert c((2, 1)).pipe(c.min(c.item(0), c.item(1))).execute(None) == 1
 
     with pytest.raises(TypeError):
-        c.min(c.this()).execute(-1)
+        c.min(c.this).execute(-1)
     with pytest.raises(TypeError):
-        c.max(c.this()).execute(-1)
+        c.max(c.this).execute(-1)
 
 
 def test_breakpoint():
@@ -116,7 +116,7 @@ def test_breakpoint():
 
     Breakpoint.debug_func = staticmethod(add_to_list)
     try:
-        c.list_comp(c.this().breakpoint()).execute([1, 2, 3])
+        c.list_comp(c.this.breakpoint()).execute([1, 2, 3])
         c.list_comp(c.breakpoint()).execute([3, 4])
     finally:
         Breakpoint.debug_func = before

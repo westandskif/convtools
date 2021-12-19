@@ -23,18 +23,18 @@ def test_manually_defined_reducers():
             default=int,
         )
     )
-    grouper = grouper_base.filter(c.this() > 20).gen_converter(
+    grouper = grouper_base.filter(c.this > 20).gen_converter(
         signature="data_, group_key='debit'", debug=False
     )
     assert grouper(data) == [540, 25]
     assert list(grouper(data, group_key="balance")) == [82, 120]
 
-    grouper = grouper_base.filter((c.this() > 20), cast=list).gen_converter(
+    grouper = grouper_base.filter((c.this > 20), cast=list).gen_converter(
         signature="data_, group_key='debit'", debug=False
     )
     assert grouper(data) == [540, 25]
 
-    grouper = grouper_base.filter((c.this() > 20), cast=set).gen_converter(
+    grouper = grouper_base.filter((c.this > 20), cast=set).gen_converter(
         signature="data_, group_key='debit'", debug=False
     )
     assert grouper(data, group_key="balance") == {82, 120}
@@ -172,7 +172,7 @@ def test_grouping():
     # fmt: on
     result3 = (
         c.aggregate(c.ReduceFuncs.Sum(c.item("debit") + 0))
-        .pipe(c.inline_expr("{0} + {1}").pass_args(c.this(), c.this()))
+        .pipe(c.inline_expr("{0} + {1}").pass_args(c.this, c.this))
         .execute(data, debug=False)
     )
     assert result3 == 583 * 2
@@ -456,28 +456,28 @@ def test_reducers():
 def test_base_reducer():
     assert c.aggregate(
         (
-            c.reduce(lambda a, b: a + b, c.this(), initial=0),
-            c.reduce(c.naive(lambda a, b: a + b), c.this(), initial=int),
+            c.reduce(lambda a, b: a + b, c.this, initial=0),
+            c.reduce(c.naive(lambda a, b: a + b), c.this, initial=int),
             c.reduce(
                 c.inline_expr("{0} + {1}"),
-                c.this(),
+                c.this,
                 initial=c.inline_expr("int()"),
                 default=0,
             ),
             c.reduce(
                 c.inline_expr("{0} + {1}"),
-                c.this(),
+                c.this,
                 initial=c(int),
                 default=0,
             ),
             c.reduce(
                 c.inline_expr("{0} + {1}"),
-                c.this(),
+                c.this,
                 initial=int,
                 default=0,
             ),
         )
-    ).filter(c.this() > 5).gen_converter(debug=False)([1, 2, 3]) == [
+    ).filter(c.this > 5).gen_converter(debug=False)([1, 2, 3]) == [
         6,
         6,
         6,
@@ -495,7 +495,7 @@ def test_base_reducer():
         ).gen_converter()
     with pytest.raises(ValueError):
         c.aggregate(
-            (c.ReduceFuncs.Count() + 2).pipe(c.ReduceFuncs.Sum(c.this()) + 1)
+            (c.ReduceFuncs.Count() + 2).pipe(c.ReduceFuncs.Sum(c.this) + 1)
         ).gen_converter()
 
     conv = c.aggregate(
@@ -572,13 +572,13 @@ def test_group_by_with_pipes():
                         None,
                     ),
                 )
-                .pipe(c.filter(c.this()))
+                .pipe(c.filter(c.this))
                 .pipe(
-                    c.call_func(sorted, c.this()).pipe(
-                        c(", ").call_method("join", c.this())
+                    c.call_func(sorted, c.this).pipe(
+                        c(", ").call_method("join", c.this)
                     )
                 )
-                .pipe(c.this()),
+                .pipe(c.this),
             }
         )
         .execute(input_data)
@@ -590,17 +590,17 @@ def test_group_by_with_pipes():
         {'name': 'Nick', 'products': 'D, E', 'started_at': date(2020, 2, 1)}]
     # fmt: on
 
-    reducer = c.ReduceFuncs.Array(c.this(), default=list)
+    reducer = c.ReduceFuncs.Array(c.this, default=list)
     output = (
         c.group_by(
-            c.this()["name"],
-            c.this()["started_at"],
+            c.this["name"],
+            c.this["started_at"],
         )
         .aggregate(
             {
-                "name": c.this()["name"],
-                "started_at": c.this()["started_at"],
-                "products": c.this()["product"].pipe(reducer)[:3],
+                "name": c.this["name"],
+                "started_at": c.this["started_at"],
+                "products": c.this["product"].pipe(reducer)[:3],
             }
         )
         .execute(input_data)
@@ -632,8 +632,8 @@ def test_group_by_with_double_ended_pipes():
     # fmt: off
     conv = c.aggregate(
         c.item("value")
-        .pipe(c.ReduceFuncs.Sum(c.this()))
-        .pipe(c.this() * 2)
+        .pipe(c.ReduceFuncs.Sum(c.this))
+        .pipe(c.this * 2)
     ).gen_converter()
     # fmt: on
     result = conv(input_data)
@@ -659,14 +659,14 @@ def test_group_by_with_double_ended_pipes():
 
 def test_simple_label():
     conv1 = (
-        c.tuple(c.item(2).add_label("a"), c.this())
-        .pipe(c.item(1).pipe(c.list_comp((c.this(), c.label("a")))))
+        c.tuple(c.item(2).add_label("a"), c.this)
+        .pipe(c.item(1).pipe(c.list_comp((c.this, c.label("a")))))
         .gen_converter(debug=False)
     )
     assert conv1([1, 2, 3, 4]) == [(1, 3), (2, 3), (3, 3), (4, 3)]
 
     conv2 = (
-        c.tuple(c.item(1).add_label("a"), c.this())
+        c.tuple(c.item(1).add_label("a"), c.this)
         .pipe(
             c.item(1),
             label_input={"aa": c.item(0), "bb": c.item(0)},
@@ -676,7 +676,7 @@ def test_simple_label():
             c.label("collection1").pipe(
                 c.aggregate(
                     c.ReduceFuncs.Sum(
-                        c.this()
+                        c.this
                         + c.label("a")
                         + c.label("aa")
                         + c.input_arg("x")
@@ -686,20 +686,20 @@ def test_simple_label():
             ),
             label_output="b",
         )
-        .pipe(c.this() + c.label("b"))
+        .pipe(c.this + c.label("b"))
         .gen_converter(debug=False)
     )
     assert conv2([1, 2, 3, 4], x=10) == 140
 
     conv3 = (
-        c.tuple(c.item("default").add_label("default"), c.this())
+        c.tuple(c.item("default").add_label("default"), c.this)
         .pipe(c.item(1).pipe(c.item("abc", default=c.label("default"))))
         .gen_converter(debug=False)
     )
     assert conv3({"default": 1}) == 1
 
     with pytest.raises(c.ConversionException):
-        c.this().pipe(c.this(), label_input=1)
+        c.this.pipe(c.this, label_input=1)
 
 
 def test_aggregate_func():
@@ -713,7 +713,7 @@ def test_aggregate_func():
         {
             "a": c.ReduceFuncs.Array(c.item("a")),
             "a_sum": c.ReduceFuncs.Array(c.item("a")).pipe(
-                c.aggregate(c.ReduceFuncs.Sum(c.this()))
+                c.aggregate(c.ReduceFuncs.Sum(c.this))
             ),
             "ab_sum": c.ReduceFuncs.Sum(c.item("a")) + c.ReduceFuncs.Count(),
             "b": c.ReduceFuncs.ArrayDistinct(c.item("b")),

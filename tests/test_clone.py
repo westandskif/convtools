@@ -22,7 +22,7 @@ def test_group_by_reducer_clones():
         {"value": 3},
     ]
     conv = c.aggregate(
-        c.item("value").pipe(c.ReduceFuncs.Sum(c.this()).pipe(c.this() + 1))
+        c.item("value").pipe(c.ReduceFuncs.Sum(c.this).pipe(c.this + 1))
     )
     assert conv.execute(data) == 6
 
