@@ -99,6 +99,13 @@ def test_table_base_init():
     with pytest.raises(ValueError):
         Table.from_rows([{1}])
 
+    assert list(
+        Table.from_rows(["name", "cde"], header=True).into_iter_rows(dict)
+    ) == [{"name": "cde"}]
+    assert list(
+        Table.from_rows(["name", "cde"], header=False).into_iter_rows(dict)
+    ) == [{"COLUMN_0": "name"}, {"COLUMN_0": "cde"}]
+
 
 def test_table_take():
     result = list(

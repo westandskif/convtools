@@ -28,6 +28,7 @@ def test_mutation_item():
                 c.Mut.set_item(c.item("age"), c.item("age") >= 18),
                 c.Mut.del_item("to_del"),
                 c.Mut.custom(c.this.call_method("update", {"to_add": 2})),
+                c.this.call_method("update", {"to_add2": 4}),
             )
         ),
         label_input="_input",
@@ -42,6 +43,7 @@ def test_mutation_item():
             "_updated": now,
             28: True,
             "to_add": 2,
+            "to_add2": 4,
         }
     ]
 
@@ -88,7 +90,7 @@ def test_iter_mut_method():
     assert c.iter_mut(c.Mut.custom(c.this.call_method("append", 7))).as_type(
         list
     ).execute([[1], [2]]) == [[1, 7], [2, 7]]
-    assert (
+    result = (
         c.this.iter({"a": c.this})
         .iter_mut(
             c.Mut.set_item("b", c.item("a") + 1),
@@ -99,7 +101,8 @@ def test_iter_mut_method():
         )
         .as_type(list)
         .execute([1, 2, 3], debug=False)
-    ) == [
+    )
+    assert result == [
         {"a": 1, "b": 2, "c": 3, "d": 4},
         {"a": 2, "b": 3, "c": 4, "d": 5},
         {"a": 3, "b": 4, "c": 5, "d": 6},

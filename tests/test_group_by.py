@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from convtools import conversion as c
+from convtools.base import LazyEscapedString, Namespace
 
 
 def test_manually_defined_reducers():
@@ -205,6 +206,17 @@ def test_grouping():
             .aggregate(by + (c.reduce(c.ReduceFuncs.Sum, c.item("debit")),))
             .execute(data, debug=False)
         )
+
+    assert (
+        Namespace(
+            c.aggregate(
+                c.ReduceFuncs.Array(c.this.or_(LazyEscapedString("foo")))
+            )
+            + c.input_arg("tst"),
+            {"foo": "tst"},
+        ).execute(range(3), tst=[], debug=True)
+        == [[], 1, 2]
+    )
 
 
 # fmt: off

@@ -7,10 +7,10 @@ from .aggregations import Aggregate
 from .base import (
     BaseConversion,
     Code,
-    ConversionWrapper,
     EscapedString,
     GeneratorComp,
-    NamedConversion,
+    LazyEscapedString,
+    Namespace,
     This,
 )
 
@@ -84,79 +84,90 @@ class ChunkBy(BaseChunkBy):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("chunk_by", ctx, self)
-        code_args = self.by.get_args_def_code() if self.by else ""
-        func_args = self.by.get_args_as_func_args() if self.by else ()
+        (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        ) = (self.by or This()).get_args_def_info(ctx)
+        with namespace_ctx:
 
-        code = Code()
-        code.add_line(f"def {converter_name}(items_{code_args}):", 1)
-        code.add_line("items_ = iter(items_)", 0)
-        code.add_line("try:", 0)
-        code.add_line("    item_ = next(items_)", 0)
-        code.add_line("except StopIteration:", 0)
-        code.add_line("    return", 0)
+            code = Code()
+            code.add_line(f"def {converter_name}(items_{code_args}):", 1)
+            code.add_line("items_ = iter(items_)", 0)
+            code.add_line("try:", 0)
+            code.add_line("    item_ = next(items_)", 0)
+            code.add_line("except StopIteration:", 0)
+            code.add_line("    return", 0)
 
-        code.add_line("chunk_ = [item_]", 0)
+            code.add_line("chunk_ = [item_]", 0)
 
-        code_item_to_signature = (
-            self.by.gen_code_and_update_ctx("item_", ctx) if self.by else None
-        )
-
-        code_before_for = Code()
-        code_after_for = Code()
-        code_if_condition = None
-        code_if_continue_chunk = Code()
-        code_if_new_chunk = Code()
-
-        code_if_continue_chunk.add_line("chunk_.append(item_)", 0)
-        code_if_new_chunk.add_line("yield chunk_", 0)
-        code_if_new_chunk.add_line("chunk_ = [item_]", 0)
-
-        if code_item_to_signature and self.size:
-            code_if_condition = (
-                "chunk_item_signature == new_item_signature and size_ < "
-                f"{self.size}"
+            code_item_to_signature = (
+                self.by.gen_code_and_update_ctx("item_", ctx)
+                if self.by
+                else None
             )
 
-        if code_item_to_signature:
-            code_before_for.add_line(
-                f"chunk_item_signature = {code_item_to_signature}", 0
-            )
-            code_after_for.add_line(
-                f"new_item_signature = {code_item_to_signature}", 0
-            )
-            code_if_condition = (
-                code_if_condition
-                or "chunk_item_signature == new_item_signature"
-            )
-            code_if_new_chunk.add_line(
-                "chunk_item_signature = new_item_signature", 0
-            )
+            code_before_for = Code()
+            code_after_for = Code()
+            code_if_condition = None
+            code_if_continue_chunk = Code()
+            code_if_new_chunk = Code()
 
-        if self.size:
-            code_before_for.add_line("size_ = 1", 0)
-            code_if_condition = code_if_condition or f"size_ < {self.size}"
-            code_if_continue_chunk.add_line("size_ = size_ + 1", 0)
-            code_if_new_chunk.add_line("size_ = 1", 0)
+            code_if_continue_chunk.add_line("chunk_.append(item_)", 0)
+            code_if_new_chunk.add_line("yield chunk_", 0)
+            code_if_new_chunk.add_line("chunk_ = [item_]", 0)
 
-        if not code_if_condition:
-            raise AssertionError("impossible case")
+            if code_item_to_signature and self.size:
+                code_if_condition = (
+                    "chunk_item_signature == new_item_signature and size_ < "
+                    f"{self.size}"
+                )
 
-        code.add_code(code_before_for)
-        code.add_line("for item_ in items_:", 1)
-        code.add_code(code_after_for)
-        code.add_line(f"if {code_if_condition}:", 1)
-        code.add_code(code_if_continue_chunk)
-        code.incr_indent_level(-1)
-        code.add_line("else:", 1)
-        code.add_code(code_if_new_chunk)
-        code.incr_indent_level(-2)
-        code.add_line("yield chunk_", -1)
+            if code_item_to_signature:
+                code_before_for.add_line(
+                    f"chunk_item_signature = {code_item_to_signature}", 0
+                )
+                code_after_for.add_line(
+                    f"new_item_signature = {code_item_to_signature}", 0
+                )
+                code_if_condition = (
+                    code_if_condition
+                    or "chunk_item_signature == new_item_signature"
+                )
+                code_if_new_chunk.add_line(
+                    "chunk_item_signature = new_item_signature", 0
+                )
 
-        self._code_to_converter(converter_name, code.to_string(0), ctx)
+            if self.size:
+                code_before_for.add_line("size_ = 1", 0)
+                code_if_condition = code_if_condition or f"size_ < {self.size}"
+                code_if_continue_chunk.add_line("size_ = size_ + 1", 0)
+                code_if_new_chunk.add_line("size_ = 1", 0)
+
+            if not code_if_condition:
+                raise AssertionError("impossible case")
+
+            code.add_code(code_before_for)
+            code.add_line("for item_ in items_:", 1)
+            code.add_code(code_after_for)
+            code.add_line(f"if {code_if_condition}:", 1)
+            code.add_code(code_if_continue_chunk)
+            code.incr_indent_level(-1)
+            code.add_line("else:", 1)
+            code.add_code(code_if_new_chunk)
+            code.incr_indent_level(-2)
+            code.add_line("yield chunk_", -1)
+
+            self._code_to_converter(converter_name, code.to_string(0), ctx)
 
         return (
             EscapedString(converter_name)
-            .call(This(), *func_args)
+            .call(
+                This(),
+                *positional_args_as_conversions,
+                **keyword_args_as_conversions,
+            )
             .gen_code_and_update_ctx(code_input, ctx)
         )
 
@@ -206,30 +217,38 @@ class ChunkByCondition(BaseChunkBy):
     :py:obj:`convtools.aggregations.Aggregate` on chunks.
     """
 
-    CHUNK = NamedConversion("chunk_", This())
+    CHUNK = LazyEscapedString("chunk_")
 
     def __init__(self, condition):
         super().__init__()
-        self.condition = ConversionWrapper(
-            self.ensure_conversion(condition),
-            name_to_code_input={self.CHUNK.name: "chunk_"},
+        self.condition = self.ensure_conversion(
+            Namespace(condition, {self.CHUNK.name: "chunk_"})
         )
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("chunk_by_condition", ctx, self)
-        code = CHUNK_BY_CONDITION_TEMPLATE.format(
-            converter_name=converter_name,
-            code_args=self.condition.get_args_def_code(),
-            code_condition=self.condition.gen_code_and_update_ctx(
-                "item_", ctx
-            ),
-        )
-        self._code_to_converter(converter_name, code, ctx)
+        (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        ) = self.condition.get_args_def_info(ctx)
+
+        with namespace_ctx:
+            code = CHUNK_BY_CONDITION_TEMPLATE.format(
+                converter_name=converter_name,
+                code_args=code_args,
+                code_condition=self.condition.gen_code_and_update_ctx(
+                    "item_", ctx
+                ),
+            )
+            self._code_to_converter(converter_name, code, ctx)
         return (
             EscapedString(converter_name)
             .call(
                 This(),
-                *self.condition.get_args_as_func_args(),
+                *positional_args_as_conversions,
+                **keyword_args_as_conversions,
             )
             .gen_code_and_update_ctx(code_input, ctx)
         )

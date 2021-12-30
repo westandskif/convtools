@@ -247,7 +247,7 @@ def test_nested_loop_joins():
             ),
         )
         .as_type(list)
-        .gen_converter(debug=False)
+        .gen_converter(debug=True)
     )
     assert join1(
         [
