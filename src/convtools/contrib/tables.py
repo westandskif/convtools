@@ -21,6 +21,7 @@ from ..base import (
     If,
     InputArg,
     NaiveConversion,
+    This,
     ensure_conversion,
 )
 from ..columns import ColumnChanges, ColumnRef, MetaColumns
@@ -218,10 +219,12 @@ class Table:
                         pending_changes |= columns.add(None, index, None)[1]
 
             else:
-                raise ValueError(
-                    "failed to infer header: unsupported row type",
-                    type(first_row),
-                )
+                if header is True:
+                    pending_changes |= columns.add(first_row, None, This())[1]
+                    first_row = None
+                else:
+                    pending_changes |= columns.add(None, None, This())[1]
+                pending_changes |= ColumnChanges.MUTATE
 
         rows_objects: "t.List[t.Iterable]" = [rows]
         if first_row is not None:

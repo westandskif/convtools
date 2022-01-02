@@ -6,13 +6,11 @@ import pytest
 
 from convtools import conversion as c
 from convtools.base import (
-    ConversionWrapper,
-    InlineExpr,
-    NamedConversion,
+    LazyEscapedString,
+    Namespace,
+    NamespaceCtx,
     PipeConversion,
 )
-
-from .utils import total_size
 
 
 def test_docs():
@@ -85,6 +83,22 @@ def test_gen_converter():
                 * c.input_arg("kwargs").call_method("get", "multiplicator", 1)
             ).gen_converter(signature="data_, *args, **kwargs")
         )
+
+    with pytest.raises(ValueError):
+        (
+            Namespace(
+                c.call_func(list).pipe(
+                    c.if_(
+                        LazyEscapedString("abc"),
+                        c.this()
+                        * LazyEscapedString("abc")
+                        * c.input_arg("abc"),
+                        c.this,
+                    )
+                ),
+                {"abc": "(0 + 1)"},
+            )
+        ).execute(1, abc=10)
 
     assert A().conv1(100) == 120
     assert A.conv3(100) == 110
@@ -246,6 +260,20 @@ def test_naive_conversion_attr():
         c.naive(obj).attr("field_c").gen_converter()(100)
 
     assert c.attr(c.naive(["field_a"]).item(0)).gen_converter()(obj) == 1
+
+
+def test_item_attr_caching():
+    assert (
+        c(
+            {
+                "item": c.item(0).pipe(c.item(0, default=None)),
+                "item2": c.item(0).pipe(c.item(0, 1, default=None)),
+                "attr": c.item(1).pipe(c.attr("year", default=None)),
+                "attr2": c.item(1).pipe(c.attr("year", "month", default=None)),
+            }
+        ).execute([[1], date(1970, 1, 1)])
+        == {"item": 1, "item2": None, "attr": 1970, "attr2": None}
+    )
 
 
 def test_naive_conversion_call():
@@ -625,9 +653,7 @@ def test_caching_conversion():
 
 
 def test_slices():
-    assert c.this[
-        c.item(0) : c.input_arg("slice_to") : c.item(1)
-    ].gen_converter(debug=False)(
+    assert c.this[c.item(0) : c.input_arg("slice_to") : c.item(1)].execute(
         [2, 2, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], slice_to=8
     ) == [
         1,
@@ -636,35 +662,67 @@ def test_slices():
     ]
 
 
-def test_named_conversion():
-    assert NamedConversion("abc", c.item(0)).execute([1]) == 1
-
-
 def test_conversions_dependencies():
     input_arg = c.input_arg("abc")
     conv = c.item(input_arg)
     assert tuple(conv.get_dependencies()) == (input_arg, conv)
 
 
-def test_conversion_wrapper():
-    assert ConversionWrapper(c.item(1)).execute([0, 10]) == 10
+def test_namespaces():
+    with pytest.raises(ValueError):
+        LazyEscapedString("abc").execute([1])
+
+    with pytest.raises(ValueError):
+        Namespace(
+            LazyEscapedString("abc"), name_to_code={"abc": None}
+        ).execute([1])
+
     assert (
-        ConversionWrapper(
-            ConversionWrapper(
-                NamedConversion(
-                    "abc",
-                    NamedConversion("foo", c.item()) + c.item(),
-                )
-                + c.item(),
-                name_to_code_input={"foo": "arg_foo2"},
+        Namespace(
+            LazyEscapedString("abc"), name_to_code={"abc": True}
+        ).execute(1)
+        == 1
+    )
+    assert (
+        Namespace(
+            c.input_arg("abc") + LazyEscapedString("abc"),
+            name_to_code={"abc": "abc"},
+        ).execute(0.1, abc=2)
+        == 4
+    )
+    assert Namespace(c.item(1), {}).execute([0, 10]) == 10
+    assert (
+        Namespace(
+            Namespace(
+                Namespace(
+                    LazyEscapedString("abc"), name_to_code={"abc": True}
+                )  # 1
+                + LazyEscapedString("abc")  # 10
+                + LazyEscapedString("foo")  # 1000
+                + c.item() * 0.1,  # 0.1,
+                name_to_code={"foo": "arg_foo2"},
             ),
-            name_to_code_input={"abc": "arg_abc", "foo": "arg_foo"},
+            name_to_code={"abc": "arg_abc", "foo": "arg_foo"},
         )
     ).gen_converter(
-        debug=False, signature="data_, arg_abc=10, arg_foo=20, arg_foo2=30"
+        debug=False, signature="data_, arg_abc=10, arg_foo=100, arg_foo2=1000"
     )(
         1
-    ) == 41
+    ) == 1011.1
+
+    assert (
+        Namespace(
+            c.call_func(list, (1,)).pipe(
+                c.if_(
+                    c.this,
+                    c.this * LazyEscapedString("number"),
+                    c.this,
+                )
+            ),
+            {"number": "3"},
+        ).execute(None)
+        == [1, 1, 1]
+    )
 
 
 def test_name_generation():
@@ -674,8 +732,12 @@ def test_name_generation():
 
     item = c.this
     ctx = c.BaseConversion._init_ctx()
+
+    prev_allowed_symbols = c.BaseConversion.allowed_symbols
+    c.BaseConversion.allowed_symbols = "01"
     for i in range(11):
         item.gen_name("abc", ctx, i)
+    c.BaseConversion.allowed_symbols = prev_allowed_symbols
 
     assert item.gen_name("_", ctx, (1, 2)) == item.gen_name("_", ctx, (1, 2))
     obj = object()

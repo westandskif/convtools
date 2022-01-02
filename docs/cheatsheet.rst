@@ -686,6 +686,7 @@ _____________________
 * TopK - ``c.ReduceFuncs.TopK(3, c.item("x"))``
 * Array
 * ArrayDistinct
+* ArraySorted - ``c.ReduceFuncs.ArraySorted(c.item("x"), key=lambda v: v, reverse=True)``
 * Dict - ``c.ReduceFuncs.Dict(c.item("key"), c.item("x"))``
 * DictArray
 * DictSum

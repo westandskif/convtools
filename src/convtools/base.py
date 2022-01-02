@@ -7,7 +7,7 @@ import re
 import string
 import sys
 import tempfile
-import typing
+import typing as t
 from itertools import chain
 from random import choice
 
@@ -175,12 +175,12 @@ def {converter_name}({code_args}):
     try:
         return {get_or_default_code}
     except (TypeError, KeyError, IndexError, AttributeError):
-        return default_
+        return {default_code}
 """
 
 
 def ensure_conversion(
-    conversion: typing.Any, explicitly_allowed_cls=None
+    conversion: t.Any, explicitly_allowed_cls=None
 ) -> "BaseConversion":
     r"""Helps to define conversions based on its type:
         * any conversion is returned untouched
@@ -234,7 +234,7 @@ class ConversionException(Exception):
     pass
 
 
-CT = typing.TypeVar("CT", bound="BaseConversion")
+CT = t.TypeVar("CT", bound="BaseConversion")
 
 
 class _None:
@@ -244,7 +244,7 @@ class _None:
     pass
 
 
-class BaseConversion(typing.Generic[CT]):
+class BaseConversion(t.Generic[CT]):
     """This is the base class  of every conversion (so you are not going to use
     this directly).
 
@@ -275,6 +275,7 @@ class BaseConversion(typing.Generic[CT]):
         LABEL_USAGE = 16
         BREAKPOINT = 32
         FUNCTION_OF_INPUT = 64
+        NAIVE_USAGE = 128
 
     self_content_type = ContentTypes.FUNCTION_OF_INPUT
 
@@ -390,56 +391,105 @@ class BaseConversion(typing.Generic[CT]):
             where,
         )
 
-    def get_args(self):
-        return sorted(
-            {
-                dep.arg_name: dep
-                for dep in self.get_dependencies(types=InputArg)
-            }.values(),
-            key=lambda k: k.arg_name,
-        )
-
-    def get_args_def_code(
+    def get_args_def_info(
         self,
+        ctx,
         as_kwargs=False,
+        args_to_skip=None,
         for_top_level_converter=False,
     ):
-        """Generates the code to define a function signature based on InputArgs
-        used inside the conversion"""
-        args = self.get_args()
-        if for_top_level_converter:
-            args = [arg for arg in args if arg.arg_name not in ("self", "cls")]
-
-        if args:
-            code = ", ".join(arg.arg_name for arg in args)
-            if as_kwargs:
-                code = f", *, {code}"
-            else:
-                code = f", {code}"
-        else:
-            code = ""
-        if not for_top_level_converter:
-            code = f", _naive, _labels, _none{code}"
-        return code
-
-    def get_args_as_func_args(self):
-        """Generates the code to pass InputArgs as arguments to the function"""
-        args = self.get_args()
-        ctx = {}
-        func_args = [
-            EscapedString("_naive"),
-            EscapedString("_labels"),
-            EscapedString("_none"),
-        ]
-        for arg in args:
-            func_args.append(
-                EscapedString(arg.gen_code_and_update_ctx(None, ctx))
+        args_to_skip = args_to_skip or set()
+        args = {
+            (dep.name, is_lazy): dep
+            for dep, is_lazy in (
+                (dep, isinstance(dep, LazyEscapedString))
+                for dep in self.get_dependencies()
             )
-        return func_args
+            if isinstance(dep, InputArg)
+            and dep.name not in args_to_skip
+            or is_lazy
+        }
+        if for_top_level_converter:
+            non_resolved_lazy = [
+                dep_name for dep_name, is_lazy in args if is_lazy
+            ]
+            if non_resolved_lazy:
+                raise ValueError(
+                    "non-resolved lazy escaped strings", non_resolved_lazy
+                )
+
+        if len({dep_name for dep_name, _ in args}) != len(args):
+            raise ValueError("duplicate args found", args)
+
+        name_to_code = {}
+
+        positional_args_as_def_names = []
+        positional_args_as_conversions = []
+        keyword_args_as_def_names = []
+        keyword_args_as_conversions = {}
+
+        if "_none" not in args_to_skip:
+            positional_args_as_def_names.append("_none")
+            positional_args_as_conversions.append(EscapedString("_none"))
+
+        if "_naive" not in args_to_skip and (
+            self.contents & self.ContentTypes.NAIVE_USAGE
+        ):
+            positional_args_as_def_names.append("_naive")
+            positional_args_as_conversions.append(EscapedString("_naive"))
+
+        if "_labels" not in args_to_skip and self.contents & (
+            self.ContentTypes.LABEL_USAGE | self.ContentTypes.NEW_LABEL
+        ):
+            positional_args_as_def_names.append("_labels")
+            positional_args_as_conversions.append(EscapedString("_labels"))
+
+        suffix = None
+        for key, dep in args.items():
+            dep_name, is_named_conversion = key
+            if is_named_conversion:
+                suffix = suffix or self.gen_name("_", ctx, self)
+                def_name = f"{dep.name}{suffix}"
+                name_to_code[dep.name] = def_name
+            else:
+                def_name = dep_name
+
+            if as_kwargs:
+                keyword_args_as_def_names.append(def_name)
+                keyword_args_as_conversions[def_name] = dep
+            else:
+                positional_args_as_def_names.append(def_name)
+                positional_args_as_conversions.append(dep)
+
+        code_args = ", "
+
+        if positional_args_as_def_names:
+            code_args = f"{code_args}{', '.join(positional_args_as_def_names)}"
+
+        if keyword_args_as_def_names:
+            code_args = (
+                f"{code_args} *, {', '.join(keyword_args_as_def_names)}"
+            )
+
+        namespace_ctx = NamespaceCtx(name_to_code, ctx)
+        positional_args_as_conversions = [
+            namespace_ctx.prevent_rendering_while_active(conv)
+            for conv in positional_args_as_conversions
+        ]
+        keyword_args_as_conversions = {
+            key: namespace_ctx.prevent_rendering_while_active(conv)
+            for key, conv in keyword_args_as_conversions.items()
+        }
+        return (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        )
 
     def _code_to_converter(
         self, converter_name: str, code: str, ctx: dict
-    ) -> typing.Callable:
+    ) -> t.Callable:
         is_debug = ctx.get(
             "__debug", False
         ) or ConverterOptionsCtx.get_option_value("debug")
@@ -462,7 +512,8 @@ class BaseConversion(typing.Generic[CT]):
             ctx[converter_name].conv_name = converter_name
         return ctx[converter_name]
 
-    NAME_TO_CODE_INPUT = "_name_to_code_input"
+    NAMESPACES = "_name_to_code_input"
+    CONVERTERS_CACHE = "_converters_cache"
 
     @classmethod
     def _init_ctx(cls, debug=None):
@@ -472,9 +523,10 @@ class BaseConversion(typing.Generic[CT]):
             "__name__": "_convtools",
             "__naive_values__": {},
             "__none__": cls._none,
-            cls.NAME_TO_CODE_INPUT: [{}],
-            cls.PREFIXED_HASH_TO_NAME: {},
+            cls.CONVERTERS_CACHE: {},
             cls.GENERATED_NAMES: set(),
+            cls.NAMESPACES: [{}],
+            cls.PREFIXED_HASH_TO_NAME: {},
         }
         return ctx
 
@@ -521,17 +573,14 @@ class BaseConversion(typing.Generic[CT]):
         main_converter_callable = converter_callable_cls(debug=debug, ctx=ctx)
         ctx["__main_converter_callable"] = main_converter_callable
 
+        args_to_skip = ("self", "cls", "_none", "_naive", "_labels")
         if signature:
+            (code_args, _, _, namespace_ctx,) = self.get_args_def_info(
+                ctx, args_to_skip=args_to_skip, for_top_level_converter=True
+            )
             signature_words = _pattern_word.findall(signature)
-            missing_args = (
-                set(
-                    _pattern_word.findall(
-                        self.get_args_def_code(
-                            for_top_level_converter=True,
-                        )
-                    )
-                )
-                - set(signature_words)
+            missing_args = set(_pattern_word.findall(code_args)) - set(
+                signature_words
             )
             if missing_args:
                 raise ConversionException(
@@ -542,44 +591,47 @@ class BaseConversion(typing.Generic[CT]):
                 raise ConversionException(
                     "choose either method or a class_method"
                 )
+            (code_args, _, _, namespace_ctx,) = self.get_args_def_info(
+                ctx,
+                as_kwargs=True,
+                args_to_skip=args_to_skip,
+                for_top_level_converter=True,
+            )
             signature = (
                 ("self, " if method else "")
                 + ("cls, " if class_method else "")
                 + (initial_code_input)
-                + (
-                    self.get_args_def_code(
-                        as_kwargs=True,
-                        for_top_level_converter=True,
-                    )
-                )
+                + code_args
             )
 
-        code = Code()
-        converter_name = self.gen_name(converter_name, ctx, self)
-        code.add_line(f"def {converter_name}({signature}):", 1)
-        code.add_line("global __naive_values__, __none__", 0)
-        code.add_line("_naive = __naive_values__", 0)
-        code.add_line("_none = __none__", 0)
-        if has_labels:
-            code.add_line("_labels = {}", 0)
-        else:
-            code.add_line("_labels = _none", 0)
+        with namespace_ctx:
+            code = Code()
+            converter_name = self.gen_name(converter_name, ctx, self)
+            code.add_line(f"def {converter_name}({signature}):", 1)
+            code.add_line("global __naive_values__, __none__", 0)
+            code.add_line("_naive = __naive_values__", 0)
+            code.add_line("_none = __none__", 0)
+            if has_labels:
+                code.add_line("_labels = {}", 0)
+            else:
+                code.add_line("_labels = _none", 0)
 
-        code.add_line(
-            f"return {self.gen_code_and_update_ctx(initial_code_input, ctx)}",
-            0,
-        )
+            code_str = self.gen_code_and_update_ctx(initial_code_input, ctx)
+            code.add_line(f"return {code_str}", 0)
+
         main_converter = self._code_to_converter(
             converter_name=converter_name,
             code=code.to_string(base_indent_level=0),
             ctx=ctx,
         )
         main_converter_callable.set_main_converter(main_converter)
-        del ctx[self.PREFIXED_HASH_TO_NAME]
+        del ctx[self.CONVERTERS_CACHE]
         del ctx[self.GENERATED_NAMES]
+        del ctx[self.NAMESPACES]
+        del ctx[self.PREFIXED_HASH_TO_NAME]
         return main_converter_callable
 
-    def execute(self, *args, debug=None, **kwargs) -> typing.Any:
+    def execute(self, *args, debug=None, **kwargs) -> t.Any:
         """Shortcut for generating converter and running it"""
         return self.gen_converter(
             debug=debug or ConverterOptionsCtx.get_option_value("debug")
@@ -625,13 +677,13 @@ class BaseConversion(typing.Generic[CT]):
     def attr(self, *attrs, **kwargs) -> "GetAttr":
         return GetAttr(*attrs, self_conv=self, **kwargs)
 
-    def is_itself_callable_like(self) -> typing.Optional[bool]:
+    def is_itself_callable_like(self) -> t.Optional[bool]:
         pass
 
-    def is_itself_callable(self) -> typing.Optional[bool]:
+    def is_itself_callable(self) -> t.Optional[bool]:
         pass
 
-    def is_independent(self) -> typing.Optional[bool]:
+    def is_independent(self) -> t.Optional[bool]:
         return not self.contents & self.ContentTypes.FUNCTION_OF_INPUT
 
     def call_like(self, *args, **kwargs):
@@ -820,8 +872,8 @@ class BaseConversion(typing.Generic[CT]):
 
     def add_label(
         self,
-        label_name: typing.Union[str, dict],
-        conversion: typing.Optional[typing.Any] = None,
+        label_name: t.Union[str, dict],
+        conversion: t.Optional[t.Any] = None,
     ) -> "BaseConversion":
         """Labels data so it can be reused further:
 
@@ -911,7 +963,7 @@ class BaseMethodConversion(BaseConversion):
 
     def get_self_and_input_code(
         self, code_input: str, ctx: dict
-    ) -> typing.Tuple[str, str]:
+    ) -> t.Tuple[str, str]:
         if self.self_conv is None:
             return (code_input, code_input)
         self_code = self.self_conv.gen_code_and_update_ctx(code_input, ctx)
@@ -943,9 +995,11 @@ class NaiveConversion(BaseConversion):
     self_content_type = (
         BaseConversion.self_content_type
         ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
-    )
+    ) | BaseConversion.ContentTypes.NAIVE_USAGE
 
-    def __init__(self, value: typing.Any, name_prefix="v"):
+    types_to_repr = {type(None), bool, int}
+
+    def __init__(self, value: t.Any, name_prefix="v"):
         """
         Args:
           value (object): any object
@@ -965,41 +1019,37 @@ class NaiveConversion(BaseConversion):
             self.code_str = value_name
 
         elif callable(value):
-            if hasattr(value, "conv_name") and isinstance(
-                getattr(value, "conv_name"), str
+            f_name = var_name_from_string(value_name)
+            if f_name:
+                self.name_prefix = f_name
+        else:
+            value_type = type(value)
+            if (
+                value_type in self.types_to_repr
+                or value_type is str
+                and len(value) < 128
+                and "%" not in value
+                and "{" not in value
             ):
-                self.value_name = getattr(value, "conv_name")
-            else:
-                f_name = var_name_from_string(value_name)
-                if f_name:
-                    self.name_prefix = f_name
+                self.code_str = repr(value)
 
-    types_to_repr = {type(None), bool, int}
+        if self.code_str:
+            self.contents = self.contents ^ self.ContentTypes.NAIVE_USAGE
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         if self.code_str:
             return self.code_str
 
-        value = self.value
-        value_type = type(value)
-        if (
-            value_type in self.types_to_repr
-            or value_type is str
-            and len(value) < 128
-            and "%" not in value
-            and "{" not in value
-        ):
-            return repr(value)
         value_name = self.value_name or self.gen_name(
-            self.name_prefix, ctx, value
+            self.name_prefix, ctx, self.value
         )
-        ctx["__naive_values__"][value_name] = value
+        ctx["__naive_values__"][value_name] = self.value
         return f'_naive["{value_name}"]'
 
-    def is_itself_callable_like(self) -> typing.Optional[bool]:
+    def is_itself_callable_like(self) -> t.Optional[bool]:
         return callable(self.value)
 
-    def is_itself_callable(self) -> typing.Optional[bool]:
+    def is_itself_callable(self) -> t.Optional[bool]:
         return callable(self.value)
 
 
@@ -1046,16 +1096,16 @@ class InputArg(BaseConversion):
         | BaseConversion.ContentTypes.ARG_USAGE
     ) ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
 
-    def __init__(self, arg_name: str):
+    def __init__(self, name: str):
         """
         Args:
-          arg_name (string): argument name of the converter to be used
+          name (string): argument name of the converter to be used
         """
         super().__init__()
-        self.arg_name = arg_name
+        self.name = name
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return self.arg_name
+        return self.name
 
 
 class LabelConversion(BaseConversion):
@@ -1081,56 +1131,122 @@ class LabelConversion(BaseConversion):
         return f"_labels[{repr(self.label_name)}]"
 
 
-class ConversionWrapper(BaseConversion):
-    """This is to be used in conjunction with NamedConversion.
+class Namespace(BaseConversion):
+    """Wrapping conversion which isolates :py:obj:`LazyEscapedString` (parent
+    conversions won't detect them as dependencies) and defines code inputs for
+    them"""
 
-    ConversionWrapper is a map where:
-      - key is the name of NamedConversion used somewhere inside what the
-        ConversionWrapper wraps
-      - value is the piece of code to be used as input for NamedConversion
-    """
+    self_content_type = (
+        BaseConversion.self_content_type
+        ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
 
-    def __init__(self, conversion: typing.Any, name_to_code_input=None):
+    def __init__(
+        self,
+        conversion: "t.Any",
+        name_to_code: "t.Dict[str, t.Optional[t.Union[bool, str]]]",
+    ):
         super().__init__()
         self.conversion = self.ensure_conversion(conversion)
-        self._name_to_code_input = name_to_code_input
-
-    @classmethod
-    def name_to_code_input(
-        cls, ctx, name_to_code_input=None
-    ) -> typing.Dict[str, str]:
-        if name_to_code_input is None:
-            return ctx[cls.NAME_TO_CODE_INPUT][-1]
-        new_value: typing.Dict[str, str] = {}
-        new_value.update(cls.name_to_code_input(ctx))
-        new_value.update(name_to_code_input)
-        ctx[cls.NAME_TO_CODE_INPUT].append(new_value)
-        return new_value
+        self.name_to_code = name_to_code
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        pop_name_to_code_input = False
-        if self._name_to_code_input is not None:
-            pop_name_to_code_input = True
-            self.name_to_code_input(ctx, self._name_to_code_input)
-        result = self.conversion.gen_code_and_update_ctx(code_input, ctx)
-        if pop_name_to_code_input:
-            ctx[self.NAME_TO_CODE_INPUT].pop()
-        return result
+        with NamespaceCtx(self.name_to_code, ctx):
+            return self.conversion.gen_code_and_update_ctx(code_input, ctx)
+
+    def get_dependencies(self, types=None):
+        name_to_code = self.name_to_code
+        return (
+            dep
+            for dep in super().get_dependencies(types=types)
+            if not isinstance(dep, LazyEscapedString)
+            or dep.name not in name_to_code
+        )
 
 
-class NamedConversion(BaseConversion):
-    """See the ConversionWrapper docstring above"""
+class NamespaceCtx:
+    """Context manager which defines code inputs for
+    :py:obj:`LazyEscapedString`"""
 
-    def __init__(self, name, conversion):
+    _name_to_code = None
+    ctx = None
+    active = False
+
+    NAMESPACES = BaseConversion.NAMESPACES
+
+    def __init__(
+        self,
+        name_to_code: "t.Dict[str, t.Optional[t.Union[bool, str]]]",
+        ctx,
+    ):
+        if name_to_code:
+            self._name_to_code = name_to_code
+            self._ctx = ctx
+
+    def __enter__(self):
+        if self._name_to_code:
+            new_value: "t.Dict[str, str]" = {}
+            new_value.update(self.name_to_code(self._ctx))
+            new_value.update(self._name_to_code)
+            self._ctx[self.NAMESPACES].append(new_value)
+        self.active = True
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if self._name_to_code:
+            self._ctx[self.NAMESPACES].pop()
+        self.active = False
+
+    @classmethod
+    def name_to_code(cls, ctx) -> "t.Dict[str, str]":
+        return ctx[cls.NAMESPACES][-1]
+
+    def prevent_rendering_while_active(self, conversion):
+        return NamespaceControlledUnit(self, conversion)
+
+
+class NamespaceControlledUnit(BaseConversion):
+    """Wrapping conversion which prevents the inner one from being rendered
+    while it is inside the parent NamespaceCtx"""
+
+    __slots__ = ["conversion", "namespace_ctx"]
+
+    def __init__(self, namespace_ctx: "NamespaceCtx", conversion):
         super().__init__()
+        self.namespace_ctx = namespace_ctx
         self.conversion = self.ensure_conversion(conversion)
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        if self.namespace_ctx.active:
+            raise Exception(
+                "rendering prevented by parent NamespaceCtx, "
+                "move rendering out"
+            )
+        return self.conversion.gen_code_and_update_ctx(code_input, ctx)
+
+
+class LazyEscapedString(BaseConversion):
+    """A lazy named conversion which allows to build a conversion on the
+    outside to then generate some code around it (properly passing required
+    args, etc.)"""
+
+    self_content_type = (
+        BaseConversion.self_content_type
+        ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
+
+    def __init__(self, name):
+        super().__init__()
         self.name = name
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        name_to_code_input = ConversionWrapper.name_to_code_input(ctx)
-        if self.name in name_to_code_input:
-            code_input = name_to_code_input[self.name]
-        return self.conversion.gen_code_and_update_ctx(code_input, ctx)
+        code = NamespaceCtx.name_to_code(ctx)[self.name]
+        if code is True:
+            return code_input
+        if code:
+            return code
+
+        raise ValueError("LazyEscapedString is left uninitialized", self.name)
 
 
 class Or(BaseConversion):
@@ -1290,6 +1406,8 @@ class GetItem(BaseMethodConversion):
     If an index is a conversion itself, then it is being calculated
     against an input."""
 
+    prefix = "item_or_default"
+
     def __init__(
         self,
         *indexes,
@@ -1322,48 +1440,108 @@ class GetItem(BaseMethodConversion):
                 code_output = self.wrap_path_item(code_output, code_index)
             return code_output
 
-        self_is_overwritten = code_self != code_input
-        code_output = "self_" if self_is_overwritten else "obj_"
-        for index in self.indexes:
-            code_index = index.gen_code_and_update_ctx("obj_", ctx)
-            code_output = self.wrap_path_item(code_output, code_index)
+        (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        ) = self.get_args_def_info(ctx)
 
-        converter_name = self.gen_name(
-            "get_or_default",
-            ctx,
-            self,
-        )
-        converter_code = GET_OR_DEFAULT_TEMPLATE.format(
-            code_args=(
-                "self_, obj_, default_"
-                if self_is_overwritten
-                else "obj_, default_"
+        with namespace_ctx:
+            function_of_input_type = self.ContentTypes.FUNCTION_OF_INPUT
+            caching_is_impossible = (
+                not isinstance(self.default, NaiveConversion)
+                or any(
+                    index.contents & function_of_input_type
+                    for index in self.indexes
+                )
+                and not PipeConversion.input_is_simple(code_input)
             )
-            + self.get_args_def_code(),
-            converter_name=converter_name,
-            get_or_default_code=code_output,
-        )
-        self._code_to_converter(
-            converter_name=converter_name,
-            code=converter_code,
-            ctx=ctx,
-        )
-        # default_code = self.default.gen_code_and_update_ctx(code_input, ctx)
-        result = EscapedString(converter_name)
-        if self_is_overwritten:
-            result = result.call(
-                EscapedString(code_self),
-                GetItem(),
-                self.default,
-                *self.get_args_as_func_args(),
-            )
-        else:
-            result = result.call(
-                GetItem(),
-                self.default,
-                *self.get_args_as_func_args(),
-            )
-        return result.gen_code_and_update_ctx(code_input, ctx)
+
+            args_as_def_names = ["data_"]
+            args_as_conversions = [This()]
+            code_output = "data_"
+
+            if code_self != code_input:
+                args_as_def_names.append("self_")
+                args_as_conversions.append(EscapedString(code_self))
+                code_output = "self_"
+
+            if caching_is_impossible:
+                default_code = self.default.gen_code_and_update_ctx(
+                    "data_", ctx
+                )
+            else:
+                args_as_def_names.append("default_")
+                args_as_conversions.append(self.default)
+                default_code = "default_"
+
+            if caching_is_impossible:
+                for index in self.indexes:
+                    code_index = index.gen_code_and_update_ctx("data_", ctx)
+                    code_output = self.wrap_path_item(code_output, code_index)
+
+                positional_args_as_conversions = chain(
+                    args_as_conversions, positional_args_as_conversions
+                )
+                code_args = f"{', '.join(args_as_def_names)}{code_args}"
+
+                converter_name = self.gen_name(self.prefix, ctx, (self, -1))
+                converter_code = GET_OR_DEFAULT_TEMPLATE.format(
+                    code_args=code_args,
+                    converter_name=converter_name,
+                    get_or_default_code=code_output,
+                    default_code=default_code,
+                )
+                self._code_to_converter(
+                    converter_name=converter_name,
+                    code=converter_code,
+                    ctx=ctx,
+                )
+                resulting_conversion = EscapedString(converter_name).call(
+                    *positional_args_as_conversions,
+                    **keyword_args_as_conversions,
+                )
+            else:
+
+                key = (self.prefix, code_args, len(self.indexes))
+
+                if key not in ctx[self.CONVERTERS_CACHE]:
+                    for i, index in enumerate(self.indexes):
+                        var_index = f"index_{i}"
+                        args_as_def_names.append(var_index)
+                        code_output = self.wrap_path_item(
+                            code_output, var_index
+                        )
+
+                    code_args = f"{', '.join(args_as_def_names)}{code_args}"
+
+                    converter_name = self.gen_name(
+                        self.prefix, ctx, (self, len(self.indexes))
+                    )
+                    converter_code = GET_OR_DEFAULT_TEMPLATE.format(
+                        code_args=code_args,
+                        converter_name=converter_name,
+                        get_or_default_code=code_output,
+                        default_code=default_code,
+                    )
+                    self._code_to_converter(
+                        converter_name=converter_name,
+                        code=converter_code,
+                        ctx=ctx,
+                    )
+                    ctx[self.CONVERTERS_CACHE][key] = converter_name
+
+                else:
+                    converter_name = ctx[self.CONVERTERS_CACHE][key]
+
+                resulting_conversion = EscapedString(converter_name).call(
+                    *args_as_conversions,
+                    *self.indexes,
+                    *positional_args_as_conversions,
+                    **keyword_args_as_conversions,
+                )
+        return resulting_conversion.gen_code_and_update_ctx(code_input, ctx)
 
 
 class GetAttr(GetItem):
@@ -1374,6 +1552,7 @@ class GetAttr(GetItem):
     against an input."""
 
     valid_attr = re.compile(r"^'[A-Za-z_][a-zA-Z0-9_]*'$")
+    prefix = "attr_or_default"
 
     def wrap_path_item(self, code_input, path_item):
         if self.valid_attr.match(path_item):
@@ -1494,13 +1673,13 @@ class SortConversion(BaseConversion):
         super().__init__()
         self.sorted_kwargs = {}
         if key is not None:
-            self.sorted_kwargs["key"] = key
+            self.sorted_kwargs["key"] = self.ensure_conversion(key)
         if reverse:
-            self.sorted_kwargs["reverse"] = reverse
+            self.sorted_kwargs["reverse"] = self.ensure_conversion(reverse)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return (
-            NaiveConversion(sorted)
+            EscapedString("sorted")
             .call(EscapedString(code_input), **self.sorted_kwargs)
             .gen_code_and_update_ctx("NOT_NEEDED_OR_BUG", ctx)
         )
@@ -1558,7 +1737,7 @@ class InlineExpr(BaseConversion):
         )
         return f"({code})"
 
-    def is_itself_callable_like(self) -> typing.Optional[bool]:
+    def is_itself_callable_like(self) -> t.Optional[bool]:
         return True
 
     def call_like(self, *args, **kwargs):
@@ -1589,19 +1768,24 @@ class BaseComprehensionConversion(BaseConversion):
         return self.item.gen_code_and_update_ctx(code_input, ctx)
 
     def gen_generator_code(self, code_input, ctx):
-        param_name = self.gen_name("i", ctx, self)
-        item_code = self.gen_item_code(param_name, ctx)
-        gen_code = f"{item_code} for {param_name} in {code_input}"
+        suffix = self.gen_name("", ctx, self)
+        param_code = f"i_{suffix}"
+        for_params_code = param_code
+
+        item_code = self.gen_item_code(param_code, ctx)
+        gen_code = f"{item_code} for {for_params_code} in {code_input}"
+
         if self.where is not None:
             condition_code = self.where.gen_code_and_update_ctx(
-                param_name, ctx
+                param_code, ctx
             )
             if condition_code == "True":
                 pass
             elif condition_code == "False":
-                gen_code = f"{item_code} for {param_name} in ()"
+                gen_code = ""
             else:
                 gen_code = f"{gen_code} if {condition_code}"
+
         return gen_code
 
 
@@ -1759,30 +1943,42 @@ class BaseCollectionConversion(BaseConversion):
         inner_code_input = "data_"
         code = Code()
         converter_name = self.gen_name("optional_items_generator", ctx, self)
-        code_args = self.get_args_def_code(as_kwargs=False)
-        code.add_line(f"def {converter_name}(data_{code_args}):", 1)
+        (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        ) = self.get_args_def_info(ctx)
+        with namespace_ctx:
+            code.add_line(f"def {converter_name}(data_{code_args}):", 1)
 
-        for condition, item in self.condition_to_item_pairs:
-            value_code = ensure_conversion(item).gen_code_and_update_ctx(
-                inner_code_input, ctx
-            )
-            if condition is not None:
-                condition_code = condition.gen_code_and_update_ctx(
+            for condition, item in self.condition_to_item_pairs:
+                value_code = ensure_conversion(item).gen_code_and_update_ctx(
                     inner_code_input, ctx
                 )
-                code.add_line(f"if {condition_code}:", 1)
-                code.add_line(f"yield {value_code}", -1)
-            else:
-                code.add_line(f"yield {value_code}", 0)
+                if condition is not None:
+                    condition_code = condition.gen_code_and_update_ctx(
+                        inner_code_input, ctx
+                    )
+                    code.add_line(f"if {condition_code}:", 1)
+                    code.add_line(f"yield {value_code}", -1)
+                else:
+                    code.add_line(f"yield {value_code}", 0)
 
-        generator_converter = self._code_to_converter(
-            converter_name=converter_name,
-            code=code.to_string(base_indent_level=0),
-            ctx=ctx,
+            self._code_to_converter(
+                converter_name=converter_name,
+                code=code.to_string(base_indent_level=0),
+                ctx=ctx,
+            )
+        return (
+            EscapedString(converter_name)
+            .call(
+                This(),
+                *positional_args_as_conversions,
+                **keyword_args_as_conversions,
+            )
+            .gen_code_and_update_ctx(code_input, ctx)
         )
-        return CallFunc(
-            generator_converter, GetItem(), *self.get_args_as_func_args()
-        ).gen_code_and_update_ctx(code_input, ctx)
 
     def gen_joined_items_code(self, code_input, ctx):
         return ",".join(
@@ -1985,31 +2181,41 @@ class TakeWhile(BaseConversion):
         var_it = f"it{suffix}"
         var_item = f"item{suffix}"
 
-        def_args = self.get_args_def_code()
-        args = self.get_args_as_func_args()
+        (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        ) = self.get_args_def_info(ctx)
+        with namespace_ctx:
+            condition_code = self.condition.gen_code_and_update_ctx(
+                var_item, ctx
+            )
 
-        condition_code = self.condition.gen_code_and_update_ctx(var_item, ctx)
+            code = Code()
+            code.add_line(f"def {converter_name}({var_it}{code_args}):", 1)
+            code.add_line(f"for {var_item} in {var_it}:", 1)
+            code.add_line(f"if {condition_code}:", 1)
+            if self.filter_results_conditions is None:
+                code.add_line(f"yield {var_item}", -1)
+            else:
+                filter_code = And(
+                    *self.filter_results_conditions
+                ).gen_code_and_update_ctx(var_item, ctx)
+                code.add_line(f"if {filter_code}:", 1)
+                code.add_line(f"yield {var_item}", -2)
 
-        code = Code()
-        code.add_line(f"def {converter_name}({var_it}{def_args}):", 1)
-        code.add_line(f"for {var_item} in {var_it}:", 1)
-        code.add_line(f"if {condition_code}:", 1)
-        if self.filter_results_conditions is None:
-            code.add_line(f"yield {var_item}", -1)
-        else:
-            filter_code = And(
-                *self.filter_results_conditions
-            ).gen_code_and_update_ctx(var_item, ctx)
-            code.add_line(f"if {filter_code}:", 1)
-            code.add_line(f"yield {var_item}", -2)
+            code.add_line("else:", 1)
+            code.add_line("break", -2)
 
-        code.add_line("else:", 1)
-        code.add_line("break", -2)
-
-        self._code_to_converter(converter_name, code.to_string(0), ctx)
-        result = EscapedString(converter_name).call(This(), *args)
-        if self.cast is not self._none:
-            result = result.as_type(self.cast)
+            self._code_to_converter(converter_name, code.to_string(0), ctx)
+            result = EscapedString(converter_name).call(
+                This(),
+                *positional_args_as_conversions,
+                **keyword_args_as_conversions,
+            )
+            if self.cast is not self._none:
+                result = result.as_type(self.cast)
         return result.gen_code_and_update_ctx(code_input, ctx)
 
 
@@ -2029,26 +2235,37 @@ class DropWhile(BaseConversion):
         var_it = f"it{suffix}"
         var_item = f"item{suffix}"
 
-        def_args = self.get_args_def_code()
-        args = self.get_args_as_func_args()
+        (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        ) = self.get_args_def_info(ctx)
+        with namespace_ctx:
+            condition_code = self.condition.gen_code_and_update_ctx(
+                var_item, ctx
+            )
 
-        condition_code = self.condition.gen_code_and_update_ctx(var_item, ctx)
-
-        code = Code()
-        code.add_line(
-            f"def {converter_name}({var_it},{var_chain}{def_args}):", 1
-        )
-        code.add_line(f"{var_it} = iter({var_it})", 0)
-        code.add_line(f"for {var_item} in {var_it}:", 1)
-        code.add_line(f"if not ({condition_code}):", 1)
-        code.add_line("break", -2)
-        code.add_line("else:", 1)
-        code.add_line("return ()", -1)
-        code.add_line(f"return {var_chain}(({var_item},), {var_it})", -1)
-        self._code_to_converter(converter_name, code.to_string(0), ctx)
+            code = Code()
+            code.add_line(
+                f"def {converter_name}({var_it},{var_chain}{code_args}):", 1
+            )
+            code.add_line(f"{var_it} = iter({var_it})", 0)
+            code.add_line(f"for {var_item} in {var_it}:", 1)
+            code.add_line(f"if not ({condition_code}):", 1)
+            code.add_line("break", -2)
+            code.add_line("else:", 1)
+            code.add_line("return ()", -1)
+            code.add_line(f"return {var_chain}(({var_item},), {var_it})", -1)
+            self._code_to_converter(converter_name, code.to_string(0), ctx)
         return (
             EscapedString(converter_name)
-            .call(This(), NaiveConversion(chain), *args)
+            .call(
+                This(),
+                NaiveConversion(chain),
+                *positional_args_as_conversions,
+                **keyword_args_as_conversions,
+            )
             .gen_code_and_update_ctx(code_input, ctx)
         )
 
@@ -2133,6 +2350,7 @@ class PipeConversion(BaseConversion):
         if self.label_input or self.label_output:
             self.self_content_type |= self.ContentTypes.NEW_LABEL
             self.contents |= self.self_content_type
+            self.input_args_container.contents |= self.ContentTypes.NEW_LABEL
 
     def replace(self, where):
         return PipeConversion(
@@ -2153,7 +2371,7 @@ class PipeConversion(BaseConversion):
 
     def _prepare_labels(
         self,
-        label_arg: typing.Union[str, dict],
+        label_arg: t.Union[str, dict],
     ):
         if isinstance(label_arg, str):
             return {label_arg: GetItem()}
@@ -2223,59 +2441,55 @@ class PipeConversion(BaseConversion):
         var_result = f"result{suffix}"
         var_input = f"input{suffix}"
 
-        if code_input_is_ignored:
-            if self.label_output is None:
-                raise AssertionError("what are we doing here? it's a bug")
-            what_code, where_code = (where_code, var_input)
-        else:
-            if reducer_inputs_backup_needed:
-                ctx[key_to_backup].append(False)
+        (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        ) = self.input_args_container.get_args_def_info(ctx)
 
-            where_code = where.gen_code_and_update_ctx(var_input, ctx)
+        with namespace_ctx:
 
-            if reducer_inputs_backup_needed:
-                ctx[key_to_backup].pop()
+            if code_input_is_ignored:
+                if self.label_output is None:
+                    raise AssertionError("what are we doing here? it's a bug")
+                what_code, where_code = (where_code, var_input)
+            else:
+                if reducer_inputs_backup_needed:
+                    ctx[key_to_backup].append(False)
 
-        code_args = self.input_args_container.get_args_def_code()
-        where_args = self.input_args_container.get_args_as_func_args()
+                where_code = where.gen_code_and_update_ctx(var_input, ctx)
 
-        if self.label_input or self.label_output:
-            label_input_code = (
-                "\n".join(
-                    f"    _labels['{label_name}'] = "
-                    f"{label_conv.gen_code_and_update_ctx(var_input, ctx)}"
-                    for label_name, label_conv in self.label_input.items()
-                )
-                if self.label_input
-                else "    pass"
-            )
-            label_output_code = (
-                "\n".join(
-                    f"    _labels['{label_name}'] = "
-                    f"{label_conv.gen_code_and_update_ctx( var_result, ctx)}"
-                    for label_name, label_conv in self.label_output.items()
-                )
-                if self.label_output
-                else "    pass"
-            )
-            code = f"""
-def {converter_name}({var_input}{code_args}):
-{label_input_code}
-    {var_result} = {where_code}
-{label_output_code}
-    return {var_result}
-        """
-        else:
-            code = f"""
-def {converter_name}({var_input}{code_args}):
-    return {where_code}
-        """
+                if reducer_inputs_backup_needed:
+                    ctx[key_to_backup].pop()
+
+            code = Code()
+            code.add_line(f"def {converter_name}({var_input}{code_args}):", 1)
+
+            if self.label_input:
+                for label_name, label_c in self.label_input.items():
+                    code.add_line(
+                        f"_labels['{label_name}'] = "
+                        f"{label_c.gen_code_and_update_ctx(var_input, ctx)}",
+                        0,
+                    )
+            if self.label_output:
+                code.add_line(f"{var_result} = {where_code}", 0)
+                for label_name, label_c in self.label_output.items():
+                    code.add_line(
+                        f"_labels['{label_name}'] = "
+                        f"{label_c.gen_code_and_update_ctx(var_result, ctx)}",
+                        0,
+                    )
+                code.add_line(f"return {var_result}", 0)
+            else:
+                code.add_line(f"return {where_code}", 0)
 
         # no need in catching the function, we'll just use it by the name
         if reducers_run_stage != "collecting_reducer_inputs":
             self._code_to_converter(
                 converter_name=converter_name,
-                code=code,
+                code=code.to_string(0),
                 ctx=ctx,
             )
 
@@ -2283,7 +2497,8 @@ def {converter_name}({var_input}{code_args}):
             EscapedString(converter_name)
             .call(
                 EscapedString(what_code),
-                *where_args,
+                *positional_args_as_conversions,
+                **keyword_args_as_conversions,
             )
             .gen_code_and_update_ctx(None, ctx)
         )
@@ -2302,20 +2517,31 @@ class TapConversion(BaseConversion):
         ]
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        converter_name = self.gen_name("tap", ctx, self)
-        code_args = self.get_args_def_code(as_kwargs=False)
-        code = Code()
-        code.add_line(f"def {converter_name}(data_{code_args}):", 1)
-        for mut in self.mutations:
-            code.add_line(mut.gen_code_and_update_ctx("data_", ctx), 0)
-        code.add_line("return data_", 0)
+        suffix = self.gen_name("", ctx, self)
+        converter_name = f"tap_{suffix}"
+        (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        ) = self.get_args_def_info(ctx)
+        with namespace_ctx:
+            code = Code()
+            code.add_line(f"def {converter_name}(data_{code_args}):", 1)
+            for mut in self.mutations:
+                code.add_line(mut.gen_code_and_update_ctx("data_", ctx), 0)
+            code.add_line("return data_", 0)
 
-        self._code_to_converter(
-            converter_name, code.to_string(base_indent_level=0), ctx
-        )
+            self._code_to_converter(
+                converter_name, code.to_string(base_indent_level=0), ctx
+            )
         return (
             EscapedString(converter_name)
-            .call(self.obj, *self.get_args_as_func_args())
+            .call(
+                self.obj,
+                *positional_args_as_conversions,
+                **keyword_args_as_conversions,
+            )
             .gen_code_and_update_ctx(code_input, ctx)
         )
 
@@ -2325,33 +2551,38 @@ class IterMutConversion(TapConversion):
     elements in-place. The result is a generator.
     IterMutConversion takes any number of mutations"""
 
-    code_template = """
-def {converter_name}(data_{code_args}):
-    for item_ in data_:
-{mut_stmts}
-        yield item_
-"""
-
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        converter_name = self.gen_name(
-            "iter_mut",
-            ctx,
-            self,
-        )
-        code_args = self.get_args_def_code(as_kwargs=False)
-        code = Code()
-        code.add_line(f"def {converter_name}(data_{code_args}):", 1)
-        code.add_line("for item_ in data_:", 1)
-        for mut in self.mutations:
-            code.add_line(mut.gen_code_and_update_ctx("item_", ctx), 0)
-        code.add_line("yield item_", 0)
+        suffix = self.gen_name("", ctx, self)
+        converter_name = f"iter_mut_{suffix}"
+        code_item = f"item_{suffix}"
+        (
+            code_args,
+            positional_args_as_conversions,
+            keyword_args_as_conversions,
+            namespace_ctx,
+        ) = self.get_args_def_info(ctx)
 
-        self._code_to_converter(
-            converter_name, code.to_string(base_indent_level=0), ctx
-        )
+        with namespace_ctx:
+            code = Code()
+            code.add_line(f"def {converter_name}(data_{code_args}):", 1)
+            code.add_line(f"for {code_item} in data_:", 1)
+            for mut in self.mutations:
+                code.add_line(
+                    mut.gen_code_and_update_ctx(f"{code_item}", ctx), 0
+                )
+
+            code.add_line(f"yield {code_item}", 0)
+
+            self._code_to_converter(
+                converter_name, code.to_string(base_indent_level=0), ctx
+            )
         return (
             EscapedString(converter_name)
-            .call(self.obj, *self.get_args_as_func_args())
+            .call(
+                self.obj,
+                *positional_args_as_conversions,
+                **keyword_args_as_conversions,
+            )
             .gen_code_and_update_ctx(code_input, ctx)
         )
 

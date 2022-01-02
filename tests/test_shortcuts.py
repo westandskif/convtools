@@ -69,7 +69,7 @@ def test_zip_in_aggregate():
                 ).as_type(list),
             }
         )
-        .gen_converter(debug=True)
+        .gen_converter()
     )
     assert converter(input_data) == [
         {

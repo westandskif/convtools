@@ -247,7 +247,7 @@ def test_nested_loop_joins():
             ),
         )
         .as_type(list)
-        .gen_converter(debug=False)
+        .gen_converter()
     )
     assert join1(
         [
@@ -496,7 +496,7 @@ def test_join_with_input_args():
             c.LEFT == c.RIGHT,
         )
         .as_type(list)
-        .execute(None, custom_left=range(3), custom_right=range(3), debug=True)
+        .execute(None, custom_left=range(3), custom_right=range(3))
     ) == [(0, 0), (1, 1), (2, 2)]
 
 

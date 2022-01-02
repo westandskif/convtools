@@ -88,6 +88,6 @@ def test_doc__index_word_count():
         )
         # Define the resulting converter function signature.  In fact this
         # isn't necessary if you don't need to specify default values
-    ).gen_converter(debug=True, signature="data_, top_n=None")
+    ).gen_converter(signature="data_, top_n=None")
 
     assert pipeline(input_data, top_n=3) == {"war": 4, "and": 4, "peace": 4}
