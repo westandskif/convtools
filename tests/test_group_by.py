@@ -214,7 +214,7 @@ def test_grouping():
             )
             + c.input_arg("tst"),
             {"foo": "tst"},
-        ).execute(range(3), tst=[], debug=True)
+        ).execute(range(3), tst=[])
         == [[], 1, 2]
     )
 

@@ -74,7 +74,7 @@ def test_doc__quickstart_aggregation():
                 ),
             }
         )
-        .gen_converter(debug=True)
+        .gen_converter()
     )
 
     assert converter(input_data) == [

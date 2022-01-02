@@ -61,11 +61,9 @@ def test_bad_namespace_usage():
     with pytest.raises(
         Exception, match="rendering prevented by parent NamespaceCtx"
     ):
-        assert BadDropWhile(c.this < 100).gen_converter(debug=True)
+        assert BadDropWhile(c.this < 100).gen_converter()
 
     with pytest.raises(
         Exception, match="rendering prevented by parent NamespaceCtx"
     ):
-        assert BadDropWhile(c.this < c.input_arg("abc")).gen_converter(
-            debug=True
-        )
+        assert BadDropWhile(c.this < c.input_arg("abc")).gen_converter()
