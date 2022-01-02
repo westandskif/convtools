@@ -218,18 +218,13 @@ class Table:
                     for index in range(len(first_row)):
                         pending_changes |= columns.add(None, index, None)[1]
 
-            elif isinstance(first_row, str):
+            else:
                 if header is True:
                     pending_changes |= columns.add(first_row, None, This())[1]
                     first_row = None
                 else:
                     pending_changes |= columns.add(None, None, This())[1]
                 pending_changes |= ColumnChanges.MUTATE
-            else:
-                raise ValueError(
-                    "failed to infer header: unsupported row type",
-                    type(first_row),
-                )
 
         rows_objects: "t.List[t.Iterable]" = [rows]
         if first_row is not None:

@@ -1,19 +1,24 @@
-0.22.0 (2022-??-??)
+0.22.0 (2022-01-02)
 ___________________
+
+`#16 <https://github.com/westandskif/convtools/pull/16>`_
+
+Features
+++++++++
+
+- added ``c.ReduceFuncs.ArraySorted`` reducer
+- reworked ``GetItem`` and ``GetAttr`` to cache ``get_or_default`` methods
+  based on number of indexes and args
+- added support for single column tables (headers are always str still)
 
 Misc
 ++++
 
 - updated internals of arg def handling, made naive and labels optional
-- added ``c.ReduceFuncs.ArraySorted`` reducer
 - removed ``NamedConversion`` and ``ConversionWrapper`` in favor of new
   ``LazyEscapedString``, ``Namespace`` and ``NamespaceCtx``. This lays better
   groundwork for future use of conversions which generate code around another
   named ones.
-- reworked ``GetItem`` and ``GetAttr`` to cache ``get_or_default`` methods
-  based on number of indexes and args
-- added support of rows as list of strings
-  TODO: list of any non-lists/non-tuples
 
 0.21.0 (2021-12-19)
 ___________________

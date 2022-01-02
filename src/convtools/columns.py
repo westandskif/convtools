@@ -13,9 +13,9 @@ class ColumnRef(BaseConversion):
     conversion"""
 
     def __init__(self, name: str, id_=None):
-        super().__init__()
         if not isinstance(name, str):
             raise ValueError("name should be str")
+        super().__init__()
         self.name = name
         self.index: "t.Optional[t.Union[str, int]]" = None
         self.id_ = id_
@@ -106,6 +106,8 @@ class MetaColumns:
         return True
 
     def add(self, name, index, conversion):
+        if name is not None:
+            name = str(name)
         column_number = self.column_to_number[name]
         self.column_to_number[name] += 1
         state = 0

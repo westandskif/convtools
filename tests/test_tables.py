@@ -96,8 +96,17 @@ def test_table_base_init():
     )
     assert result == [{"COLUMN_0": 1, "COLUMN_1": 2, "COLUMN_2": 3}]
 
-    with pytest.raises(ValueError):
-        Table.from_rows([{1}])
+    assert list(
+        Table.from_rows([1, (1,), (2,)], header=True)
+        .update(**{"abc": c.col("1").item(0)})
+        .take("abc")
+        .into_iter_rows(dict)
+    ) == [
+        {"abc": 1},
+        {"abc": 2},
+    ]
+
+    Table.from_rows(range(3), header=False).update(a=c.col("COLUMN_0"))
 
     assert list(
         Table.from_rows(["name", "cde"], header=True).into_iter_rows(dict)

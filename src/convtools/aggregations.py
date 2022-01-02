@@ -1018,7 +1018,8 @@ class ListSortedOnceWrapper:
 
 
 class SortedArrayReducer(MultiStatementReducer):
-    # preserve this extra line to keep this different from ArrayReducer
+    """Array reducer which sorts the list just once in the end"""
+
     reduce = ("%(result)s.append({0})",)
     default = NaiveConversion(None)
     unconditional_init = True

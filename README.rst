@@ -258,12 +258,13 @@ ones, exposed like ``c.ReduceFuncs.Sum``:
 #. Last
 #. Average
 #. Median
-#. Percentile
+#. Percentile - ``c.ReduceFuncs.Percentile(95.0, c.item("x"))``
 #. Mode
-#. TopK
+#. TopK - ``c.ReduceFuncs.TopK(3, c.item("x"))``
 #. Array
 #. ArrayDistinct
-#. Dict
+#. ArraySorted - ``c.ReduceFuncs.ArraySorted(c.item("x"), key=lambda v: v, reverse=True)``
+#. Dict - ``c.ReduceFuncs.Dict(c.item("key"), c.item("x"))``
 #. DictArray
 #. DictSum
 #. DictSumOrNone

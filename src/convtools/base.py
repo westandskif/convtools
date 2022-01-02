@@ -7,7 +7,7 @@ import re
 import string
 import sys
 import tempfile
-import typing
+import typing as t
 from itertools import chain
 from random import choice
 
@@ -180,7 +180,7 @@ def {converter_name}({code_args}):
 
 
 def ensure_conversion(
-    conversion: typing.Any, explicitly_allowed_cls=None
+    conversion: t.Any, explicitly_allowed_cls=None
 ) -> "BaseConversion":
     r"""Helps to define conversions based on its type:
         * any conversion is returned untouched
@@ -234,7 +234,7 @@ class ConversionException(Exception):
     pass
 
 
-CT = typing.TypeVar("CT", bound="BaseConversion")
+CT = t.TypeVar("CT", bound="BaseConversion")
 
 
 class _None:
@@ -244,7 +244,7 @@ class _None:
     pass
 
 
-class BaseConversion(typing.Generic[CT]):
+class BaseConversion(t.Generic[CT]):
     """This is the base class  of every conversion (so you are not going to use
     this directly).
 
@@ -489,7 +489,7 @@ class BaseConversion(typing.Generic[CT]):
 
     def _code_to_converter(
         self, converter_name: str, code: str, ctx: dict
-    ) -> typing.Callable:
+    ) -> t.Callable:
         is_debug = ctx.get(
             "__debug", False
         ) or ConverterOptionsCtx.get_option_value("debug")
@@ -631,7 +631,7 @@ class BaseConversion(typing.Generic[CT]):
         del ctx[self.PREFIXED_HASH_TO_NAME]
         return main_converter_callable
 
-    def execute(self, *args, debug=None, **kwargs) -> typing.Any:
+    def execute(self, *args, debug=None, **kwargs) -> t.Any:
         """Shortcut for generating converter and running it"""
         return self.gen_converter(
             debug=debug or ConverterOptionsCtx.get_option_value("debug")
@@ -677,13 +677,13 @@ class BaseConversion(typing.Generic[CT]):
     def attr(self, *attrs, **kwargs) -> "GetAttr":
         return GetAttr(*attrs, self_conv=self, **kwargs)
 
-    def is_itself_callable_like(self) -> typing.Optional[bool]:
+    def is_itself_callable_like(self) -> t.Optional[bool]:
         pass
 
-    def is_itself_callable(self) -> typing.Optional[bool]:
+    def is_itself_callable(self) -> t.Optional[bool]:
         pass
 
-    def is_independent(self) -> typing.Optional[bool]:
+    def is_independent(self) -> t.Optional[bool]:
         return not self.contents & self.ContentTypes.FUNCTION_OF_INPUT
 
     def call_like(self, *args, **kwargs):
@@ -872,8 +872,8 @@ class BaseConversion(typing.Generic[CT]):
 
     def add_label(
         self,
-        label_name: typing.Union[str, dict],
-        conversion: typing.Optional[typing.Any] = None,
+        label_name: t.Union[str, dict],
+        conversion: t.Optional[t.Any] = None,
     ) -> "BaseConversion":
         """Labels data so it can be reused further:
 
@@ -963,7 +963,7 @@ class BaseMethodConversion(BaseConversion):
 
     def get_self_and_input_code(
         self, code_input: str, ctx: dict
-    ) -> typing.Tuple[str, str]:
+    ) -> t.Tuple[str, str]:
         if self.self_conv is None:
             return (code_input, code_input)
         self_code = self.self_conv.gen_code_and_update_ctx(code_input, ctx)
@@ -999,7 +999,7 @@ class NaiveConversion(BaseConversion):
 
     types_to_repr = {type(None), bool, int}
 
-    def __init__(self, value: typing.Any, name_prefix="v"):
+    def __init__(self, value: t.Any, name_prefix="v"):
         """
         Args:
           value (object): any object
@@ -1046,10 +1046,10 @@ class NaiveConversion(BaseConversion):
         ctx["__naive_values__"][value_name] = self.value
         return f'_naive["{value_name}"]'
 
-    def is_itself_callable_like(self) -> typing.Optional[bool]:
+    def is_itself_callable_like(self) -> t.Optional[bool]:
         return callable(self.value)
 
-    def is_itself_callable(self) -> typing.Optional[bool]:
+    def is_itself_callable(self) -> t.Optional[bool]:
         return callable(self.value)
 
 
@@ -1132,13 +1132,19 @@ class LabelConversion(BaseConversion):
 
 
 class Namespace(BaseConversion):
+    """Wrapping conversion which isolates :py:obj:`LazyEscapedString` (parent
+    conversions won't detect them as dependencies) and defines code inputs for
+    them"""
+
     self_content_type = (
         BaseConversion.self_content_type
         ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     )
 
     def __init__(
-        self, conversion: "typing.Any", name_to_code: "typing.Dict[str, str]"
+        self,
+        conversion: "t.Any",
+        name_to_code: "t.Dict[str, t.Optional[t.Union[bool, str]]]",
     ):
         super().__init__()
         self.conversion = self.ensure_conversion(conversion)
@@ -1159,20 +1165,27 @@ class Namespace(BaseConversion):
 
 
 class NamespaceCtx:
+    """Context manager which defines code inputs for
+    :py:obj:`LazyEscapedString`"""
+
     _name_to_code = None
     ctx = None
     active = False
 
     NAMESPACES = BaseConversion.NAMESPACES
 
-    def __init__(self, name_to_code: "typing.Dict[str, str]", ctx):
+    def __init__(
+        self,
+        name_to_code: "t.Dict[str, t.Optional[t.Union[bool, str]]]",
+        ctx,
+    ):
         if name_to_code:
             self._name_to_code = name_to_code
             self._ctx = ctx
 
     def __enter__(self):
         if self._name_to_code:
-            new_value: "typing.Dict[str, str]" = {}
+            new_value: "t.Dict[str, str]" = {}
             new_value.update(self.name_to_code(self._ctx))
             new_value.update(self._name_to_code)
             self._ctx[self.NAMESPACES].append(new_value)
@@ -1185,7 +1198,7 @@ class NamespaceCtx:
         self.active = False
 
     @classmethod
-    def name_to_code(cls, ctx) -> "typing.Dict[str, str]":
+    def name_to_code(cls, ctx) -> "t.Dict[str, str]":
         return ctx[cls.NAMESPACES][-1]
 
     def prevent_rendering_while_active(self, conversion):
@@ -1193,6 +1206,9 @@ class NamespaceCtx:
 
 
 class NamespaceControlledUnit(BaseConversion):
+    """Wrapping conversion which prevents the inner one from being rendered
+    while it is inside the parent NamespaceCtx"""
+
     __slots__ = ["conversion", "namespace_ctx"]
 
     def __init__(self, namespace_ctx: "NamespaceCtx", conversion):
@@ -1210,6 +1226,10 @@ class NamespaceControlledUnit(BaseConversion):
 
 
 class LazyEscapedString(BaseConversion):
+    """A lazy named conversion which allows to build a conversion on the
+    outside to then generate some code around it (properly passing required
+    args, etc.)"""
+
     self_content_type = (
         BaseConversion.self_content_type
         ^ BaseConversion.ContentTypes.FUNCTION_OF_INPUT
@@ -1717,7 +1737,7 @@ class InlineExpr(BaseConversion):
         )
         return f"({code})"
 
-    def is_itself_callable_like(self) -> typing.Optional[bool]:
+    def is_itself_callable_like(self) -> t.Optional[bool]:
         return True
 
     def call_like(self, *args, **kwargs):
@@ -2351,7 +2371,7 @@ class PipeConversion(BaseConversion):
 
     def _prepare_labels(
         self,
-        label_arg: typing.Union[str, dict],
+        label_arg: t.Union[str, dict],
     ):
         if isinstance(label_arg, str):
             return {label_arg: GetItem()}
