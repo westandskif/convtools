@@ -535,8 +535,8 @@ ____________________________________________
           )
       )
 
-5. Pipes and Labels: chaining multiple conversions & c.this
-_____________________________________________________________
+5. Pipes and Labels: chaining multiple conversions & c.this & and_then
+______________________________________________________________________
 
 
 .. list-table::
@@ -602,6 +602,32 @@ _____________________________________________________________
       }).gen_converter(debug=True)
 
       converter(data, dt_start="2019-10-02")
+
+ * - .. code-block:: python
+
+      from datetime import datetime, date
+      data = [
+          {"dt": datetime(2022, 2, 22)},
+          {"dt": None}
+      ]
+
+   - .. code-block:: python
+
+      # take datetimes and convert them
+      # to dates if exist
+
+      [datetime.date(2022, 2, 22), None]
+
+   - .. code-block:: python
+
+      converter = (
+          c.iter(
+              c.item("dt", default=None)
+              .and_then(c.this.call_method("date"))
+          )
+          .gen_converter()
+      )
+      converter(data)
 
 
 6. Group by: simple

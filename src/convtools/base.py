@@ -943,6 +943,13 @@ class BaseConversion(t.Generic[CT]):
         """Shortcut to Breakpoint(self)"""
         return Breakpoint(self)
 
+    def and_then(self, conversion, condition=bool):
+        """Applies conversion if condition is true, otherwise leaves untouched.
+        Condition is :py:obj:`bool` by default"""
+        return self.pipe(
+            If(This() if condition is bool else condition, conversion)
+        )
+
 
 class BaseMutation(BaseConversion):
     used_in_narrow_context = True

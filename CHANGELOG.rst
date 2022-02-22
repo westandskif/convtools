@@ -1,3 +1,14 @@
+0.23.0 (2022-02-22)
+___________________
+
+Features
+++++++++
+
+- added ``c.and_then`` and ``(...).and_then`` shortcut to pipe if condition is
+  true, otherwise leave untouched. Supports overriding default ``bool``
+  condition.
+
+
 0.22.0 (2022-01-02)
 ___________________
 

@@ -829,6 +829,9 @@ Points to learn:
    :py:obj:`itertools.takewhile`
 #. :py:obj:`c.drop_while<convtools.conversion.Conversion.drop_while>` re-implements
    :py:obj:`itertools.dropwhile`
+#. :py:obj:`c.and_then<convtools.conversion.Conversion.and_then>` is a shortcut
+   to `(...).pipe(c.if_(condition, conversion, c.this))` where `condition=bool`
+   is default. It pipes if condition is true, otherwise leaves untouched
 
 .. code-block:: python
 

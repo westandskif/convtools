@@ -155,3 +155,28 @@ def test_pipe_label_args():
         ).execute(None, abc=1, cde=2)
         is None
     )
+
+
+def test_and_then():
+    conv = c.and_then(c.this + 1).gen_converter()
+    assert conv(0) == 0
+    assert conv(1) == 2
+
+    conv = c.and_then(c.this + 1, condition=c.this >= 10).gen_converter()
+    assert conv(9) == 9
+    assert conv(10) == 11
+    assert conv(11) == 12
+
+    conv = (c.this + 1).and_then(c.this + 10).gen_converter()
+    assert conv(-1) == 0
+    assert conv(0) == 11
+    assert conv(1) == 12
+
+    conv = (
+        (c.this + 1)
+        .and_then(c.this + 10, condition=c.this <= 1)
+        .gen_converter()
+    )
+    assert conv(-1) == 10
+    assert conv(0) == 11
+    assert conv(1) == 2

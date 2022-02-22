@@ -94,6 +94,10 @@ class Conversion:
     if_ = If
 
     this = This()
+
+    #: Shortcut to :py:obj:`convtools.base.BaseConversion.and_then`
+    and_then = this.and_then
+
     naive = NaiveConversion
     item = GetItem
     attr = GetAttr
