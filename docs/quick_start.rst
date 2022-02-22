@@ -841,6 +841,7 @@ Points to learn:
    c.zip(a=c.item("list_a"), b=c.repeat(None))
    c.take_while(c.this < 3)
    c.drop_while(c.this < 3)
+   c.item("dt").and_then(c.this + datetime(days=1))
 
 9. Aggregations
 _______________
