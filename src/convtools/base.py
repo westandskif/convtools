@@ -943,11 +943,19 @@ class BaseConversion(t.Generic[CT]):
         """Shortcut to Breakpoint(self)"""
         return Breakpoint(self)
 
-    def and_then(self, conversion, condition=bool):
+    def and_then(self, conversion, condition=bool) -> "BaseConversion":
         """Applies conversion if condition is true, otherwise leaves untouched.
         Condition is :py:obj:`bool` by default"""
+        if condition is bool:
+            return self.pipe(And(This(), conversion))
+
         return self.pipe(
-            If(This() if condition is bool else condition, conversion)
+            If(
+                CallFunc(condition, This())
+                if callable(condition)
+                else condition,
+                conversion,
+            )
         )
 
 

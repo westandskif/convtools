@@ -180,3 +180,13 @@ def test_and_then():
     assert conv(-1) == 10
     assert conv(0) == 11
     assert conv(1) == 2
+
+    conv = c.this.and_then(c.this + 1, condition=bool).gen_converter()
+    assert conv(-1) == 0
+    assert conv(0) == 0
+    assert conv(1) == 2
+
+    conv = c.this.and_then(c.this + 1, condition=lambda x: x).gen_converter()
+    assert conv(-1) == 0
+    assert conv(0) == 0
+    assert conv(1) == 2

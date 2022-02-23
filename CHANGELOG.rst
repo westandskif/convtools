@@ -1,3 +1,15 @@
+0.23.1 (2022-02-23)
+___________________
+
+Misc
+++++
+
+- allowed passing callables to ``and_then`` so they are called with input as an
+  argument
+- made ``and_then`` handle the default case as ``a and conv(a)`` not ``if``
+
+
+
 0.23.0 (2022-02-22)
 ___________________
 
