@@ -236,6 +236,8 @@ def test_naive_conversion_item():
     assert (c.naive(5) // c.this).execute(2) == 2
     assert (c.naive(5) % c.this).execute(2) == 1
 
+    assert c.this.eq(1).eq(1).execute(1) == (c.this == 1).execute(1)
+
 
 def test_item():
     assert c.item("key1").as_type(int).execute({"key1": "15"}) == 15
@@ -263,17 +265,36 @@ def test_naive_conversion_attr():
 
 
 def test_item_attr_caching():
-    assert (
-        c(
-            {
-                "item": c.item(0).pipe(c.item(0, default=None)),
-                "item2": c.item(0).pipe(c.item(0, 1, default=None)),
-                "attr": c.item(1).pipe(c.attr("year", default=None)),
-                "attr2": c.item(1).pipe(c.attr("year", "month", default=None)),
-            }
-        ).execute([[1], date(1970, 1, 1)])
-        == {"item": 1, "item2": None, "attr": 1970, "attr2": None}
+    result = c(
+        {
+            "item": c.item(0).pipe(c.item(0, default=None)),
+            "item2": c.item(0).pipe(c.item(0, 1, default=None)),
+            "item3": c.item(0, default=-1).item(0, default=-2),
+            "item4": c.item(2, default=-1).item(0, default=-2),
+            "attr": c.item(1).pipe(c.attr("year", default=None)),
+            "attr2": c.item(1).pipe(c.attr("year", "month", default=None)),
+            "attr3": c.item(1, default=-1).attr("year", default=-2),
+            "attr4": c.item(2, default=-1).attr("year", default=-2),
+        }
+    ).execute([[1], date(1970, 1, 1)])
+    assert result == {
+        "item": 1,
+        "item2": None,
+        "item3": 1,
+        "item4": -2,
+        "attr": 1970,
+        "attr2": None,
+        "attr3": 1970,
+        "attr4": -2,
+    }
+
+    converter = (
+        c.this.or_(None)
+        .item(c.item("key"), default=c.item("default"))
+        .gen_converter()
     )
+    assert converter({"key": "abc", "abc": 1, "default": -1}) == 1
+    assert converter({"key": "abc", "default": -1}) == -1
 
 
 def test_naive_conversion_call():
@@ -327,6 +348,21 @@ def test_naive_conversion_or_and():
     assert c.naive(0).or_(c.naive(10)).gen_converter()(100) == 10
     assert c.naive(10).and_(c.naive(0)).gen_converter()(100) == 0
     assert (c.naive(10) & c.naive(0)).gen_converter()(100) == 0
+
+    assert (
+        c.this.and_(1).and_(2).execute(1)
+        == c.and_(c.this, 1, 2).execute(1)
+        == 2
+    )
+    assert (
+        c.this.or_(1).or_(2).execute(1) == c.or_(c.this, 1, 2).execute(1) == 1
+    )
+
+    assert (
+        c.this.and_(1).and_(2).or_(3).execute(1)
+        == c.and_(c.this, 1, 2).or_(3).execute(1)
+        == 2
+    )
 
 
 def test_escaped_string_conversion():

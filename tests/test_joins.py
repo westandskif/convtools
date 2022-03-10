@@ -211,7 +211,7 @@ def test_hash_joins():
             c.item(0),
             c.item(1),
             c.and_(
-                c.LEFT.item("id") == c.RIGHT.item("ID"),
+                c.and_(c.LEFT.item("id") == c.RIGHT.item("ID"), True),
                 c.LEFT.item("value") > 105,
                 c.RIGHT.item("value") < 209,
                 c.input_arg("flag"),

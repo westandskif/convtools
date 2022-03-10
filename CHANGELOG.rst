@@ -1,3 +1,14 @@
+0.23.2 (2022-03-10)
+___________________
+
+Bugfix
+++++++
+
+- fixed ``c.attr("a", default=None).attr("b", default=None)`` (preferred
+  ``c.attr("a", "b", default=None)`` was working though)
+- fixed too-many-parenthesis error for long chains of ``and_``, ``or_`` and
+  ``==``
+
 0.23.1 (2022-02-23)
 ___________________
 

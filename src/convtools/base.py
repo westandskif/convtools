@@ -1264,19 +1264,10 @@ class LazyEscapedString(BaseConversion):
         raise ValueError("LazyEscapedString is left uninitialized", self.name)
 
 
-class Or(BaseConversion):
-    """Takes any number of objects, each is to be wrapped with
-    :py:obj:`ensure_conversion` and generates the code
-    joining every argument with python ``or`` expression
+class OrAndEqBaseConversion(BaseConversion):
+    """Base class of Or/And/Eq operator conversions"""
 
-    ``default`` defines behavior when args is empty
-      * if None is empty will raise ValueError
-      * false values - results in False
-      * true values - results in True
-
-    """
-
-    op = " or "
+    op = ""
 
     def __init__(self, *args, default=None):
         """
@@ -1305,7 +1296,25 @@ class Or(BaseConversion):
         return f"({code})"
 
 
-class And(Or):
+class Or(OrAndEqBaseConversion):
+    """Takes any number of objects, each is to be wrapped with
+    :py:obj:`ensure_conversion` and generates the code
+    joining every argument with python ``or`` expression
+
+    ``default`` defines behavior when args is empty
+      * if None is empty will raise ValueError
+      * false values - results in False
+      * true values - results in True
+
+    """
+
+    op = " or "
+
+    def or_(self, *args, **kwargs) -> "Or":
+        return self.__class__(*self.args, *args, **kwargs)
+
+
+class And(OrAndEqBaseConversion):
     """Takes any number of objects, each is to be wrapped with
     :py:obj:`ensure_conversion` and generates the code
     joining every argument with python ``and`` expression.
@@ -1319,8 +1328,11 @@ class And(Or):
 
     op = " and "
 
+    def and_(self, *args, **kwargs) -> "And":
+        return self.__class__(*self.args, *args, **kwargs)
 
-class Eq(Or):
+
+class Eq(OrAndEqBaseConversion):
     """Takes any number of objects, each is to be wrapped with
     :py:obj:`ensure_conversion` and generates the code
     joining every argument with python `` == `` operator
@@ -1333,6 +1345,9 @@ class Eq(Or):
     """
 
     op = " == "
+
+    def eq(self, *args, **kwargs) -> "Eq":
+        return self.__class__(*self.args, *args, **kwargs)
 
 
 class If(BaseConversion):
@@ -1473,14 +1488,22 @@ class GetItem(BaseMethodConversion):
                 and not PipeConversion.input_is_simple(code_input)
             )
 
-            args_as_def_names = ["data_"]
-            args_as_conversions = [This()]
-            code_output = "data_"
+            both_self_and_data_needed = (
+                code_self != code_input and caching_is_impossible
+            )
 
-            if code_self != code_input:
-                args_as_def_names.append("self_")
-                args_as_conversions.append(EscapedString(code_self))
+            if both_self_and_data_needed:
+                args_as_def_names = ["self_", "data_"]
+                args_as_conversions = [EscapedString(code_self), This()]
                 code_output = "self_"
+            else:
+                args_as_def_names = ["data_"]
+                code_output = "data_"
+
+                if code_self != code_input:
+                    args_as_conversions = [EscapedString(code_self)]
+                else:
+                    args_as_conversions = [This()]
 
             if caching_is_impossible:
                 default_code = self.default.gen_code_and_update_ctx(
@@ -1519,7 +1542,12 @@ class GetItem(BaseMethodConversion):
                 )
             else:
 
-                key = (self.prefix, code_args, len(self.indexes))
+                key = (
+                    self.prefix,
+                    code_args,
+                    tuple(args_as_def_names),
+                    len(self.indexes),
+                )
 
                 if key not in ctx[self.CONVERTERS_CACHE]:
                     for i, index in enumerate(self.indexes):
