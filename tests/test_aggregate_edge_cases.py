@@ -636,3 +636,70 @@ def test_group_by_percentile():
             "percentile_95": 87.4,
         },
     ]
+
+
+def test_conditional_init_merges():
+    converter = (
+        c.group_by(c.item(0))
+        .aggregate(
+            [
+                c.ReduceFuncs.First(c.item(1)),
+                c.ReduceFuncs.First(c.item(2)),
+                c.ReduceFuncs.Min(c.item(1)),
+                c.ReduceFuncs.Max(c.item(1)),
+                c.ReduceFuncs.Min(c.item(2)),
+                c.ReduceFuncs.Max(c.item(2)),
+                c.ReduceFuncs.DictMin(c.item(0), c.item(1)),
+                c.ReduceFuncs.DictMin(c.item(0), c.item(2)),
+                c.ReduceFuncs.DictMax(c.item(0), c.item(1)),
+                c.ReduceFuncs.DictMax(c.item(0), c.item(2)),
+                c.ReduceFuncs.MaxRow(c.item(2)),
+                c.ReduceFuncs.MaxRow(c.item(2), where=c.item(0) == 1).item(-1),
+            ]
+        )
+        .gen_converter(debug=True)
+    )
+    # fmt: off
+    assert converter(
+        [
+            [1, 2, None],
+            [1, 1, 4],
+            [1, None, 3],
+        ]
+    ) == [[2, None, 1, 2, 3, 4, {1: 1}, {1: 3}, {1: 2}, {1: 4}, [1, 1, 4], 4]]
+    # fmt: on
+
+    converter = (
+        c.group_by(c.item(0))
+        .aggregate(
+            [
+                c.ReduceFuncs.Min(c.item(1)),
+                c.ReduceFuncs.Min(c.item(1)) + 1,
+            ]
+        )
+        .gen_converter(debug=True)
+    )
+    assert (
+        sum(
+            code_line.count("<")
+            for code_line in next(
+                conf["code_str"]
+                for name, conf in converter._name_to_converter.items()
+                if name.startswith("group_by")
+            )
+        )
+        == 1
+    )
+
+
+class SumIfGte10(MultiStatementReducer):
+    prepare_first = ("if {0} and {0} >= 10:", "    %(result)s = {0}")
+    reduce = (
+        "if {0} and {0} >= 10:",
+        "    %(result)s = {prev_result} + {0}",
+    )
+    default = c.inline_expr("0")
+
+
+def test_reducer_with_conditional_init():
+    assert c.aggregate(SumIfGte10(c.this)).execute(range(12)) == 21

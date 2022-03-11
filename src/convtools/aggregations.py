@@ -1,5 +1,5 @@
 """This module brings aggregations with various reduce functions"""
-import typing
+import typing as t
 from collections import defaultdict
 from decimal import Decimal
 from math import ceil
@@ -25,7 +25,7 @@ from .utils import Code
 
 
 _none = BaseConversion._none
-RBT = typing.TypeVar("RBT", bound="ReduceBlock")
+RBT = t.TypeVar("RBT", bound="ReduceBlock")
 
 
 class ReduceBlock:
@@ -36,16 +36,16 @@ class ReduceBlock:
 
     def __init__(
         self,
-        reduce_initial: typing.Iterable[str],
-        reduce_two: typing.Iterable[str],
-        var_row: str,
+        reduce_initial: t.Iterable[str],
+        reduce_two: t.Iterable[str],
+        reducer_code_input: str,
         var_agg_data_value: str,
         checksum_flag: int,
         unconditional_init: bool,
     ):
         self.reduce_initial = {var_agg_data_value: reduce_initial}
         self.reduce_two = {var_agg_data_value: reduce_two}
-        self.var_row = var_row
+        self.reducer_code_input = reducer_code_input
         self.condition_code = None
         self.unconditional_init = unconditional_init
         self.checksum_flag = checksum_flag
@@ -53,8 +53,8 @@ class ReduceBlock:
     def consume(self: RBT, reduce_block: RBT) -> RBT:
         if (
             self.condition_code != reduce_block.condition_code
-            or self.unconditional_init != reduce_block.unconditional_init
-            or self.var_row != reduce_block.var_row
+            or not self.unconditional_init
+            or not reduce_block.unconditional_init
         ):
             raise AssertionError
 
@@ -71,39 +71,33 @@ class ReduceBlock:
         self.checksum_flag |= reduce_block.checksum_flag
         return self
 
-    def iter_reduce_lines(self, lines_info_dict) -> typing.Iterable[str]:
+    def iter_reduce_lines(self, lines_info_dict) -> t.Iterable[str]:
         for var_agg_data_value, lines in lines_info_dict.items():
             template_kwargs = {
                 "result": var_agg_data_value,
-                "row": self.var_row,
+                "input": self.reducer_code_input,
             }
             yield from (line % template_kwargs for line in lines)
 
-    def iter_reduce_initial_lines(self) -> typing.Iterable[str]:
+    def iter_reduce_initial_lines(self) -> t.Iterable[str]:
         yield from self.iter_reduce_lines(self.reduce_initial)
 
-    def iter_reduce_two_lines(self) -> typing.Iterable[str]:
+    def iter_reduce_two_lines(self) -> t.Iterable[str]:
         yield from self.iter_reduce_lines(self.reduce_two)
 
-    def same_as(self, other):
+    def as_key(self):
         return (
-            self.condition_code == other.condition_code
-            and self.unconditional_init == other.unconditional_init
-            and self.var_row == other.var_row
-            and len(self.reduce_initial) == len(other.reduce_initial)
-            and len(self.reduce_two) == len(other.reduce_two)
-            and all(
-                l1 == l2
-                for l1, l2 in zip(
-                    self.reduce_initial.values(), other.reduce_initial.values()
-                )
-            )
-            and all(
-                l1 == l2
-                for l1, l2 in zip(
-                    self.reduce_two.values(), other.reduce_two.values()
-                )
-            )
+            self.condition_code,
+            self.unconditional_init,
+            self.reducer_code_input,
+            tuple(
+                line
+                for lines in self.reduce_initial.values()
+                for line in lines
+            ),
+            tuple(
+                line for lines in self.reduce_two.values() for line in lines
+            ),
         )
 
 
@@ -117,36 +111,35 @@ class ReduceConditionalBlock(ReduceBlock):
         self.condition_code = condition_code
 
 
-class ReduceBlocks(typing.Generic[RBT]):
+class ReduceBlocks(t.Generic[RBT]):
     """Represents a set of reduce blocks"""
 
     def __init__(self):
-        self.conditional_init_blocks = {}
-        self.unconditional_init_blocks = {}
+        self.condition_to_blocks = {}
+        self.other_blocks = []
         self.number = 0
 
     def add_block(self, reduce_block: RBT):
         self.number += 1
+
         if reduce_block.unconditional_init:
-            key_to_block = self.unconditional_init_blocks
-        else:
-            key_to_block = self.conditional_init_blocks
-        key = (
-            (
+            condition = (
                 reduce_block.condition_code
                 if isinstance(reduce_block, ReduceConditionalBlock)
                 else None
-            ),
-            reduce_block.var_row,
-        )
-        if key in key_to_block:
-            key_to_block[key].consume(reduce_block)
-        else:
-            key_to_block[key] = reduce_block
+            )
 
-    def iter_blocks(self) -> typing.Iterable[RBT]:
-        yield from self.unconditional_init_blocks.values()
-        yield from self.conditional_init_blocks.values()
+            if condition in self.condition_to_blocks:
+                self.condition_to_blocks[condition].consume(reduce_block)
+            else:
+                self.condition_to_blocks[condition] = reduce_block
+
+        else:
+            return self.other_blocks.append(reduce_block)
+
+    def iter_blocks(self) -> t.Iterable[RBT]:
+        yield from self.condition_to_blocks.values()
+        yield from self.other_blocks
 
     def gen_group_by_code(
         self,
@@ -303,18 +296,18 @@ def {converter_name}(data_{code_args}):
 """
 
 
-RT = typing.TypeVar("RT", bound="BaseReducer")
+RT = t.TypeVar("RT", bound="BaseReducer")
 
 
-class BaseReducer(BaseConversion, typing.Generic[RBT]):
+class BaseReducer(BaseConversion, t.Generic[RBT]):
     """Base of a reduce operation to be used during the aggregation"""
 
     method_calls_replace_input_with_self = True
 
-    expressions: typing.Tuple[typing.Any, ...]
-    post_conversion: typing.Optional[BaseConversion] = None
-    default: typing.Any
-    where: typing.Optional[BaseConversion] = None
+    expressions: t.Tuple[t.Any, ...]
+    post_conversion: t.Optional[BaseConversion] = None
+    default: t.Any
+    where: t.Optional[BaseConversion] = None
     unconditional_init: bool = False
 
     self_content_type = (
@@ -328,7 +321,7 @@ class BaseReducer(BaseConversion, typing.Generic[RBT]):
     def gen_reduce_code_block(
         self,
         var_agg_data_value: str,
-        var_row: str,
+        reducer_code_input: str,
         checksum_flag: int,
         ctx: dict,
     ) -> RBT:
@@ -398,12 +391,14 @@ class MultiStatementReducer(BaseReducer):
     """Defines the reduce operation, which is based on multiple python
     statements, to be used during the aggregation"""
 
-    prepare_first: typing.Tuple[str, ...]
-    reduce: typing.Tuple[str, ...]
+    base_condition_code: "t.Optional[str]" = None
+    prepare_first: t.Tuple[str, ...]
+    reduce: t.Tuple[str, ...]
 
     def __init__(self, *expressions, initial=_none, default=_none, where=None):
         super().__init__()
         self.where = None if where is None else self.ensure_conversion(where)
+
         self.expressions = tuple(
             self.ensure_conversion(expr)
             for expr in (
@@ -420,12 +415,13 @@ class MultiStatementReducer(BaseReducer):
         self,
         statements,
         args,
-        var_row,
+        reducer_code_input,
         ctx,
         prev_result="%(result)s",
     ):
         code_args = tuple(
-            arg.gen_code_and_update_ctx(var_row, ctx) for arg in args
+            arg.gen_code_and_update_ctx(reducer_code_input, ctx)
+            for arg in args
         )
         return [
             statement.format(*code_args, prev_result=prev_result)
@@ -435,7 +431,7 @@ class MultiStatementReducer(BaseReducer):
     def gen_reduce_code_block(
         self,
         var_agg_data_value: str,
-        var_row: str,
+        reducer_code_input: str,
         checksum_flag: int,
         ctx: dict,
     ) -> RBT:
@@ -447,37 +443,55 @@ class MultiStatementReducer(BaseReducer):
                     else self.prepare_first
                 ),
                 self.expressions,
-                var_row,
+                reducer_code_input,
                 ctx,
             )
         else:
             reduce_initial = self._format_statements(
                 (self.reduce(ctx) if callable(self.reduce) else self.reduce),
                 self.expressions,
-                var_row,
+                reducer_code_input,
                 ctx,
-                prev_result=self.initial.gen_code_and_update_ctx(var_row, ctx),
+                prev_result=self.initial.gen_code_and_update_ctx(
+                    reducer_code_input, ctx
+                ),
             )
 
         reduce_two = self._format_statements(
             (self.reduce(ctx) if callable(self.reduce) else self.reduce),
             self.expressions,
-            var_row,
+            reducer_code_input,
             ctx,
         )
 
         kwargs = {
             "reduce_initial": reduce_initial,
             "reduce_two": reduce_two,
-            "var_row": var_row,
+            "reducer_code_input": reducer_code_input,
             "var_agg_data_value": var_agg_data_value,
             "checksum_flag": checksum_flag,
             "unconditional_init": self.unconditional_init,
         }
         if self.where is not None:
-            condition_code = self.where.gen_code_and_update_ctx(var_row, ctx)
+            condition_code = self.where.gen_code_and_update_ctx(
+                reducer_code_input, ctx
+            )
             if condition_code != "True":
                 kwargs["condition_code"] = condition_code
+
+        if self.base_condition_code:
+            base_condition_code = self._format_statements(
+                [self.base_condition_code],
+                self.expressions,
+                reducer_code_input,
+                ctx,
+            )[0]
+            if "condition_code" in kwargs:
+                kwargs[
+                    "condition_code"
+                ] = f"{base_condition_code} and {kwargs['condition_code']}"
+            else:
+                kwargs["condition_code"] = base_condition_code
 
         block_cls = (
             ReduceConditionalBlock
@@ -491,14 +505,14 @@ class Reduce(BaseReducer):
     """Defines the reduce operation, which is based on a callable / expression
     to be used during the aggregation"""
 
-    initial: typing.Any
+    initial: t.Any
 
     def __init__(
         self,
-        to_call_with_2_args: typing.Union[typing.Callable, InlineExpr],
-        *expressions: typing.Tuple[typing.Any, ...],
-        initial: typing.Union[_None, typing.Callable, InlineExpr, typing.Any],
-        default: typing.Union[_None, typing.Callable, typing.Any] = _none,
+        to_call_with_2_args: t.Union[t.Callable, InlineExpr],
+        *expressions: t.Tuple[t.Any, ...],
+        initial: t.Union[_None, t.Callable, InlineExpr, t.Any],
+        default: t.Union[_None, t.Callable, t.Any] = _none,
         unconditional_init: bool = False,
         where=None,
     ):
@@ -534,31 +548,33 @@ class Reduce(BaseReducer):
     def gen_reduce_code_block(
         self,
         var_agg_data_value: str,
-        var_row: str,
+        reducer_code_input: str,
         checksum_flag: int,
         ctx: dict,
     ) -> RBT:
         _ = self.to_call_with_2_args.call_like(
             self.initial,
             *self.expressions,
-        ).gen_code_and_update_ctx(var_row, ctx)
+        ).gen_code_and_update_ctx(reducer_code_input, ctx)
         reduce_initial = [f"%(result)s = {_}"]
         _ = self.to_call_with_2_args.call_like(
             EscapedString("%(result)s"),
             *self.expressions,
-        ).gen_code_and_update_ctx(var_row, ctx)
+        ).gen_code_and_update_ctx(reducer_code_input, ctx)
         reduce_two = [f"%(result)s = {_}"]
 
         kwargs = {
             "reduce_initial": reduce_initial,
             "reduce_two": reduce_two,
-            "var_row": var_row,
+            "reducer_code_input": reducer_code_input,
             "var_agg_data_value": var_agg_data_value,
             "checksum_flag": checksum_flag,
             "unconditional_init": self.unconditional_init,
         }
         if self.where is not None:
-            condition_code = self.where.gen_code_and_update_ctx(var_row, ctx)
+            condition_code = self.where.gen_code_and_update_ctx(
+                reducer_code_input, ctx
+            )
             if condition_code != "True":
                 kwargs["condition_code"] = condition_code
 
@@ -571,7 +587,7 @@ class Reduce(BaseReducer):
         return block_cls(**kwargs)
 
 
-class GroupBy(BaseConversion, typing.Generic[RBT]):
+class GroupBy(BaseConversion, t.Generic[RBT]):
     """Generates the function which aggregates the data, grouping by
     conversions, specified in `__init__` method and returns list of items in a
     format defined by the parameter passed to ``aggregate`` method.
@@ -591,7 +607,7 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
         | BaseConversion.ContentTypes.AGGREGATION
     )
 
-    def __init__(self, *by: typing.Tuple[BaseConversion, ...]):
+    def __init__(self, *by: t.Tuple[BaseConversion, ...]):
         """Takes any number of conversions to group by
 
         Args:
@@ -602,13 +618,13 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
         """
         super().__init__()
         self.by = [self.ensure_conversion(by_) for by_ in by]
-        self.agg_result: typing.Optional[BaseConversion] = None
+        self.agg_result: t.Optional[BaseConversion] = None
         self.aggregate_mode = len(self.by) == 0
         self.filter_conversion = None
         self.filter_cast = None
 
     def aggregate(
-        self, reducer: typing.Union[dict, list, set, tuple, BaseConversion]
+        self, reducer: t.Union[dict, list, set, tuple, BaseConversion]
     ) -> "GroupBy":
         """Takes the conversion which defines the desired output of
         aggregation"""
@@ -714,7 +730,8 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
             expected_checksum = 0
             var_agg_data_values = []
 
-            blocks: typing.List[RBT] = []
+            blocks: "t.List[RBT]" = []
+            key_to_index: "t.Dict[t.Any, int]" = {}
             overwritten_reducer_inputs = {}
             # reusing same reducers, remembering code replacements for reducers
             for reducer_code_input, reducer in (
@@ -734,14 +751,11 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
                     ctx,
                 )
 
-                such_block_exists = False
-                for index, block in enumerate(blocks):
-                    if reduce_block.same_as(block):
-                        reduce_block_index = index
-                        such_block_exists = True
-                        break
-
-                if not such_block_exists:
+                key = reduce_block.as_key()
+                if key in key_to_index:
+                    reduce_block_index = key_to_index[key]
+                else:
+                    key_to_index[key] = len(blocks)
                     blocks.append(reduce_block)
                     var_agg_data_values.append(var_agg_data_value)
                     expected_checksum |= checksum_flag
@@ -786,7 +800,8 @@ class GroupBy(BaseConversion, typing.Generic[RBT]):
 
             if self.count_words(code_agg_result, var_row):
                 raise ConversionException(
-                    "something other than a group by key or a reducer was used",
+                    "something other than a group by key or a "
+                    "reducer was used",
                     code_agg_result,
                 )
             if self.aggregate_mode:
@@ -914,27 +929,25 @@ class SumOrNoneReducer(MultiStatementReducer):
 
 
 class MaxReducer(MultiStatementReducer):
-    prepare_first = (
-        "if {0} is not None:",
-        "    %(result)s = {0}",
-    )
+    base_condition_code = "{0} is not None"
+    prepare_first = ("%(result)s = {0}",)
     reduce = (
-        "if {0} is not None and {0} > %(result)s:",
+        "if {0} > %(result)s:",
         "    %(result)s = {0}",
     )
     default = NaiveConversion(None)
+    unconditional_init = True
 
 
 class MinReducer(MultiStatementReducer):
-    prepare_first = (
-        "if {0} is not None:",
-        "    %(result)s = {0}",
-    )
+    base_condition_code = "{0} is not None"
+    prepare_first = ("%(result)s = {0}",)
     reduce = (
-        "if {0} is not None and {0} < %(result)s:",
+        "if {0} < %(result)s:",
         "    %(result)s = {0}",
     )
     default = NaiveConversion(None)
+    unconditional_init = True
 
 
 class CountReducer(MultiStatementReducer):
@@ -970,22 +983,21 @@ class MaxRowReducer(MultiStatementReducer):
     """Reducer which finds an item with max value of the expression and returns
     this item"""
 
-    prepare_first = (
-        "if {0} is not None:",
-        "    %(result)s = ({0}, %(row)s)",
-    )
+    base_condition_code = "{0} is not None"
+    prepare_first = ("%(result)s = ({0}, %(input)s)",)
     reduce = (
-        "if {0} is not None and %(result)s[0] < {0}:",
-        "    %(result)s = ({0}, %(row)s)",
+        "if %(result)s[0] < {0}:",
+        "    %(result)s = ({0}, %(input)s)",
     )
     default = NaiveConversion(None)
     post_conversion = GetItem(1)
+    unconditional_init = True
 
 
 class MinRowReducer(MaxRowReducer):
     reduce = (
-        "if {0} is not None and %(result)s[0] > {0}:",
-        "    %(result)s = ({0}, %(row)s)",
+        "if %(result)s[0] > {0}:",
+        "    %(result)s = ({0}, %(input)s)",
     )
 
 
@@ -1136,22 +1148,19 @@ class DictMaxReducer(BaseDictReducer):
     """DictMax reducer which takes first positional item as keys and
     accumulates max value of second positional item"""
 
-    prepare_first = (
-        "if {1} is not None:",
-        "    %(result)s = {{ {0}: {1} }}",
-    )
+    base_condition_code = "{1} is not None"
+    prepare_first = ("%(result)s = {{ {0}: {1} }}",)
     reduce = (
-        "if {1} is not None and "
-        "({0} not in %(result)s or {1} > %(result)s[{0}]):",
+        "if {0} not in %(result)s or {1} > %(result)s[{0}]:",
         "    %(result)s[{0}] = {1}",
     )
     default = NaiveConversion(None)
+    unconditional_init = True
 
 
 class DictMinReducer(DictMaxReducer):
     reduce = (
-        "if {1} is not None and "
-        "({0} not in %(result)s or {1} < %(result)s[{0}]):",
+        "if {0} not in %(result)s or {1} < %(result)s[{0}]:",
         "    %(result)s[{0}] = {1}",
     )
 
@@ -1276,7 +1285,7 @@ class PercentileReducer(SortedArrayReducer):
       * "nearest"
     """
 
-    interpolation_to_method: "typing.Dict[str, typing.Callable]" = {}
+    interpolation_to_method: "t.Dict[str, t.Callable]" = {}
 
     def __init__(
         self, percentile: float, conv, *args, interpolation="linear", **kwargs

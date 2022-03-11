@@ -1,3 +1,15 @@
+0.23.3 (2022-03-11)
+___________________
+
+Bugfix
+++++++
+
+- fixed long existing bug in aggregations in cases where multiple reducers get
+  initialized at different moments, e.g. the first reducer collects min values
+  of column "a", while the second reducer collects max values of column "b",
+  "min a" may get initialized earlier than "max b" and then this would raise
+  ``Exception``
+
 0.23.2 (2022-03-10)
 ___________________
 
