@@ -42,7 +42,6 @@ if PY_VERSION <= (3, 7):
         FUNCTION_CALL = 1318
         UNPREDICTABLE = 171200
 
-
 elif PY_VERSION == (3, 8):
 
     # 3.8.13
@@ -60,7 +59,6 @@ elif PY_VERSION == (3, 8):
         FUNCTION_CALL = 961
         UNPREDICTABLE = 166900
 
-
 elif PY_VERSION == (3, 9):
 
     # 3.9.7
@@ -77,7 +75,6 @@ elif PY_VERSION == (3, 9):
         DICT_INIT = 1898
         FUNCTION_CALL = 1033
         UNPREDICTABLE = 189800
-
 
 else:
     # 3.10.4
@@ -2916,13 +2913,11 @@ if "pydevd" in sys.modules:  # pragma: no cover
         pydevd.settrace()
         return obj
 
-
 elif sys.version_info[:2] < (3, 7):  # pragma: no cover
 
     def debug_func(obj):
         pdb.set_trace()  # pylint: disable=forgotten-debug-statement
         return obj
-
 
 else:  # pragma: no cover
 

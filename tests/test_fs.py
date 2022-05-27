@@ -53,23 +53,17 @@ def test_split_buffer():
                 list(split_buffer(StringIO(input_str), delimiter, chunk_size_))
                 == result
             )
-            assert (
-                list(
-                    split_buffer(
-                        BytesIO(input_str.encode("utf-8")),
-                        delimiter.encode("utf-8"),
-                        chunk_size_,
-                    )
+            assert list(
+                split_buffer(
+                    BytesIO(input_str.encode("utf-8")),
+                    delimiter.encode("utf-8"),
+                    chunk_size_,
                 )
-                == [s.encode("utf-8") for s in result]
-            )
-            assert (
-                list(
-                    split_buffer_n_decode(
-                        BytesIO(input_str.encode("utf-8")),
-                        delimiter.encode("utf-8"),
-                        chunk_size_,
-                    )
+            ) == [s.encode("utf-8") for s in result]
+            assert list(
+                split_buffer_n_decode(
+                    BytesIO(input_str.encode("utf-8")),
+                    delimiter.encode("utf-8"),
+                    chunk_size_,
                 )
-                == [s for s in result]
-            )
+            ) == [s for s in result]

@@ -86,12 +86,6 @@ def test_chunks_by_size(data_for_chunking):
         [18],
     ]
 
-    assert (
-        c.chunk_by(c.item("x"), size=2)
-        .aggregate(
-            c.ReduceFuncs.Last(c.item("z")),
-        )
-        .as_type(list)
-        .execute(data_for_chunking)
-        == [11, 12, 14, 15, 17, 18]
-    )
+    assert c.chunk_by(c.item("x"), size=2).aggregate(
+        c.ReduceFuncs.Last(c.item("z")),
+    ).as_type(list).execute(data_for_chunking) == [11, 12, 14, 15, 17, 18]

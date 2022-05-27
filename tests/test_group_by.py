@@ -207,16 +207,11 @@ def test_grouping():
             .execute(data, debug=False)
         )
 
-    assert (
-        Namespace(
-            c.aggregate(
-                c.ReduceFuncs.Array(c.this.or_(LazyEscapedString("foo")))
-            )
-            + c.input_arg("tst"),
-            {"foo": "tst"},
-        ).execute(range(3), tst=[])
-        == [[], 1, 2]
-    )
+    assert Namespace(
+        c.aggregate(c.ReduceFuncs.Array(c.this.or_(LazyEscapedString("foo"))))
+        + c.input_arg("tst"),
+        {"foo": "tst"},
+    ).execute(range(3), tst=[]) == [[], 1, 2]
 
 
 # fmt: off

@@ -74,17 +74,14 @@ def test_pipe_single_call_functions():
 
     one_off_func.first = True
 
-    assert (
-        c.list_comp(
-            c.call_func(one_off_func).pipe(
-                (
-                    c.this + 1,
-                    c.this + 2,
-                )
+    assert c.list_comp(
+        c.call_func(one_off_func).pipe(
+            (
+                c.this + 1,
+                c.this + 2,
             )
-        ).gen_converter(debug=False)([1])
-        == [(2, 3)]
-    )
+        )
+    ).gen_converter(debug=False)([1]) == [(2, 3)]
 
 
 def test_pipe_conversion():
@@ -116,16 +113,10 @@ def test_pipe_conversion():
 
 
 def test_iter_method():
-    assert (
-        c.this.iter(c.this * 3)
-        .filter(c.this)
-        .as_type(list)
-        .execute(
-            [1, 2, 3, 0, 1],
-            debug=False,
-        )
-        == [3, 6, 9, 3]
-    )
+    assert c.this.iter(c.this * 3).filter(c.this).as_type(list).execute(
+        [1, 2, 3, 0, 1],
+        debug=False,
+    ) == [3, 6, 9, 3]
 
     assert c.group_by(c.item(0)).aggregate(
         c(

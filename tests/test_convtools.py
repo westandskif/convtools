@@ -307,15 +307,12 @@ def test_item_attr_caching():
     assert converter({"key": "abc", "abc": 1, "default": -1}) == 1
     assert converter({"key": "abc", "default": -1}) == -1
 
-    assert (
-        c(
-            [
-                c.item(1, default=c.call_func(int)),
-                c.item(2, default=c.call_func(int)),
-            ]
-        ).execute([-1])
-        == [0, 0]
-    )
+    assert c(
+        [
+            c.item(1, default=c.call_func(int)),
+            c.item(2, default=c.call_func(int)),
+        ]
+    ).execute([-1]) == [0, 0]
 
 
 def test_naive_conversion_call():
@@ -754,19 +751,16 @@ def test_namespaces():
         1
     ) == 1011.1
 
-    assert (
-        Namespace(
-            c.call_func(list, (1,)).pipe(
-                c.if_(
-                    c.this,
-                    c.this * LazyEscapedString("number"),
-                    c.this,
-                )
-            ),
-            {"number": "3"},
-        ).execute(None)
-        == [1, 1, 1]
-    )
+    assert Namespace(
+        c.call_func(list, (1,)).pipe(
+            c.if_(
+                c.this,
+                c.this * LazyEscapedString("number"),
+                c.this,
+            )
+        ),
+        {"number": "3"},
+    ).execute(None) == [1, 1, 1]
 
 
 def test_name_generation():
