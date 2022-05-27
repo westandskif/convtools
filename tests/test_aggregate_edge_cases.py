@@ -357,7 +357,7 @@ def test_reducer_inlining(dict_series):
                 if_false=c.this,
             )
         )
-    ).gen_converter(debug=False)
+    ).gen_converter()
     assert converter(dict_series) == []
 
 

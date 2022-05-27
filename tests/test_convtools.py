@@ -144,6 +144,7 @@ def test_gen_converter():
 def test_naive_conversion_item():
     d = {1: 2, 10: {"test": 15, 2: 777}, 100: {"test2": 200}}
     assert c.naive(d).item(1).execute(100) == 2
+    assert c.item().execute(3) == 3
     assert c.item(1).gen_converter()(d) == 2
     assert c.item(10, "test").gen_converter()(d) == 15
 
@@ -170,6 +171,10 @@ def test_naive_conversion_item():
 
     assert c.item(10, c.item(1)).gen_converter()(d) == 777
     assert c.item(10).item(2).gen_converter()(d) == 777
+
+    converter = c.item(0, 0, 0, default=1).gen_converter()
+    assert converter([[[2]]]) == 2
+    assert converter([[[]]]) == 1
 
     with pytest.raises(KeyError):
         c.naive(d).item(11).gen_converter()(100)
@@ -229,12 +234,18 @@ def test_naive_conversion_item():
 
     assert c.this.neg().execute(2) == -2
     assert (-c.this).execute(2) == -2
-    assert (c.this + c.this).execute(2) == 4
-    assert (c.this * c.this).execute(3) == 9
-    assert (c.this - c.this).execute(2) == 0
-    assert (c.naive(5) / c.this).execute(2) == 2.5
-    assert (c.naive(5) // c.this).execute(2) == 2
-    assert (c.naive(5) % c.this).execute(2) == 1
+    assert (c.this + c.this).execute(2) == c.this.add(c.this).execute(2) == 4
+    assert (c.this * c.this).execute(3) == c.this.mul(c.this).execute(3) == 9
+    assert (c.this - c.this).execute(2) == c.this.sub(c.this).execute(2) == 0
+    assert (
+        (c.naive(5) / c.this).execute(2) == c(5).div(c.this).execute(2) == 2.5
+    )
+    assert (
+        (c.naive(5) // c.this).execute(2)
+        == c(5).floor_div(c.this).execute(2)
+        == 2
+    )
+    assert (c.naive(5) % c.this).execute(2) == c(5).mod(c.this).execute(2) == 1
 
     assert c.this.eq(1).eq(1).execute(1) == (c.this == 1).execute(1)
 
@@ -295,6 +306,16 @@ def test_item_attr_caching():
     )
     assert converter({"key": "abc", "abc": 1, "default": -1}) == 1
     assert converter({"key": "abc", "default": -1}) == -1
+
+    assert (
+        c(
+            [
+                c.item(1, default=c.call_func(int)),
+                c.item(2, default=c.call_func(int)),
+            ]
+        ).execute([-1])
+        == [0, 0]
+    )
 
 
 def test_naive_conversion_call():
@@ -428,19 +449,6 @@ def test_if():
         None,
         0,
     ]
-
-    assert PipeConversion.input_is_simple("'abc'")
-    assert PipeConversion.input_is_simple("0")
-    assert PipeConversion.input_is_simple("None")
-    assert PipeConversion.input_is_simple("True")
-    assert PipeConversion.input_is_simple("False")
-    assert PipeConversion.input_is_simple("a[1]")
-    assert PipeConversion.input_is_simple("a['1']")
-    assert PipeConversion.input_is_simple("a[1][2]")
-    assert not PipeConversion.input_is_simple("a[1][2][3]")
-    assert not PipeConversion.input_is_simple("1 + 1")
-    assert not PipeConversion.input_is_simple("x.a")
-    assert not PipeConversion.input_is_simple("x()")
 
 
 def test_callfunc():
@@ -644,7 +652,7 @@ def test_complex_labeling():
                 "input_data": c.label("input"),
             }
         )
-        .gen_converter(debug=False)
+        .gen_converter()
     )
     assert conv1(range(30)) == {
         "result": "0;3;6;9;12;15;18;21;24;27",

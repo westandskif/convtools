@@ -53,6 +53,14 @@ def test_pipes():
         list
     ).execute((2, 1, 0)) == [1, 2]
 
+    assert (
+        c(1)
+        .pipe(c.call_func(int), label_output="abc")
+        .pipe(c.label("abc") + 10)
+        .execute(None)
+        == 10
+    )
+
 
 def test_pipe_single_call_functions():
     class CustomException(Exception):

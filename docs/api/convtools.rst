@@ -52,6 +52,14 @@ convtools.conversion module
    :undoc-members:
    :show-inheritance:
 
+convtools.heuristics module
+---------------------------
+
+.. automodule:: convtools.heuristics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 convtools.joins module
 ----------------------
 

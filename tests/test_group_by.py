@@ -238,8 +238,9 @@ reducer_data4 = [
     {"name": "Bill", "debit": 25},
     {"name": "Nick", "debit": 3},
 ]
-
-reducers_in_out = [
+@pytest.fixture
+def reducers_in_out():
+    return [
     dict(
         groupby=c.item("name"),
         reduce=c.reduce(lambda a, b: a + b, c.item("debit"), initial=0),
@@ -449,7 +450,7 @@ reducers_in_out = [
 
 ]
 # fmt: on
-def test_reducers():
+def test_reducers(reducers_in_out):
     for config in reducers_in_out:
         converter = (
             c.group_by(config["groupby"])
@@ -733,7 +734,7 @@ def test_aggregate_func():
                 "b", default=None
             ),
         }
-    ).gen_converter(debug=False)
+    ).gen_converter()
 
     assert conv(input_data) == {
         "a": [5, 10, 10],

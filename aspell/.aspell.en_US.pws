@@ -1,8 +1,9 @@
-personal_ws-1.1 en 190 
+personal_ws-1.1 en 193 
 Abramov
 Almakov
 Anexen
 BYN
+BinaryIO
 CHF
 CSVs
 ChunkBy
@@ -32,6 +33,7 @@ Rego
 Repr
 SciPy
 StoreID
+StringIO
 SumOrNone
 TextIO
 TopK
@@ -168,6 +170,7 @@ sys
 templating
 testt
 tex
+timeit
 tmp
 toctree
 tos

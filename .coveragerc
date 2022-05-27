@@ -36,3 +36,6 @@ exclude_lines =
     # Don't complain about python3.6 workaround
     class GenericMeta
     GenericMeta = typing.GenericMeta
+
+    from time import sleep
+    from timeit import Timer
