@@ -654,6 +654,7 @@ class BaseConversion(t.Generic[CT]):
         # self.ContentTypes.NEW_LABEL | self.ContentTypes.LABEL_USAGE
         has_labels = self.contents & 20
         has_none = self.contents & 1024  # self.ContentTypes.NONE_USAGE
+        has_naive = self.contents & 128  # self.ContentTypes.NAIVE_USAGE
         ctx = self._init_ctx(debug=debug)
         ConverterOptionsCtx.get_option_value("debug")
 
@@ -712,9 +713,11 @@ class BaseConversion(t.Generic[CT]):
             code = Code()
             converter_name = self.gen_name(converter_name, ctx, self)
             code.add_line(f"def {converter_name}({signature}):", 1)
-            code.add_line("global __naive_values__, __none__", 0)
-            code.add_line("_naive = __naive_values__", 0)
+            if has_naive:
+                code.add_line("global __naive_values__", 0)
+                code.add_line("_naive = __naive_values__", 0)
             if has_none:
+                code.add_line("global __none__", 0)
                 code.add_line("_none = __none__", 0)
             if has_labels:
                 code.add_line("_labels = {}", 0)
@@ -2938,8 +2941,8 @@ class Breakpoint(BaseConversion):
 
     def __init__(self, to_debug):
         super().__init__()
-        self.conversion = self.ensure_conversion(to_debug).pipe(
-            self.debug_func
+        self.conversion = self.ensure_conversion(
+            ensure_conversion(to_debug).pipe(self.debug_func)
         )
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
