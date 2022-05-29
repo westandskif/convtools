@@ -1,3 +1,18 @@
+0.24.0 (2022-05-29)
+___________________
+
+Clean-up
+++++++++
+
+When you use ``c.item(c.item("key"))``, it generates ``data_[data_["key"]]`` under the hood.
+However reducers (``c.ReduceFuncs`` objects) used to replace the input data for
+subsequent conversions with the reducer result, which was an inconsistency (so
+that "key" was taken off of the reducer result, not its input).
+
+Now, the following is impossible: ``c.aggregate(reducer.item(c.item("key")))``
+because ``c.item("key")`` is neither a group by field, nor a reducer.
+
+
 0.19.0 (2021-10-28)
 ___________________
 

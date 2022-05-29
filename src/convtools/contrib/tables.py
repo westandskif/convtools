@@ -293,21 +293,24 @@ class Table:
             dialects without defining classes
           encoding: encoding to pass to :py:obj:`open`
         """
-        file_to_close = None
+
+        file_to_close: "t.Optional[t.TextIO]"
         if isinstance(filepath_or_buffer, str):
-            file_to_close = open(  # pylint: disable=consider-using-with
+            buffer = (
+                file_to_close
+            ) = open(  # pylint: disable=consider-using-with
                 filepath_or_buffer,
+                "r",
                 encoding=encoding,
             )
-            rows = map(
-                tuple,  # type: ignore
-                csv.reader(file_to_close, dialect=dialect),
-            )
         else:
-            rows = map(
-                tuple,  # type: ignore
-                csv.reader(filepath_or_buffer, dialect=dialect),
-            )
+            buffer = filepath_or_buffer
+            file_to_close = None
+
+        rows = map(
+            tuple,  # type: ignore
+            csv.reader(buffer, dialect=dialect),
+        )
 
         return cls.from_rows(
             rows,
@@ -374,7 +377,7 @@ class Table:
             column = name_to_column[ref.name]
             ref.set_index(column.index)
 
-        self.pipeline = (self.pipeline or GetItem()).filter(condition)
+        self.pipeline = (self.pipeline or This()).filter(condition)
         return self
 
     def update(self, **column_to_conversion) -> "Table":
@@ -423,7 +426,7 @@ class Table:
         Args:
           conversions: conversion to apply to each value of each column
         """
-        conversion: "BaseConversion" = GetItem()
+        conversion: "BaseConversion" = This()
         for conversion_ in conversions:
             conversion = conversion.pipe(conversion_)
         column_to_conversion = {
@@ -750,7 +753,7 @@ class Table:
                 )
 
         new_rows = JoinConversion(
-            GetItem(),
+            This(),
             InputArg("right"),
             join_condition,
             how,
@@ -822,7 +825,7 @@ class Table:
                     )
                     for column in self.meta_columns.columns
                 )
-            conversion = (self.pipeline or GetItem()).pipe(
+            conversion = (self.pipeline or This()).pipe(
                 GeneratorComp(row_conversion)
             )
 

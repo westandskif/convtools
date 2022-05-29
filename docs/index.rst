@@ -26,6 +26,7 @@ Contents
    QuickStart <quick_start>
    Cheatsheet <cheatsheet>
    Contrib / Table <tables>
+   Contrib / Fs <fs>
 
 .. toctree::
    :maxdepth: 1

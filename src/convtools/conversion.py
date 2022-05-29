@@ -93,7 +93,7 @@ class Conversion:
     not_ = Not
     if_ = If
 
-    this = This()
+    this = This
 
     #: Shortcut to :py:obj:`convtools.base.BaseConversion.and_then`
     and_then = this.and_then

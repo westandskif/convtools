@@ -277,7 +277,7 @@ class ReduceBlocks(t.Generic[RBT]):
 
 
 GROUPER_TEMPLATE = """
-def {converter_name}(data_{code_args}):
+def {converter_name}({code_args}):
     {var_signature_to_agg_data} = defaultdict({var_agg_data_cls})
 
 {code_group_by}
@@ -285,7 +285,7 @@ def {converter_name}(data_{code_args}):
 {code_result}
 """
 AGGREGATE_TEMPLATE = """
-def {converter_name}(data_{code_args}):
+def {converter_name}({code_args}):
     {code_init_agg_vars}
     {var_expected_checksum} = {val_expected_checksum}
     {var_checksum} = 0
@@ -302,8 +302,6 @@ RT = t.TypeVar("RT", bound="BaseReducer")
 class BaseReducer(BaseConversion, t.Generic[RBT]):
     """Base of a reduce operation to be used during the aggregation"""
 
-    method_calls_replace_input_with_self = True
-
     expressions: t.Tuple[t.Any, ...]
     post_conversion: t.Optional[BaseConversion] = None
     default: t.Any
@@ -311,12 +309,31 @@ class BaseReducer(BaseConversion, t.Generic[RBT]):
     unconditional_init: bool = False
 
     self_content_type = (
-        BaseConversion.self_content_type | BaseConversion.ContentTypes.REDUCER
+        (
+            BaseConversion.self_content_type
+            & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+        )
+        | BaseConversion.ContentTypes.REDUCER
+        | BaseConversion.ContentTypes.NONE_USAGE
     )
 
-    def __init__(self):
+    def __init__(self, default, initial):
         super().__init__()
-        self.ensure_conversion(self.post_conversion)
+
+        self.default, self.initial = self.prepare_default_n_initial(
+            default, initial
+        )
+        self.conversion = self.ensure_conversion(
+            If(
+                This().is_(EscapedString("_none")),
+                self.default,
+                (
+                    self.post_conversion
+                    if self.post_conversion is not None
+                    else This()
+                ),
+            )
+        )
 
     def gen_reduce_code_block(
         self,
@@ -328,37 +345,20 @@ class BaseReducer(BaseConversion, t.Generic[RBT]):
         raise NotImplementedError
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
-        reducers_run_stage = CodeGenerationOptionsCtx.get_option_value(
-            "reducers_run_stage"
-        )
-        if reducers_run_stage == "collecting_reducer_inputs":
+        if (
+            CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
+            == "collecting_reducer_inputs"
+        ):
+            reducer_result_code = self.gen_name(
+                "rrc_", ctx, (self, code_input)
+            )
             reducer_inputs_info = ctx["_reducer_inputs_info"][-1]
-            if reducer_inputs_info is not False:
-                reducer_inputs_info[code_input].append(self)
-            agg_data_item = code_input
-        elif reducers_run_stage == "rendering_reducer_results":
-            overwritten_reducer_inputs = ctx["_overwritten_reducer_inputs"][-1]
-            agg_data_item = overwritten_reducer_inputs[(code_input, self)]
-        else:
-            raise AssertionError(
-                "reducers cannot be used outside of aggregations"
+            reducer_inputs_info[(code_input, reducer_result_code)].append(self)
+            return self.conversion.gen_code_and_update_ctx(
+                reducer_result_code, ctx
             )
 
-        processed_agg_data_item = agg_data_item
-
-        if self.post_conversion:
-            processed_agg_data_item = (
-                self.post_conversion.gen_code_and_update_ctx(
-                    agg_data_item, ctx
-                )
-            )
-
-        default_value_code = self.default.gen_code_and_update_ctx(None, ctx)
-        return EscapedString(
-            f"({default_value_code} "
-            f"if {agg_data_item} is _none "
-            f"else {processed_agg_data_item})"
-        ).gen_code_and_update_ctx("", ctx)
+        raise AssertionError("reducers cannot be used outside of aggregations")
 
     def prepare_default_n_initial(self, default, initial):
         if default is _none:
@@ -374,7 +374,7 @@ class BaseReducer(BaseConversion, t.Generic[RBT]):
             if initial.is_itself_callable_like():
                 initial = initial.call_like()
 
-            if default is _none and initial.is_independent():
+            if default is _none and initial.ignores_input():
                 default = initial
 
         if default is _none:
@@ -396,7 +396,7 @@ class MultiStatementReducer(BaseReducer):
     reduce: t.Tuple[str, ...]
 
     def __init__(self, *expressions, initial=_none, default=_none, where=None):
-        super().__init__()
+        super().__init__(default, initial)
         self.where = None if where is None else self.ensure_conversion(where)
 
         self.expressions = tuple(
@@ -406,9 +406,6 @@ class MultiStatementReducer(BaseReducer):
                 if hasattr(self, "expressions") and not expressions
                 else expressions
             )
-        )
-        self.default, self.initial = self.prepare_default_n_initial(
-            default, initial
         )
 
     def _format_statements(
@@ -534,14 +531,11 @@ class Reduce(BaseReducer):
           unconditional_init: tells whether the first call initializes the
             aggregation value OR there is a condition for that
         """
-        super().__init__()
+        super().__init__(default, initial)
         self.where = None if where is None else self.ensure_conversion(where)
         self.to_call_with_2_args = self.ensure_conversion(to_call_with_2_args)
         self.expressions = tuple(
             self.ensure_conversion(expr) for expr in expressions
-        )
-        self.default, self.initial = self.prepare_default_n_initial(
-            default, initial
         )
         self.unconditional_init = unconditional_init
 
@@ -605,6 +599,7 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
     self_content_type = (
         BaseConversion.self_content_type
         | BaseConversion.ContentTypes.AGGREGATION
+        | BaseConversion.ContentTypes.NONE_USAGE
     )
 
     def __init__(self, *by: t.Tuple[BaseConversion, ...]):
@@ -630,10 +625,12 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
         aggregation"""
         self_clone = self.clone()
         self_clone.agg_result = self_clone.ensure_conversion(reducer)
-        self_clone.contents = self_clone.contents ^ self.ContentTypes.REDUCER
+        self_clone.contents = self_clone.contents & ~self.ContentTypes.REDUCER
 
         if isinstance(self_clone.agg_result, NaiveConversion):
             raise AssertionError("unexpected reducer type", type(reducer))
+
+        self_clone.number_of_input_uses = 1
         return self_clone
 
     def filter(
@@ -648,6 +645,7 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
             condition_conv
         )
         self_clone.filter_cast = cast
+        self_clone.number_of_input_uses = 1
         return self_clone
 
     def _gen_agg_data_container(self, container_name, number_of_reducers, ctx):
@@ -677,7 +675,8 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
         var_agg_data_cls = f"AggData{suffix}"
 
         (
-            code_args,
+            positional_args_as_def_names,
+            keyword_args_as_def_names,
             positional_args_as_conversions,
             keyword_args_as_conversions,
             namespace_ctx,
@@ -708,77 +707,61 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
             # collecting inputs of reducers and reducers themselves
             with CodeGenerationOptionsCtx() as options:
                 options.reducers_run_stage = "collecting_reducer_inputs"
-                key = "_reducer_inputs_info"
-                if key not in ctx:
-                    ctx[key] = []
-                ctx[key].append(defaultdict(list))
-                self.agg_result.gen_code_and_update_ctx(var_row, ctx)
-                reducer_inputs_info = ctx[key].pop()
+                if "_reducer_inputs_info" not in ctx:
+                    ctx["_reducer_inputs_info"] = []
+                ctx["_reducer_inputs_info"].append(defaultdict(list))
+
+                code_agg_result = self.agg_result.gen_code_and_update_ctx(
+                    var_row, ctx
+                )
+
+                reducer_inputs_info = ctx["_reducer_inputs_info"].pop()
 
             def gen_agg_data_value(value_index):
                 if aggregate_mode:
-                    return EscapedString(
-                        f"{var_agg_data}_v{value_index}"
-                    ).gen_code_and_update_ctx("", ctx)
+                    return f"{var_agg_data}_v{value_index}"
                 else:
-                    return (
-                        EscapedString(var_agg_data)
-                        .attr(f"v{value_index}")
-                        .gen_code_and_update_ctx("", ctx)
-                    )
+                    return f"{var_agg_data}.v{value_index}"
 
             expected_checksum = 0
             var_agg_data_values = []
 
             blocks: "t.List[RBT]" = []
             key_to_index: "t.Dict[t.Any, int]" = {}
-            overwritten_reducer_inputs = {}
             # reusing same reducers, remembering code replacements for reducers
-            for reducer_code_input, reducer in (
-                (reducer_code_input, reducer)
-                for reducer_code_input, reducers in reducer_inputs_info.items()
-                for reducer in reducers
-            ):
-                reduce_block_index = len(blocks)
-                checksum_flag = (
-                    1 << reduce_block_index if self.aggregate_mode else 0
-                )
-                var_agg_data_value = gen_agg_data_value(reduce_block_index)
-                reduce_block = reducer.gen_reduce_code_block(
-                    var_agg_data_value,
-                    reducer_code_input,
-                    checksum_flag,
-                    ctx,
-                )
+            for (
+                reducer_code_input,
+                reducer_result_code,
+            ), reducers in reducer_inputs_info.items():
+                for reducer in reducers:
+                    reduce_block_index = len(blocks)
+                    checksum_flag = (
+                        1 << reduce_block_index if self.aggregate_mode else 0
+                    )
+                    var_agg_data_value = gen_agg_data_value(reduce_block_index)
+                    reduce_block = reducer.gen_reduce_code_block(
+                        var_agg_data_value,
+                        reducer_code_input,
+                        checksum_flag,
+                        ctx,
+                    )
 
-                key = reduce_block.as_key()
-                if key in key_to_index:
-                    reduce_block_index = key_to_index[key]
-                else:
-                    key_to_index[key] = len(blocks)
-                    blocks.append(reduce_block)
-                    var_agg_data_values.append(var_agg_data_value)
-                    expected_checksum |= checksum_flag
+                    key = reduce_block.as_key()
+                    if key in key_to_index:
+                        reduce_block_index = key_to_index[key]
+                    else:
+                        key_to_index[key] = len(blocks)
+                        blocks.append(reduce_block)
+                        var_agg_data_values.append(var_agg_data_value)
+                        expected_checksum |= checksum_flag
 
-                overwritten_reducer_inputs[
-                    (reducer_code_input, reducer)
-                ] = gen_agg_data_value(reduce_block_index)
+                    replacements[reducer_result_code] = gen_agg_data_value(
+                        reduce_block_index
+                    )
 
             reduce_blocks: ReduceBlocks = ReduceBlocks()
             for block in blocks:
                 reduce_blocks.add_block(block)
-
-            # populates reducers with their code inputs
-            with CodeGenerationOptionsCtx() as options:
-                options.reducers_run_stage = "rendering_reducer_results"
-                key = "_overwritten_reducer_inputs"
-                if key not in ctx:
-                    ctx[key] = []
-                ctx[key].append(overwritten_reducer_inputs)
-                code_agg_result = self.agg_result.gen_code_and_update_ctx(
-                    var_row, ctx
-                )
-                ctx[key].pop()
 
             ctx.update({"defaultdict": defaultdict})
 
@@ -798,7 +781,7 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
                     code_agg_result, code_from, code_to
                 )
 
-            if self.count_words(code_agg_result, var_row):
+            if var_row in code_agg_result:
                 raise ConversionException(
                     "something other than a group by key or a "
                     "reducer was used",
@@ -828,6 +811,11 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
                         if self.filter_cast is None
                         else "    return filtered_result_"
                     )
+            positional_args_as_def_names.appendleft("data_")
+            positional_args_as_conversions.appendleft(This())
+            code_args = self.def_names_to_code_args(
+                positional_args_as_def_names, keyword_args_as_def_names
+            )
 
             agg_template_kwargs = dict(
                 code_args=code_args,
@@ -876,7 +864,6 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
                 ctx=ctx,
             )
             resulting_conversion = EscapedString(converter_name).call(
-                This(),
                 *positional_args_as_conversions,
                 **keyword_args_as_conversions,
             )
@@ -962,7 +949,7 @@ class CountDistinctReducer(MultiStatementReducer):
     reduce = ("%(result)s.add({0})",)
     default = NaiveConversion(0)
     unconditional_init = True
-    post_conversion = CallFunc(len, GetItem())
+    post_conversion = CallFunc(len, This())
 
 
 class FirstReducer(MultiStatementReducer):
@@ -1051,13 +1038,13 @@ class SortedArrayReducer(MultiStatementReducer):
 
     @property
     def post_conversion(self):
-        return GetItem().call_method("get")
+        return This().call_method("get")
 
 
 class ArrayDistinctReducer(MultiStatementReducer):
     prepare_first = ("%(result)s = {{ {0}: None }}",)
     reduce = ("%(result)s[{0}] = None",)
-    post_conversion = InlineExpr("list({0})").pass_args(GetItem())
+    post_conversion = InlineExpr("list({0})").pass_args(This())
     default = NaiveConversion(None)
     unconditional_init = True
 
@@ -1097,7 +1084,7 @@ class DictArrayReducer(BaseDictReducer):
         "_d[{0}].append({1})",
     )
     reduce = ("%(result)s[{0}].append({1})",)
-    post_conversion = InlineExpr("dict({})").pass_args(GetItem())
+    post_conversion = InlineExpr("dict({})").pass_args(This())
     default = NaiveConversion(None)
     unconditional_init = True
 
@@ -1112,7 +1099,7 @@ class DictArrayDistinctReducer(BaseDictReducer):
     reduce = ("%(result)s[{0}][{1}] = None",)
     post_conversion = InlineExpr(
         "{{k_: list(v_) for k_, v_ in {}.items()}}"
-    ).pass_args(GetItem())
+    ).pass_args(This())
     default = NaiveConversion(None)
     unconditional_init = True
 
@@ -1123,7 +1110,7 @@ class DictSumReducer(BaseDictReducer):
         "_d[{0}] = {1} or 0",
     )
     reduce = ("%(result)s[{0}] = {prev_result}[{0}] + ({1} or 0)",)
-    post_conversion = InlineExpr("dict({})").pass_args(GetItem())
+    post_conversion = InlineExpr("dict({})").pass_args(This())
     default = NaiveConversion(None)
     unconditional_init = True
 
@@ -1139,7 +1126,7 @@ class DictSumOrNoneReducer(BaseDictReducer):
         "elif %(result)s[{0}] is not None:",
         "    %(result)s[{0}] = {prev_result}[{0}] + {1}",
     )
-    post_conversion = InlineExpr("dict({})").pass_args(GetItem())
+    post_conversion = InlineExpr("dict({})").pass_args(This())
     default = NaiveConversion(None)
     unconditional_init = True
 
@@ -1190,7 +1177,7 @@ class DictCountDistinctReducer(BaseDictReducer):
     )
     post_conversion = InlineExpr(
         "{{ k_: len(v_) for k_, v_ in {}.items() }}"
-    ).pass_args(GetItem())
+    ).pass_args(This())
     default = NaiveConversion(None)
     unconditional_init = True
 
@@ -1259,7 +1246,7 @@ class TopReducer(DictCountReducer):
     def post_conversion(self):
         return InlineExpr(
             "[k for k,v in sorted((v,k) for k,v in {data}.items())[:-{k}:-1]]"
-        ).pass_args(data=GetItem(), k=self.k + 1)
+        ).pass_args(data=This(), k=self.k + 1)
 
 
 class ModeReducer(DictCountReducer):
@@ -1268,7 +1255,7 @@ class ModeReducer(DictCountReducer):
 
     post_conversion = InlineExpr(
         "sorted(((v,k) for k,v in {data}.items()))[-1][1]"
-    ).pass_args(data=GetItem())
+    ).pass_args(data=This())
 
 
 class PercentileReducer(SortedArrayReducer):

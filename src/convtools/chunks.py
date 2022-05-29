@@ -85,15 +85,21 @@ class ChunkBy(BaseChunkBy):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("chunk_by", ctx, self)
         (
-            code_args,
+            positional_args_as_def_names,
+            keyword_args_as_def_names,
             positional_args_as_conversions,
             keyword_args_as_conversions,
             namespace_ctx,
         ) = (self.by or This()).get_args_def_info(ctx)
+        positional_args_as_def_names.appendleft("items_")
+        positional_args_as_conversions.appendleft(This())
+        code_args = self.def_names_to_code_args(
+            positional_args_as_def_names, keyword_args_as_def_names
+        )
         with namespace_ctx:
 
             code = Code()
-            code.add_line(f"def {converter_name}(items_{code_args}):", 1)
+            code.add_line(f"def {converter_name}({code_args}):", 1)
             code.add_line("items_ = iter(items_)", 0)
             code.add_line("try:", 0)
             code.add_line("    item_ = next(items_)", 0)
@@ -164,7 +170,6 @@ class ChunkBy(BaseChunkBy):
         return (
             EscapedString(converter_name)
             .call(
-                This(),
                 *positional_args_as_conversions,
                 **keyword_args_as_conversions,
             )
@@ -173,7 +178,7 @@ class ChunkBy(BaseChunkBy):
 
 
 CHUNK_BY_CONDITION_TEMPLATE = """
-def {converter_name}(items_{code_args}):
+def {converter_name}({code_args}):
     items_ = iter(items_)
     try:
         chunk_ = [next(items_)]
@@ -228,12 +233,18 @@ class ChunkByCondition(BaseChunkBy):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("chunk_by_condition", ctx, self)
         (
-            code_args,
+            positional_args_as_def_names,
+            keyword_args_as_def_names,
             positional_args_as_conversions,
             keyword_args_as_conversions,
             namespace_ctx,
         ) = self.condition.get_args_def_info(ctx)
 
+        positional_args_as_def_names.appendleft("items_")
+        positional_args_as_conversions.appendleft(This())
+        code_args = self.def_names_to_code_args(
+            positional_args_as_def_names, keyword_args_as_def_names
+        )
         with namespace_ctx:
             code = CHUNK_BY_CONDITION_TEMPLATE.format(
                 converter_name=converter_name,
@@ -246,7 +257,6 @@ class ChunkByCondition(BaseChunkBy):
         return (
             EscapedString(converter_name)
             .call(
-                This(),
                 *positional_args_as_conversions,
                 **keyword_args_as_conversions,
             )

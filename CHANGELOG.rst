@@ -1,3 +1,35 @@
+0.24.0 (2022-05-29)
+___________________
+
+Features
+++++++++
+
+- introduced ``convtools.contrib.fs`` helpers: ``split_buffer`` and
+  ``split_buffer_n_decode`` to close the gap in Python's ``open``
+  functionality, related to "newlines" (it doesn't support custom ones in text
+  mode and doesn't support any in binary one).
+
+Misc
+++++
+- reworked and improved the way function args are collected during code
+  generation, now it better understands which variables need to be passed
+- reworked aggregates so they don't generate code twice (one for aggregation
+  phase, another for result collection phase)
+- improved pipes to better understand when they can inline the code and when
+  it's beneficial to pass a complex input to a function and then use it
+  multiple times without recalculations
+- now pipes use estimated conversion weights (which correlate with computation
+  costs), inferred for every Python version supported
+- optimized dependency tracking to omit trivial ones, while still collecting
+  content types as a bitmask
+- reduced number of function calls, when using magic methods
+- improved ``GetItem`` conversion so it can use hardcoded versions of functions
+  in trivial cases and cache converters in almost-trivial ones; stopped
+  catching ``AttributeError`` when run with default
+- improved ``GetAttr`` conversion to inline attr lookups instead of ``getattr``
+  calls where possible; stopped catching ``(TypeError, KeyError, IndexError)``
+
+
 0.23.3 (2022-03-11)
 ___________________
 

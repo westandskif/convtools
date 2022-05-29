@@ -511,13 +511,10 @@ def test_join_with_complex_pipe():
         .as_type(list)
     )
 
-    assert (
-        pipeline.execute(
-            [
-                {"a": 1},
-                {"a": 2},
-                {"a": 3},
-            ]
-        )
-        == [1, 1, 2, 3, 3]
-    )
+    assert pipeline.execute(
+        [
+            {"a": 1},
+            {"a": 2},
+            {"a": 3},
+        ]
+    ) == [1, 1, 2, 3, 3]

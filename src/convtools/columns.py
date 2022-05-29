@@ -12,6 +12,8 @@ class ColumnRef(BaseConversion):
     """Helper conversion, which allows to reference a column of a table
     conversion"""
 
+    trackable_dependency = True
+
     def __init__(self, name: str, id_=None):
         if not isinstance(name, str):
             raise ValueError("name should be str")

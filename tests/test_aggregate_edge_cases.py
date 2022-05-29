@@ -59,7 +59,7 @@ def dict_series():
 def series():
     random.seed(73)
     return [
-        (random.randint(0, 100), random.randint(0, 10 ** 9))
+        (random.randint(0, 100), random.randint(0, 10**9))
         for _ in range(10000)
     ]
 
@@ -268,7 +268,7 @@ def test_mode_with_groupby():
     )
 
 
-@pytest.mark.parametrize("k", [1, 5, 10 ** 9])
+@pytest.mark.parametrize("k", [1, 5, 10**9])
 def test_top_k(series, k):
     assert eq(
         c.aggregate(c.ReduceFuncs.TopK(k, c.item(1))).execute(series),
@@ -357,7 +357,7 @@ def test_reducer_inlining(dict_series):
                 if_false=c.this,
             )
         )
-    ).gen_converter(debug=False)
+    ).gen_converter()
     assert converter(dict_series) == []
 
 

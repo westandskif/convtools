@@ -12,7 +12,6 @@ from .base import (
     Eq,
     EscapedString,
     GeneratorComp,
-    GetItem,
     If,
     InlineExpr,
     InputArg,
@@ -22,7 +21,6 @@ from .base import (
     Namespace,
     This,
     Tuple,
-    ensure_conversion,
 )
 from .columns import ColumnRef
 
@@ -90,6 +88,10 @@ class _JoinConditions:
     @classmethod
     def from_condition(cls, condition, **kwargs):
         join_conditions = cls(**kwargs)
+
+        if isinstance(condition, Namespace):
+            condition = condition.conversion
+
         if isinstance(condition, NaiveConversion) and condition.value is True:
             return join_conditions
 
@@ -182,8 +184,9 @@ class JoinConversion(BaseConversion):
 
     self_content_type = (
         BaseConversion.self_content_type
-        | BaseConversion.ContentTypes.NEW_LABEL
+        | BaseConversion.ContentTypes.LABEL_USAGE
         | BaseConversion.ContentTypes.NAIVE_USAGE
+        | BaseConversion.ContentTypes.NONE_USAGE
     )
 
     def __init__(
@@ -197,22 +200,17 @@ class JoinConversion(BaseConversion):
         self.left_conversion = self.ensure_conversion(left_conversion)
         self.right_conversion = self.ensure_conversion(right_conversion)
 
-        condition = ensure_conversion(condition)
         # hiding left & right LazyEscapedString from parents not to affect
         # parent function args
-        condition_for_parent = Namespace(
-            condition,
-            name_to_code={
-                _JoinConditions.LEFT_NAME: None,
-                _JoinConditions.RIGHT_NAME: None,
-            },
+        self.condition = self.ensure_conversion(
+            Namespace(
+                condition,
+                name_to_code={
+                    _JoinConditions.LEFT_NAME: None,
+                    _JoinConditions.RIGHT_NAME: None,
+                },
+            )
         )
-        self.depends_on(condition_for_parent)
-        self.condition = condition
-
-        self.join_args_keeper = This()
-        self.join_args_keeper.depends_on(condition_for_parent)
-
         self.how = self.validate_how(how)
 
     @classmethod
@@ -227,7 +225,8 @@ class JoinConversion(BaseConversion):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("join", ctx, (self, code_input))
         (
-            code_args,
+            positional_args_as_def_names,
+            keyword_args_as_def_names,
             positional_args_as_conversions,
             keyword_args_as_conversions,
             namespace_ctx,
@@ -274,7 +273,7 @@ class JoinConversion(BaseConversion):
             if right_collection_filters:
                 right_collection = right_collection.pipe(
                     GeneratorComp(
-                        GetItem(),
+                        This(),
                         where=Namespace(
                             And(*right_collection_filters),
                             name_to_code={
@@ -293,7 +292,7 @@ class JoinConversion(BaseConversion):
             if left_collection_filters:
                 left_collection = left_collection.pipe(
                     GeneratorComp(
-                        GetItem(),
+                        This(),
                         where=Namespace(
                             And(*left_collection_filters),
                             name_to_code={
@@ -347,7 +346,7 @@ class JoinConversion(BaseConversion):
                                     _JoinConditions.RIGHT_NAME: True,
                                 },
                             ),
-                            GetItem(),
+                            This(),
                             default=dict,
                         )
                     ),
@@ -390,7 +389,7 @@ class JoinConversion(BaseConversion):
                             )
                             + ")"
                         ).pass_args(
-                            left_items=GetItem(),
+                            left_items=This(),
                             right_items=right_items,
                             condition=inner_loop_condition,
                         ),
@@ -438,7 +437,7 @@ class JoinConversion(BaseConversion):
                             + "))"
                             + " for left_item in {left_items}"
                         ).pass_args(
-                            left_items=GetItem(),
+                            left_items=This(),
                             right_items=right_items,
                             condition=inner_loop_condition,
                         ),
@@ -477,16 +476,23 @@ class JoinConversion(BaseConversion):
                     "join conversion has a bug, please submit an issue"
                 )
 
+        positional_args_as_def_names.appendleft("data_")
+        positional_args_as_conversions.appendleft(This())
+        code_args = self.def_names_to_code_args(
+            positional_args_as_def_names, keyword_args_as_def_names
+        )
+        code_left = left_conversion.gen_code_and_update_ctx("data_", ctx)
+        code_right = right_conversion.gen_code_and_update_ctx("data_", ctx)
         code = f"""
-def {converter_name}(left_, right_{code_args}):
+def {converter_name}({code_args}):
+    left_ = {code_left}
+    right_ = {code_right}
     return {code_join}
         """
         self._code_to_converter(
             converter_name=converter_name, code=code, ctx=ctx
         )
         join_conversion = EscapedString(converter_name).call(
-            left_conversion,
-            right_conversion,
             *positional_args_as_conversions,
             **keyword_args_as_conversions,
         )
