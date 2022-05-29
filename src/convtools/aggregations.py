@@ -630,8 +630,7 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
         if isinstance(self_clone.agg_result, NaiveConversion):
             raise AssertionError("unexpected reducer type", type(reducer))
 
-        # self.ContentTypes.DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT
-        self_clone.contents = self_clone.contents & ~512
+        self_clone.number_of_input_uses = 1
         return self_clone
 
     def filter(
@@ -646,8 +645,7 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
             condition_conv
         )
         self_clone.filter_cast = cast
-        # self.ContentTypes.DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT
-        self_clone.contents = self_clone.contents & ~512
+        self_clone.number_of_input_uses = 1
         return self_clone
 
     def _gen_agg_data_container(self, container_name, number_of_reducers, ctx):

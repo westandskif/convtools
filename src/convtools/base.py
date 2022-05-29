@@ -343,9 +343,7 @@ class BaseConversion(t.Generic[CT]):
         BREAKPOINT = 32
         FUNCTION_OF_INPUT = 64
         NAIVE_USAGE = 128
-        DIRECT_CHILD_IS_FUNCTION_OF_INPUT = 256
-        DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT = 512
-        NONE_USAGE = 1024
+        NONE_USAGE = 256
 
     self_content_type = ContentTypes.FUNCTION_OF_INPUT
 
@@ -359,6 +357,7 @@ class BaseConversion(t.Generic[CT]):
         self._depends_on = {}
         self.contents = self.self_content_type
         self.total_weight = self.weight
+        self.number_of_input_uses = 1 if self.contents & 64 else 0
 
     def __hash__(self):
         return id(self)
@@ -383,18 +382,9 @@ class BaseConversion(t.Generic[CT]):
                 if self.is_dependency_trackable(dep):
                     self._depends_on[dep] = dep
 
-            # self.ContentTypes.FUNCTION_OF_INPUT
-            if arg.contents & 64:
-                # already self.ContentTypes.DIRECT_CHILD_IS_FUNCTION_OF_INPUT
-                if self.contents & 256:
-                    # self.ContentTypes.DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT
-                    self.contents |= 512
-                else:
-                    # self.ContentTypes.DIRECT_CHILD_IS_FUNCTION_OF_INPUT
-                    self.contents |= 256
-
-            self.contents |= arg.contents
+            self.number_of_input_uses += arg.number_of_input_uses
             self.total_weight += arg.total_weight
+            self.contents |= arg.contents
         return self
 
     def get_dependencies(self, types=None):
@@ -509,7 +499,7 @@ class BaseConversion(t.Generic[CT]):
         keyword_args_as_conversions = {}
 
         if "_none" not in args_to_skip and (
-            self.contents & 1024  # self.ContentTypes.NONE_USAGE
+            self.contents & 256  # self.ContentTypes.NONE_USAGE
         ):
             positional_args_as_def_names.append("_none")
             positional_args_as_conversions.append(EscapedString("_none"))
@@ -653,7 +643,7 @@ class BaseConversion(t.Generic[CT]):
         )
         # self.ContentTypes.NEW_LABEL | self.ContentTypes.LABEL_USAGE
         has_labels = self.contents & 20
-        has_none = self.contents & 1024  # self.ContentTypes.NONE_USAGE
+        has_none = self.contents & 256  # self.ContentTypes.NONE_USAGE
         has_naive = self.contents & 128  # self.ContentTypes.NAIVE_USAGE
         ctx = self._init_ctx(debug=debug)
         ConverterOptionsCtx.get_option_value("debug")
@@ -1526,17 +1516,13 @@ class If(BaseConversion):
             if_true=if_true,
             if_false=if_false,
         )
-        # self.ContentTypes.DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT == 512
-        # self.ContentTypes.FUNCTION_OF_INPUT == 64
-        conversion.contents = conversion.contents & ~512 | (
-            512
-            if if_cond.contents & if_true.contents & 64
-            or if_cond.contents & if_false.contents & 64
-            else 0
+        conversion.number_of_input_uses = if_cond.number_of_input_uses + max(
+            if_true.number_of_input_uses,
+            if_false.number_of_input_uses,
         )
-        conversion.total_weight = max(
-            if_cond.total_weight + if_true.total_weight,
-            if_cond.total_weight + if_false.total_weight,
+        conversion.total_weight = if_cond.total_weight + max(
+            if_true.total_weight,
+            if_false.total_weight,
         )
 
         if not no_input_caching:
@@ -2034,8 +2020,7 @@ class BaseComprehensionConversion(BaseConversion):
         super().__init__()
         self.item = self.ensure_conversion(item)
         self.where = None if where is None else self.ensure_conversion(where)
-        # self.ContentTypes.DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT
-        self.contents = self.contents & ~512
+        self.number_of_input_uses = 1
 
     def gen_item_code(self, code_input, ctx):
         return self.item.gen_code_and_update_ctx(code_input, ctx)
@@ -2146,8 +2131,7 @@ class DictComp(BaseComprehensionConversion):
         super().__init__(item=None, where=where)
         self.key = self.ensure_conversion(key)
         self.value = self.ensure_conversion(value)
-        # self.ContentTypes.DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT
-        self.contents = self.contents & ~512
+        self.number_of_input_uses = 1
 
     def gen_item_code(self, code_input, ctx):
         key_code = self.key.gen_code_and_update_ctx(code_input, ctx)
@@ -2584,6 +2568,7 @@ class PipeConversion(BaseConversion):
     conversions before labeling)."""
 
     weight = 0
+    function_call_threshold = Weights.FUNCTION_CALL * 1.33
 
     def __init__(
         self,
@@ -2668,10 +2653,8 @@ class PipeConversion(BaseConversion):
         )
         can_be_inlined = (
             not (
-                self.where.contents
-                # self.ContentTypes.DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT
-                & 512
-                and self.what.total_weight > Weights.FUNCTION_CALL * 1.33
+                self.what.total_weight * (self.where.number_of_input_uses - 1)
+                > self.function_call_threshold
             )
             and self.what_code_has_no_side_effects
             and self.label_output is None
@@ -2682,11 +2665,7 @@ class PipeConversion(BaseConversion):
 
         if not self.to_be_inlined:
             self.total_weight += Weights.FUNCTION_CALL
-            self.contents = (
-                self.contents
-                # self.ContentTypes.DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT
-                & ~512
-            )
+            self.number_of_input_uses = 1
 
     def replace(self, where):
         return PipeConversion(
@@ -2823,8 +2802,7 @@ class TapConversion(BaseConversion):
             self.ensure_conversion(mut, explicitly_allowed_cls=BaseMutation)
             for mut in mutations
         ]
-        # self.ContentTypes.DIRECT_CHILDREN_ARE_FUNCTIONS_OF_INPUT
-        self.contents = self.contents & ~512
+        self.number_of_input_uses = 1
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_name("", ctx, self)
