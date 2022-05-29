@@ -2647,21 +2647,29 @@ class PipeConversion(BaseConversion):
                 4  # self.ContentTypes.NEW_LABEL
             )
 
-        self.what_code_has_no_side_effects = not (
-            (self.what.contents & 4)  # self.ContentTypes.NEW_LABEL
-            or self.label_input
+        self.what_labels_may_affect_where = (
+            self.what.contents & 4  # self.ContentTypes.NEW_LABEL
+            and self.where.contents & 16  # self.ContentTypes.LABEL_USAGE
         )
         can_be_inlined = (
-            not (
+            (
+                # if "where" uses an input multiple times, we should weigh
+                # wrapping it into a function and so the input is calculated
+                # only once (of course taking into account function call
+                # overhead)
                 self.what.total_weight * (self.where.number_of_input_uses - 1)
-                > self.function_call_threshold
+                < self.function_call_threshold
             )
-            and self.what_code_has_no_side_effects
+            and self.label_input is None
             and self.label_output is None
+            and not self.what_labels_may_affect_where
         )
-        must_be_inlined = self.where.contents & 1  # self.ContentTypes.REDUCER
 
-        self.to_be_inlined = can_be_inlined or must_be_inlined
+        self.to_be_inlined = (
+            can_be_inlined
+            # self.ContentTypes.REDUCER - must be inlined
+            or self.where.contents & 1
+        )
 
         if not self.to_be_inlined:
             self.total_weight += Weights.FUNCTION_CALL
@@ -2715,7 +2723,8 @@ class PipeConversion(BaseConversion):
             )
 
         code_input_is_ignored = (
-            self.where.ignores_input() and self.what_code_has_no_side_effects
+            self.where.ignores_input()
+            and not self.what_labels_may_affect_where
         )
 
         suffix = self.gen_name("_", ctx, ("pipe", self, code_input))
@@ -2734,7 +2743,7 @@ class PipeConversion(BaseConversion):
         with namespace_ctx:
 
             if code_input_is_ignored:
-                if self.label_output is None:
+                if self.label_output is None or self.label_input is not None:
                     raise AssertionError("what are we doing here? it's a bug")
                 # excluding unused code then
                 what_code = self.where.gen_code_and_update_ctx(

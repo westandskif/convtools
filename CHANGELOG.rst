@@ -1,3 +1,13 @@
+0.24.1 (2022-05-29)
+___________________
+
+Misc
+++++
+
+- forced pipes to inline if labels of "what" conversion cannot affect "where"
+  label usage
+
+
 0.24.0 (2022-05-29)
 ___________________
 
