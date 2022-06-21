@@ -29,7 +29,7 @@ def print_new_weights(sleep_time=0.2):  # pragma: no cover
 
     base_time = total_time / total_iterations / 100
 
-    attempts = 5
+    attempts = 10
     name_to_info = defaultdict(lambda: {"time": 0, "iterations": 0})
 
     for i in range(attempts):
