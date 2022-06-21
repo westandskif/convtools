@@ -2,6 +2,8 @@
 This module is to contain helpers, which collect info about python code
 execution
 """
+import os
+import sys
 from time import sleep
 from timeit import Timer
 
@@ -29,7 +31,7 @@ def print_new_weights(sleep_time=0.2):  # pragma: no cover
 
     base_time = total_time / total_iterations / 100
     print(
-        "class Weights:  # pragma: no cover # pylint: disable=missing-class-docstring"
+        "class Weights:  #type: ignore # pragma: no cover # pylint: disable=missing-class-docstring"
     )
     print(f"    # base_time: {base_time}")
     print("    STEP = 100")
@@ -48,3 +50,7 @@ def print_new_weights(sleep_time=0.2):  # pragma: no cover
         max_it = max(max_it, it)
 
     print(f"    UNPREDICTABLE = {max_it * 100}")
+
+
+if os.environ.get("BUILD_HEURISTICS"):
+    print_new_weights()
