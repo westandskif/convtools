@@ -1,9 +1,6 @@
-"""
-This module is to contain helpers, which collect info about python code
-execution
-"""
 import os
 import sys
+from collections import defaultdict
 from time import sleep
 from timeit import Timer
 
@@ -23,6 +20,7 @@ def print_new_weights(sleep_time=0.2):  # pragma: no cover
     }
     total_time = 0
     total_iterations = 0
+    print("# CALCULATING BASE TIME")
     for _ in range(10):
         iterations, time_ = Timer("'abc'").autorange()
         total_time += time_
@@ -30,22 +28,26 @@ def print_new_weights(sleep_time=0.2):  # pragma: no cover
         sleep(sleep_time)
 
     base_time = total_time / total_iterations / 100
+
+    attempts = 5
+    name_to_info = defaultdict(lambda: {"time": 0, "iterations": 0})
+
+    for i in range(attempts):
+        print(f"# MEASURING: attempt {i} out of {attempts}")
+        for name, timer in config.items():
+            iterations_, time_ = timer.autorange()
+            name_to_info[name]["iterations"] += iterations_
+            name_to_info[name]["time"] += time_
+
     print(
         "class Weights:  #type: ignore # pragma: no cover # pylint: disable=missing-class-docstring"
     )
     print(f"    # base_time: {base_time}")
     print("    STEP = 100")
 
-    max_it = 0
-    for name, timer in config.items():
-        total_time = 0
-        total_iterations = 0
-        for _ in range(3):
-            iterations, time_ = timer.autorange()
-            total_time += time_
-            total_iterations += iterations
-            sleep(sleep_time)
-        it = int(total_time / total_iterations / base_time)
+    max_it = 1
+    for name, info in name_to_info.items():
+        it = int(info["time"] / info["iterations"] / base_time)
         print(f"    {name} = {it}")
         max_it = max(max_it, it)
 
