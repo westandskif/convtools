@@ -9,8 +9,6 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
-    outputs:
-      heuristics: ${{ steps.step1.outputs.results }}
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
@@ -18,4 +16,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - id: step1
-        run: echo "::set-output name=heuristics::$(python src/convtools/heuristics.py)"
+        run: BUILD_HEURISTICS=1 python src/convtools/heuristics.py
