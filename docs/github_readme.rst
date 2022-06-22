@@ -40,6 +40,7 @@ Docs
 * `Cheatsheet <https://convtools.readthedocs.io/en/latest/cheatsheet.html>`_
 * `QuickStart <https://convtools.readthedocs.io/en/latest/quick_start.html>`_
 * `Table - Stream processing <https://convtools.readthedocs.io/en/latest/tables.html>`_
+* `Model - Data validation  <https://convtools.readthedocs.io/en/latest/models.html>`_
 
 
 .. include:: base_index.rst
@@ -51,4 +52,5 @@ Docs
 * `Cheatsheet <https://convtools.readthedocs.io/en/latest/cheatsheet.html>`_
 * `QuickStart <https://convtools.readthedocs.io/en/latest/quick_start.html>`_
 * `Table - Stream processing <https://convtools.readthedocs.io/en/latest/tables.html>`_
+* `Model - Data validation  <https://convtools.readthedocs.io/en/latest/models.html>`_
 
