@@ -635,13 +635,7 @@ def test_model__exceptions():
             a: t.Tuple[str, int] = cast(t.Tuple[str, int])
 
     from convtools.contrib.models.base import TypeValueCodeGenArgs
-    from convtools.contrib.models.type_handlers import (
-        prepare_model_type,
-        type_value_to_code,
-    )
-
-    with pytest.raises(ValueError):
-        prepare_model_type(object, None)
+    from convtools.contrib.models.type_handlers import type_value_to_code
 
     with pytest.raises(Exception):
         type_value_to_code(

@@ -45,6 +45,14 @@ convtools.contrib.models.type\_handlers module
    :undoc-members:
    :show-inheritance:
 
+convtools.contrib.models.utils module
+-------------------------------------
+
+.. automodule:: convtools.contrib.models.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 

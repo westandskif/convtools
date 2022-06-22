@@ -15,6 +15,8 @@ exclude_lines =
     # Have to re-enable the standard pragma
     pragma: no cover
 
+    PY_VERSION
+
     # Don't complain about missing debug-only code:
     def __repr__
     if self\.debug

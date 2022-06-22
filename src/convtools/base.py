@@ -17,9 +17,9 @@ from .utils import BaseCtx, BaseOptions, Code, CodeStorage
 
 black: "t.Optional[t.Any]" = None
 try:
-    import black as black_
+    import black as black_  # pragma: no cover
 
-    black = black_
+    black = black_  # pragma: no cover
 except ImportError:
     pass
 

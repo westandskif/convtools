@@ -4,12 +4,11 @@ errors.
 """
 import inspect
 import sys
-import typing as t
 from typing import (  # type: ignore
     TYPE_CHECKING,
+    Any,
     TypeVar,
     _eval_type,
-    _GenericAlias,
     get_type_hints,
 )
 
@@ -23,33 +22,24 @@ from .base import (
     TypeValueCodeGenArgs,
     _none,
 )
-from .casters import casters
+from .casters.casters import BaseCaster, CasterToFinalType
 from .field import FieldProcessingPipeline, ensure_caster, field
-from .validators import validators
+from .utils import (
+    ensure_generic_alias_has_args,
+    is_generic_alias,
+    is_generic_dict_alias,
+    is_generic_list_alias,
+    is_generic_union_alias,
+)
+from .validators.validators import BaseValidator
+from .validators.validators import Type as TypeValidator
 
 
 if TYPE_CHECKING:
     from convtools.base import BaseConversion  # pragma: no cover
 
-BaseValidator = validators.BaseValidator
-BaseCaster = casters.BaseCaster
-
-
-def ensure_generic_alias_has_args(model, type_var_to_type_value):
-    if isinstance(model, _GenericAlias):
-        parameters = model.__parameters__
-        if parameters:
-            return model.copy_with(
-                tuple(type_var_to_type_value[p] for p in parameters)
-            )
-    return model
-
 
 def prepare_model_type(model, type_var_to_type_value):
-    model_cls = getattr(model, "__origin__", model)
-    if not issubclass(model_cls, BaseModel):
-        raise ValueError("subclass of BaseModel is expected")
-
     if type_var_to_type_value:
         model = ensure_generic_alias_has_args(model, type_var_to_type_value)
 
@@ -317,7 +307,7 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
 
                 step_chunks = list(chunk_pipeline_steps(pipeline.steps))
 
-                output_type_is_ensured = field_type_value is t.Any
+                output_type_is_ensured = field_type_value is Any
 
                 last_step_chunk_index = len(step_chunks) - 1
 
@@ -348,7 +338,7 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
                     elif isinstance(steps[0], BaseCaster):
                         last_caster_index = len(steps) - 1
                         for caster_index, caster in enumerate(steps):
-                            if isinstance(caster, casters.CasterToFinalType):
+                            if isinstance(caster, CasterToFinalType):
                                 caster = ensure_caster(field_type_value)
                                 if (
                                     step_chunk_index == last_step_chunk_index
@@ -508,8 +498,8 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
 
 
 def simple_type_to_code(args: TypeValueCodeGenArgs):
-    has_none, simple_types, _ = validators.Type.split_types(args.type_value)
-    bad_type_condition_code, set_error_code = validators.Type.to_code(
+    has_none, simple_types, _ = TypeValidator.split_types(args.type_value)
+    bad_type_condition_code, set_error_code = TypeValidator.to_code(
         has_none,
         simple_types,
         args,
@@ -521,11 +511,11 @@ def simple_type_to_code(args: TypeValueCodeGenArgs):
 def union_type_to_code(args: TypeValueCodeGenArgs):
     code = args.code
     current_indent = code.indent_level
-    has_none, simple_types, other_types = validators.Type.split_types(
+    has_none, simple_types, other_types = TypeValidator.split_types(
         *args.type_value.__args__
     )
     if has_none or simple_types:
-        bad_type_condition_code, set_error_code = validators.Type.to_code(
+        bad_type_condition_code, set_error_code = TypeValidator.to_code(
             has_none, simple_types, args
         )
         code.add_line(f"if {bad_type_condition_code}:", 1)
@@ -551,7 +541,7 @@ def union_type_to_code(args: TypeValueCodeGenArgs):
 
 
 def dict_type_to_code(outer_args: TypeValueCodeGenArgs):
-    bad_type_condition_code, set_error_code = validators.Type.to_code(
+    bad_type_condition_code, set_error_code = TypeValidator.to_code(
         False, (dict,), outer_args
     )
     code = outer_args.code
@@ -651,7 +641,7 @@ def dict_type_to_code(outer_args: TypeValueCodeGenArgs):
 
 
 def list_type_to_code(outer_args: TypeValueCodeGenArgs):
-    bad_type_condition_code, set_error_code = validators.Type.to_code(
+    bad_type_condition_code, set_error_code = TypeValidator.to_code(
         False,
         (list,),
         outer_args,
@@ -713,7 +703,7 @@ def list_type_to_code(outer_args: TypeValueCodeGenArgs):
 
 def is_model(type_value):
     return (
-        isinstance(type_value, _GenericAlias)
+        is_generic_alias(type_value)
         and isinstance(type_value.__origin__, type)
         and issubclass(type_value.__origin__, BaseModel)
         or isinstance(type_value, type)
@@ -730,28 +720,30 @@ def type_value_to_code(args: TypeValueCodeGenArgs):
         model_type_to_code(args)
         return True
 
-    elif type_value is t.Any:
+    elif type_value is Any:
         code.add_line("pass", 0)
+        return False
 
-    elif isinstance(type_value, t.TypeVar):
+    elif isinstance(type_value, TypeVar):
         if type_value not in args.type_var_to_type_value:
             raise AssertionError("uninitialized TypeVar", type_value)
         return type_value_to_code(
             args._replace(type_value=args.type_var_to_type_value[type_value])
         )
 
-    elif not isinstance(type_value, _GenericAlias):
+    elif not is_generic_alias(type_value):
         if not isinstance(type_value, type):
             raise Exception(f"type is expected, got {type_value}")
         simple_type_to_code(args)
+        return False
 
-    elif type_value.__origin__ is t.Union:
+    if is_generic_union_alias(type_value):
         return union_type_to_code(args)
 
-    elif type_value.__origin__ is list:
+    elif is_generic_list_alias(type_value):
         return list_type_to_code(args)
 
-    elif type_value.__origin__ is dict:
+    elif is_generic_dict_alias(type_value):
         return dict_type_to_code(args)
 
     else:

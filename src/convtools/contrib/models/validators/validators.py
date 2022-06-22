@@ -2,16 +2,18 @@
 objects"""
 import abc
 import re
-import typing as t
 from typing import TYPE_CHECKING
 
 from convtools import conversion as c
 
 from ..base import BaseModel, BaseStep, TypeValueCodeGenArgs, _none
+from ..utils import is_generic_alias
 
 
-if TYPE_CHECKING:
-    from convtools.base import BaseConversion  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import List
+
+    from convtools.base import BaseConversion
 
 
 class BaseValidator(abc.ABC, BaseStep):
@@ -71,7 +73,7 @@ class Type(BaseValidator):
         for type_ in types:
             if type_ is NoneType:
                 has_none = True
-            elif not isinstance(type_, t._GenericAlias) and not (
+            elif not is_generic_alias(type_) and not (
                 isinstance(type_, type) and issubclass(type_, BaseModel)
             ):
                 simple_types.append(type_)
@@ -86,7 +88,7 @@ class Type(BaseValidator):
             f"{'NoneType/' if has_none else ''}"
             f"{'/'.join(type_.__name__ for type_ in simple_types)}"
         )
-        conditions: "t.List[BaseConversion]" = []
+        conditions: "List[BaseConversion]" = []
         if has_none:
             conditions.append(c.this.is_(None))
         if simple_types:
@@ -129,7 +131,7 @@ class Regex(BaseValidator):
 
     def __init__(self, pattern):
         self.pattern = (
-            pattern if isinstance(pattern, re.Pattern) else re.compile(pattern)
+            re.compile(pattern) if isinstance(pattern, str) else pattern
         )
 
     def validate(self, field_name, data, errors):

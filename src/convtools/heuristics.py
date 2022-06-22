@@ -83,7 +83,7 @@ if PY_VERSION <= (3, 6):
         FUNCTION_CALL = 1085
         UNPREDICTABLE = 196100
 
-elif PY_VERSION <= (3, 7):
+elif PY_VERSION <= (3, 7):  # pragma: no cover
 
     # 3.7.13
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
@@ -100,7 +100,7 @@ elif PY_VERSION <= (3, 7):
         FUNCTION_CALL = 1016
         UNPREDICTABLE = 185000
 
-elif PY_VERSION == (3, 8):
+elif PY_VERSION == (3, 8):  # pragma: no cover
 
     # 3.8.12
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
@@ -117,7 +117,7 @@ elif PY_VERSION == (3, 8):
         FUNCTION_CALL = 1142
         UNPREDICTABLE = 211900
 
-elif PY_VERSION == (3, 9):
+elif PY_VERSION == (3, 9):  # pragma: no cover
 
     # 3.9.13
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811

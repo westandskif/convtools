@@ -1,20 +1,14 @@
 """Defines top-level models and methods to initialize them"""
-import typing as t
 from collections import defaultdict
 from functools import lru_cache
+from typing import Tuple, Type, TypeVar, Union
 
 from convtools import conversion as c
 from convtools.base import BaseConversion
 from convtools.utils import Code
 
 from .base import TypeValueCodeGenArgs, ValidationError
-from .casters import casters
 from .type_handlers import type_value_to_code
-from .validators import validators
-
-
-BaseValidator = validators.BaseValidator
-BaseCaster = casters.BaseCaster
 
 
 class TypeConversionRunCtx:
@@ -123,16 +117,14 @@ def set_max_cache_size(cache_size):
 type_value_to_converter = set_max_cache_size(128)
 
 
-T = t.TypeVar("T")
+T = TypeVar("T")
 
 
-def init(
-    model: t.Type[T], data
-) -> t.Union[t.Tuple[T, None], t.Tuple[None, dict]]:
+def init(model: Type[T], data) -> Union[Tuple[T, None], Tuple[None, dict]]:
     return type_value_to_converter(model)(data)
 
 
-def init_or_raise(model: t.Type[T], data) -> T:
+def init_or_raise(model: Type[T], data) -> T:
     obj, errors = type_value_to_converter(model)(data)
     if obj is None:
         raise ValidationError(errors)

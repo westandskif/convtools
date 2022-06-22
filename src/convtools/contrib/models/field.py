@@ -1,20 +1,34 @@
 """Defines model field level processing pipeline"""
 import inspect
 import json
-import typing as t
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from functools import wraps
-from typing import _GenericAlias  # type: ignore
+from typing import TYPE_CHECKING
 
 from .base import BaseModel, _none
-from .casters import casters
-from .validators import validators
+from .casters.casters import BaseCaster, CasterToFinalType
+from .casters.casters import Custom as CustomCaster
+from .casters.casters import DateFromStr as DateFromStrCaster
+from .casters.casters import Decimal as DecimalCaster
+from .casters.casters import Dict as DictCaster
+from .casters.casters import Enum as EnumCaster
+from .casters.casters import Int as IntCaster
+from .casters.casters import List as ListCaster
+from .casters.casters import Union as UnionCaster
+from .utils import (
+    is_generic_alias,
+    is_generic_dict_alias,
+    is_generic_list_alias,
+    is_generic_union_alias,
+)
+from .validators.validators import BaseValidator, Required
+from .validators.validators import Type as TypeValidator
 
 
-BaseValidator = validators.BaseValidator
-BaseCaster = casters.BaseCaster
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Type, Union
 
 
 def cached_model_method(func):
@@ -39,7 +53,7 @@ class FieldProcessingPipeline:
     """Defines model field level processing pipeline: how to fetch, steps to
     validate/cast."""
 
-    _required_validator = validators.Required()
+    _required_validator = Required()
 
     def __init__(
         self,
@@ -76,13 +90,13 @@ class FieldProcessingPipeline:
                 )
 
     def validate(
-        self, *args: "t.Union[t.Type, BaseValidator]"
+        self, *args: "Union[Type, BaseValidator]"
     ) -> "FieldProcessingPipeline":
         if not args:
             raise ValueError("unnecessary method call")
         for arg in args:
             if not isinstance(arg, BaseValidator):
-                arg = validators.Type(arg)
+                arg = TypeValidator(arg)
             self.steps.append(arg)
         return self
 
@@ -94,30 +108,30 @@ class FieldProcessingPipeline:
             for arg in args:
                 self.steps.append(ensure_caster(arg))
         else:
-            self.steps.append(casters.CasterToFinalType())
+            self.steps.append(CasterToFinalType())
         return self
 
 
 type_to_predefined_caster = {
-    list: casters.Custom("list_caster", list, TypeError),
-    dict: casters.Custom("dict_caster", dict, (TypeError, ValueError)),
-    str: casters.Custom("str_caster", str, ()),
-    int: casters.Int(),
-    float: casters.Custom("float_caster", float, (TypeError, ValueError)),
-    Decimal: casters.Decimal(),
-    date: casters.DateFromStr("%Y-%m-%d"),
+    list: CustomCaster("list_caster", list, TypeError),
+    dict: CustomCaster("dict_caster", dict, (TypeError, ValueError)),
+    str: CustomCaster("str_caster", str, ()),
+    int: IntCaster(),
+    float: CustomCaster("float_caster", float, (TypeError, ValueError)),
+    Decimal: DecimalCaster(),
+    date: DateFromStrCaster("%Y-%m-%d"),
 }
 
 
-def ensure_caster(caster: "t.Union[t.Type, BaseCaster]"):
+def ensure_caster(caster: "Union[Type, BaseCaster]"):
     if isinstance(caster, BaseCaster):
         return caster
     if caster in type_to_predefined_caster:
         return type_to_predefined_caster[caster]
     if isinstance(caster, type) and issubclass(caster, Enum):
-        return casters.Enum(caster)
-    if isinstance(caster, _GenericAlias):
-        if caster.__origin__ is t.Union:
+        return EnumCaster(caster)
+    if is_generic_alias(caster):
+        if is_generic_union_alias(caster):
             NoneType = type(None)
             caster_instances = [
                 ensure_caster(arg)
@@ -125,11 +139,12 @@ def ensure_caster(caster: "t.Union[t.Type, BaseCaster]"):
                 if arg is not NoneType
             ]
             accepts_none = len(caster_instances) < len(caster.__args__)
-            return casters.Union(*caster_instances, accept_none=accepts_none)
-        elif caster.__origin__ is list:
-            return casters.List(ensure_caster(caster.__args__[0]))
-        elif caster.__origin__ is dict:
-            return casters.Dict(
+            return UnionCaster(*caster_instances, accept_none=accepts_none)
+        elif is_generic_list_alias(caster):
+            # TODO: replace with direct imports
+            return ListCaster(ensure_caster(caster.__args__[0]))
+        elif is_generic_dict_alias(caster):
+            return DictCaster(
                 ensure_caster(caster.__args__[0]),
                 ensure_caster(caster.__args__[1]),
             )
