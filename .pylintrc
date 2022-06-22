@@ -152,6 +152,7 @@ disable=abstract-method,
         wrong-import-order,
         xrange-builtin,
         zip-builtin-not-iterating,
+        line-too-long,
 
 
 [REPORTS]
@@ -425,7 +426,9 @@ defining-attr-methods=__init__,
 # warning.
 exclude-protected=_predefined_input,
                   _clone,
-                  _none
+                  _none,
+                  _GenericAlias,
+                  _replace,
 
 # List of valid names for the first argument in a class method.
 valid-classmethod-first-arg=cls,

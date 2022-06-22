@@ -1,3 +1,24 @@
+0.25.0 (2022-06-22)
+___________________
+
+Experimental features:
+++++++++++++++++++++++
+
+- introduced data validation models: ``convtools.contrib.models.DictModel``
+  (accesses keys and indexes) and ``convtools.contrib.models.ObjectModel``
+  (accesses attributes and indexes)
+
+Misc
+++++
+
+- reworked converter generation to store generated code inside the main context
+- eliminated converter wrapper, which was a callable, taking care of dumping
+  generated source code to tmpdir in cases of exceptions. Now converters take
+  care of this themselves.
+- now long list/dict/tuple/set literal definition code includes newlines, so
+  it's easier to debug in case of exception
+
+
 0.24.1 (2022-05-29)
 ___________________
 

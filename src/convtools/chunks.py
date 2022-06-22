@@ -7,7 +7,6 @@ from .aggregations import Aggregate
 from .base import (
     BaseConversion,
     Code,
-    EscapedString,
     GeneratorComp,
     LazyEscapedString,
     Namespace,
@@ -84,22 +83,14 @@ class ChunkBy(BaseChunkBy):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("chunk_by", ctx, self)
-        (
-            positional_args_as_def_names,
-            keyword_args_as_def_names,
-            positional_args_as_conversions,
-            keyword_args_as_conversions,
-            namespace_ctx,
-        ) = (self.by or This()).get_args_def_info(ctx)
-        positional_args_as_def_names.appendleft("items_")
-        positional_args_as_conversions.appendleft(This())
-        code_args = self.def_names_to_code_args(
-            positional_args_as_def_names, keyword_args_as_def_names
-        )
-        with namespace_ctx:
-
+        function_ctx = (self.by or This()).as_function_ctx(ctx)
+        function_ctx.add_arg("items_", This())
+        with function_ctx:
             code = Code()
-            code.add_line(f"def {converter_name}({code_args}):", 1)
+            code.add_line(
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+                1,
+            )
             code.add_line("items_ = iter(items_)", 0)
             code.add_line("try:", 0)
             code.add_line("    item_ = next(items_)", 0)
@@ -165,16 +156,13 @@ class ChunkBy(BaseChunkBy):
             code.incr_indent_level(-2)
             code.add_line("yield chunk_", -1)
 
-            self._code_to_converter(converter_name, code.to_string(0), ctx)
-
-        return (
-            EscapedString(converter_name)
-            .call(
-                *positional_args_as_conversions,
-                **keyword_args_as_conversions,
+            conversion = function_ctx.gen_conversion(
+                converter_name, code.to_string(0)
             )
-            .gen_code_and_update_ctx(code_input, ctx)
-        )
+
+        return function_ctx.call_with_all_args(
+            conversion
+        ).gen_code_and_update_ctx(code_input, ctx)
 
 
 CHUNK_BY_CONDITION_TEMPLATE = """
@@ -232,33 +220,18 @@ class ChunkByCondition(BaseChunkBy):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("chunk_by_condition", ctx, self)
-        (
-            positional_args_as_def_names,
-            keyword_args_as_def_names,
-            positional_args_as_conversions,
-            keyword_args_as_conversions,
-            namespace_ctx,
-        ) = self.condition.get_args_def_info(ctx)
+        function_ctx = self.condition.as_function_ctx(ctx)
+        function_ctx.add_arg("items_", This())
 
-        positional_args_as_def_names.appendleft("items_")
-        positional_args_as_conversions.appendleft(This())
-        code_args = self.def_names_to_code_args(
-            positional_args_as_def_names, keyword_args_as_def_names
-        )
-        with namespace_ctx:
+        with function_ctx:
             code = CHUNK_BY_CONDITION_TEMPLATE.format(
                 converter_name=converter_name,
-                code_args=code_args,
+                code_args=function_ctx.get_def_all_args_code(),
                 code_condition=self.condition.gen_code_and_update_ctx(
                     "item_", ctx
                 ),
             )
-            self._code_to_converter(converter_name, code, ctx)
-        return (
-            EscapedString(converter_name)
-            .call(
-                *positional_args_as_conversions,
-                **keyword_args_as_conversions,
-            )
-            .gen_code_and_update_ctx(code_input, ctx)
-        )
+            conversion = function_ctx.gen_conversion(converter_name, code)
+        return function_ctx.call_with_all_args(
+            conversion
+        ).gen_code_and_update_ctx(code_input, ctx)

@@ -10,7 +10,6 @@ from .base import (
     BaseConversion,
     CallFunc,
     Eq,
-    EscapedString,
     GeneratorComp,
     If,
     InlineExpr,
@@ -224,15 +223,9 @@ class JoinConversion(BaseConversion):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("join", ctx, (self, code_input))
-        (
-            positional_args_as_def_names,
-            keyword_args_as_def_names,
-            positional_args_as_conversions,
-            keyword_args_as_conversions,
-            namespace_ctx,
-        ) = self.get_args_def_info(ctx)
+        function_ctx = self.as_function_ctx(ctx)
 
-        with namespace_ctx:
+        with function_ctx:
             join_conditions = _JoinConditions.from_condition(
                 self.condition, how=self.how
             )
@@ -476,25 +469,18 @@ class JoinConversion(BaseConversion):
                     "join conversion has a bug, please submit an issue"
                 )
 
-        positional_args_as_def_names.appendleft("data_")
-        positional_args_as_conversions.appendleft(This())
-        code_args = self.def_names_to_code_args(
-            positional_args_as_def_names, keyword_args_as_def_names
-        )
-        code_left = left_conversion.gen_code_and_update_ctx("data_", ctx)
-        code_right = right_conversion.gen_code_and_update_ctx("data_", ctx)
-        code = f"""
-def {converter_name}({code_args}):
+            function_ctx.add_arg("data_", This())
+            code_left = left_conversion.gen_code_and_update_ctx("data_", ctx)
+            code_right = right_conversion.gen_code_and_update_ctx("data_", ctx)
+            code = f"""
+def {converter_name}({function_ctx.get_def_all_args_code()}):
     left_ = {code_left}
     right_ = {code_right}
     return {code_join}
         """
-        self._code_to_converter(
-            converter_name=converter_name, code=code, ctx=ctx
-        )
-        join_conversion = EscapedString(converter_name).call(
-            *positional_args_as_conversions,
-            **keyword_args_as_conversions,
-        )
+            join_conversion = function_ctx.gen_conversion(converter_name, code)
+
         join_conversion.depends_on(self)
-        return join_conversion.gen_code_and_update_ctx(code_input, ctx)
+        return function_ctx.call_with_all_args(
+            join_conversion
+        ).gen_code_and_update_ctx(code_input, ctx)

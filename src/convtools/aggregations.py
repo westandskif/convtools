@@ -661,7 +661,7 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
                 code.add_line(f"self.{attr} = _none", 0)
         else:
             code.add_line("pass", 0)
-        return self._code_to_converter(container_name, code.to_string(0), ctx)
+        return self.compile_converter(container_name, code.to_string(0), ctx)
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         if self.agg_result is None:
@@ -674,15 +674,8 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
         var_agg_data = f"agg_data{suffix}"
         var_agg_data_cls = f"AggData{suffix}"
 
-        (
-            positional_args_as_def_names,
-            keyword_args_as_def_names,
-            positional_args_as_conversions,
-            keyword_args_as_conversions,
-            namespace_ctx,
-        ) = self.get_args_def_info(ctx)
-
-        with namespace_ctx:
+        function_ctx = self.as_function_ctx(ctx)
+        with function_ctx:
 
             signature_code_items = [
                 by_.gen_code_and_update_ctx(var_row, ctx) for by_ in self.by
@@ -811,14 +804,11 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
                         if self.filter_cast is None
                         else "    return filtered_result_"
                     )
-            positional_args_as_def_names.appendleft("data_")
-            positional_args_as_conversions.appendleft(This())
-            code_args = self.def_names_to_code_args(
-                positional_args_as_def_names, keyword_args_as_def_names
-            )
+
+            function_ctx.add_arg("data_", This())
 
             agg_template_kwargs = dict(
-                code_args=code_args,
+                code_args=function_ctx.get_def_all_args_code(),
                 code_result=code_agg_result,
                 var_row=var_row,
                 expected_checksum=expected_checksum,
@@ -858,16 +848,12 @@ class GroupBy(BaseConversion, t.Generic[RBT]):
                     **agg_template_kwargs,
                 )
 
-            self._code_to_converter(
-                converter_name=converter_name,
-                code=grouper_code,
-                ctx=ctx,
+            conversion = function_ctx.gen_conversion(
+                converter_name, grouper_code
             )
-            resulting_conversion = EscapedString(converter_name).call(
-                *positional_args_as_conversions,
-                **keyword_args_as_conversions,
-            )
-        return resulting_conversion.gen_code_and_update_ctx(code_input, ctx)
+        return function_ctx.call_with_all_args(
+            conversion
+        ).gen_code_and_update_ctx(code_input, ctx)
 
 
 def Aggregate(  # pylint:disable=invalid-name

@@ -77,17 +77,20 @@ def test_replace_word():
 
 
 def test_add_sources():
-    converter_callable = This().gen_converter(debug=False)
-
+    converter = This().gen_converter(debug=False)
+    code_storage = converter.__globals__["__convtools__code_storage"]
     for (
         converter_name,
-        item,
-    ) in converter_callable._name_to_converter.items():
-        converter_callable.add_sources(converter_name, item["code_str"])
+        code_piece,
+    ) in code_storage.name_to_code_piece.items():
+        code_storage.add_sources(converter_name, code_piece.code_str)
         with pytest.raises(Exception):
-            converter_callable.add_sources(
-                converter_name, item["code_str"] + " "
-            )
+            code_storage.add_sources(converter_name, code_piece.code_str + " ")
+
+    converter = c.escaped_string("abc + 1").gen_converter()
+    with pytest.raises(NameError):
+        converter(None)
+    converter.__globals__["__convtools__code_storage"].dump_sources()
 
 
 def test_ignores_input():
