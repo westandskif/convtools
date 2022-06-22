@@ -120,11 +120,11 @@ type_value_to_converter = set_max_cache_size(128)
 T = TypeVar("T")
 
 
-def init(model: Type[T], data) -> Union[Tuple[T, None], Tuple[None, dict]]:
+def build(model: Type[T], data) -> Union[Tuple[T, None], Tuple[None, dict]]:
     return type_value_to_converter(model)(data)
 
 
-def init_or_raise(model: Type[T], data) -> T:
+def build_or_raise(model: Type[T], data) -> T:
     obj, errors = type_value_to_converter(model)(data)
     if obj is None:
         raise ValidationError(errors)

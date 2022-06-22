@@ -28,7 +28,7 @@ What's the workflow?
    import typing as t
    from enum import Enum
    
-   from convtools.contrib.models import DictModel, cast, init, json_dumps
+   from convtools.contrib.models import DictModel, build, cast, json_dumps
    
    T = t.TypeVar("T")
    
@@ -66,7 +66,7 @@ What's the workflow?
            }
        ]
    }
-   obj, errors = init(ResponseModel[t.List[UserModel]], input_data)
+   obj, errors = build(ResponseModel[t.List[UserModel]], input_data)
 
    In [4]: obj
    Out[4]: ResponseModel(data=[UserModel(name='John', age=21, addresses=[AddressModel(country=<Countries.BR: 'BR'>, state='SP', city='São Paulo', street=None)])])
@@ -90,7 +90,7 @@ What's the workflow?
 
    # LET'S BREAK THE DATA AND VALIDATE AGAIN:
    input_data["data"][0]["age"] = 21.1
-   obj, errors = init(ResponseModel[t.List[UserModel]], input_data)
+   obj, errors = build(ResponseModel[t.List[UserModel]], input_data)
 
    In [8]: errors
    Out[8]:

@@ -24,12 +24,12 @@ _________
    from convtools.contrib.models import (
        DictModel,
        ObjectModel,
+       build,
+       build_or_raise,
        cached_model_method,
        cast,
        casters,
        field,
-       init,
-       init_or_raise,
        json_dumps,
        validate,
        validators,
@@ -53,12 +53,12 @@ _________
            # output type is checked implicitly
        )
 
-   user, errors = init(UserModel, {"addresses": [{"apt": 221}]})
+   user, errors = build(UserModel, {"addresses": [{"apt": 221}]})
 
    # either there's a valid user and errors is None
    # or the user is None and there's nested errors dict
 
-   user = init_or_raise(UserModel, {"addresses": [{"apt": 221}]})
+   user = build_or_raise(UserModel, {"addresses": [{"apt": 221}]})
 
    user.to_dict()
    # extended JSONEncoder, which handles models
@@ -76,13 +76,13 @@ ______________________
 
 .. code-block:: python
 
-   from convtools.contrib.models import DictModel, init
+   from convtools.contrib.models import DictModel, build
 
    class UserModel(DictModel):
        name: str
        age: int
 
-   user, errors = init(UserModel, {"name": "John", "age": 33})
+   user, errors = build(UserModel, {"name": "John", "age": 33})
 
    In [1]: errors is None
    Out[1]: True
@@ -104,7 +104,7 @@ And when validation fails:
 
 .. code-block:: python
 
-   user, errors = init(UserModel, {"age": 33.0})
+   user, errors = build(UserModel, {"age": 33.0})
 
    In [4]: errors
    Out[4]:
@@ -214,7 +214,7 @@ inferred automatically:
        number: Decimal = cast()
 
 
-   In [38]: init(UserModel, {"numbers": [1, 2.0, 2.5], "number": 1.1})
+   In [38]: build(UserModel, {"numbers": [1, 2.0, 2.5], "number": 1.1})
    Out[38]:
    (None,
     defaultdict(dict,
@@ -226,7 +226,7 @@ inferred automatically:
     # Out[15]: Decimal('1.100000000000000088817841970012523233890533447265625')
 
 
-   In [39]: init(UserModel, {"numbers": [1, 2.0, "2"], "number": 1.0})
+   In [39]: build(UserModel, {"numbers": [1, 2.0, "2"], "number": 1.0})
    Out[39]: (UserModel(numbers=[1, 2, 2], number=Decimal('1')), None)
 
 
@@ -246,7 +246,7 @@ Along with the above, the following casters are available for explicit use:
    class UserModel(DictModel):
        numbers: t.List[int] = cast(casters.List(casters.IntLossy()))
 
-   In [8]: init(UserModel, {"numbers": [1, 2.0, 2.5]})
+   In [8]: build(UserModel, {"numbers": [1, 2.0, 2.5]})
    Out[8]: (UserModel(numbers=[1, 2, 2]), None)
 
 
@@ -261,7 +261,7 @@ mutates -- as it builds model instances:
    class UserModel(DictModel):
        addresses: t.List[AddressModel]
 
-   In [17]: user = init_or_raise(UserModel, {"addresses": [{"apt": "221"}]})
+   In [17]: user = build_or_raise(UserModel, {"addresses": [{"apt": "221"}]})
    In [18]: user
    Out[18]: UserModel(name='John', addresses=[AddressModel(apt=221)])
 
@@ -273,7 +273,7 @@ mutates -- as it builds model instances:
 
 
    # the following works too:
-   In [21]: init_or_raise(t.List[AddressModel], [{"apt": 221}])
+   In [21]: build_or_raise(t.List[AddressModel], [{"apt": 221}])
    Out[21]: [AddressModel(apt=221)]
 
 
@@ -293,7 +293,7 @@ Generic models are supported.
        parameter: T = cast()
    
    
-   response = init_or_raise(
+   response = build_or_raise(
        ResponseModel[UserModel[int]], {"data": [{"parameter": " 123 "}]}
    )
    
