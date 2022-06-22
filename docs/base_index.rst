@@ -1,21 +1,13 @@
 Why would you need this?
 ========================
 
+* you prefer declarative approach
 * you love functional programming
-* you believe that Python is awesome enough to have powerful aggregations and
-  joins
-* you need to serialize/deserialize objects
+* you believe that Python is high-level enough not make you write aggregations
+  and joins by hand
+* you need to serialize/validate objects
 * you need to dynamically define transforms (including at runtime)
-* you need to reuse code without function call overhead where possible (inlining)
 * you like the idea of having something write ad hoc code for you
-
-____
-
-Every conversion:
-
-* contains the information of how to transform an input
-* can be **piped** into another conversion (same as wrapping)
-* has a method ``gen_converter`` returning a compiled ad hoc function
 
 
 Installation:
@@ -29,7 +21,86 @@ Installation:
 What's the workflow?
 ====================
 
-**Contrib / Table helper:**
+**Contrib / Model** - data validation (**experimental**)
+
+.. code-block:: python
+
+   import typing as t
+   from enum import Enum
+   
+   from convtools.contrib.models import DictModel, cast, init, json_dumps
+   
+   T = t.TypeVar("T")
+   
+   class Countries(Enum):
+       MX = "MX"
+       BR = "BR"
+   
+   
+   class AddressModel(DictModel):
+       country: Countries = cast()  # explicit casting to output type
+       state: str                   # validation only
+       city: t.Optional[str]
+       street: t.Optional[str] = None
+
+       # # in case of a custom path like: address["apt"]["number"]
+       # apt: int = field("apt", "number").cast()
+   
+   
+   class UserModel(DictModel):
+       name: str
+       age: int = cast()
+       addresses: t.List[AddressModel]
+   
+   
+   class ResponseModel(DictModel, t.Generic[T]):
+       data: T
+   
+   
+   input_data = {
+       "data": [
+           {
+               "name": "John",
+               "age": "21",
+               "addresses": [{"country": "BR", "state": "SP", "city": "São Paulo"}],
+           }
+       ]
+   }
+   obj, errors = init(ResponseModel[t.List[UserModel]], input_data)
+
+   In [4]: obj
+   Out[4]: ResponseModel(data=[UserModel(name='John', age=21, addresses=[AddressModel(country=<Countries.BR: 'BR'>, state='SP', city='São Paulo', street=None)])])
+   
+   In [5]: obj.data[0].addresses[0].country
+   Out[5]: <Countries.BR: 'BR'>
+
+   In [6]: obj.to_dict()
+   Out[6]:
+   {'data': [{'name': 'John',
+      'age': 21,
+      'addresses': [{'country': <Countries.BR: 'BR'>,
+        'state': 'SP',
+        'city': 'São Paulo',
+        'street': None}]}]}
+
+   In [7]: json_dumps(obj)
+   Out[7]: '{"data": [{"name": "John", "age": 21, "addresses": [{"country": "BR", "state": "SP", "city": "S\\u00e3o Paulo", "street": null}]}]}'
+
+.. code-block:: python
+
+   # LET'S BREAK THE DATA AND VALIDATE AGAIN:
+   input_data["data"][0]["age"] = 21.1
+   obj, errors = init(ResponseModel[t.List[UserModel]], input_data)
+
+   In [8]: errors
+   Out[8]:
+   defaultdict(dict,
+               {'data': defaultdict(dict,
+                            {0: defaultdict(dict,
+                                         {'age': {'int_caster': 'losing fractional part: 21.1; if desired, use casters.IntLossy'}})})})
+
+
+**Contrib / Table** - stream processing of table-like data
 
 ``Table`` helper allows to massage CSVs and table-like data:
  * join / zip / chain tables
@@ -60,7 +131,7 @@ What's the workflow?
    ).into_iter_rows(dict)  # this is a generator to consume (tuple, list are supported to)
 
 
-**Base conversions:**
+**Conversions** - data transforms, complex aggregations, joins:
 
 .. code-block:: python
 
@@ -94,9 +165,6 @@ What's the workflow?
 
    # OR in case of a one-shot use
    conversion.execute(input_data)
-
-
-**group_by, aggregate and join conversions:**
 
 .. include:: ../tests/test_doc__index_intro.py
    :code: python
@@ -155,21 +223,4 @@ Is it any different from tools like Pandas / Polars?
 Is this thing debuggable?
 =========================
 
-Despite being compiled at runtime, it remains debuggable with both `pdb` and
-`pydevd`
-
-
-
-
-All-in-one example #1: deserialization & data preps
-===================================================
-
-.. include:: ../tests/test_doc__index_deserialization.py
-   :code: python
-
-
-All-in-one example #2: word count
-=================================
-
-.. include:: ../tests/test_doc__index_word_count.py
-   :code: python
+Despite being compiled at runtime, it is, by both ``pdb`` and ``pydevd``

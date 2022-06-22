@@ -11,6 +11,7 @@ from convtools.base import (
     NamespaceCtx,
     PipeConversion,
 )
+from convtools.utils import Code
 
 
 def test_docs():
@@ -28,24 +29,19 @@ def test_naive_conversion():
     assert c.naive("1").as_type(int).gen_converter()(10) == 1
     assert c.naive(1).gen_converter(method=True)(None, 10) == 1
 
-    assert (
-        "%abc"
-        not in next(
-            iter(c.naive("%abc").gen_converter()._name_to_converter.values())
-        )["code_str"]
-    )
-    assert (
-        "{abc"
-        not in next(
-            iter(c.naive("{abc").gen_converter()._name_to_converter.values())
-        )["code_str"]
-    )
-    assert (
-        "abc"
-        in next(
-            iter(c.naive("abc").gen_converter()._name_to_converter.values())
-        )["code_str"]
-    )
+    def get_code_str(converter):
+        code_strs = [
+            code_piece.code_str
+            for code_piece in converter.__globals__[
+                "__convtools__code_storage"
+            ].name_to_code_piece.values()
+        ]
+        assert len(code_strs) == 1
+        return code_strs[0]
+
+    assert "%abc" not in get_code_str(c.naive("%abc").gen_converter())
+    assert "{abc" not in get_code_str(c.naive("{abc").gen_converter())
+    assert "abc" in get_code_str(c.naive("abc").gen_converter())
 
 
 def test_gen_converter():
@@ -139,6 +135,32 @@ def test_gen_converter():
         )
     with pytest.raises(c.ConversionException):
         c.this.gen_converter(method=True, class_method=True)
+
+
+def test_custom_converter_generation():
+    class CustomConversion(c.BaseConversion):
+        def _gen_code_and_update_ctx(self, code_input, ctx):
+            function_ctx = self.as_function_ctx(ctx)
+            with function_ctx:
+                function_ctx.add_arg("data_", c.this)
+                function_ctx.add_kwarg("kwarg1", 10)
+                function_ctx.add_kwarg("kwarg2", 100, left=True)
+
+                code_args = function_ctx.get_def_all_args_code()
+                assert code_args.find("kwarg1") > code_args.find("kwarg2")
+
+                converter_name = "test_func"
+                code = Code()
+                code.add_line(f"def {converter_name}({code_args}):", 1)
+                code.add_line("return data_ + kwarg1 + kwarg2", 0)
+                conversion = function_ctx.gen_conversion(
+                    converter_name, code.to_string(0)
+                )
+            return function_ctx.call_with_all_args(
+                conversion
+            ).gen_code_and_update_ctx(code_input, ctx)
+
+    assert CustomConversion().execute(7, debug=True) == 117
 
 
 def test_naive_conversion_item():

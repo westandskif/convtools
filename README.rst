@@ -2,13 +2,14 @@
 convtools
 =========
 
-**convtools** is a python library to declaratively define pipelines for
-processing collections, doing complex aggregations and joins. It also provides
-a helper for stream processing of table-like data (e.g. CSV).
+**convtools** is a python library to declaratively define data transforms:
 
-Conversions foster extensive code reuse. Once defined, these generate ad hoc
-code with as much inlining as possible and return compiled ad hoc functions
-`(with superfluous loops and conditions removed)`.
+* ``convtools.contrib.models`` - data validation based on ``typing`` -
+  **experimental**
+* ``convtools.contrib.tables`` - stream processing of table-like data (e.g.
+  CSV)
+* ``convtools.conversion`` - pipelines for processing collections, doing
+  complex aggregations and joins.
 
 .. image:: https://img.shields.io/pypi/pyversions/convtools.svg
     :target: https://pypi.org/project/convtools/
@@ -48,21 +49,13 @@ Docs
 Why would you need this?
 ========================
 
+* you prefer declarative approach
 * you love functional programming
-* you believe that Python is awesome enough to have powerful aggregations and
-  joins
-* you need to serialize/deserialize objects
+* you believe that Python is high-level enough not make you write aggregations
+  and joins by hand
+* you need to serialize/validate objects
 * you need to dynamically define transforms (including at runtime)
-* you need to reuse code without function call overhead where possible (inlining)
 * you like the idea of having something write ad hoc code for you
-
-____
-
-Every conversion:
-
-* contains the information of how to transform an input
-* can be **piped** into another conversion (same as wrapping)
-* has a method ``gen_converter`` returning a compiled ad hoc function
 
 
 Installation:
@@ -76,7 +69,86 @@ Installation:
 What's the workflow?
 ====================
 
-**Contrib / Table helper:**
+**Contrib / Model** - data validation (**experimental**)
+
+.. code-block:: python
+
+   import typing as t
+   from enum import Enum
+
+   from convtools.contrib.models import DictModel, cast, init, json_dumps
+
+   T = t.TypeVar("T")
+
+   class Countries(Enum):
+       MX = "MX"
+       BR = "BR"
+
+
+   class AddressModel(DictModel):
+       country: Countries = cast()  # explicit casting to output type
+       state: str                   # validation only
+       city: t.Optional[str]
+       street: t.Optional[str] = None
+
+       # # in case of a custom path like: address["apt"]["number"]
+       # apt: int = field("apt", "number").cast()
+
+
+   class UserModel(DictModel):
+       name: str
+       age: int = cast()
+       addresses: t.List[AddressModel]
+
+
+   class ResponseModel(DictModel, t.Generic[T]):
+       data: T
+
+
+   input_data = {
+       "data": [
+           {
+               "name": "John",
+               "age": "21",
+               "addresses": [{"country": "BR", "state": "SP", "city": "São Paulo"}],
+           }
+       ]
+   }
+   obj, errors = init(ResponseModel[t.List[UserModel]], input_data)
+
+   In [4]: obj
+   Out[4]: ResponseModel(data=[UserModel(name='John', age=21, addresses=[AddressModel(country=<Countries.BR: 'BR'>, state='SP', city='São Paulo', street=None)])])
+
+   In [5]: obj.data[0].addresses[0].country
+   Out[5]: <Countries.BR: 'BR'>
+
+   In [6]: obj.to_dict()
+   Out[6]:
+   {'data': [{'name': 'John',
+      'age': 21,
+      'addresses': [{'country': <Countries.BR: 'BR'>,
+        'state': 'SP',
+        'city': 'São Paulo',
+        'street': None}]}]}
+
+   In [7]: json_dumps(obj)
+   Out[7]: '{"data": [{"name": "John", "age": 21, "addresses": [{"country": "BR", "state": "SP", "city": "S\\u00e3o Paulo", "street": null}]}]}'
+
+.. code-block:: python
+
+   # LET'S BREAK THE DATA AND VALIDATE AGAIN:
+   input_data["data"][0]["age"] = 21.1
+   obj, errors = init(ResponseModel[t.List[UserModel]], input_data)
+
+   In [8]: errors
+   Out[8]:
+   defaultdict(dict,
+               {'data': defaultdict(dict,
+                            {0: defaultdict(dict,
+                                         {'age': {'int_caster': 'losing fractional part: 21.1; if desired, use casters.IntLossy'}})})})
+
+
+**Contrib / Table** - stream processing of table-like data
 
 ``Table`` helper allows to massage CSVs and table-like data:
  * join / zip / chain tables
@@ -107,7 +179,7 @@ What's the workflow?
    ).into_iter_rows(dict)  # this is a generator to consume (tuple, list are supported to)
 
 
-**Base conversions:**
+**Conversions** - data transforms, complex aggregations, joins:
 
 .. code-block:: python
 
@@ -141,9 +213,6 @@ What's the workflow?
 
    # OR in case of a one-shot use
    conversion.execute(input_data)
-
-
-**group_by, aggregate and join conversions:**
 
 .. code-block:: python
 
@@ -293,224 +362,7 @@ Is it any different from tools like Pandas / Polars?
 Is this thing debuggable?
 =========================
 
-Despite being compiled at runtime, it remains debuggable with both `pdb` and
-`pydevd`
-
-
-
-
-All-in-one example #1: deserialization & data preps
-===================================================
-
-.. code-block:: python
-
-    from datetime import date, datetime
-    from decimal import Decimal
-
-    from convtools import conversion as c
-
-
-    def test_doc__index_deserialization():
-        class Employee:
-            def __init__(self, **kwargs):
-                self.kwargs = kwargs
-
-        input_data = {
-            "objects": [
-                {
-                    "id": 1,
-                    "first_name": "john",
-                    "last_name": "black",
-                    "dob": None,
-                    "salary": "1,000.00",
-                    "department": "D1 ",
-                    "date": "2000-01-01",
-                },
-                {
-                    "id": 2,
-                    "first_name": "bob",
-                    "last_name": "wick",
-                    "dob": "1900-01-01",
-                    "salary": "1,001.00",
-                    "department": "D3 ",
-                    "date": "2000-01-01",
-                },
-            ]
-        }
-
-        # prepare a few conversions to reuse
-        c_strip = c.this.call_method("strip")
-        c_capitalize = c.this.call_method("capitalize")
-        c_decimal = c.this.call_method("replace", ",", "").as_type(Decimal)
-        c_date = c.call_func(datetime.strptime, c.this, "%Y-%m-%d").call_method(
-            "date"
-        )
-        # reusing c_date
-        c_optional_date = c.if_(c.this, c_date, None)
-
-        first_name = c.item("first_name").pipe(c_capitalize)
-        last_name = c.item("last_name").pipe(c_capitalize)
-        # call "format" method of a string and pass first & last names as
-        # parameters
-        full_name = c("{} {}").call_method("format", first_name, last_name)
-
-        conv = (
-            c.item("objects")
-            .pipe(
-                c.generator_comp(
-                    {
-                        "id": c.item("id"),
-                        "first_name": first_name,
-                        "last_name": last_name,
-                        "full_name": full_name,
-                        "date_of_birth": c.item("dob").pipe(c_optional_date),
-                        "salary": c.item("salary").pipe(c_decimal),
-                        # pass a hardcoded dict and to get value by "department"
-                        # key
-                        "department_id": c.naive(
-                            {
-                                "D1": 10,
-                                "D2": 11,
-                                "D3": 12,
-                            }
-                        ).item(c.item("department").pipe(c_strip)),
-                        "date": c.item("date").pipe(c_date),
-                    }
-                )
-            )
-            .pipe(
-                c.dict_comp(
-                    c.item("id"),  # key
-                    c.apply_func(  # value
-                        Employee,
-                        args=(),
-                        kwargs=c.this,
-                    ),
-                )
-            )
-            .gen_converter(debug=True)  # to see print generated code
-        )
-
-        result = conv(input_data)
-        assert result[1].kwargs == {
-            "date": date(2000, 1, 1),
-            "date_of_birth": None,
-            "department_id": 10,
-            "first_name": "John",
-            "full_name": "John Black",
-            "id": 1,
-            "last_name": "Black",
-            "salary": Decimal("1000.00"),
-        }
-        assert result[2].kwargs == {
-            "date": date(2000, 1, 1),
-            "date_of_birth": date(1900, 1, 1),
-            "department_id": 12,
-            "first_name": "Bob",
-            "full_name": "Bob Wick",
-            "id": 2,
-            "last_name": "Wick",
-            "salary": Decimal("1001.00"),
-        }
-
-All-in-one example #2: word count
-=================================
-
-.. code-block:: python
-
-    import re
-    from itertools import chain
-
-    from convtools import conversion as c
-
-
-    def test_doc__index_word_count():
-
-        # Let's say we need to count words across all files
-        input_data = [
-            "war-and-peace-1.txt",
-            "war-and-peace-2.txt",
-            "war-and-peace-3.txt",
-            "war-and-peace-4.txt",
-        ]
-
-        # # iterate an input and read file lines
-        #
-        # def read_file(filename):
-        #     with open(filename) as f:
-        #         for line in f:
-        #             yield line
-        # extract_strings = c.generator_comp(c.call_func(read_file, c.this))
-
-        # to simplify testing
-        extract_strings = c.generator_comp(
-            c.call_func(lambda filename: [filename], c.this)
-        )
-
-        # 1. make ``re`` pattern available to the code to be generated
-        # 2. call ``finditer`` method of the pattern and pass the string
-        #    as an argument
-        # 3. pass the result to the next conversion
-        # 4. iterate results, call ``.group()`` method of each re.Match
-        #    and call ``.lower()`` on each result
-        split_words = (
-            c.naive(re.compile(r"\w+"))
-            .call_method("finditer", c.this)
-            .pipe(
-                c.generator_comp(
-                    c.this.call_method("group", 0).call_method("lower")
-                )
-            )
-        )
-
-        # ``extract_strings`` is the generator of strings
-        # so we iterate it and pass each item to ``split_words`` conversion
-        vectorized_split_words = c.generator_comp(c.this.pipe(split_words))
-
-        # flattening the result of ``vectorized_split_words``, which is
-        # a generator of generators of strings
-        flatten = c.call_func(
-            chain.from_iterable,
-            c.this,
-        )
-
-        # aggregate the input, the result is a single dict
-        # words are keys, values are count of words
-        dict_word_to_count = c.aggregate(
-            c.ReduceFuncs.DictCount(c.this, c.this, default=dict)
-        )
-
-        # take top N words by:
-        #  - call ``.items()`` method of the dict (the result of the aggregate)
-        #  - pass the result to ``sorted``
-        #  - take the slice, using input argument named ``top_n``
-        #  - cast to a dict
-        take_top_n = (
-            c.this.call_method("items")
-            .sort(key=lambda t: t[1], reverse=True)
-            .pipe(c.this[: c.input_arg("top_n")])
-            .as_type(dict)
-        )
-
-        # the resulting pipeline is pretty self-descriptive, except the ``c.if_``
-        # part, which checks the condition (first argument),
-        # and returns the 2nd if True OR the 3rd (input data by default) otherwise
-        pipeline = (
-            extract_strings.pipe(flatten)
-            .pipe(vectorized_split_words)
-            .pipe(flatten)
-            .pipe(dict_word_to_count)
-            .pipe(
-                c.if_(
-                    c.input_arg("top_n").is_not(None),
-                    c.this.pipe(take_top_n),
-                )
-            )
-            # Define the resulting converter function signature.  In fact this
-            # isn't necessary if you don't need to specify default values
-        ).gen_converter(signature="data_, top_n=None")
-
-        assert pipeline(input_data, top_n=3) == {"war": 4, "and": 4, "peace": 4}
+Despite being compiled at runtime, it is, by both ``pdb`` and ``pydevd``
 
 Docs
 ====

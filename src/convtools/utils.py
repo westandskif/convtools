@@ -2,9 +2,12 @@
  - recently used cache
  - options ctx manager
 """
+import os
 import sys
+import tempfile
 import threading
 import typing
+from weakref import finalize
 
 
 if sys.version_info[:2] == (3, 6):
@@ -108,3 +111,81 @@ class Code:
             f"{single_indent * (base_indent_level + indent_level)}{line}"
             for indent_level, line in self.lines_info
         )
+
+
+class LazyDebugDir:
+    """Lazy instance to hold and initialize debug directory for generated code
+    sources"""
+
+    def __init__(self):
+        self.debug_dir = None
+        self.dir_initialized = False
+
+    def get(self):
+        if self.debug_dir is None:
+            self.debug_dir = os.environ.get(
+                "PY_CONVTOOLS_DEBUG_DIR", None
+            ) or os.path.join(tempfile.gettempdir(), "py_convtools_debug")
+        return self.debug_dir
+
+    def ensure_initialized(self):
+        if not self.dir_initialized:
+            os.makedirs(self.debug_dir, exist_ok=True)
+            self.dir_initialized = True
+
+
+debug_dir = LazyDebugDir()
+
+
+class CodePiece:
+    __slots__ = ("code_str", "abs_path", "is_dumped")
+
+    def __init__(self, code_str, abs_path, is_dumped):
+        self.code_str = code_str
+        self.abs_path = abs_path
+        self.is_dumped = is_dumped
+
+
+class CodeStorage:
+    """Container which stores a map of converter names to generated code
+    pieces. It allows to dump code sources on disk into a debug directory."""
+
+    def __init__(self):
+        self.name_to_code_piece = {}
+        finalize(self, drop_dumped_code, self.name_to_code_piece)
+
+    def add_sources(self, converter_name, code_str):
+        if converter_name in self.name_to_code_piece:
+            code_piece = self.name_to_code_piece[converter_name]
+            if code_piece.code_str == code_str:
+                return code_piece.abs_path, False
+
+            raise Exception(
+                "converter with a different code already exists",
+                converter_name,
+            )
+
+        abs_path = os.path.join(
+            debug_dir.get(), f"_{id(self)}_{converter_name}.py"
+        )
+        self.name_to_code_piece[converter_name] = CodePiece(
+            code_str, abs_path, False
+        )
+        return abs_path, True
+
+    def dump_sources(self):
+        debug_dir.ensure_initialized()
+        for code_piece in self.name_to_code_piece.values():
+            if not code_piece.is_dumped:
+                with open(code_piece.abs_path, "w", encoding="utf-8") as f:
+                    f.write(code_piece.code_str)
+                code_piece.is_dumped = True
+
+
+def drop_dumped_code(name_to_code_piece):
+    for code_piece in name_to_code_piece.values():
+        if code_piece.is_dumped:
+            try:
+                os.remove(code_piece.abs_path)
+            except FileNotFoundError:  # pragma: no cover
+                pass
