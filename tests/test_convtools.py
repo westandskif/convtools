@@ -58,15 +58,11 @@ def test_gen_converter():
             method=True
         )
 
-        conv3 = classmethod(
-            (c.this + c.input_arg("cls").attr("x")).gen_converter(
-                class_method=True
-            )
+        conv3 = (c.this + c.input_arg("cls").attr("x")).gen_converter(
+            class_method=True
         )
-        conv4 = classmethod(
-            (c.this + c.input_arg("self").attr("x")).gen_converter(
-                class_method=True
-            )
+        conv4 = (c.this + c.input_arg("self").attr("x")).gen_converter(
+            class_method=True
         )
 
         conv5 = (
@@ -135,6 +131,29 @@ def test_gen_converter():
         )
     with pytest.raises(c.ConversionException):
         c.this.gen_converter(method=True, class_method=True)
+
+    class A:
+        value = 10
+
+        def __init__(self):
+            self.value = 100
+
+        @classmethod
+        def patch(cls):
+            cls.method = (
+                c.this + c.escaped_string("cls").attr("value")
+            ).gen_converter(class_method=True)
+            cls.method_2 = (
+                c.this + c.escaped_string("self").attr("value")
+            ).gen_converter(method=True)
+
+    A.patch()
+    assert A.method(1) == 11
+    assert A().method(1) == 11
+
+    assert A().method_2(1) == 101
+    with pytest.raises(TypeError):
+        A.method_2(1)
 
 
 def test_custom_converter_generation():

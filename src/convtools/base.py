@@ -9,7 +9,6 @@ import typing as t
 from collections import deque
 from itertools import chain
 from random import choice
-from types import FunctionType
 
 from .heuristics import Weights
 from .utils import BaseCtx, BaseOptions, Code, CodeStorage
@@ -435,7 +434,7 @@ class BaseConversion(t.Generic[CT]):
         signature=None,
         debug=None,
         converter_name="converter",
-    ) -> FunctionType:
+    ):
         """Compiles a function which act according to the conversion
         definition.
 
@@ -538,6 +537,10 @@ class BaseConversion(t.Generic[CT]):
 
         if debug:
             ctx["__convtools__code_storage"].dump_sources()
+
+        if class_method:
+            return classmethod(converter)
+
         return converter
 
     def execute(self, *args, debug=None, **kwargs) -> t.Any:

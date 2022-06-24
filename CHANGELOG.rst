@@ -1,3 +1,13 @@
+0.25.2 (2022-06-24)
+___________________
+
+Bugfix
+++++++
+
+- fixed ``.gen_converter(class_method=True)``, broken in v0.25.0 where callable
+  wrapper was eliminated. Now it returns a converter, wrapped with
+  ``classmethod``
+
 0.25.1 (2022-06-24)
 ___________________
 
