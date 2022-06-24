@@ -1,3 +1,13 @@
+0.25.1 (2022-06-24)
+___________________
+
+Bugfix
+++++++
+
+- fixed label bug in case of nested pipes, introduced in 0.24.1: was leading to
+  label key errors since labels were skipping initialization
+
+
 0.25.0 (2022-06-22)
 ___________________
 

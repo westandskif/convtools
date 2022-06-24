@@ -695,7 +695,7 @@ def test_simple_label():
             label_output="b",
         )
         .pipe(c.this + c.label("b"))
-        .gen_converter(debug=False)
+        .gen_converter()
     )
     assert conv2([1, 2, 3, 4], x=10) == 140
 

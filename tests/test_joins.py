@@ -182,7 +182,7 @@ def test_hash_joins():
             ),
         )
         .as_type(list)
-        .gen_converter(debug=False)
+        .gen_converter()
     )
     assert join2(
         [

@@ -30,3 +30,11 @@ def test_labels():
         c.this.add_label(123)
     with pytest.raises(ValueError):
         c.label(123)
+
+    conversion = (
+        c.this.add_label("abc")
+        .pipe(c.naive({1: 2, 3: 4, 5: 6}).call_method("items"))
+        .pipe(c.generator_comp(c.item(1), where=c.item(0) <= c.label("abc")))
+        .pipe(sum)
+    )
+    assert conversion.execute(4) == 6

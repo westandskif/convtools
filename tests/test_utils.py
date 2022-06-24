@@ -13,45 +13,45 @@ def test_code_generation_ctx():
     with CodeGenerationOptionsCtx() as options:
         assert isinstance(options, CodeGenerationOptions)
 
-        assert options.inline_pipes_only is False
+        assert options.reducers_run_stage is None
         assert (
-            CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
-            is False
+            CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
+            is None
         )
 
-        options.inline_pipes_only = True
+        options.reducers_run_stage = True
         assert (
-            CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+            CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
             is True
         )
 
         with CodeGenerationOptionsCtx() as options2:
-            assert options2.inline_pipes_only is True
+            assert options2.reducers_run_stage is True
             assert (
-                CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+                CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
                 is True
             )
 
-            options2.to_defaults("inline_pipes_only")
-            assert options2.inline_pipes_only is False
+            options2.to_defaults("reducers_run_stage")
+            assert options2.reducers_run_stage is None
 
-            options2.inline_pipes_only = True
+            options2.reducers_run_stage = True
             options2.to_defaults()
-            assert options2.inline_pipes_only is False
+            assert options2.reducers_run_stage is None
             assert (
-                CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
-                is False
+                CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
+                is None
             )
 
-            assert options.inline_pipes_only is True
+            assert options.reducers_run_stage is True
 
         assert (
-            CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
+            CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
             is True
         )
 
     assert (
-        CodeGenerationOptionsCtx.get_option_value("inline_pipes_only") is False
+        CodeGenerationOptionsCtx.get_option_value("reducers_run_stage") is None
     )
 
 
@@ -87,7 +87,7 @@ def test_add_sources():
         with pytest.raises(Exception):
             code_storage.add_sources(converter_name, code_piece.code_str + " ")
 
-    converter = c.escaped_string("abc + 1").gen_converter()
+    converter = c.escaped_string("abc + 1").gen_converter(debug=True)
     with pytest.raises(NameError):
         converter(None)
     converter.__globals__["__convtools__code_storage"].dump_sources()

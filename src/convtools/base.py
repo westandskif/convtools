@@ -25,7 +25,6 @@ except ImportError:
 
 
 class CodeGenerationOptions(BaseOptions):
-    inline_pipes_only = False
     reducers_run_stage = None
 
 
@@ -150,7 +149,6 @@ class BaseConversion(t.Generic[CT]):
 
     _none = _None()
     valid_pipe_output = True
-    method_calls_replace_input_with_self = False
     used_in_narrow_context = False
     trackable_dependency = False
 
@@ -188,9 +186,10 @@ class BaseConversion(t.Generic[CT]):
         self.output_hints |= hint
         return self
 
-    def check_dependency(self, b, for_piping=False):
-        contents = self.contents if for_piping else self.self_content_type
-        if contents & 1 and b.contents & 1:  # self.ContentTypes.REDUCER
+    def check_dependency(self, b):
+        if (
+            b.contents & 1 and self.self_content_type & 1
+        ):  # self.ContentTypes.REDUCER
             raise ValueError("nested aggregation", self.__dict__)
 
     def is_dependency_trackable(self, dependency: "BaseConversion"):
@@ -594,7 +593,7 @@ class BaseConversion(t.Generic[CT]):
         pass
 
     def ignores_input(self) -> t.Optional[bool]:
-        return self.contents & self.ContentTypes.FUNCTION_OF_INPUT == 0
+        return self.contents & 64 == 0  # self.ContentTypes.FUNCTION_OF_INPUT
 
     def call_like(self, *args, **kwargs):
         if self.is_itself_callable_like():
@@ -2430,84 +2429,98 @@ class PipeConversion(BaseConversion):
             The rest is all the same as with ``label_input``
         """
         super().__init__()
-        if (
-            CodeGenerationOptionsCtx.get_option_value("inline_pipes_only")
-        ) and (label_input or label_output):
-            raise AssertionError(
-                "inline pipes requested: no labeling is supported"
-            )
+        what = ensure_conversion(what)
+        where = ensure_conversion(where)
 
-        self.input_args_container = EscapedString("None")
+        if where.is_itself_callable():
+            where = where.call(This(), *args, **kwargs)
 
-        self.what = self.ensure_conversion(what, skip_for_input_args=True)
-        self.where = self.ensure_conversion(where)
-        self.where.check_dependency(self.what, for_piping=True)
-
-        if (
-            # self.ContentTypes.NEW_LABEL
-            (self.what.contents & 4)
-            or label_input
-        ) and (
-            self.where.contents & 1  # self.ContentTypes.REDUCER
-        ):
-            raise ValueError("labeling of reducer inputs is not supported")
-
-        if not self.where.valid_pipe_output:
-            raise ValueError("invalid output, check where conversion")
-
-        if self.where.is_itself_callable():
-            self.where = self.where.call(
-                This(),
-                *tuple(self.ensure_conversion(arg) for arg in args),
-                **{k: self.ensure_conversion(v) for k, v in kwargs.items()},
-            )
         elif args or kwargs:
             raise AssertionError(
                 "args or kwargs won't be used when 'where' is not callable"
             )
 
+        if (
+            where.contents & 1 and what.contents & 1
+        ):  # self.ContentTypes.REDUCER
+            raise ValueError("nested aggregation", self.__dict__)
+
+        if not where.valid_pipe_output:
+            raise ValueError("invalid output, check where conversion")
+
+        if (
+            # self.ContentTypes.NEW_LABEL
+            (what.contents & 4)
+            or label_input
+        ) and (
+            where.contents & 1  # self.ContentTypes.REDUCER
+        ):
+            raise ValueError("labeling of reducer inputs is not supported")
+
+        self.input_args_container = EscapedString("None")
         self.label_input = (
-            None if label_input is None else self._prepare_labels(label_input)
+            None
+            if label_input is None
+            else self._prepare_labels(self.input_args_container, label_input)
         )
         self.label_output = (
             None
             if label_output is None
-            else self._prepare_labels(label_output)
+            else self._prepare_labels(self.input_args_container, label_output)
         )
-        if self.label_input or self.label_output:
-            self.self_content_type |= 4  # self.ContentTypes.NEW_LABEL
-            self.contents |= self.self_content_type
-            self.input_args_container.contents |= (
-                4  # self.ContentTypes.NEW_LABEL
-            )
-
-        self.what_labels_may_affect_where = (
-            self.what.contents & 4  # self.ContentTypes.NEW_LABEL
-            and self.where.contents & 16  # self.ContentTypes.LABEL_USAGE
-        )
-        can_be_inlined = (
-            (
-                # if "where" uses an input multiple times, we should weigh
-                # wrapping it into a function and so the input is calculated
-                # only once (of course taking into account function call
-                # overhead)
-                self.what.total_weight * (self.where.number_of_input_uses - 1)
-                < self.function_call_threshold
-            )
+        input_has_no_side_effects = (
+            what.contents & 4 == 0  # self.ContentTypes.NEW_LABEL
             and self.label_input is None
-            and self.label_output is None
-            and not self.what_labels_may_affect_where
         )
-
         self.to_be_inlined = (
-            can_be_inlined
-            # self.ContentTypes.REDUCER - must be inlined
-            or self.where.contents & 1
+            # can be inlined
+            (
+                (
+                    # if "where" uses an input multiple times, we should weigh
+                    # wrapping it into a function and so the input is calculated
+                    # only once (of course taking into account function call
+                    # overhead)
+                    what.total_weight * (where.number_of_input_uses - 1)
+                    < self.function_call_threshold
+                )
+                and self.label_output is None
+                and input_has_no_side_effects
+            )
+            # must be inlined - self.ContentTypes.REDUCER
+            or where.contents & 1
         )
 
         if not self.to_be_inlined:
+            if where.ignores_input() and input_has_no_side_effects:
+                what, where = where, This()
+
+            self.input_args_container.ensure_conversion(where)
             self.total_weight += Weights.FUNCTION_CALL
             self.number_of_input_uses = 1
+
+        self.what = self.ensure_conversion(what)
+        self.where = self.ensure_conversion(where)
+        self.ensure_conversion(self.input_args_container)
+
+        if self.label_input or self.label_output:
+            self.input_args_container.contents |= (
+                4  # self.ContentTypes.NEW_LABEL
+            )
+            self.contents |= 4  # self.ContentTypes.NEW_LABEL
+
+    #     if self.to_be_inlined and self.DEBUG:
+    #         from pprint import pprint
+
+    #         print("\n")
+    #         print("INLINING:")
+    #         pprint(self.__dict__)
+    #         print("WHAT:")
+    #         pprint(self.what.__dict__)
+    #         print("WHERE:")
+    #         pprint(self.where.__dict__)
+    #         # breakpoint()
+
+    # DEBUG = False
 
     def replace(self, where):
         return PipeConversion(
@@ -2526,8 +2539,9 @@ class PipeConversion(BaseConversion):
     def sort(self, key=None, reverse=False):
         return self.replace(self.where.sort(key, reverse))
 
+    @staticmethod
     def _prepare_labels(
-        self,
+        conversion: "BaseConversion",
         label_arg: "t.Union[str, dict]",
     ):
         if isinstance(label_arg, str):
@@ -2535,7 +2549,7 @@ class PipeConversion(BaseConversion):
 
         elif isinstance(label_arg, dict):
             return {
-                label_name: self.ensure_conversion(conv)
+                label_name: conversion.ensure_conversion(conv)
                 for label_name, conv in label_arg.items()
             }
 
@@ -2543,23 +2557,11 @@ class PipeConversion(BaseConversion):
             "unexpected label_input type", type(label_arg), label_arg
         )
 
-    def ensure_conversion(
-        self, conversion, skip_for_input_args=False, **kwargs
-    ) -> "BaseConversion":
-        if not skip_for_input_args:
-            self.input_args_container.ensure_conversion(conversion)
-        return super().ensure_conversion(conversion, **kwargs)
-
     def _gen_code_and_update_ctx(self, code_input, ctx):
         if self.to_be_inlined:
             return self.where.gen_code_and_update_ctx(
                 self.what.gen_code_and_update_ctx(code_input, ctx), ctx
             )
-
-        code_input_is_ignored = (
-            self.where.ignores_input()
-            and not self.what_labels_may_affect_where
-        )
 
         suffix = self.gen_name("_", ctx, ("pipe", self, code_input))
         converter_name = f"pipe{suffix}"
@@ -2569,18 +2571,8 @@ class PipeConversion(BaseConversion):
         function_ctx = self.input_args_container.as_function_ctx(ctx)
 
         with function_ctx:
-
-            if code_input_is_ignored:
-                if self.label_output is None or self.label_input is not None:
-                    raise AssertionError("what are we doing here? it's a bug")
-                # excluding unused code then
-                what_code = self.where.gen_code_and_update_ctx(
-                    "UNUSED CODE", ctx
-                )
-                where_code = var_input
-            else:
-                what_code = self.what.gen_code_and_update_ctx(code_input, ctx)
-                where_code = self.where.gen_code_and_update_ctx(var_input, ctx)
+            what_code = self.what.gen_code_and_update_ctx(code_input, ctx)
+            where_code = self.where.gen_code_and_update_ctx(var_input, ctx)
 
             function_ctx.add_arg(var_input, EscapedString(what_code))
             code = Code()
