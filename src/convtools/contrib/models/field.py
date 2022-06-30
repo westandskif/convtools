@@ -7,28 +7,20 @@ from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING
 
-from .base import BaseModel, _none
-from .casters.casters import BaseCaster, CasterToFinalType
-from .casters.casters import Custom as CustomCaster
+from .base import BaseCaster, BaseModel, CastOverrides, _none
+from .casters.base import CasterToFinalType, TypeCaster
 from .casters.casters import DateFromStr as DateFromStrCaster
 from .casters.casters import Decimal as DecimalCaster
-from .casters.casters import Dict as DictCaster
 from .casters.casters import Enum as EnumCaster
 from .casters.casters import Int as IntCaster
-from .casters.casters import List as ListCaster
-from .casters.casters import Union as UnionCaster
-from .utils import (
-    is_generic_alias,
-    is_generic_dict_alias,
-    is_generic_list_alias,
-    is_generic_union_alias,
-)
+from .casters.casters import NaiveCaster
+from .casters.casters import Str as StrCaster
 from .validators.validators import BaseValidator, Required
 from .validators.validators import Type as TypeValidator
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Type, Union
+if TYPE_CHECKING:
+    from typing import Optional, Type, Union
 
 
 def cached_model_method(func):
@@ -103,56 +95,44 @@ class FieldProcessingPipeline:
     def cast(
         self,
         *args: "BaseCaster",
+        overrides: CastOverrides = None,
     ) -> "FieldProcessingPipeline":
         if args:
             for arg in args:
-                self.steps.append(ensure_caster(arg))
+                self.steps.append(ensure_caster(arg, overrides))
         else:
-            self.steps.append(CasterToFinalType())
+            self.steps.append(CasterToFinalType(overrides))
         return self
 
 
 type_to_predefined_caster = {
-    list: CustomCaster("list_caster", list, TypeError),
-    dict: CustomCaster("dict_caster", dict, (TypeError, ValueError)),
-    str: CustomCaster("str_caster", str, ()),
+    list: NaiveCaster("list_caster", list, TypeError),
+    tuple: NaiveCaster("tuple_caster", tuple, TypeError),
+    dict: NaiveCaster("dict_caster", dict, (TypeError, ValueError)),
+    str: StrCaster(),
     int: IntCaster(),
-    float: CustomCaster("float_caster", float, (TypeError, ValueError)),
+    float: NaiveCaster("float_caster", float, (TypeError, ValueError)),
     Decimal: DecimalCaster(),
     date: DateFromStrCaster("%Y-%m-%d"),
 }
 
 
-def ensure_caster(caster: "Union[Type, BaseCaster]"):
+def try_simple_type_to_caster(type_value: "Type") -> "Optional[BaseCaster]":
+    if type_value in type_to_predefined_caster:
+        return type_to_predefined_caster[type_value]
+    if isinstance(type_value, type) and issubclass(type_value, Enum):
+        return EnumCaster(type_value)
+    return None
+
+
+def ensure_caster(
+    caster: "Union[Type, BaseCaster]",
+    overrides: CastOverrides,
+):
     if isinstance(caster, BaseCaster):
         return caster
-    if caster in type_to_predefined_caster:
-        return type_to_predefined_caster[caster]
-    if isinstance(caster, type) and issubclass(caster, Enum):
-        return EnumCaster(caster)
-    if is_generic_alias(caster):
-        if is_generic_union_alias(caster):
-            NoneType = type(None)
-            caster_instances = [
-                ensure_caster(arg)
-                for arg in caster.__args__
-                if arg is not NoneType
-            ]
-            accepts_none = len(caster_instances) < len(caster.__args__)
-            return UnionCaster(*caster_instances, accept_none=accepts_none)
-        elif is_generic_list_alias(caster):
-            # TODO: replace with direct imports
-            return ListCaster(ensure_caster(caster.__args__[0]))
-        elif is_generic_dict_alias(caster):
-            return DictCaster(
-                ensure_caster(caster.__args__[0]),
-                ensure_caster(caster.__args__[1]),
-            )
 
-    raise ValueError(
-        f"{caster} caster is not supported, "
-        "consider wrapping with caster.Custom"
-    )
+    return TypeCaster(caster, overrides)
 
 
 def field(
@@ -173,8 +153,10 @@ def validate(*args: "BaseValidator") -> "FieldProcessingPipeline":
     return FieldProcessingPipeline().validate(*args)
 
 
-def cast(*args: "BaseCaster") -> "FieldProcessingPipeline":
-    return FieldProcessingPipeline().cast(*args)
+def cast(
+    *args: "BaseCaster", overrides: CastOverrides = None
+) -> "FieldProcessingPipeline":
+    return FieldProcessingPipeline().cast(*args, overrides=overrides)
 
 
 _base_json_encoder_default = json.JSONEncoder().default

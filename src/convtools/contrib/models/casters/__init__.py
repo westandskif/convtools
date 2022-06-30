@@ -6,11 +6,9 @@ from .casters import (
     DatetimeFromStr,
     Decimal,
     DecimalLossy,
-    Dict,
     Enum,
     Int,
     IntLossy,
-    List,
-    Optional,
-    Union,
+    NaiveCaster,
+    Str,
 )

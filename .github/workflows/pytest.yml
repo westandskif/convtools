@@ -31,6 +31,6 @@ jobs:
         isort src tests --check
     - name: Test with pytest
       run: |
-        pip install pytest pytest-cov 
-        pytest
+        pip install pytest pytest-cov pytest-benchmark
+        pytest --benchmark-skip
         bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV_TOKEN }}

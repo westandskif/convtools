@@ -1,3 +1,34 @@
+0.26.0 (2022-06-30)
+___________________
+
+Experimental - contrib.model:
++++++++++++++++++++++++++++++
+
+- reworked errors, returned by ``build`` and ``build_or_raise`` to allow for
+  automated errors processing (now it's clear where path ends and error info
+  starts)
+- now ``cast`` not only supports casters, but complex types too:
+  ``cast(t.List[t.Tuple[int]])``
+- now it's possible to force all-field casting on a model level via ``Meta.cast
+  = True`` class field
+- ``build`` and ``build_or_raise`` can also force children casting via
+  ``cast=True`` parameter (doesn't affect inner models as they have their own
+  controls)
+- now casting supports type-to-caster(s) overrides like:
+  ``cast(overrides={date: casters.DateFromStr("%m/%d/%Y")})``,
+  ``Meta.cast_overrides`` and ``build(..., cast_overrides={date: [...]})``
+- added ``validators.Decimal(max_digits, decimal_places)``
+- extended str caster to decode bytes and supported custom encodings like
+  ``casters.Str("utf-16")``
+- added quantization support to ``casters.DecimalLossy(quantize_exp, rounding)``
+- added ``typing.Tuple`` support (both validation and casting)
+
+Misc:
++++++
+
+- updated `c.or_` and `c.and_` to better flatten nested constructions
+
+
 0.25.2 (2022-06-24)
 ___________________
 

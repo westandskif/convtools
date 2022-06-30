@@ -2,15 +2,16 @@
 objects"""
 import abc
 import re
+from decimal import Decimal as Decimal_
 from typing import TYPE_CHECKING
 
 from convtools import conversion as c
 
-from ..base import BaseModel, BaseStep, TypeValueCodeGenArgs, _none
-from ..utils import is_generic_alias
+from ..base import BaseStep, TypeValueCodeGenArgs, _none
+from ..utils import is_generic_alias, is_model_cls
 
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from typing import List
 
     from convtools.base import BaseConversion
@@ -31,10 +32,11 @@ class Required(BaseValidator):
 
     name = "required"
     __slots__ = ()
+    _error = {"required": True}
 
     def validate(self, field_name, data, errors):
         if data is _none:
-            errors[field_name][self.name] = True
+            errors[field_name]["__ERRORS"] = self._error
         else:
             return True
 
@@ -46,51 +48,70 @@ class Type(BaseValidator):
     name = "type"
 
     def __init__(self, *types):
-        _, _, other_types = self.split_types(*types)
-        if other_types:
+        chunks = self.chunk_types_to_simple_and_other(types)
+        if len(chunks) != 1 or chunks[0]["chunk_type"] != "simple":
             raise ValueError(
                 "Type validator doesn't support generics on this level"
             )
+
         isinstance(None, types)  # make sure types are valid
         self.type_ = types if len(types) > 1 else types[0]
         self.type_verbose = "/".join(type_.__name__ for type_ in types)
 
     def validate(self, field_name, data, errors):
         if not isinstance(data, self.type_):
-            errors[field_name][
-                self.name
-            ] = f"{type(data).__name__} instead of {self.type_verbose}"
+            errors[field_name]["__ERRORS"] = {
+                self.name: f"{type(data).__name__} instead of {self.type_verbose}"
+            }
         else:
             return True
 
+    chunk_types_to_simple_and_other = (
+        c.iter(
+            (
+                c.if_(
+                    c.or_(
+                        c.call_func(is_generic_alias, c.this),
+                        c.call_func(is_model_cls, c.this),
+                    ),
+                    "other",
+                    "simple",
+                ),
+                c.this,
+            )
+        )
+        .pipe(
+            c.chunk_by_condition(
+                c.and_(c.CHUNK.item(-1, 0) == c.item(0), c.item(0) == "simple")
+            ).aggregate(
+                {
+                    "chunk_type": c.ReduceFuncs.First(c.item(0)),
+                    "types": c.ReduceFuncs.Array(c.item(1)),
+                }
+            )
+        )
+        .as_type(list)
+        .gen_converter(class_method=True)
+    )
+
     @classmethod
-    def split_types(cls, *types):
+    def to_code(cls, simple_types, args: TypeValueCodeGenArgs):
+        length_before = len(simple_types)
         NoneType = type(None)
+        simple_types = [
+            type_ for type_ in simple_types if type_ is not NoneType
+        ]
+        has_none = len(simple_types) < length_before
 
-        has_none = False
-        simple_types = []
-        other_types = []
-        for type_ in types:
-            if type_ is NoneType:
-                has_none = True
-            elif not is_generic_alias(type_) and not (
-                isinstance(type_, type) and issubclass(type_, BaseModel)
-            ):
-                simple_types.append(type_)
-            else:
-                other_types.append(type_)
-
-        return has_none, simple_types, other_types
-
-    @classmethod
-    def to_code(cls, has_none, simple_types, args: TypeValueCodeGenArgs):
         type_verbose = (
             f"{'NoneType/' if has_none else ''}"
             f"{'/'.join(type_.__name__ for type_ in simple_types)}"
         )
         conditions: "List[BaseConversion]" = []
+
         if has_none:
             conditions.append(c.this.is_(None))
+
         if simple_types:
             conditions.append(
                 c.escaped_string("isinstance").call(
@@ -111,10 +132,7 @@ class Type(BaseValidator):
             .not_()
             .gen_code_and_update_ctx(args.data_code, args.ctx)
         )
-        set_error_code = (
-            f'{args.errors_code}[{args.name_code}]["type"] = '
-            f'f"{{type({args.data_code}).__name__}} instead of {type_verbose}"'
-        )
+        set_error_code = f'{args.errors_code}[{args.name_code}]["__ERRORS"] = {{{repr(cls.name)}: f"{{type({args.data_code}).__name__}} instead of {type_verbose}"}}'
         return bad_type_condition_code, set_error_code
 
 
@@ -136,7 +154,7 @@ class Regex(BaseValidator):
 
     def validate(self, field_name, data, errors):
         if not self.pattern.fullmatch(data):
-            errors[field_name][self.name] = "failed"
+            errors[field_name]["__ERRORS"] = {self.name: "failed"}
         else:
             return True
 
@@ -154,7 +172,9 @@ class Gt(BaseValidator):
         if data > self.value:
             return True
         else:
-            errors[field_name][self.name] = f"should be > {self.value}"
+            errors[field_name]["__ERRORS"] = {
+                self.name: f"should be > {self.value}"
+            }
 
 
 class Gte(BaseValidator):
@@ -170,7 +190,9 @@ class Gte(BaseValidator):
         if data >= self.value:
             return True
         else:
-            errors[field_name][self.name] = f"should be >= {self.value}"
+            errors[field_name]["__ERRORS"] = {
+                self.name: f"should be >= {self.value}"
+            }
 
 
 class Lt(BaseValidator):
@@ -186,7 +208,9 @@ class Lt(BaseValidator):
         if data < self.value:
             return True
         else:
-            errors[field_name][self.name] = f"should be < {self.value}"
+            errors[field_name]["__ERRORS"] = {
+                self.name: f"should be < {self.value}"
+            }
 
 
 class Lte(BaseValidator):
@@ -202,7 +226,9 @@ class Lte(BaseValidator):
         if data <= self.value:
             return True
         else:
-            errors[field_name][self.name] = f"should be <= {self.value}"
+            errors[field_name]["__ERRORS"] = {
+                self.name: f"should be <= {self.value}"
+            }
 
 
 class Custom(BaseValidator):
@@ -223,4 +249,42 @@ class Custom(BaseValidator):
         if self.func(data):
             return True
         else:
-            errors[field_name][self.name] = "failed"
+            errors[field_name]["__ERRORS"] = {self.name: "failed"}
+
+
+class Decimal(BaseValidator):
+    """Decimal validator, which checks max_digits and decimal_places (precision
+    and scale PostgreSQL counterparts)"""
+
+    ensures_type = Decimal_
+    name = "decimal"
+
+    def __init__(self, max_digits, decimal_places):
+        if max_digits < decimal_places:
+            raise ValueError(
+                "max_digits should be greater than or equal to decimal_places"
+            )
+        self.max_digits = max_digits
+        self.decimal_places = decimal_places
+
+    def validate(self, field_name, data, errors):
+        if isinstance(data, Decimal_):
+            decimal_tuple = data.as_tuple()
+            digits_length = len(decimal_tuple.digits)
+            if digits_length > self.max_digits:
+                errors[field_name]["__ERRORS"] = {
+                    "max_digits": f"{data} should have <= {self.max_digits} total digits"
+                }
+            elif -decimal_tuple.exponent > self.decimal_places:
+                errors[field_name]["__ERRORS"] = {
+                    "decimal_places": f"{data} should have <= {self.decimal_places} decimal places"
+                }
+            elif (
+                digits_length + min(decimal_tuple.exponent, 0)
+                > self.max_digits - self.decimal_places
+            ):
+                errors[field_name]["__ERRORS"] = {
+                    "integer_digits": f"{data} should have <= {self.max_digits - self.decimal_places} integer digits"
+                }
+        else:
+            errors[field_name]["__ERRORS"] = {"type": "not a Decimal"}

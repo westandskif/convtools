@@ -5,12 +5,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from convtools import conversion as c
-from convtools.base import (
-    LazyEscapedString,
-    Namespace,
-    NamespaceCtx,
-    PipeConversion,
-)
+from convtools.base import LazyEscapedString, Namespace
 from convtools.utils import Code
 
 
@@ -289,6 +284,8 @@ def test_naive_conversion_item():
     assert (c.naive(5) % c.this).execute(2) == c(5).mod(c.this).execute(2) == 1
 
     assert c.this.eq(1).eq(1).execute(1) == (c.this == 1).execute(1)
+    assert c.this.eq(c.this == 2).execute(2) is False
+    assert c.eq(c.this, c.this * 1, 7).execute(7) is True
 
 
 def test_item():
@@ -422,6 +419,12 @@ def test_naive_conversion_or_and():
         == c.and_(c.this, 1, 2).or_(3).execute(1)
         == 2
     )
+
+    assert c.this.or_(c.or_(c.this, 3)).execute(0) == 3
+    assert (c.this | (c.this | 3)).execute(0) == 3
+
+    assert c.this.and_(c.and_(c.this, 3)).execute(1) == 3
+    assert (c.this & (c.this & 3)).execute(1) == 3
 
 
 def test_escaped_string_conversion():
