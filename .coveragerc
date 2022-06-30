@@ -14,6 +14,7 @@ source =
 exclude_lines =
     # Have to re-enable the standard pragma
     pragma: no cover
+    if TYPE_CHECKING:
 
     PY_VERSION
 

@@ -69,7 +69,9 @@ What's the workflow?
    obj, errors = build(ResponseModel[t.List[UserModel]], input_data)
 
    In [4]: obj
-   Out[4]: ResponseModel(data=[UserModel(name='John', age=21, addresses=[AddressModel(country=<Countries.BR: 'BR'>, state='SP', city='São Paulo', street=None)])])
+   Out[4]: ResponseModel(data=[
+               UserModel(name='John', age=21, addresses=[
+                   AddressModel(country=<Countries.BR: 'BR'>, state='SP', city='São Paulo', street=None)])])
    
    In [5]: obj.data[0].addresses[0].country
    Out[5]: <Countries.BR: 'BR'>
@@ -92,12 +94,8 @@ What's the workflow?
    input_data["data"][0]["age"] = 21.1
    obj, errors = build(ResponseModel[t.List[UserModel]], input_data)
 
-   In [8]: errors
-   Out[8]:
-   defaultdict(dict,
-               {'data': defaultdict(dict,
-                            {0: defaultdict(dict,
-                                         {'age': {'int_caster': 'losing fractional part: 21.1; if desired, use casters.IntLossy'}})})})
+   In [5]: errors
+   Out[5]: {'data': {0: {'age': {'__ERRORS': {'int_caster': 'losing fractional part: 21.1; if desired, use casters.IntLossy'}}}}}
 
 
 **Contrib / Table** - stream processing of table-like data

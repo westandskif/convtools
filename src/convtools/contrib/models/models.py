@@ -1,5 +1,4 @@
 """Defines top-level models and methods to initialize them"""
-from collections import defaultdict
 from functools import lru_cache
 from typing import Tuple, Type, TypeVar, Union
 
@@ -7,8 +6,14 @@ from convtools import conversion as c
 from convtools.base import BaseConversion
 from convtools.utils import Code
 
-from .base import TypeValueCodeGenArgs, ValidationError
+from .base import (
+    CastOverrides,
+    ErrorsDict,
+    TypeValueCodeGenArgs,
+    ValidationError,
+)
 from .type_handlers import type_value_to_code
+from .utils import TypeValueWrapper
 
 
 class TypeConversionRunCtx:
@@ -30,15 +35,15 @@ class TypeConversion(BaseConversion):
         | BaseConversion.ContentTypes.NAIVE_USAGE
     )
 
-    def __init__(self, type_value):
+    def __init__(self, type_value_wrapper: TypeValueWrapper):
         super().__init__()
-        self.type_value = type_value
+        self.type_value_wrapper = type_value_wrapper
         self.tracks_visited = False
         self.requires_versions = False
 
     def _to_code(self, code_input, ctx):
         code = Code()
-        ctx["defaultdict"] = defaultdict
+        ctx["ErrorsDict"] = ErrorsDict
         ctx["TypeConversionRunCtx"] = TypeConversionRunCtx
 
         # hiding this parameter from gen_converter
@@ -46,14 +51,16 @@ class TypeConversion(BaseConversion):
         code.add_line("RUN_CTX_ PLACEHOLDER", 0)
         run_ctx_line = len(code.lines_info) - 1
 
-        code.add_line("errors_ = defaultdict(dict)", 0)
+        code.add_line("errors_ = ErrorsDict()", 0)
 
         type_value_to_code(
             TypeValueCodeGenArgs(
-                code_suffix=self.gen_name("", ctx, self.type_value),
+                code_suffix=self.gen_name(
+                    "", ctx, self.type_value_wrapper.type_value
+                ),
                 code=code,
-                type_value=self.type_value,
-                name_code=repr("root"),
+                type_value=self.type_value_wrapper.type_value,
+                name_code=repr("__ROOT"),
                 data_code="data_",
                 errors_code="errors_",
                 base_conversion=self,
@@ -61,7 +68,13 @@ class TypeConversion(BaseConversion):
                 level=0,
                 type_var_to_type_value={},
                 type_to_model_meta={},
-            )
+                cast=self.type_value_wrapper.cast,
+                cast_overrides_stack=(
+                    (self.type_value_wrapper.cast_overrides,)
+                    if self.type_value_wrapper.cast_overrides
+                    else ()
+                ),
+            ),
         )
         code.lines_info[run_ctx_line] = (
             code.lines_info[run_ctx_line][0],
@@ -70,6 +83,7 @@ class TypeConversion(BaseConversion):
             else "run_ctx_ = None",
         )
         code.add_line("if errors_:", 1)
+        code.add_line("errors_.lock()", 0)
         code.add_line("return None, errors_", -1)
         code.add_line("return data_, None", 0)
         return code
@@ -79,7 +93,9 @@ class TypeConversion(BaseConversion):
         with function_ctx:
             function_ctx.add_arg("data_", c.this)
 
-            code_suffix = self.gen_name("", ctx, self.type_value)
+            code_suffix = self.gen_name(
+                "", ctx, self.type_value_wrapper.type_value
+            )
             converter_name = f"type_conversion{code_suffix}"
 
             code = Code()
@@ -103,12 +119,13 @@ def set_max_cache_size(cache_size):
 
     @lru_cache(maxsize=cache_size)
     def type_value_to_converter(
-        type_value,
+        type_value_wrapper: TypeValueWrapper,
     ):  # pylint: disable=redefined-outer-name
+        type_value_wrapper.validate_args()
         # with c.OptionsCtx() as options:
         #     options.debug = True
-        #     return TypeConversion(type_value).gen_converter()
-        return TypeConversion(type_value).gen_converter()
+        #     return TypeConversion(type_value_wrapper).gen_converter()
+        return TypeConversion(type_value_wrapper).gen_converter()
 
     globals()["type_value_to_converter"] = type_value_to_converter
     return type_value_to_converter
@@ -120,12 +137,26 @@ type_value_to_converter = set_max_cache_size(128)
 T = TypeVar("T")
 
 
-def build(model: Type[T], data) -> Union[Tuple[T, None], Tuple[None, dict]]:
-    return type_value_to_converter(model)(data)
+def build(
+    model: Type[T],
+    data,
+    cast: bool = False,
+    cast_overrides: CastOverrides = None,
+) -> Union[Tuple[T, None], Tuple[None, dict]]:
+    return type_value_to_converter(
+        TypeValueWrapper(model, cast, cast_overrides)
+    )(data)
 
 
-def build_or_raise(model: Type[T], data) -> T:
-    obj, errors = type_value_to_converter(model)(data)
+def build_or_raise(
+    model: Type[T],
+    data,
+    cast: bool = False,
+    cast_overrides: CastOverrides = None,
+) -> T:
+    obj, errors = type_value_to_converter(
+        TypeValueWrapper(model, cast, cast_overrides)
+    )(data)
     if obj is None:
         raise ValidationError(errors)
     return obj

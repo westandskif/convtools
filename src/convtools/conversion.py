@@ -22,6 +22,7 @@ from .base import (
     Dict,
     DictComp,
     DropWhile,
+    Eq,
     EscapedString,
     FilterConversion,
     GeneratorComp,
@@ -92,6 +93,7 @@ class Conversion:
     or_ = Or
     not_ = Not
     if_ = If
+    eq = Eq
 
     this = This
 

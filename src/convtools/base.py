@@ -633,13 +633,28 @@ class BaseConversion(t.Generic[CT]):
         return ensure_conversion(callable_).call(self)
 
     def or_(self, *args, **kwargs) -> "Or":
-        return Or(self, *args, **kwargs)
+        resulting_args = []
+        for arg in chain((self,), args):
+            if isinstance(arg, Or):
+                resulting_args.extend(arg.args)
+            else:
+                resulting_args.append(arg)
+
+        return Or(*resulting_args, **kwargs)
 
     def __or__(self, b) -> "Or":
         return self.or_(b)
 
     def and_(self, *args, **kwargs) -> "And":
-        return And(self, *args, **kwargs)
+        resulting_args = []
+
+        for arg in chain((self,), args):
+            if isinstance(arg, And):
+                resulting_args.extend(arg.args)
+            else:
+                resulting_args.append(arg)
+
+        return And(*resulting_args, **kwargs)
 
     def __and__(self, b) -> "And":
         return self.and_(b)
@@ -662,8 +677,8 @@ class BaseConversion(t.Generic[CT]):
     def not_in(self, arg) -> "InlineExpr":
         return InlineExpr("{0} not in {1}").pass_args(self, arg)
 
-    def eq(self, *args, **kwargs) -> "Eq":
-        return Eq(self, *args, **kwargs)
+    def eq(self, b, *args) -> "Eq":
+        return Eq(self, b, *args)
 
     def __eq__(self, b) -> "Eq":  # type: ignore
         return Eq(self, b)
@@ -1317,9 +1332,6 @@ class Or(OrAndEqBaseConversion):
 
     op = " or "
 
-    def or_(self, *args, **kwargs) -> "Or":
-        return self.__class__(*self.args, *args, **kwargs)
-
 
 class And(OrAndEqBaseConversion):
     """Takes any number of objects, each is to be wrapped with
@@ -1335,9 +1347,6 @@ class And(OrAndEqBaseConversion):
 
     op = " and "
 
-    def and_(self, *args, **kwargs) -> "And":
-        return self.__class__(*self.args, *args, **kwargs)
-
 
 class Eq(OrAndEqBaseConversion):
     """Takes any number of objects, each is to be wrapped with
@@ -1352,9 +1361,6 @@ class Eq(OrAndEqBaseConversion):
     """
 
     op = " == "
-
-    def eq(self, *args, **kwargs) -> "Eq":
-        return self.__class__(*self.args, *args, **kwargs)
 
 
 class If(BaseConversion):
