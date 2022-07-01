@@ -3,4 +3,4 @@ This object exposes the public API of conversions."""
 from .conversion import conversion  # noqa: F401
 
 
-__version__ = "0.26.0"
+__version__ = "0.27.0"

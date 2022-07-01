@@ -50,6 +50,19 @@ else:  # if PY_VERSION > (3, 6): -- comment for .coveragerc
         return alias.__origin__ is dict
 
 
+if PY_VERSION <= (3, 7):
+
+    def is_generic_literal_alias(obj):  # pylint: disable=unused-argument
+        return False
+
+else:
+
+    from typing import Literal
+
+    def is_generic_literal_alias(obj):
+        return obj.__origin__ is Literal
+
+
 def ensure_generic_alias_has_args(alias, type_var_to_type_value):
     if is_generic_alias(alias):
         if alias.__parameters__:

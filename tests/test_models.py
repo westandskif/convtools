@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 import typing as t
 from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal
@@ -29,6 +30,8 @@ from convtools.contrib.models.base import ErrorsDict
 from convtools.contrib.models.models import TypeConversion
 from convtools.contrib.models.utils import TypeValueWrapper
 
+
+PY_VERSION = sys.version_info[0:2]
 
 T = t.TypeVar("T")
 U = t.TypeVar("U")
@@ -1491,6 +1494,72 @@ def test_model__cast_overrides():
 
     obj, errors = build(TestModel[int], {"a": 1.5})
     assert obj.a == 1
+
+
+if PY_VERSION >= (3, 8):
+
+    def test_model__literal():
+        class TestModel(DictModel):
+            a: t.Literal[1, "2"]
+
+        obj, errors = build(TestModel, {"a": 1})
+        assert obj.a == 1
+        obj, errors = build(TestModel, {"a": 2})
+        assert errors["a"]["__ERRORS"]["literal"]
+        obj, errors = build(TestModel, {"a": "2"})
+        assert obj.a == "2"
+
+        d = {}
+
+        class TestModel(DictModel):
+            a: t.Literal[1, d]
+
+        obj, errors = build(TestModel, {"a": 1})
+        assert obj.a == 1
+        obj, errors = build(TestModel, {"a": d})
+        assert obj.a is d
+        obj, errors = build(TestModel, {"a": {}})
+        assert obj.a is not d and obj.a == d
+        obj, errors = build(TestModel, {"a": {"abc": 1}})
+        assert errors["a"]["__ERRORS"]["literal"]
+
+        class TestModel(DictModel):
+            a: t.Optional[t.Literal[1, "2"]] = cast()
+
+        obj, errors = build(TestModel, {"a": 1})
+        assert obj.a == 1
+        obj, errors = build(TestModel, {"a": 2})
+        assert errors["a"]["__ERRORS"]["literal"]
+        obj, errors = build(TestModel, {"a": "2"})
+        assert obj.a == "2"
+        obj, errors = build(TestModel, {"a": None})
+        assert obj.a is None
+
+
+def test_model__bool():
+    class TestModel(DictModel):
+        a: bool
+
+    obj, errors = build(TestModel, {"a": 1})
+    assert errors["a"]["__ERRORS"]["type"]
+    obj, errors = build(TestModel, {"a": None})
+    assert errors["a"]["__ERRORS"]["type"]
+    obj, errors = build(TestModel, {"a": True})
+    assert obj.a is True
+    obj, errors = build(TestModel, {"a": False})
+    assert obj.a is False
+
+    class TestModel(DictModel):
+        a: bool = cast()
+
+    obj, errors = build(TestModel, {"a": 1})
+    assert obj.a is True
+    obj, errors = build(TestModel, {"a": None})
+    assert obj.a is False
+    obj, errors = build(TestModel, {"a": True})
+    assert obj.a is True
+    obj, errors = build(TestModel, {"a": False})
+    assert obj.a is False
 
 
 @pytest.fixture

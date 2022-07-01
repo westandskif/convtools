@@ -1,3 +1,12 @@
+0.27.0 (2022-07-01)
+___________________
+
+Experimental - contrib.model:
++++++++++++++++++++++++++++++
+
+- added ``a: bool = cast()`` support
+- added ``typing.Literal`` support
+
 0.26.0 (2022-06-30)
 ___________________
 

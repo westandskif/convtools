@@ -122,10 +122,10 @@ def set_max_cache_size(cache_size):
         type_value_wrapper: TypeValueWrapper,
     ):  # pylint: disable=redefined-outer-name
         type_value_wrapper.validate_args()
+        return TypeConversion(type_value_wrapper).gen_converter()
         # with c.OptionsCtx() as options:
         #     options.debug = True
         #     return TypeConversion(type_value_wrapper).gen_converter()
-        return TypeConversion(type_value_wrapper).gen_converter()
 
     globals()["type_value_to_converter"] = type_value_to_converter
     return type_value_to_converter

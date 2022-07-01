@@ -1,7 +1,7 @@
 """
 Contains implementation of base casters.
 """
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal as Decimal_
 from decimal import InvalidOperation
 
@@ -59,6 +59,8 @@ class Str(SimpleCaster):
 class DatetimeFromStr(SimpleCaster):
     """str to datetime caster"""
 
+    ensures_type = datetime
+
     def __init__(self, fmt):
         super().__init__("datetime_from_str")
         self.fmt = fmt
@@ -75,6 +77,8 @@ class DatetimeFromStr(SimpleCaster):
 class DateFromStr(SimpleCaster):
     """str to date caster"""
 
+    ensures_type = date
+
     def __init__(self, fmt):
         super().__init__("date_from_str")
         self.fmt = fmt
@@ -89,9 +93,13 @@ class DateFromStr(SimpleCaster):
 
 
 class Enum(SimpleCaster):
+    """casts anything to the provided Enum by calling it, passing data as
+    argument"""
+
     def __init__(self, enum_cls):
         super().__init__("enum_caster")
         self.enum_cls = enum_cls
+        self.ensures_type = enum_cls
 
     def _cast(self, field_name, data, errors):
         try:
@@ -106,6 +114,7 @@ class IntLossy(SimpleCaster):
     """Tries to cast anything to int, doesn't prevent decimal part loss"""
 
     exceptions = (TypeError, ValueError)
+    ensures_type = int
 
     def __init__(self):
         super().__init__("int_lossy_caster")
@@ -130,6 +139,7 @@ class Int(SimpleCaster):
     possible or it results in decimal part loss"""
 
     exceptions = (TypeError, ValueError)
+    ensures_type = int
 
     def __init__(self):
         super().__init__("int_caster")
@@ -153,8 +163,17 @@ class Int(SimpleCaster):
             }
 
 
+class Bool(BaseCaster):
+    """Casts anything to bool"""
+
+    ensures_type = bool
+
+    def to_code(self, args: TypeValueCodeGenArgs):
+        args.code.add_line(f"{args.data_code} = bool({args.data_code})", 0)
+
+
 class NaiveCaster(SimpleCaster):
-    """Tries to cast anything to float"""
+    """Tries to cast anything to a given type"""
 
     exceptions = (TypeError, ValueError)
 
@@ -162,6 +181,7 @@ class NaiveCaster(SimpleCaster):
         super().__init__(name)
         self.type_ = type_
         self.exceptions = exceptions
+        self.ensures_type = type_
 
     def _cast(self, field_name, data, errors):
         if isinstance(data, self.type_):

@@ -34,6 +34,7 @@ from .utils import (
     is_generic_alias,
     is_generic_dict_alias,
     is_generic_list_alias,
+    is_generic_literal_alias,
     is_generic_tuple_alias,
     is_generic_union_alias,
     is_model_cls,
@@ -44,6 +45,8 @@ from .validators.validators import Type as TypeValidator
 
 if TYPE_CHECKING:
     from convtools.base import BaseConversion
+
+PY_VERSION = sys.version_info[0:2]
 
 
 def prepare_model_type(model, type_var_to_type_value):
@@ -985,6 +988,27 @@ def list_type_to_code(outer_args: TypeValueCodeGenArgs):
     return has_mutations or outer_args.cast
 
 
+if PY_VERSION >= (3, 8):
+
+    def literal_type_to_code(outer_args: TypeValueCodeGenArgs):
+        try:
+            args = set(outer_args.type_value.__args__)
+        except TypeError:
+            args = outer_args.type_value.__args__
+        bad_condition_code = (
+            c.escaped_string(outer_args.data_code)
+            .not_in(c.naive(args))
+            .gen_code_and_update_ctx("not needed", outer_args.ctx)
+        )
+        code = outer_args.code
+        code.add_line(f"if {bad_condition_code}:", 1)
+        code.add_line(
+            f'{outer_args.errors_code}[{outer_args.name_code}]["__ERRORS"] = {{"literal": f"{{repr({outer_args.data_code})}} is invalid value" }}',
+            -1,
+        )
+        return False
+
+
 def is_model(type_value):
     return (  # pylint: disable=consider-using-ternary
         is_generic_alias(type_value)
@@ -1050,6 +1074,9 @@ def type_value_to_code(args: TypeValueCodeGenArgs):
                 args._replace(level=args.level + 1)
             )
         return tuple_finite_type_to_code(args._replace(level=args.level + 1))
+
+    elif is_generic_literal_alias(type_value):
+        return literal_type_to_code(args._replace(level=args.level + 1))
 
     else:
         raise ValueError(f"{type_value} is not supported yet")

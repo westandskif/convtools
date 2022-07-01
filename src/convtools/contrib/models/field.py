@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from .base import BaseCaster, BaseModel, CastOverrides, _none
 from .casters.base import CasterToFinalType, TypeCaster
+from .casters.casters import Bool as BoolCaster
 from .casters.casters import DateFromStr as DateFromStrCaster
 from .casters.casters import Decimal as DecimalCaster
 from .casters.casters import Enum as EnumCaster
@@ -106,6 +107,7 @@ class FieldProcessingPipeline:
 
 
 type_to_predefined_caster = {
+    bool: BoolCaster(),
     list: NaiveCaster("list_caster", list, TypeError),
     tuple: NaiveCaster("tuple_caster", tuple, TypeError),
     dict: NaiveCaster("dict_caster", dict, (TypeError, ValueError)),

@@ -5,6 +5,7 @@ from decimal import Decimal
 from math import ceil
 
 from .base import (
+    CT,
     BaseConversion,
     CallFunc,
     CodeGenerationOptionsCtx,
@@ -299,7 +300,7 @@ def {converter_name}({code_args}):
 RT = t.TypeVar("RT", bound="BaseReducer")
 
 
-class BaseReducer(BaseConversion, t.Generic[RBT]):
+class BaseReducer(BaseConversion, t.Generic[RBT, CT]):
     """Base of a reduce operation to be used during the aggregation"""
 
     expressions: t.Tuple[t.Any, ...]
@@ -581,7 +582,7 @@ class Reduce(BaseReducer):
         return block_cls(**kwargs)
 
 
-class GroupBy(BaseConversion, t.Generic[RBT]):
+class GroupBy(BaseConversion, t.Generic[RBT, CT]):
     """Generates the function which aggregates the data, grouping by
     conversions, specified in `__init__` method and returns list of items in a
     format defined by the parameter passed to ``aggregate`` method.

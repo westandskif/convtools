@@ -280,6 +280,7 @@ Type casting is explicit and is requested as follows:
 When ``cast()`` is run without arguments (failures generate proper errors):
 ***************************************************************************
 
+* ``bool`` - data is casted like ``bool(data)``
 * ``str`` - :py:obj:`Str<convtools.contrib.models.casters.casters.Str>` casts
   to str; bytes are decoded using "utf-8" encoding
 * ``float`` - data is wrapped like ``float(data)``
@@ -301,6 +302,8 @@ When ``cast()`` is run without arguments (failures generate proper errors):
 * ``t.Optional`` leaves ``None`` as-is; tries to cast the rest to the given type
 * ``t.Union`` tries to cast the data to every given type from left to right
   until the first success
+* `(python>=3.8)` ``t.Literal`` - leaves data as-is. Value correctness is
+  ensured by type checking
 
 Built-in casters for explicit use:
 **********************************
