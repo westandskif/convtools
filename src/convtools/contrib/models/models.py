@@ -26,6 +26,14 @@ class TypeConversionRunCtx:
         TypeConversionRunCtx.counter += 1
 
 
+def union_path_to_indexes(path):
+    if isinstance(path, tuple):
+        for path_ in path:
+            yield from union_path_to_indexes(path_)
+    else:
+        yield path
+
+
 class TypeConversion(BaseConversion):
     """Defines convtools conversion, which generates data validation/casting
     code."""
@@ -40,6 +48,7 @@ class TypeConversion(BaseConversion):
         self.type_value_wrapper = type_value_wrapper
         self.tracks_visited = False
         self.requires_versions = False
+        self.union_args_getter = None
 
     def _to_code(self, code_input, ctx):
         code = Code()
@@ -53,6 +62,7 @@ class TypeConversion(BaseConversion):
 
         code.add_line("errors_ = ErrorsDict()", 0)
 
+        union_paths = []
         type_value_to_code(
             TypeValueCodeGenArgs(
                 code_suffix=self.gen_name(
@@ -74,8 +84,23 @@ class TypeConversion(BaseConversion):
                     if self.type_value_wrapper.cast_overrides
                     else ()
                 ),
+                path_before_model=(),
+                model_depth=0,
+                union_paths=union_paths,
             ),
         )
+        if union_paths:
+            conversions = []
+            for path in union_paths:
+                conversion = c.this
+                for index in union_path_to_indexes(path):
+                    if isinstance(index, int):
+                        conversion = conversion.item(index)
+                    else:
+                        conversion = conversion.attr(index)
+                conversions.append(conversion.attr("__args__"))
+            self.union_args_getter = c.tuple(*conversions).gen_converter()
+
         code.lines_info[run_ctx_line] = (
             code.lines_info[run_ctx_line][0],
             f"run_ctx_ = TypeConversionRunCtx({self.tracks_visited})"
@@ -122,10 +147,17 @@ def set_max_cache_size(cache_size):
         type_value_wrapper: TypeValueWrapper,
     ):  # pylint: disable=redefined-outer-name
         type_value_wrapper.validate_args()
-        return TypeConversion(type_value_wrapper).gen_converter()
+        type_conversion = TypeConversion(type_value_wrapper)
+
+        converter = type_conversion.gen_converter()
         # with c.OptionsCtx() as options:
         #     options.debug = True
-        #     return TypeConversion(type_value_wrapper).gen_converter()
+        #     converter = type_conversion.gen_converter()
+
+        type_value_wrapper.union_args_getter = (
+            type_conversion.union_args_getter
+        )
+        return converter
 
     globals()["type_value_to_converter"] = type_value_to_converter
     return type_value_to_converter

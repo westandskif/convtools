@@ -739,34 +739,38 @@ def test_model__exceptions():
     with pytest.raises(ValueError):
 
         class TestModel(DictModel):
-            a: t.Set[str] = cast(t.Set[str])
+            a: t.Sequence[str] = cast(t.Sequence[str])
 
         build(TestModel, {"a": None})
 
     from convtools.contrib.models.base import TypeValueCodeGenArgs
     from convtools.contrib.models.type_handlers import type_value_to_code
 
+    args = TypeValueCodeGenArgs(
+        None,
+        None,
+        object(),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
     with pytest.raises(Exception):
-        type_value_to_code(
-            TypeValueCodeGenArgs(
-                None,
-                None,
-                object(),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
-        )
+        type_value_to_code(args)
 
     with pytest.raises(Exception):
 
         class TestModel(DictModel):
-            a: t.Set[int]
+            a: t.Sequence[int]
 
         build(TestModel, {"a": (1,)})
 
@@ -1178,6 +1182,34 @@ def test_model__errors_dict():
     errors_2 = errors.get_lazy_item("a")
     assert errors_2 is errors["a"]
 
+    class TestModel(DictModel):
+        a: int
+        list_: list[int]
+        dict_: dict[int, int]
+        tuple_: tuple[int, int]
+        set_: set[int]
+
+    obj, errors = build(
+        TestModel,
+        {
+            "a": "b",
+            "list_": [1, "2"],
+            "dict_": {7.0: "10"},
+            "tuple_": (3.0, 4.0),
+            "set_": {"5", "6"},
+        },
+    )
+    assert (
+        errors["a"]["__ERRORS"]["type"]
+        and errors["dict_"]["__KEYS"][7.0]["__ERRORS"]["type"]
+        and errors["dict_"]["__VALUES"][7.0]["__ERRORS"]["type"]
+        and errors["list_"][1]["__ERRORS"]["type"]
+        and errors["set_"]["__SET_ITEMS"]["5"]["__ERRORS"]["type"]
+        and errors["set_"]["__SET_ITEMS"]["6"]["__ERRORS"]["type"]
+        and errors["tuple_"][0]["__ERRORS"]["type"]
+        and errors["tuple_"][1]["__ERRORS"]["type"]
+    )
+
 
 def test_model__tuple():
     obj, errors = build(t.Tuple[int, str], (1, "abc"))
@@ -1279,6 +1311,28 @@ def test_model__tuple():
 
     obj, errors = build(TestModel, {"value": ["1"]})
     assert obj.value == (1,)
+
+
+def test_model__set():
+    class TestModel(DictModel):
+        a: t.Set[str]
+
+    obj, errors = build(TestModel, {"a": {"1", "2"}})
+    assert obj.a == {"1", "2"}
+    obj, errors = build(TestModel, {"a": {1, "2"}})
+    assert errors["a"]["__SET_ITEMS"][1]["__ERRORS"]["type"]
+
+    class TestModel(DictModel):
+        a: t.Set[str] = cast()
+
+    obj, errors = build(TestModel, {"a": {1, "2"}})
+    assert obj.a == {"1", "2"}
+
+    class TestModel(DictModel):
+        a: t.Set[t.Union[int, str]] = cast()
+
+    obj, errors = build(TestModel, {"a": {1, "2", 3.0, "4.0"}})
+    assert obj.a == {1, 2, 3, "4.0"}
 
 
 def test_model__cast_overrides():
@@ -1560,6 +1614,36 @@ def test_model__bool():
     assert obj.a is True
     obj, errors = build(TestModel, {"a": False})
     assert obj.a is False
+
+
+# TODO: support sets
+if PY_VERSION >= (3, 10):
+
+    def test_model__simplified_typing():
+        class TestModel(DictModel):
+            a_1: list[int] = field("a").cast()
+            a_2: t.List[int] = field("a").cast()
+            b_1: int | str = field("b").cast()
+            b_2: t.Union[int, str] = field("b").cast()
+
+        obj, errors = build(TestModel, {"a": ("1", 2.0), "b": 3.5})
+        assert (
+            obj.a_1 == [1, 2]
+            and obj.a_2 == [1, 2]
+            and obj.b_1 == "3.5"
+            and obj.b_2 == "3.5"
+        )
+
+
+if PY_VERSION == (3, 9):
+
+    def test_model__simplified_typing():
+        class TestModel(DictModel):
+            a_1: list[int] = field("a").cast()
+            a_2: t.List[int] = field("a").cast()
+
+        obj, errors = build(TestModel, {"a": ("1", 2.0)})
+        assert obj.a_1 == [1, 2] and obj.a_2 == [1, 2]
 
 
 @pytest.fixture

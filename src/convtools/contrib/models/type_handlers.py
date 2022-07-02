@@ -35,9 +35,10 @@ from .utils import (
     is_generic_dict_alias,
     is_generic_list_alias,
     is_generic_literal_alias,
+    is_generic_set_alias,
     is_generic_tuple_alias,
-    is_generic_union_alias,
     is_model_cls,
+    is_union,
 )
 from .validators.validators import BaseValidator
 from .validators.validators import Type as TypeValidator
@@ -535,7 +536,7 @@ def simple_type_to_code(args: TypeValueCodeGenArgs):
             caster = try_simple_type_to_caster(args.type_value)
             if caster is None:
                 raise ValueError(
-                    f"automatic casting to {args.type_value.__name__} is not supported"
+                    f"automatic casting to {args.type_value} is not supported"
                 )
             caster.to_code(args)
 
@@ -571,6 +572,11 @@ def union_type_to_code(args: TypeValueCodeGenArgs):
         else:
             last_index = len(type_values) - 1
 
+        name_code = (
+            f"backup_{args.level}"
+            if args.name_code == args.data_code
+            else args.name_code
+        )
         if last_index > 0:
             code.add_line(f"backup_{args.level} = {args.data_code}", 0)
         for index, type_value in enumerate(
@@ -578,8 +584,8 @@ def union_type_to_code(args: TypeValueCodeGenArgs):
         ):
             type_value_to_code(args._replace(type_value=type_value))
             if index != last_index:
-                code.add_line(f"if {args.name_code} in {args.errors_code}:", 1)
-                code.add_line(f"del {args.errors_code}[{args.name_code}]", 0)
+                code.add_line(f"if {name_code} in {args.errors_code}:", 1)
+                code.add_line(f"del {args.errors_code}[{name_code}]", 0)
                 code.add_line(f"{args.data_code} = backup_{args.level}", 0)
     else:
         chunks = TypeValidator.chunk_types_to_simple_and_other(type_values)
@@ -695,6 +701,11 @@ def dict_type_to_code(outer_args: TypeValueCodeGenArgs):
                     name_code=key_code,
                     data_code=key_code,
                     errors_code=dict_errors_key_code,
+                    path_before_model=(
+                        outer_args.path_before_model
+                        if outer_args.model_depth
+                        else (outer_args.path_before_model, "__args__", 0)
+                    ),
                 ),
             ),
             type_value_to_code(
@@ -704,6 +715,11 @@ def dict_type_to_code(outer_args: TypeValueCodeGenArgs):
                     name_code=key_code,
                     data_code=value_code,
                     errors_code=dict_errors_value_code,
+                    path_before_model=(
+                        outer_args.path_before_model
+                        if outer_args.model_depth
+                        else (outer_args.path_before_model, "__args__", 1)
+                    ),
                 ),
             ),
         )
@@ -778,6 +794,11 @@ def tuple_finite_type_to_code(outer_args: TypeValueCodeGenArgs):
                     type_value=type_arg,
                     name_code=str(index),
                     data_code=f"{outer_args.data_code}[{index}]",
+                    path_before_model=(
+                        outer_args.path_before_model
+                        if outer_args.model_depth
+                        else (outer_args.path_before_model, "__args__", index)
+                    ),
                 )
             )
 
@@ -836,6 +857,11 @@ def tuple_finite_type_to_code(outer_args: TypeValueCodeGenArgs):
                 type_value=type_arg,
                 name_code=str(index),
                 data_code=item_code,
+                path_before_model=(
+                    outer_args.path_before_model
+                    if outer_args.model_depth
+                    else (outer_args.path_before_model, "__args__", index)
+                ),
             ),
         )
 
@@ -881,6 +907,11 @@ def tuple_variadic_type_to_code(outer_args: TypeValueCodeGenArgs):
         name_code=f"index_{level}",
         data_code=f"item_{level}",
         errors_code=f"errors_{level}",
+        path_before_model=(
+            outer_args.path_before_model
+            if outer_args.model_depth
+            else (outer_args.path_before_model, "__args__", 0)
+        ),
     )
     has_mutations = type_value_to_code(args)
 
@@ -950,6 +981,11 @@ def list_type_to_code(outer_args: TypeValueCodeGenArgs):
         name_code=f"index_{level}",
         data_code=f"item_{level}",
         errors_code=f"errors_{level}",
+        path_before_model=(
+            outer_args.path_before_model
+            if outer_args.model_depth
+            else (outer_args.path_before_model, "__args__", 0)
+        ),
     )
     has_mutations = type_value_to_code(args)
 
@@ -980,6 +1016,80 @@ def list_type_to_code(outer_args: TypeValueCodeGenArgs):
     else:
         code.add_line(
             f"for {args.name_code}, {args.data_code} in enumerate({outer_args.data_code}):",
+            1,
+        )
+        code.add_code(args.code)
+
+    code.indent_level = initial_indent_level
+    return has_mutations or outer_args.cast
+
+
+def set_type_to_code(outer_args: TypeValueCodeGenArgs):
+    code = outer_args.code
+    initial_indent_level = code.indent_level
+    level = outer_args.level
+
+    if outer_args.cast:
+        code.add_line("try:", 1)
+        code.add_line(
+            f"it_{outer_args.level} = iter({outer_args.data_code})", -1
+        )
+        code.add_line("except TypeError:", 1)
+        code.add_line(
+            f'{outer_args.errors_code}[{outer_args.name_code}]["__ERRORS"] = {{"type": f"{{type({outer_args.data_code}).__name__}} not iterable"}}',
+            -1,
+        )
+        code.add_line("else:", 1)
+    else:
+        bad_type_condition_code, set_error_code = TypeValidator.to_code(
+            (set,),
+            outer_args,
+        )
+        code.add_line(f"if {bad_type_condition_code}:", 1)
+        code.add_line(set_error_code, -1)
+        code.add_line("else:", 1)
+
+    args = outer_args._replace(
+        code=Code(),
+        type_value=outer_args.type_value.__args__[0],
+        name_code=f"item_{level}",
+        data_code=f"item_{level}",
+        errors_code=f"errors_{level}",
+        path_before_model=(
+            outer_args.path_before_model
+            if outer_args.model_depth
+            else (outer_args.path_before_model, "__args__", 0)
+        ),
+    )
+    has_mutations = type_value_to_code(args)
+
+    code.add_line(
+        f'{args.errors_code} = {outer_args.errors_code}.get_lazy_item({outer_args.name_code}).get_lazy_item("__SET_ITEMS")',
+        0,
+    )
+
+    indent_level_before_for = code.indent_level
+
+    if has_mutations or outer_args.cast:
+        result_code = f"result_{level}"
+        code.add_line(f"{result_code} = set()", 0)
+        code.add_line(
+            f"for {args.data_code} in {outer_args.data_code}:",
+            1,
+        )
+        code.add_code(args.code)
+        code.add_line(f"{result_code}.add({args.data_code})", 0)
+
+        code.indent_level = indent_level_before_for
+        code.add_line(
+            f"if {outer_args.name_code} not in {outer_args.errors_code}:", 1
+        )
+
+        code.add_line(f"{outer_args.data_code} = {result_code}", 0)
+
+    else:
+        code.add_line(
+            f"for {args.data_code} in {outer_args.data_code}:",
             1,
         )
         code.add_code(args.code)
@@ -1037,7 +1147,9 @@ def type_value_to_code(args: TypeValueCodeGenArgs):
             if hasattr(meta, "cast_overrides"):
                 kwargs["cast_overrides_stack"] = (meta.cast_overrides,)
 
-        model_type_to_code(args._replace(**kwargs))
+        model_type_to_code(
+            args._replace(model_depth=args.model_depth + 1, **kwargs)
+        )
         return True
 
     elif type_value is Any:
@@ -1047,36 +1159,40 @@ def type_value_to_code(args: TypeValueCodeGenArgs):
     elif isinstance(type_value, TypeVar):
         if type_value not in args.type_var_to_type_value:
             raise AssertionError("uninitialized TypeVar", type_value)
+        # TODO: think about union tracking inside typevars
         return type_value_to_code(
             args._replace(type_value=args.type_var_to_type_value[type_value]),
         )
 
-    elif not is_generic_alias(type_value):
-        if not isinstance(type_value, type):
-            raise ValueError(
-                f"{type_value} is not a type to validate or cast to"
-            )
-        return simple_type_to_code(args._replace(level=args.level + 1))
-
-    if is_generic_union_alias(type_value):
+    elif is_union(type_value):
+        if args.model_depth == 0:
+            args.union_paths.append(args.path_before_model)
         return union_type_to_code(args._replace(level=args.level + 1))
 
-    elif is_generic_list_alias(type_value):
-        return list_type_to_code(args._replace(level=args.level + 1))
+    elif is_generic_alias(type_value):
+        if is_generic_list_alias(type_value):
+            return list_type_to_code(args._replace(level=args.level + 1))
 
-    elif is_generic_dict_alias(type_value):
-        return dict_type_to_code(args._replace(level=args.level + 1))
+        if is_generic_dict_alias(type_value):
+            return dict_type_to_code(args._replace(level=args.level + 1))
 
-    elif is_generic_tuple_alias(type_value):
-        tuple_args = type_value.__args__
-        if len(tuple_args) == 2 and tuple_args[1] is ...:
-            return tuple_variadic_type_to_code(
+        if is_generic_tuple_alias(type_value):
+            tuple_args = type_value.__args__
+            if len(tuple_args) == 2 and tuple_args[1] is ...:
+                return tuple_variadic_type_to_code(
+                    args._replace(level=args.level + 1)
+                )
+            return tuple_finite_type_to_code(
                 args._replace(level=args.level + 1)
             )
-        return tuple_finite_type_to_code(args._replace(level=args.level + 1))
 
-    elif is_generic_literal_alias(type_value):
-        return literal_type_to_code(args._replace(level=args.level + 1))
+        if is_generic_literal_alias(type_value):
+            return literal_type_to_code(args._replace(level=args.level + 1))
+
+        if is_generic_set_alias(type_value):
+            return set_type_to_code(args._replace(level=args.level + 1))
+
+        raise ValueError(f"{type_value} is not supported yet")
 
     else:
-        raise ValueError(f"{type_value} is not supported yet")
+        return simple_type_to_code(args._replace(level=args.level + 1))

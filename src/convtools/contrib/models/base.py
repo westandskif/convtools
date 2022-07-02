@@ -28,6 +28,10 @@ TypeValueCodeGenArgs = namedtuple(
         "type_to_model_meta",
         "cast",
         "cast_overrides_stack",
+        # to track top level unions, because order matters
+        "path_before_model",
+        "model_depth",
+        "union_paths",
     ],
 )
 

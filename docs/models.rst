@@ -330,6 +330,8 @@ Response examples:
    from decimal import Decimal
 
    class UserModel(DictModel):
+       # numbers: list[int] = cast()  # python 3.9+ definitions work too
+
        numbers: t.List[int] = cast()  # casts each list item to int
        number: Decimal = cast()
 
@@ -451,3 +453,39 @@ to reset cache and/or change cache size, run the following function:
    from convtools.contrib.models import set_max_cache_size
 
    set_max_cache_size(256)
+
+
+7. Error format
+_______________
+
+Errors are formatted in a way, which should allow for automated error
+processing.
+
+.. code-block:: python
+
+   class TestModel(DictModel):
+       a: int
+       list_: list[int]
+       dict_: dict[int, int]
+       tuple_: tuple[int, int]
+       set_: set[int]
+
+   obj, errors = build(
+       TestModel,
+       {
+           "a": "b",
+           "list_": [1, "2"],
+           "dict_": {7.0: "10"},
+           "tuple_": (3.0, 4.0),
+           "set_": {"5", "6"},
+       },
+   )
+
+   {'a': {'__ERRORS': {'type': 'str instead of int'}},
+    'dict_': {'__KEYS': {7.0: {'__ERRORS': {'type': 'float instead of int'}}},
+              '__VALUES': {7.0: {'__ERRORS': {'type': 'str instead of int'}}}},
+    'list_': {1: {'__ERRORS': {'type': 'str instead of int'}}},
+    'set_': {'__SET_ITEMS': {'5': {'__ERRORS': {'type': 'str instead of int'}},
+                             '6': {'__ERRORS': {'type': 'str instead of int'}}}},
+    'tuple_': {0: {'__ERRORS': {'type': 'float instead of int'}},
+               1: {'__ERRORS': {'type': 'float instead of int'}}}}

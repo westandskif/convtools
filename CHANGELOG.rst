@@ -1,3 +1,13 @@
+0.28.0 (2022-07-03)
+___________________
+
+Experimental - contrib.model:
++++++++++++++++++++++++++++++
+
+- added ``typing.Set`` support
+- added ``X | Y`` type support (PEP 604 - Python 3.10+)
+- added ``list[int]``-like type definition support (Python 3.9+)
+
 0.27.0 (2022-07-01)
 ___________________
 
