@@ -465,10 +465,10 @@ processing.
 
    class TestModel(DictModel):
        a: int
-       list_: list[int]
-       dict_: dict[int, int]
-       tuple_: tuple[int, int]
-       set_: set[int]
+       list_: t.List[int]
+       dict_: t.Dict[int, int]
+       tuple_: t.Tuple[int, int]
+       set_: t.Set[int]
 
    obj, errors = build(
        TestModel,

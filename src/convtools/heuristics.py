@@ -43,7 +43,7 @@ def print_new_weights(sleep_time=0.2):  # pragma: no cover
             name_to_info[name]["iterations"] += iterations_
             name_to_info[name]["time"] += time_
 
-    print(f"#{'.'.join(sys.version_info[:3])}")
+    print(f"#{'.'.join(map(str, sys.version_info[:3]))}")
     print(
         "class Weights:  #type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811"
     )
