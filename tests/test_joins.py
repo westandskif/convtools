@@ -291,16 +291,16 @@ def test_left_join():
     join1 = (
         c.join(
             c.item(0),
-            c.item(1),
+            c.item(c.call_func(lambda: 1)),
             c.and_(
                 c.LEFT == c.RIGHT,
-                c.LEFT + c.RIGHT < 10,
+                c.LEFT + c.RIGHT < c.call_func(lambda: 10),
                 c.LEFT > 0,
             ),
             how="left",
         )
         .as_type(list)
-        .gen_converter(debug=False)
+        .gen_converter()
     )
     assert join1([(0, 1, 2, 3, 3), (3, 3, 4, 5)]) == [
         (0, None),

@@ -25,7 +25,9 @@ def test_mutation_item():
                     "name_after", c.label("_input").item(0, "name")
                 ),
                 c.Mut.set_item("_updated", c.input_arg("now")),
-                c.Mut.set_item(c.item("age"), c.item("age") >= 18),
+                c.Mut.set_item(
+                    c.item("age"), c.item("age") >= c.call_func(lambda: 18)
+                ),
                 c.Mut.del_item("to_del"),
                 c.Mut.custom(c.this.call_method("update", {"to_add": 2})),
                 c.this.call_method("update", {"to_add2": 4}),
@@ -33,7 +35,7 @@ def test_mutation_item():
         ),
         label_input="_input",
     ).execute(
-        [{"fullName": "John", "age": "28"}], debug=False, now=now
+        [{"fullName": "John", "age": "28"}], now=now
     ) == [
         {
             "name": "john",
@@ -94,7 +96,7 @@ def test_iter_mut_method():
         c.this.iter({"a": c.this})
         .iter_mut(
             c.Mut.set_item("b", c.item("a") + 1),
-            c.Mut.set_item("c", c.item("a") + 2),
+            c.Mut.set_item("c", c.item("a") + c.call_func(lambda: 2)),
         )
         .iter_mut(
             c.Mut.set_item("d", c.item("a") + 3),

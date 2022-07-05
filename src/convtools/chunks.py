@@ -83,14 +83,13 @@ class ChunkBy(BaseChunkBy):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("chunk_by", ctx, self)
-        function_ctx = (self.by or This()).as_function_ctx(ctx)
+        function_ctx = (self.by or This()).as_function_ctx(
+            ctx, optimize_naive=True
+        )
         function_ctx.add_arg("items_", This())
         with function_ctx:
             code = Code()
-            code.add_line(
-                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-                1,
-            )
+            code.add_line("def placeholder", 1)
             code.add_line("items_ = iter(items_)", 0)
             code.add_line("try:", 0)
             code.add_line("    item_ = next(items_)", 0)
@@ -156,6 +155,10 @@ class ChunkBy(BaseChunkBy):
             code.incr_indent_level(-2)
             code.add_line("yield chunk_", -1)
 
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
             conversion = function_ctx.gen_conversion(
                 converter_name, code.to_string(0)
             )
@@ -220,16 +223,17 @@ class ChunkByCondition(BaseChunkBy):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("chunk_by_condition", ctx, self)
-        function_ctx = self.condition.as_function_ctx(ctx)
+        function_ctx = self.condition.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("items_", This())
 
         with function_ctx:
+            code_condition = self.condition.gen_code_and_update_ctx(
+                "item_", ctx
+            )
             code = CHUNK_BY_CONDITION_TEMPLATE.format(
                 converter_name=converter_name,
                 code_args=function_ctx.get_def_all_args_code(),
-                code_condition=self.condition.gen_code_and_update_ctx(
-                    "item_", ctx
-                ),
+                code_condition=code_condition,
             )
             conversion = function_ctx.gen_conversion(converter_name, code)
         return function_ctx.call_with_all_args(

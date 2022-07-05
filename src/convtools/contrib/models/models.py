@@ -40,7 +40,7 @@ class TypeConversion(BaseConversion):
 
     self_content_type = (
         BaseConversion.self_content_type
-        | BaseConversion.ContentTypes.NAIVE_USAGE
+        | BaseConversion.ContentTypes.NONE_USAGE
     )
 
     def __init__(self, type_value_wrapper: TypeValueWrapper):

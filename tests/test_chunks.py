@@ -34,9 +34,13 @@ def test_chunks_by_condition(data_for_chunking):
         [15, 16, 17, 18],
     ]
     assert c.chunk_by_condition(
-        c.and_(c.call_func(len, c.CHUNK) < 5, c.item("z") < 18)
-    ).aggregate(c.ReduceFuncs.Median(c.item("z"))).as_type(list).execute(
-        data_for_chunking,
+        c.and_(c.call_func(lambda x: len(x), c.CHUNK) < 5, c.item("z") < 18)
+    ).aggregate(
+        c.ReduceFuncs.Median(c.item(c.call_func(lambda: "z")))
+    ).as_type(
+        list
+    ).execute(
+        data_for_chunking
     ) == [
         12,
         16,
@@ -57,9 +61,9 @@ def test_chunks_by_size(data_for_chunking):
         [15, 16, 17, 18],
     ]
 
-    assert c.chunk_by(c.item("x")).iter(c.list_comp(c.item("z"))).as_type(
-        list
-    ).execute(data_for_chunking) == [
+    assert c.chunk_by(c.item(c.call_func(lambda: "x"))).iter(
+        c.list_comp(c.item("z"))
+    ).as_type(list).execute(data_for_chunking) == [
         [10, 11, 12],
         [13, 14, 15],
         [16, 17, 18],

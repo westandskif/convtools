@@ -8,6 +8,7 @@ import sys
 import typing as t
 from collections import deque
 from itertools import chain
+from keyword import iskeyword
 from random import choice
 
 from .heuristics import Weights
@@ -161,8 +162,7 @@ class BaseConversion(t.Generic[CT]):
         LABEL_USAGE = 16
         BREAKPOINT = 32
         FUNCTION_OF_INPUT = 64
-        NAIVE_USAGE = 128
-        NONE_USAGE = 256
+        NONE_USAGE = 128
 
     self_content_type = ContentTypes.FUNCTION_OF_INPUT
 
@@ -269,7 +269,7 @@ class BaseConversion(t.Generic[CT]):
 
         name = prefix
         for _ in range(10):
-            if _:
+            if _ or iskeyword(name):
                 name += (
                     f"_{choice(self.allowed_symbols)}"
                     f"{choice(self.allowed_symbols)}"
@@ -296,6 +296,7 @@ class BaseConversion(t.Generic[CT]):
         as_kwargs=False,
         args_to_skip=None,
         for_top_level_converter=False,
+        optimize_naive=False,
     ) -> "FunctionCtx":
         args_to_skip = args_to_skip or set()
         args = {
@@ -328,16 +329,10 @@ class BaseConversion(t.Generic[CT]):
         keyword_args_as_conversions = {}
 
         if "_none" not in args_to_skip and (
-            self.contents & 256  # self.ContentTypes.NONE_USAGE
+            self.contents & 128  # self.ContentTypes.NONE_USAGE
         ):
             positional_args_as_def_names.append("_none")
             positional_args_as_conversions.append(EscapedString("_none"))
-
-        if "_naive" not in args_to_skip and (
-            self.contents & 128  # self.ContentTypes.NAIVE_USAGE
-        ):
-            positional_args_as_def_names.append("_naive")
-            positional_args_as_conversions.append(EscapedString("_naive"))
 
         if "_labels" not in args_to_skip and self.contents & (
             # self.ContentTypes.LABEL_USAGE | self.ContentTypes.NEW_LABEL
@@ -380,6 +375,7 @@ class BaseConversion(t.Generic[CT]):
             deque(positional_args_as_conversions),
             keyword_args_as_conversions,
             namespace_ctx,
+            optimize_naive,
         )
 
     def compile_converter(
@@ -410,6 +406,9 @@ class BaseConversion(t.Generic[CT]):
 
     NAMESPACES = "_name_to_code_input"
     CONVERTERS_CACHE = "_converters_cache"
+    NAIVE_TO_WARM_UP = "_naive_to_warm_up"
+
+    exceptions_to_dump_sources = (Exception, KeyboardInterrupt)
 
     @classmethod
     def _init_ctx(cls, debug=None):
@@ -423,7 +422,9 @@ class BaseConversion(t.Generic[CT]):
             cls.GENERATED_NAMES: set(),
             cls.NAMESPACES: [{}],
             cls.PREFIXED_HASH_TO_NAME: {},
+            cls.NAIVE_TO_WARM_UP: None,
             "__convtools__code_storage": CodeStorage(),
+            "__exceptions_to_dump_sources": cls.exceptions_to_dump_sources,
         }
         return ctx
 
@@ -462,12 +463,11 @@ class BaseConversion(t.Generic[CT]):
         )
         # self.ContentTypes.NEW_LABEL | self.ContentTypes.LABEL_USAGE
         has_labels = self.contents & 20
-        has_none = self.contents & 256  # self.ContentTypes.NONE_USAGE
-        has_naive = self.contents & 128  # self.ContentTypes.NAIVE_USAGE
+        has_none = self.contents & 128  # self.ContentTypes.NONE_USAGE
         ctx = self._init_ctx(debug=debug)
 
         args_to_skip = ("self", "cls", "_none", "_naive", "_labels")
-        if signature:
+        if signature is not None:
             function_ctx = self.as_function_ctx(
                 ctx, args_to_skip=args_to_skip, for_top_level_converter=True
             )
@@ -488,6 +488,7 @@ class BaseConversion(t.Generic[CT]):
                 as_kwargs=True,
                 args_to_skip=args_to_skip,
                 for_top_level_converter=True,
+                optimize_naive=True,
             )
             function_ctx.add_arg(initial_code_input)
             if method:
@@ -495,15 +496,21 @@ class BaseConversion(t.Generic[CT]):
             elif class_method:
                 function_ctx.add_arg("cls", left=True)
 
-            signature = function_ctx.get_def_all_args_code()
-
         with function_ctx:
             code = Code()
             converter_name = self.gen_name(converter_name, ctx, self)
+
+            code_ = self.to_code(initial_code_input, ctx)
+            if code_ is None:
+                code_str = f"return {self.gen_code_and_update_ctx(initial_code_input, ctx)}"
+
+            signature = (
+                function_ctx.get_def_all_args_code()
+                if signature is None
+                else signature
+            )
+
             code.add_line(f"def {converter_name}({signature}):", 1)
-            if has_naive:
-                code.add_line("global __naive_values__", 0)
-                code.add_line("_naive = __naive_values__", 0)
             if has_none:
                 code.add_line("global __none__", 0)
                 code.add_line("_none = __none__", 0)
@@ -512,17 +519,13 @@ class BaseConversion(t.Generic[CT]):
 
             code.add_line("try:", 1)
 
-            code_ = self.to_code(initial_code_input, ctx)
             if code_ is not None:
                 code.add_code(code_)
             else:
-                code_str = self.gen_code_and_update_ctx(
-                    initial_code_input, ctx
-                )
-                code.add_line(f"return {code_str}", 0)
+                code.add_line(code_str, 0)
 
             code.incr_indent_level(-1)
-            code.add_line("except (Exception, KeyboardInterrupt):", 1)
+            code.add_line("except __exceptions_to_dump_sources:", 1)
             code.add_line("__convtools__code_storage.dump_sources()", 0)
             code.add_line("raise", -1)
 
@@ -534,6 +537,7 @@ class BaseConversion(t.Generic[CT]):
         del ctx[self.GENERATED_NAMES]
         del ctx[self.NAMESPACES]
         del ctx[self.PREFIXED_HASH_TO_NAME]
+        del ctx[self.NAIVE_TO_WARM_UP]
 
         if debug:
             ctx["__convtools__code_storage"].dump_sources()
@@ -938,7 +942,7 @@ class NaiveConversion(BaseConversion):
     self_content_type = (
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
-    ) | BaseConversion.ContentTypes.NAIVE_USAGE
+    )
 
     types_to_repr = {type(None), bool, int}
     weight = Weights.STEP
@@ -977,19 +981,25 @@ class NaiveConversion(BaseConversion):
             ):
                 self.code_str = repr(value)
 
-        if self.code_str:
-            # self.ContentTypes.NAIVE_USAGE == 128
-            self.contents = self.contents & ~128
-        else:
+        if not self.code_str:
             self.total_weight = Weights.DICT_LOOKUP
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         if self.code_str:
             return self.code_str
 
+        naive_to_warm_up = ctx[self.NAIVE_TO_WARM_UP]
+        if naive_to_warm_up is not None:
+            value_name = self.gen_name(
+                f"__{self.name_prefix}", ctx, self.value
+            )
+            ctx["__naive_values__"][value_name] = self.value
+            naive_to_warm_up.add(value_name)
+            return value_name
+
         value_name = self.gen_name(self.name_prefix, ctx, self.value)
         ctx["__naive_values__"][value_name] = self.value
-        return f'_naive["{value_name}"]'
+        return f'__naive_values__["{value_name}"]'
 
     def is_itself_callable_like(self) -> t.Optional[bool]:
         return callable(self.value)
@@ -1140,6 +1150,7 @@ class FunctionCtx:
         args_to_pass,
         kwargs_to_pass,
         namespace_ctx,
+        optimize_naive,
     ):
         self.conversion = conversion
         self.ctx = ctx
@@ -1148,6 +1159,9 @@ class FunctionCtx:
         self.args_to_pass = args_to_pass
         self.kwargs_to_pass = kwargs_to_pass
         self.namespace_ctx = namespace_ctx
+        self.prev_names_to_warm_up = None
+        self.optimize_naive = optimize_naive
+        self.naive_to_optimize = None
 
     def gen_function(self, name, code):
         return self.conversion.compile_converter(
@@ -1179,20 +1193,38 @@ class FunctionCtx:
         self.kwargs_to_pass[def_name] = arg_to_pass
 
     def get_def_all_args_code(self):
-        if self.kwargs_as_def_names:
+        if self.optimize_naive and self.naive_to_optimize:
+            kwargs_as_def_names = chain(
+                self.kwargs_as_def_names,
+                [
+                    f"{name}=__naive_values__[{repr(name)}]"
+                    for name in self.naive_to_optimize
+                ],
+            )
+        else:
+            kwargs_as_def_names = self.kwargs_as_def_names
+        if kwargs_as_def_names:
             return ", ".join(
                 chain(
                     self.args_as_def_names,
                     ("*",),
-                    self.kwargs_as_def_names,
+                    kwargs_as_def_names,
                 )
             )
         return ", ".join(self.args_as_def_names)
 
     def __enter__(self):
+        self.prev_names_to_warm_up = self.ctx[BaseConversion.NAIVE_TO_WARM_UP]
+        if self.optimize_naive:
+            self.naive_to_optimize = self.ctx[
+                BaseConversion.NAIVE_TO_WARM_UP
+            ] = set()
+        else:
+            self.ctx[BaseConversion.NAIVE_TO_WARM_UP] = None
         self.namespace_ctx.__enter__()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.ctx[BaseConversion.NAIVE_TO_WARM_UP] = self.prev_names_to_warm_up
         return self.namespace_ctx.__exit__(exc_type, exc_value, exc_traceback)
 
 
@@ -1446,24 +1478,87 @@ class Not(BaseConversion):
         return f"(not {code})"
 
 
-def _get_1_or_default(data_, key_, default_):
+class InlineExpr(BaseConversion):
+    """This conversion allows to avoid function call overhead.  It inlines a
+    raw python code expression into the code of resulting conversion."""
+
+    self_content_type = (
+        BaseConversion.self_content_type
+        & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
+
+    def __init__(self, code_str, weight=Weights.UNPREDICTABLE):
+        """
+        Args:
+          code_str (str): python code string. Supports `{}` expressions of
+            :py:obj:`str.format`, both positional and names ones.
+            To pass arguments, use :py:obj:`InlineExpr.pass_args`
+        """
+        self.weight = weight
+        super().__init__()
+        self.code_str = code_str
+        self.args = []
+        self.kwargs = {}
+
+    def pass_args(self, *args, **kwargs):
+        """The method passes arguments to the code to be inlined.
+
+        Args:
+          args (tuple of objects): each is wrapped with
+            :py:obj:`ensure_conversion`
+          kwargs (dict of objects): each value is wrapped
+            with :py:obj:`ensure_conversion`
+        Returns:
+          InlineExpr: Clone of the conversion after arguments are passed.
+        """
+        self_clone = self.clone()
+        self_clone.args = [self_clone.ensure_conversion(arg) for arg in args]
+        self_clone.kwargs = {
+            k: self_clone.ensure_conversion(v) for k, v in kwargs.items()
+        }
+        return self_clone
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        code = self.code_str.format(
+            *(
+                arg.gen_code_and_update_ctx(code_input, ctx)
+                for arg in self.args
+            ),
+            **{
+                k: v.gen_code_and_update_ctx(code_input, ctx)
+                for k, v in self.kwargs.items()
+            },
+        )
+        return f"({code})"
+
+    def is_itself_callable_like(self) -> t.Optional[bool]:
+        return True
+
+    def call_like(self, *args, **kwargs):
+        return self.pass_args(*args, **kwargs)
+
+
+get_exceptions = (TypeError, KeyError, IndexError)
+
+
+def get_1_or_default(data_, key_, default_):
     try:
         return data_[key_]
-    except (TypeError, KeyError, IndexError):
+    except get_exceptions:
         return default_
 
 
-def _get_2_or_default(data_, key_1, key_2, default_):
+def get_2_or_default(data_, key_1, key_2, default_):
     try:
         return data_[key_1][key_2]
-    except (TypeError, KeyError, IndexError):
+    except get_exceptions:
         return default_
 
 
-def _get_3_or_default(data_, key_1, key_2, key_3, default_):
+def get_3_or_default(data_, key_1, key_2, key_3, default_):
     try:
         return data_[key_1][key_2][key_3]
-    except (TypeError, KeyError, IndexError):
+    except get_exceptions:
         return default_
 
 
@@ -1498,10 +1593,11 @@ class GetItem(BaseMethodConversion):
     template = GET_ITEM_OR_DEFAULT_TEMPLATE
 
     get_or_default_functions = [
-        _get_1_or_default,
-        _get_2_or_default,
-        _get_3_or_default,
+        get_1_or_default,
+        get_2_or_default,
+        get_3_or_default,
     ]
+    naive_or_unsafe_conversions = (NaiveConversion, EscapedString, InlineExpr)
 
     def __init__(
         self,
@@ -1535,7 +1631,9 @@ class GetItem(BaseMethodConversion):
         self.default_is_simple = (
             self.default is None or self.default.contents & 64 == 0
         )
-        self.default_is_naive = isinstance(self.default, NaiveConversion)
+        self.default_is_naive_or_unsafe = isinstance(
+            self.default, self.naive_or_unsafe_conversions
+        )
 
         self.hardcoded_version = self.get_hardcoded_version()
         if self.hardcoded_version:
@@ -1553,7 +1651,7 @@ class GetItem(BaseMethodConversion):
         if (
             indexes_length < 4
             and self.indexes_are_simple
-            and self.default_is_naive
+            and self.default_is_naive_or_unsafe
         ):
             return CallFunc(
                 self.get_or_default_functions[indexes_length - 1],
@@ -1579,13 +1677,13 @@ class GetItem(BaseMethodConversion):
                 code_input, ctx
             )
 
-        function_ctx = self.as_function_ctx(ctx)
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         with function_ctx:
             do_caching = self.caching_is_possible
 
             # default
             if self.default_is_simple:
-                if self.default_is_naive:
+                if self.default_is_naive_or_unsafe:
                     default_code = "default_"
                     function_ctx.add_arg(default_code, self.default)
                 else:
@@ -1813,66 +1911,6 @@ class SortConversion(BaseConversion):
         )
 
 
-class InlineExpr(BaseConversion):
-    """This conversion allows to avoid function call overhead.  It inlines a
-    raw python code expression into the code of resulting conversion."""
-
-    self_content_type = (
-        BaseConversion.self_content_type
-        & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
-    )
-
-    def __init__(self, code_str, weight=Weights.UNPREDICTABLE):
-        """
-        Args:
-          code_str (str): python code string. Supports `{}` expressions of
-            :py:obj:`str.format`, both positional and names ones.
-            To pass arguments, use :py:obj:`InlineExpr.pass_args`
-        """
-        self.weight = weight
-        super().__init__()
-        self.code_str = code_str
-        self.args = []
-        self.kwargs = {}
-
-    def pass_args(self, *args, **kwargs):
-        """The method passes arguments to the code to be inlined.
-
-        Args:
-          args (tuple of objects): each is wrapped with
-            :py:obj:`ensure_conversion`
-          kwargs (dict of objects): each value is wrapped
-            with :py:obj:`ensure_conversion`
-        Returns:
-          InlineExpr: Clone of the conversion after arguments are passed.
-        """
-        self_clone = self.clone()
-        self_clone.args = [self_clone.ensure_conversion(arg) for arg in args]
-        self_clone.kwargs = {
-            k: self_clone.ensure_conversion(v) for k, v in kwargs.items()
-        }
-        return self_clone
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        code = self.code_str.format(
-            *(
-                arg.gen_code_and_update_ctx(code_input, ctx)
-                for arg in self.args
-            ),
-            **{
-                k: v.gen_code_and_update_ctx(code_input, ctx)
-                for k, v in self.kwargs.items()
-            },
-        )
-        return f"({code})"
-
-    def is_itself_callable_like(self) -> t.Optional[bool]:
-        return True
-
-    def call_like(self, *args, **kwargs):
-        return self.pass_args(*args, **kwargs)
-
-
 class BaseComprehensionConversion(BaseConversion):
     """This is the base conversion to generate a code, which creates a
     collection like: list/dict/etc."""
@@ -2074,13 +2112,10 @@ class BaseCollectionConversion(BaseConversion):
         inner_code_input = "data_"
         code = Code()
         converter_name = self.gen_name("optional_items_generator", ctx, self)
-        function_ctx = self.as_function_ctx(ctx)
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", This())
         with function_ctx:
-            code.add_line(
-                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-                1,
-            )
+            code.add_line("def placeholder", 1)
 
             for condition, item in self.condition_to_item_pairs:
                 value_code = ensure_conversion(item).gen_code_and_update_ctx(
@@ -2094,6 +2129,11 @@ class BaseCollectionConversion(BaseConversion):
                     code.add_line(f"yield {value_code}", -1)
                 else:
                     code.add_line(f"yield {value_code}", 0)
+
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
 
             conversion = function_ctx.gen_conversion(
                 converter_name, code.to_string(base_indent_level=0)
@@ -2311,7 +2351,7 @@ class TakeWhile(BaseConversion):
         var_it = f"it{suffix}"
         var_item = f"item{suffix}"
 
-        function_ctx = self.as_function_ctx(ctx)
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg(var_it, This())
         with function_ctx:
             condition_code = self.condition.gen_code_and_update_ctx(
@@ -2319,10 +2359,7 @@ class TakeWhile(BaseConversion):
             )
 
             code = Code()
-            code.add_line(
-                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-                1,
-            )
+            code.add_line("def placeholder", 1)
             code.add_line(f"for {var_item} in {var_it}:", 1)
             code.add_line(f"if {condition_code}:", 1)
             if self.filter_results_conditions is None:
@@ -2337,6 +2374,10 @@ class TakeWhile(BaseConversion):
             code.add_line("else:", 1)
             code.add_line("break", -2)
 
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
             conversion = function_ctx.gen_conversion(
                 converter_name, code.to_string(0)
             )
@@ -2350,11 +2391,6 @@ class TakeWhile(BaseConversion):
 class DropWhile(BaseConversion):
     """convtools implementation of :py:obj:`itertools.dropwhile`"""
 
-    self_content_type = (
-        BaseConversion.self_content_type
-        | BaseConversion.ContentTypes.NAIVE_USAGE
-    )
-
     def __init__(self, condition):
         super().__init__()
         self.condition = self.ensure_conversion(condition)
@@ -2364,12 +2400,10 @@ class DropWhile(BaseConversion):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_name("_", ctx, ("drop_while", self, code_input))
         converter_name = f"drop_while{suffix}"
-        var_chain = f"chain{suffix}"
         var_it = f"it{suffix}"
         var_item = f"item{suffix}"
 
-        function_ctx = self.as_function_ctx(ctx)
-        function_ctx.add_arg(var_chain, NaiveConversion(chain))
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg(var_it, This())
         with function_ctx:
             condition_code = self.condition.gen_code_and_update_ctx(
@@ -2377,18 +2411,22 @@ class DropWhile(BaseConversion):
             )
 
             code = Code()
-            code.add_line(
-                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-                1,
-            )
+            code.add_line("def placeholder", 1)
             code.add_line(f"{var_it} = iter({var_it})", 0)
             code.add_line(f"for {var_item} in {var_it}:", 1)
             code.add_line(f"if not ({condition_code}):", 1)
             code.add_line("break", -2)
             code.add_line("else:", 1)
             code.add_line("return ()", -1)
+            var_chain = NaiveConversion(chain).gen_code_and_update_ctx(
+                "not needed", ctx
+            )
             code.add_line(f"return {var_chain}(({var_item},), {var_it})", -1)
 
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
             conversion = function_ctx.gen_conversion(
                 converter_name, code.to_string(0)
             )
@@ -2577,18 +2615,16 @@ class PipeConversion(BaseConversion):
         var_result = f"result{suffix}"
         var_input = f"input{suffix}"
 
-        function_ctx = self.input_args_container.as_function_ctx(ctx)
+        function_ctx = self.input_args_container.as_function_ctx(
+            ctx, optimize_naive=True
+        )
 
+        what_code = self.what.gen_code_and_update_ctx(code_input, ctx)
         with function_ctx:
-            what_code = self.what.gen_code_and_update_ctx(code_input, ctx)
             where_code = self.where.gen_code_and_update_ctx(var_input, ctx)
-
             function_ctx.add_arg(var_input, EscapedString(what_code))
             code = Code()
-            code.add_line(
-                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-                1,
-            )
+            code.add_line("def placeholder", 1)
 
             if self.label_input:
                 for label_name, label_c in self.label_input.items():
@@ -2608,6 +2644,11 @@ class PipeConversion(BaseConversion):
                 code.add_line(f"return {var_result}", 0)
             else:
                 code.add_line(f"return {where_code}", 0)
+
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
 
             conversion = function_ctx.gen_conversion(
                 converter_name, code.to_string(0)
@@ -2636,18 +2677,19 @@ class TapConversion(BaseConversion):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_name("", ctx, self)
         converter_name = f"tap_{suffix}"
-        function_ctx = self.as_function_ctx(ctx)
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", self.obj)
         with function_ctx:
             code = Code()
-            code.add_line(
-                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-                1,
-            )
+            code.add_line("def placeholder", 1)
             for mut in self.mutations:
                 code.add_line(mut.gen_code_and_update_ctx("data_", ctx), 0)
             code.add_line("return data_", 0)
 
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
             conversion = function_ctx.gen_conversion(
                 converter_name, code.to_string(base_indent_level=0)
             )
@@ -2665,15 +2707,12 @@ class IterMutConversion(TapConversion):
         suffix = self.gen_name("", ctx, self)
         converter_name = f"iter_mut_{suffix}"
         code_item = f"item_{suffix}"
-        function_ctx = self.as_function_ctx(ctx)
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", self.obj)
 
         with function_ctx:
             code = Code()
-            code.add_line(
-                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-                1,
-            )
+            code.add_line("def placeholder", 1)
             code.add_line(f"for {code_item} in data_:", 1)
             for mut in self.mutations:
                 code.add_line(
@@ -2682,6 +2721,10 @@ class IterMutConversion(TapConversion):
 
             code.add_line(f"yield {code_item}", 0)
 
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
             conversion = function_ctx.gen_conversion(
                 converter_name, code.to_string(base_indent_level=0)
             )

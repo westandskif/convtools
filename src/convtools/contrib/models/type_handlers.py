@@ -176,7 +176,9 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
             )
         )
 
-    function_ctx = outer_args.base_conversion.as_function_ctx(outer_args.ctx)
+    function_ctx = outer_args.base_conversion.as_function_ctx(
+        outer_args.ctx, optimize_naive=True
+    )
     function_ctx.add_arg("name_", c.escaped_string(outer_args.name_code))
     function_ctx.add_arg("data_", c.escaped_string(outer_args.data_code))
     function_ctx.add_arg("errors_", c.escaped_string(outer_args.errors_code))
@@ -199,10 +201,7 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
         is_dict_model = issubclass(original_model, DictModel)
 
         with function_ctx:
-            model_code.add_line(
-                f"def {model_meta.converter_name}({function_ctx.get_def_all_args_code()}):",
-                1,
-            )
+            model_code.add_line("def placeholder", 1)
             model_code.add_line(
                 f"{args.errors_code} = errors_.get_lazy_item({args.name_code})",
                 0,
@@ -293,7 +292,11 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
                     default = (
                         c.call_func(pipeline.default_factory)
                         if pipeline.default_factory is not _none
-                        else pipeline.default
+                        else (
+                            c.escaped_string("_none")
+                            if pipeline.default is _none
+                            else c.naive(pipeline.default)
+                        )
                     )
                     if is_dict_model:
                         conversion_: "BaseConversion" = c.item(
@@ -325,6 +328,11 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
                 last_step_chunk_index = len(step_chunks) - 1
 
                 step_condition = step_condition_has_side_effects = None
+
+                if pipeline.required_check:
+                    required_check_indent_level = model_code.indent_level
+                    model_code.add_line(f"if {field_code} is not _none:", 1)
+                    required_check_lines_number = len(model_code.lines_info)
 
                 for step_chunk_index, steps in enumerate(step_chunks):
                     if step_condition:
@@ -409,6 +417,22 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
                     if field_with_mutation:
                         field_names_with_mutation.add(field_name)
 
+                if pipeline.required_check:
+                    if (
+                        len(model_code.lines_info)
+                        == required_check_lines_number
+                    ):
+                        model_code.indent_level = (
+                            required_check_indent_level + 1
+                        )
+                        model_code.add_line("pass", 0)
+                    model_code.indent_level = required_check_indent_level
+                    model_code.add_line("else:", 1)
+                    model_code.add_line(
+                        f'{args.errors_code}[{repr(field_name)}]["__ERRORS"] = {{"required": True}}',
+                        -1,
+                    )
+
             model_code.indent_level = current_indent_level
 
             model_code.add_line(
@@ -458,6 +482,10 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
                     -1,
                 )
 
+            model_code.lines_info[0] = (
+                0,
+                f"def {model_meta.converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
             function_ctx.gen_function(
                 model_meta.converter_name, model_code.to_string(0)
             )
@@ -690,13 +718,14 @@ def dict_type_to_code(outer_args: TypeValueCodeGenArgs):
         f'{dict_errors_value_code} = {dict_errors_code}.get_lazy_item("__VALUES")',
         0,
     )
-    iteration_code = Code()
+    key_iteration_code = Code()
+    value_iteration_code = Code()
 
     has_mutations = any(
         (
             type_value_to_code(
                 outer_args._replace(
-                    code=iteration_code,
+                    code=key_iteration_code,
                     type_value=outer_args.type_value.__args__[0],
                     name_code=key_code,
                     data_code=key_code,
@@ -710,7 +739,7 @@ def dict_type_to_code(outer_args: TypeValueCodeGenArgs):
             ),
             type_value_to_code(
                 outer_args._replace(
-                    code=iteration_code,
+                    code=value_iteration_code,
                     type_value=outer_args.type_value.__args__[1],
                     name_code=key_code,
                     data_code=value_code,
@@ -727,13 +756,23 @@ def dict_type_to_code(outer_args: TypeValueCodeGenArgs):
 
     if has_mutations or outer_args.cast:
         indent_level_before_for = code.indent_level
-        code.add_line(f"{dict_result_code} = {{}}", 0)
-        code.add_line(
-            f"for {key_code}, {value_code} in pairs_{level}:",
-            1,
-        )
-        code.add_code(iteration_code)
-        code.add_line(f"{dict_result_code}[{key_code}] = {value_code}", -1)
+        key_iteration_as_expression = key_iteration_code.as_expression()
+        value_iteration_as_expression = value_iteration_code.as_expression()
+        if key_iteration_as_expression and value_iteration_as_expression:
+            code.add_line(
+                f"{dict_result_code} = {{ {key_iteration_as_expression}: {value_iteration_as_expression} for {key_code}, {value_code} in pairs_{level} }}",
+                0,
+            )
+        else:
+            code.add_line(f"{dict_result_code} = {{}}", 0)
+
+            code.add_line(
+                f"for {key_code}, {value_code} in pairs_{level}:",
+                1,
+            )
+            code.add_code(value_iteration_code)
+            code.add_code(key_iteration_code)
+            code.add_line(f"{dict_result_code}[{key_code}] = {value_code}", -1)
 
         code.indent_level = indent_level_before_for
 
@@ -747,7 +786,8 @@ def dict_type_to_code(outer_args: TypeValueCodeGenArgs):
             f"for {key_code}, {value_code} in pairs_{level}:",
             1,
         )
-        code.add_code(iteration_code)
+        code.add_code(key_iteration_code)
+        code.add_code(value_iteration_code)
 
     code.indent_level = initial_indent_level
     return has_mutations or outer_args.cast
@@ -882,11 +922,9 @@ def tuple_variadic_type_to_code(outer_args: TypeValueCodeGenArgs):
     level = outer_args.level
 
     if outer_args.cast:
-        code.add_line("try:", 1)
         code.add_line(
-            f"it_{outer_args.level} = iter({outer_args.data_code})", -1
+            f'if not hasattr({outer_args.data_code}, "__iter__"):', 1
         )
-        code.add_line("except TypeError:", 1)
         code.add_line(
             f'{outer_args.errors_code}[{outer_args.name_code}]["__ERRORS"] = {{"type": f"{{type({outer_args.data_code}).__name__}} not iterable"}}',
             -1,
@@ -924,13 +962,20 @@ def tuple_variadic_type_to_code(outer_args: TypeValueCodeGenArgs):
 
     if has_mutations or outer_args.cast:
         result_code = f"result_{level}"
-        code.add_line(f"{result_code} = []", 0)
-        code.add_line(
-            f"for {args.name_code}, {args.data_code} in enumerate({outer_args.data_code}):",
-            1,
-        )
-        code.add_code(args.code)
-        code.add_line(f"{result_code}.append({args.data_code})", 0)
+        code_as_expression = args.code.as_expression()
+        if code_as_expression:
+            code.add_line(
+                f"{result_code} = [{code_as_expression} for {args.name_code}, {args.data_code} in enumerate({outer_args.data_code})]",
+                0,
+            )
+        else:
+            code.add_line(f"{result_code} = []", 0)
+            code.add_line(
+                f"for {args.name_code}, {args.data_code} in enumerate({outer_args.data_code}):",
+                1,
+            )
+            code.add_code(args.code)
+            code.add_line(f"{result_code}.append({args.data_code})", 0)
 
         code.indent_level = indent_level_before_for
         code.add_line(
@@ -956,11 +1001,9 @@ def list_type_to_code(outer_args: TypeValueCodeGenArgs):
     level = outer_args.level
 
     if outer_args.cast:
-        code.add_line("try:", 1)
         code.add_line(
-            f"it_{outer_args.level} = iter({outer_args.data_code})", -1
+            f'if not hasattr({outer_args.data_code}, "__iter__"):', 1
         )
-        code.add_line("except TypeError:", 1)
         code.add_line(
             f'{outer_args.errors_code}[{outer_args.name_code}]["__ERRORS"] = {{"type": f"{{type({outer_args.data_code}).__name__}} not iterable"}}',
             -1,
@@ -998,20 +1041,28 @@ def list_type_to_code(outer_args: TypeValueCodeGenArgs):
 
     if has_mutations or outer_args.cast:
         result_code = f"result_{level}"
-        code.add_line(f"{result_code} = []", 0)
-        code.add_line(
-            f"for {args.name_code}, {args.data_code} in enumerate({outer_args.data_code}):",
-            1,
-        )
-        code.add_code(args.code)
-        code.add_line(f"{result_code}.append({args.data_code})", 0)
+        code_as_expression = args.code.as_expression()
+        if code_as_expression:
+            code.add_line(
+                f"{result_code} = [{code_as_expression} for {args.name_code}, {args.data_code} in enumerate({outer_args.data_code})]",
+                0,
+            )
+        else:
+            code.add_line(f"{result_code} = []", 0)
+            code.add_line(f"_append_{level} = {result_code}.append", 0)
+            code.add_line(
+                f"for {args.name_code}, {args.data_code} in enumerate({outer_args.data_code}):",
+                1,
+            )
+            code.add_code(args.code)
+            code.add_line(f"_append_{level}({args.data_code})", 0)
 
         code.indent_level = indent_level_before_for
         code.add_line(
             f"if {outer_args.name_code} not in {outer_args.errors_code}:", 1
         )
 
-        code.add_line(f"{outer_args.data_code} = {result_code}", 0)
+        code.add_line(f"{outer_args.data_code} = {result_code}", -1)
 
     else:
         code.add_line(
@@ -1030,11 +1081,9 @@ def set_type_to_code(outer_args: TypeValueCodeGenArgs):
     level = outer_args.level
 
     if outer_args.cast:
-        code.add_line("try:", 1)
         code.add_line(
-            f"it_{outer_args.level} = iter({outer_args.data_code})", -1
+            f'if not hasattr({outer_args.data_code}, "__iter__"):', 1
         )
-        code.add_line("except TypeError:", 1)
         code.add_line(
             f'{outer_args.errors_code}[{outer_args.name_code}]["__ERRORS"] = {{"type": f"{{type({outer_args.data_code}).__name__}} not iterable"}}',
             -1,
@@ -1072,13 +1121,20 @@ def set_type_to_code(outer_args: TypeValueCodeGenArgs):
 
     if has_mutations or outer_args.cast:
         result_code = f"result_{level}"
-        code.add_line(f"{result_code} = set()", 0)
-        code.add_line(
-            f"for {args.data_code} in {outer_args.data_code}:",
-            1,
-        )
-        code.add_code(args.code)
-        code.add_line(f"{result_code}.add({args.data_code})", 0)
+        code_as_expression = args.code.as_expression()
+        if code_as_expression:
+            code.add_line(
+                f"{result_code} = {{ {code_as_expression} for {args.name_code}, {args.data_code} in enumerate({outer_args.data_code}) }}",
+                0,
+            )
+        else:
+            code.add_line(f"{result_code} = set()", 0)
+            code.add_line(
+                f"for {args.data_code} in {outer_args.data_code}:",
+                1,
+            )
+            code.add_code(args.code)
+            code.add_line(f"{result_code}.add({args.data_code})", 0)
 
         code.indent_level = indent_level_before_for
         code.add_line(
@@ -1159,7 +1215,6 @@ def type_value_to_code(args: TypeValueCodeGenArgs):
     elif isinstance(type_value, TypeVar):
         if type_value not in args.type_var_to_type_value:
             raise AssertionError("uninitialized TypeVar", type_value)
-        # TODO: think about union tracking inside typevars
         return type_value_to_code(
             args._replace(type_value=args.type_var_to_type_value[type_value]),
         )

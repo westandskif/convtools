@@ -507,7 +507,7 @@ def test_model__dict():
     assert errors["a"]["__ERRORS"]["type"]
 
     obj, errors = build(TestModelWithForwardRef, {"a": {1: "1.1"}})
-    assert errors["a"]["__VALUES"]["1"]["__ERRORS"]["int_caster"]
+    assert errors["a"]["__VALUES"][1]["__ERRORS"]["int_caster"]
 
     class InnerModel(DictModel):
         b: int = cast()
@@ -534,7 +534,7 @@ def test_model__dict():
     assert obj.a == {7.1: 2}
 
     obj, errors = build(TestModel, {"a": [("7.1", "2.0")]})
-    assert errors["a"]["__VALUES"][7.1]["__ERRORS"]["int_caster"]
+    assert errors["a"]["__VALUES"]["7.1"]["__ERRORS"]["int_caster"]
 
     obj, errors = build(TestModel, {"a": [("7.1", "2"), (1.5,)]})
     assert errors["a"][1]["__ERRORS"]["pair"]
@@ -1660,12 +1660,10 @@ def benchmark_data_1():
 @pytest.fixture
 def benchmark_data_2():
     return {
-        "name": b"John",
+        "name": 123,
         "age": 42.0,
         "friends": list(map(str, range(200))),
-        "settings": {
-            f"v_{i}".encode("utf-8"): str(i / 2.0) for i in range(50)
-        },
+        "settings": {i: str(i / 2.0) for i in range(50)},
         # "settings": [(f"v_{i}", i / 2.0) for i in range(50)],
     }
 
@@ -1702,7 +1700,26 @@ def test_model__benchmark_1_casting(benchmark, benchmark_data_1):
         friends: t.List[int] = cast()
         settings: t.Dict[str, float] = cast()
 
+    obj, errors = build(TestCastingModel, benchmark_data_1)
+    assert obj
     benchmark(build, TestCastingModel, benchmark_data_1)
+
+
+def test_model__benchmark_1_cattrs(benchmark, benchmark_data_1):
+    try:
+        import attrs
+        import cattrs
+    except ImportError:
+        return
+
+    @attrs.define
+    class AttrsModel:
+        name: str
+        age: int
+        friends: t.List[int]
+        settings: t.Dict[str, float]
+
+    benchmark(cattrs.structure, benchmark_data_1, AttrsModel)
 
 
 def test_model__benchmark_2_pydantic(benchmark, benchmark_data_2):
@@ -1727,12 +1744,33 @@ def test_model__benchmark_2_casting(benchmark, benchmark_data_2):
         friends: t.List[int] = cast()
         settings: t.Dict[str, float] = cast()
 
+    obj, errors = build(TestCastingModel, benchmark_data_2)
+    assert obj
     benchmark(build, TestCastingModel, benchmark_data_2)
 
-    # import cProfile, pstats
+    # import cProfile
+    # import pstats
+
     # with cProfile.Profile() as pr:
-    #     for i in range(100000):
-    #         build(TestCastingModel, benchmark_data_1)
+    #     for i in range(10000):
+    #         build(TestCastingModel, benchmark_data_2)
 
     # pstats.Stats(pr).sort_stats("cumulative").print_stats()
     # pstats.Stats(pr).sort_stats("time").print_stats()
+
+
+def test_model__benchmark_2_cattrs(benchmark, benchmark_data_2):
+    try:
+        import attrs
+        import cattrs
+    except ImportError:
+        return
+
+    @attrs.define
+    class AttrsModel:
+        name: str
+        age: int
+        friends: t.List[int]
+        settings: t.Dict[str, float]
+
+    benchmark(cattrs.structure, benchmark_data_2, AttrsModel)

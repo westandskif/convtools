@@ -16,7 +16,7 @@ from .casters.casters import Enum as EnumCaster
 from .casters.casters import Int as IntCaster
 from .casters.casters import NaiveCaster
 from .casters.casters import Str as StrCaster
-from .validators.validators import BaseValidator, Required
+from .validators.validators import BaseValidator
 from .validators.validators import Type as TypeValidator
 
 
@@ -46,8 +46,6 @@ class FieldProcessingPipeline:
     """Defines model field level processing pipeline: how to fetch, steps to
     validate/cast."""
 
-    _required_validator = Required()
-
     def __init__(
         self,
         *path,
@@ -63,8 +61,10 @@ class FieldProcessingPipeline:
             if cls_method:
                 raise ValueError("cls_method doesn't need defaults")
             self.steps = []
+            self.required_check = False
         else:
-            self.steps = [self._required_validator]
+            self.steps = []
+            self.required_check = True
 
         self.cls_method = cls_method
         self.path = path

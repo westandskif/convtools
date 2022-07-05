@@ -20,35 +20,13 @@ def test_take_while():
     result = (
         c.take_while(c.this < c.input_arg("stop_before"))
         .filter(c.this >= c.input_arg("min_value"))
-        .filter(c.this < 3, cast=list)
+        .filter(c.this < c.call_func(lambda: 3), cast=list)
         .execute(f(), min_value=2, stop_before=4)
     )
     assert result == [2]
 
     result = c.take_while(c.this < 0).as_type(list).execute(range(10))
     assert result == []
-
-    # from time import time
-    # from itertools import takewhile
-    # from convtools import conversion as c
-
-    # limit = 30000000
-    # size = limit * 2
-    # converter = c.take_while(c.this < limit).gen_converter()
-
-    # t = time()
-    # result1 = list(converter(range(size)))
-    # print(f"convtools take_while took: {time() - t}")
-
-    # t = time()
-    # result2 = list(takewhile(lambda x: x < limit, range(size)))
-    # print(f" itertools.takewhile took: {time() - t}")
-
-    # t = time()
-    # result3 = list(converter(range(size)))
-    # print(f"convtools take_while took: {time() - t}")
-
-    # assert result1 == result2 == result3
 
 
 def test_drop_while():
@@ -63,27 +41,9 @@ def test_drop_while():
     )
     assert result == [3, 4]
 
-    result = c.drop_while(c.this >= 0).as_type(list).execute(range(10))
+    result = (
+        c.drop_while(c.this >= c.call_func(lambda: 0))
+        .as_type(list)
+        .execute(range(10))
+    )
     assert result == []
-
-    # from time import time
-    # from itertools import dropwhile
-    # from convtools import conversion as c
-
-    # limit = 30000000
-    # size = limit * 2
-    # converter = c.drop_while(c.this < limit).gen_converter()
-
-    # t = time()
-    # result1 = list(converter(range(size)))
-    # print(f"convtools drop_while took: {time() - t}")
-
-    # t = time()
-    # result2 = list(dropwhile(lambda x: x < limit, range(size)))
-    # print(f" itertools.dropwhile took: {time() - t}")
-
-    # t = time()
-    # result3 = list(converter(range(size)))
-    # print(f"convtools drop_while took: {time() - t}")
-
-    # assert result1 == result2 == result3

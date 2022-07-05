@@ -19,19 +19,16 @@ class CustomUnsafe(BaseCaster):
         self._cast = func
 
     def to_code(self, args: TypeValueCodeGenArgs):
+        cast_expression = (
+            c.naive(
+                self._cast,
+                name_prefix=f"unsafe_cast{args.code_suffix}{args.level}",
+            )
+            .call(c.escaped_string(args.data_code))
+            .gen_code_and_update_ctx("not needed", args.ctx)
+        )
         args.code.add_line(
-            "{} = {}".format(  # pylint: disable=consider-using-f-string
-                args.data_code,
-                (
-                    c.naive(
-                        self._cast,
-                        name_prefix=f"unsafe_cast{args.code_suffix}{args.level}",
-                    )
-                    .call(c.escaped_string(args.data_code))
-                    .gen_code_and_update_ctx("not needed", args.ctx)
-                ),
-            ),
-            0,
+            f"{args.data_code} = {cast_expression}", 0, cast_expression
         )
 
 
@@ -56,6 +53,10 @@ class Str(SimpleCaster):
             return str(data)
 
 
+naive_exceptions = (TypeError, ValueError)
+strptime_function = datetime.strptime
+
+
 class DatetimeFromStr(SimpleCaster):
     """str to datetime caster"""
 
@@ -67,8 +68,8 @@ class DatetimeFromStr(SimpleCaster):
 
     def _cast(self, field_name, data, errors):
         try:
-            return datetime.strptime(data, self.fmt)
-        except (ValueError, TypeError):
+            return strptime_function(data, self.fmt)
+        except naive_exceptions:
             errors[field_name]["__ERRORS"] = {
                 self.name: f"failed to parse date with: {self.fmt}"
             }
@@ -85,8 +86,8 @@ class DateFromStr(SimpleCaster):
 
     def _cast(self, field_name, data, errors):
         try:
-            return datetime.strptime(data, self.fmt).date()
-        except (ValueError, TypeError):
+            return strptime_function(data, self.fmt).date()
+        except naive_exceptions:
             errors[field_name]["__ERRORS"] = {
                 self.name: f"failed to parse date with: {self.fmt}"
             }
@@ -113,7 +114,6 @@ class Enum(SimpleCaster):
 class IntLossy(SimpleCaster):
     """Tries to cast anything to int, doesn't prevent decimal part loss"""
 
-    exceptions = (TypeError, ValueError)
     ensures_type = int
 
     def __init__(self):
@@ -124,11 +124,11 @@ class IntLossy(SimpleCaster):
             return data
         try:
             return int(data)
-        except self.exceptions:
+        except naive_exceptions:
             pass
         try:
             return int(float(data))
-        except self.exceptions:
+        except naive_exceptions:
             errors[field_name]["__ERRORS"] = {
                 self.name: f"failed for type {type(data).__name__}"
             }
@@ -138,7 +138,6 @@ class Int(SimpleCaster):
     """Tries to cast anything to int. Fails in cases where it's either not
     possible or it results in decimal part loss"""
 
-    exceptions = (TypeError, ValueError)
     ensures_type = int
 
     def __init__(self):
@@ -148,16 +147,19 @@ class Int(SimpleCaster):
         if isinstance(data, int):
             return data
         try:
-            if not isinstance(data, str) and data % 1:
+            if isinstance(data, str):
+                return int(data)
+
+            if data % 1 == 0:
+                return int(data)
+            else:
                 errors[field_name]["__ERRORS"] = {
                     self.name: (
                         f"losing fractional part: {data}; "
                         "if desired, use casters.IntLossy"
                     )
                 }
-            else:
-                return int(data)
-        except self.exceptions:
+        except naive_exceptions:
             errors[field_name]["__ERRORS"] = {
                 self.name: f"failed for type {type(data).__name__}"
             }
@@ -169,13 +171,14 @@ class Bool(BaseCaster):
     ensures_type = bool
 
     def to_code(self, args: TypeValueCodeGenArgs):
-        args.code.add_line(f"{args.data_code} = bool({args.data_code})", 0)
+        cast_expression = f"bool({args.data_code})"
+        args.code.add_line(
+            f"{args.data_code} = {cast_expression}", 0, cast_expression
+        )
 
 
 class NaiveCaster(SimpleCaster):
     """Tries to cast anything to a given type"""
-
-    exceptions = (TypeError, ValueError)
 
     def __init__(self, name, type_, exceptions):
         super().__init__(name)
@@ -188,10 +191,13 @@ class NaiveCaster(SimpleCaster):
             return data
         try:
             return self.type_(data)
-        except self.exceptions:
+        except naive_exceptions:
             errors[field_name]["__ERRORS"] = {
                 self.name: f"failed for type {type(data).__name__}"
             }
+
+
+decimal_exceptions = (TypeError, InvalidOperation)
 
 
 class DecimalLossy(SimpleCaster):
@@ -199,8 +205,6 @@ class DecimalLossy(SimpleCaster):
     floats with non-zero decimal parts"""
 
     ensures_type = Decimal_
-
-    exceptions = (TypeError, InvalidOperation)
 
     def __init__(self, quantize_exp=None, rounding=None):
         super().__init__("decimal_lossy_caster")
@@ -212,7 +216,7 @@ class DecimalLossy(SimpleCaster):
             if self.quantize_exp is None:
                 return Decimal_(data)
             return Decimal_(data).quantize(self.quantize_exp, self.rounding)
-        except self.exceptions:
+        except decimal_exceptions:
             errors[field_name]["__ERRORS"] = {
                 self.name: f"failed for type {type(data).__name__}"
             }
@@ -240,7 +244,7 @@ class Decimal(SimpleCaster):
                 }
                 return
             return Decimal_(data)
-        except self.exceptions:
+        except decimal_exceptions:
             errors[field_name]["__ERRORS"] = {
                 self.name: f"failed for type {type(data).__name__}"
             }

@@ -1,3 +1,23 @@
+0.29.0 (2022-07-05)
+___________________
+
+- updated ``DictArray``, ``DictSum``, ``DictSumOrNone`` so they don't rebuild
+  dicts from defaultdicts (only setting default_factory to None, so
+  defaultdicts start raising KeyErrors like regular dicts)
+- changed ``c.naive`` conversion logic so it supports pre-warming its value by
+  putting it as a function parameter with a default value (conversions are not
+  obliged to use naive pre-warming; if they don't request it, they will deal
+  with global lookups to ``__naive_values__`` dict)
+
+Experimental - contrib.model:
++++++++++++++++++++++++++++++
+
+- updated casters to support expression-mode, where they can be used as a part
+  of list/set/dict/tuple comprehension (instead of building these collections
+  in a loop in simple cases)
+- sped up models
+- inlined ``validators.Required``
+
 0.28.0 (2022-07-03)
 ___________________
 

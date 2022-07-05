@@ -705,3 +705,16 @@ class SumIfGte10(MultiStatementReducer):
 
 def test_reducer_with_conditional_init():
     assert c.aggregate(SumIfGte10(c.this)).execute(range(12)) == 21
+
+
+def test_reducer_defaultdict_locking():
+    result = c.aggregate(
+        (
+            c.ReduceFuncs.DictArray(c.this, c.this),
+            c.ReduceFuncs.DictSum(c.this, c.this),
+            c.ReduceFuncs.DictSumOrNone(c.this, c.this),
+        )
+    ).execute(range(10))
+    for data in result:
+        with pytest.raises(KeyError):
+            data[11]

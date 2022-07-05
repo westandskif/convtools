@@ -29,23 +29,22 @@ class SimpleCaster(BaseCaster, abc.ABC):
         """to be defined"""
 
     def to_code(self, args: TypeValueCodeGenArgs):
+        cast_expression = (
+            c.naive(
+                self._cast,
+                name_prefix=f"{self.name}{args.code_suffix}{args.level}",
+            )
+            .call(
+                c.escaped_string(args.name_code),
+                c.escaped_string(args.data_code),
+                c.escaped_string(args.errors_code),
+            )
+            .gen_code_and_update_ctx("not needed", args.ctx)
+        )
         args.code.add_line(
-            "{} = {}".format(  # pylint: disable=consider-using-f-string
-                args.data_code,
-                (
-                    c.naive(
-                        self._cast,
-                        name_prefix=f"{self.name}{args.code_suffix}{args.level}",
-                    )
-                    .call(
-                        c.escaped_string(args.name_code),
-                        c.escaped_string(args.data_code),
-                        c.escaped_string(args.errors_code),
-                    )
-                    .gen_code_and_update_ctx("not needed", args.ctx)
-                ),
-            ),
+            f"{args.data_code} = {cast_expression}",
             0,
+            cast_expression,
         )
 
 

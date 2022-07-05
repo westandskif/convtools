@@ -3,8 +3,10 @@ import abc
 from collections import namedtuple
 from typing import Dict, List, Optional, Type, Union
 
+from convtools.base import BaseConversion
 
-_none = object()
+
+_none = BaseConversion._none
 
 
 class BaseStep:

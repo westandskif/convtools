@@ -524,6 +524,16 @@ def test_base_reducer():
     assert conv2([]) == {"key": None}
     assert conv2(data) == {"key": result}
 
+    def two():
+        return 2
+
+    assert (
+        c.aggregate(c.ReduceFuncs.Sum(c.this * c.naive(two).call())).execute(
+            range(4)
+        )
+        == 12
+    )
+
 
 def test_piped_group_by():
     input_data = [

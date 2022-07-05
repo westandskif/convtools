@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from convtools import conversion as c
 
-from ..base import BaseStep, TypeValueCodeGenArgs, _none
+from ..base import BaseStep, TypeValueCodeGenArgs
 from ..utils import is_generic_alias, is_model_cls
 
 
@@ -24,21 +24,6 @@ class BaseValidator(abc.ABC, BaseStep):
     @abc.abstractmethod
     def validate(self, field_name, data, errors):
         """abstract validate method"""
-
-
-class Required(BaseValidator):
-    """Internally used validator, which checks fields without defaults for
-    existence"""
-
-    name = "required"
-    __slots__ = ()
-    _error = {"required": True}
-
-    def validate(self, field_name, data, errors):
-        if data is _none:
-            errors[field_name]["__ERRORS"] = self._error
-        else:
-            return True
 
 
 class Type(BaseValidator):

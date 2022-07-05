@@ -22,10 +22,11 @@ def test_optional_dict():
                 c.item("key1") * 400, skip_if=c.item("key1") < 5
             ): c.optional(c.item("key22")),
             c.optional(
-                c.item("key1") * 500, skip_if=c.item("key1") < 5
+                c.item("key1") * c.call_func(lambda: 500),
+                skip_if=c.item("key1") < 5,
             ): c.optional(c.item("key22"), skip_value=20),
         }
-    ).gen_converter(debug=False)
+    ).gen_converter()
     assert conv([{"key1": 1, "key2": 2}, {"key1": 10, "key22": 20}], x=1) == [
         {"key1": 1, "key2": 2, "key3": 200, 2: 0},
         {"key1": 10, "key4": 3000, "key5": 3000, 4000: 20},
@@ -44,10 +45,10 @@ def test_optional_list_tuple_set():
         [
             c.item("key1"),
             c.optional(c.item("key2", default=None)),
-            c.optional(c.item("key1") * 2, skip_value=20),
+            c.optional(c.item("key1") * c.call_func(lambda: 2), skip_value=20),
             c.optional(c.item("key1") * 3, skip_if=c.item("key1") < 5),
         ]
-    ).gen_converter(debug=False)
+    ).gen_converter()
     assert conv([{"key1": 1, "key2": 2}, {"key1": 10, "key22": 20}]) == [
         [1, 2, 2],
         [10, 30],

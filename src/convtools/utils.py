@@ -6,22 +6,30 @@ import os
 import sys
 import tempfile
 import threading
-import typing
+import typing as t
+from typing import TYPE_CHECKING
 from weakref import finalize
 
 
-if sys.version_info[:2] == (3, 6):
-    GenericMeta = typing.GenericMeta
+if TYPE_CHECKING:
+    from typing import Optional
+
+PY_VERSION = sys.version_info[:2]
+if PY_VERSION == (3, 6):
+
+    class BaseCtxMeta(t.GenericMeta):  # type: ignore
+        def __init__(
+            cls, name, bases, kwargs
+        ):  # pylint: disable=no-self-argument
+            super().__init__(name, bases, kwargs)
+            cls._ctx = threading.local()
+
 else:
 
-    class GenericMeta(type):
-        pass
-
-
-class BaseCtxMeta(GenericMeta):
-    def __init__(cls, name, bases, kwargs):
-        super().__init__(name, bases, kwargs)
-        cls._ctx = threading.local()
+    class BaseCtxMeta(type):  # type: ignore
+        def __init__(cls, name, bases, kwargs):
+            super().__init__(name, bases, kwargs)
+            cls._ctx = threading.local()
 
 
 class BaseOptionsMeta(type):
@@ -51,15 +59,15 @@ class BaseOptions(object, metaclass=BaseOptionsMeta):
                 setattr(self, option_attr, value)
 
 
-OT = typing.TypeVar("OT", bound=BaseOptions)
+OT = t.TypeVar("OT", bound=BaseOptions)
 
 
 class BaseCtx(
-    typing.Generic[OT], metaclass=BaseCtxMeta
+    t.Generic[OT], metaclass=BaseCtxMeta
 ):  # pylint:disable=invalid-metaclass
     """Context manager to manage option objects"""
 
-    options_cls: typing.Type[OT]
+    options_cls: t.Type[OT]
     _ctx: threading.local
 
     def __enter__(self) -> OT:
@@ -89,12 +97,24 @@ class Code:
     def __init__(self):
         self.lines_info = []
         self.indent_level = 0
+        self.expression_line = None
 
-    def add_line(self, line: str, next_line_indent_incr: int):
+    def add_line(
+        self,
+        line: str,
+        next_line_indent_incr: int,
+        expression_line: "Optional[str]" = None,
+    ):
         self.lines_info.append((self.indent_level, line))
         self.indent_level += next_line_indent_incr
+        self.expression_line = expression_line
         if self.indent_level < 0:
             raise AssertionError("negative indentation level")
+
+    def as_expression(self) -> "Optional[str]":
+        if len(self.lines_info) == 1 and self.expression_line:
+            return self.expression_line
+        return None
 
     def add_code(self, code: "Code"):
         for indent_level, line in code.lines_info:

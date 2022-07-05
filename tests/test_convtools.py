@@ -38,6 +38,8 @@ def test_naive_conversion():
     assert "{abc" not in get_code_str(c.naive("{abc").gen_converter())
     assert "abc" in get_code_str(c.naive("abc").gen_converter())
 
+    assert c.naive({1: 2}).item(c.this).execute(1) == 2
+
 
 def test_gen_converter():
     class A:
@@ -106,6 +108,18 @@ def test_gen_converter():
     assert (
         c.call_func(sum, c.this).gen_converter(signature="*data_")(1, 2, 3)
         == 6
+    )
+    assert (
+        c.call_func(
+            sum, c.iter(c.this + c.call_func(lambda: 10))
+        ).gen_converter(signature="*data_")(1, 2, 3)
+        == 36
+    )
+    assert (
+        c.call_func(
+            sum, c.iter(c.this + c.call_func(lambda: 10))
+        ).gen_converter()((1, 2, 3))
+        == 36
     )
     assert (
         c.call_func(
@@ -185,6 +199,10 @@ def test_naive_conversion_item():
     assert c.item(10, "test").gen_converter()(d) == 15
 
     assert c.item(11, "test", default=77).gen_converter()(d) == 77
+    assert (
+        c.item(11, "test", default=c.call_func(lambda: 77)).gen_converter()(d)
+        == 77
+    )
     assert (
         c.item(
             10, c.input_arg("arg1"), default=c.input_arg("arg2")
@@ -351,6 +369,20 @@ def test_item_attr_caching():
             c.item(2, default=c.call_func(int)),
         ]
     ).execute([-1]) == [0, 0]
+
+    for default in (
+        c.escaped_string("arg"),
+        c.inline_expr("arg"),
+        c.naive(10),
+    ):
+        converter = (
+            c.item(1, 2, 3, 4, default=default)
+            .or_(c.input_arg("arg"))
+            .gen_converter()
+        )
+        data = {1: {2: {3: {4: 7}}}}
+        assert converter(data, arg=10) == 7
+        assert converter(None, arg=10) == 10
 
 
 def test_naive_conversion_call():

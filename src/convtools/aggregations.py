@@ -675,7 +675,7 @@ class GroupBy(BaseConversion, t.Generic[RBT, CT]):
         var_agg_data = f"agg_data{suffix}"
         var_agg_data_cls = f"AggData{suffix}"
 
-        function_ctx = self.as_function_ctx(ctx)
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         with function_ctx:
 
             signature_code_items = [
@@ -1065,13 +1065,18 @@ class DictReducer(BaseDictReducer):
     unconditional_init = True
 
 
+lock_default_dict_conversion = InlineExpr(
+    'setattr({this_}, "default_factory", None) or {this_}'
+).pass_args(this_=This())
+
+
 class DictArrayReducer(BaseDictReducer):
     prepare_first = (
         "%(result)s = _d = defaultdict(list)",
         "_d[{0}].append({1})",
     )
     reduce = ("%(result)s[{0}].append({1})",)
-    post_conversion = InlineExpr("dict({})").pass_args(This())
+    post_conversion = lock_default_dict_conversion
     default = NaiveConversion(None)
     unconditional_init = True
 
@@ -1097,7 +1102,7 @@ class DictSumReducer(BaseDictReducer):
         "_d[{0}] = {1} or 0",
     )
     reduce = ("%(result)s[{0}] = {prev_result}[{0}] + ({1} or 0)",)
-    post_conversion = InlineExpr("dict({})").pass_args(This())
+    post_conversion = lock_default_dict_conversion
     default = NaiveConversion(None)
     unconditional_init = True
 
@@ -1113,7 +1118,7 @@ class DictSumOrNoneReducer(BaseDictReducer):
         "elif %(result)s[{0}] is not None:",
         "    %(result)s[{0}] = {prev_result}[{0}] + {1}",
     )
-    post_conversion = InlineExpr("dict({})").pass_args(This())
+    post_conversion = lock_default_dict_conversion
     default = NaiveConversion(None)
     unconditional_init = True
 

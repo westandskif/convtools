@@ -184,7 +184,6 @@ class JoinConversion(BaseConversion):
     self_content_type = (
         BaseConversion.self_content_type
         | BaseConversion.ContentTypes.LABEL_USAGE
-        | BaseConversion.ContentTypes.NAIVE_USAGE
         | BaseConversion.ContentTypes.NONE_USAGE
     )
 
@@ -223,7 +222,7 @@ class JoinConversion(BaseConversion):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_name("join", ctx, (self, code_input))
-        function_ctx = self.as_function_ctx(ctx)
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
 
         with function_ctx:
             join_conditions = _JoinConditions.from_condition(
