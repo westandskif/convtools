@@ -1,3 +1,12 @@
+0.31.0 (2022-07-06)
+___________________
+
+Experimental - contrib.model:
++++++++++++++++++++++++++++++
+
+- added Enum validator, e.g. ``validators.Enum(UserDefinedEnum)`` to check
+  whether an object is a valid value of a provided Enum subclass
+
 0.30.0 (2022-07-06)
 ___________________
 

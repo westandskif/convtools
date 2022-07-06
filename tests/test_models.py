@@ -77,14 +77,21 @@ def test_model__dictmodel__base():
         dt: date
         type_: Types
 
+    input_data = {
+        "first": {"a": 1},
+        "dt": date(1970, 1, 1),
+        "type_": Types.FIRST,
+    }
     obj = build_or_raise(
         SecondModel,
-        {"first": {"a": 1}, "dt": date(1970, 1, 1), "type_": Types.FIRST},
+        input_data,
     )
 
     assert json_dumps(obj) == json.dumps(
         {"first": {"a": 1}, "dt": "1970-01-01", "type_": 1}
     )
+
+    assert obj.to_dict() == input_data
 
     with pytest.raises(TypeError):
         json_dumps(object())
@@ -386,6 +393,31 @@ def test_model__enum():
 
     obj, errors = build(TestModel, {"a": "1"})
     assert errors["a"]["__ERRORS"]["enum_caster"]
+
+    class TestModel(DictModel):
+        a: int = validate(validators.Enum(ValueTypes))
+
+    obj, errors = build(TestModel, {"a": "1"})
+    assert errors["a"]["__ERRORS"]["enum"]
+    obj, errors = build(TestModel, {"a": 3})
+    assert errors["a"]["__ERRORS"]["enum"]
+    obj, errors = build(TestModel, {"a": 1})
+    assert obj.a == 1
+
+    class TestModel(DictModel):
+        a: int = cast().validate(validators.Enum(ValueTypes))
+
+    obj, errors = build(TestModel, {"a": "1"})
+    assert obj.a == 1
+    obj, errors = build(TestModel, {"a": "2"})
+    assert obj.a == 2
+    obj, errors = build(TestModel, {"a": "3"})
+    assert errors["a"]["__ERRORS"]["enum"]
+
+    with pytest.raises(ValueError):
+
+        class TestModel(DictModel):
+            a: int = validate(validators.Enum(int))
 
 
 def test_model__list():

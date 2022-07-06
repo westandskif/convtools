@@ -130,6 +130,9 @@ Built-in validators:
 * :py:obj:`Decimal<convtools.contrib.models.validators.validators.Decimal>` -
   ``Decimal(max_digits, decimal_places)`` - checks total digits and decimal
   places (`precision and scale PostgreSQL counterparts`)
+* :py:obj:`Enum<convtools.contrib.models.validators.validators.Enum>` -
+  ``Enum(UserDefinedEnum)`` - checks whether an object is a valid value of a
+  provided Enum subclass
 
 
 All-in-one example:
@@ -282,7 +285,7 @@ Type casting is explicit and is requested as follows:
 When ``cast()`` is run without arguments (failures generate proper errors):
 ***************************************************************************
 
-* ``bool`` - data is casted like ``bool(data)``
+* ``bool`` - data is cast like ``bool(data)``
 * ``str`` - :py:obj:`Str<convtools.contrib.models.casters.casters.Str>` casts
   to str; bytes are decoded using "utf-8" encoding
 * ``float`` - data is wrapped like ``float(data)``

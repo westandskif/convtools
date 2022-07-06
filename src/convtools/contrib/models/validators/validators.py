@@ -2,7 +2,9 @@
 objects"""
 import abc
 import re
+import typing as t
 from decimal import Decimal as Decimal_
+from enum import Enum as Enum_
 from typing import TYPE_CHECKING
 
 from convtools import conversion as c
@@ -343,3 +345,26 @@ class Length(BaseValidator):
             errors[field_name]["__ERRORS"] = {
                 "type": f"{type(data).__name__} doesn't have length"
             }
+
+
+class Enum(BaseValidator):
+    """Enum validator checks whether an object is a valid value of a provided
+    Enum subclass"""
+
+    name = "enum"
+
+    def __init__(self, enum_cls: t.Type[Enum_]):
+        if not issubclass(enum_cls, Enum_):
+            raise ValueError("expected subclass of Enum")
+        self.enum_cls = enum_cls
+        self.name = f"validate_{self.enum_cls.__name__}"
+
+    def validate(self, field_name, data, errors):
+        try:
+            self.enum_cls(data)
+        except ValueError:
+            errors[field_name]["__ERRORS"] = {
+                "enum": f"{repr(data)} isn't a valid value of {self.name}"
+            }
+        else:
+            return True
