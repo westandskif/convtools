@@ -117,6 +117,8 @@ ____________________________________________
 
 Built-in validators:
 
+* :py:obj:`Length<convtools.contrib.models.validators.validators.Length>` -
+  ``Length(min_length=1, max_length=2)``
 * :py:obj:`Gt<convtools.contrib.models.validators.validators.Gt>` - ``Gt(10)``
 * :py:obj:`Gte<convtools.contrib.models.validators.validators.Gte>` - ``Gte(10)``
 * :py:obj:`Lt<convtools.contrib.models.validators.validators.Lt>` - ``Lt(10)``

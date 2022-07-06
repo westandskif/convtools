@@ -175,7 +175,7 @@ What's the workflow?
        # joins on column "a" values
        on=["a"],
        how="inner",
-   ).into_iter_rows(dict)  # this is a generator to consume (tuple, list are supported to)
+   ).into_iter_rows(dict)  # this is a generator to consume (tuple, list are supported too)
 
 
 **Conversions** - data transforms, complex aggregations, joins:

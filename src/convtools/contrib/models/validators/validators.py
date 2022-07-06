@@ -273,3 +273,73 @@ class Decimal(BaseValidator):
                 }
         else:
             errors[field_name]["__ERRORS"] = {"type": "not a Decimal"}
+
+
+class Length(BaseValidator):
+    """Length validator checks anything for min/max length"""
+
+    name = "length"
+
+    def __init__(self, min_length=None, max_length=None):
+        self.min_length = min_length
+        self.max_length = max_length
+        if min_length is not None:
+            if max_length is not None:
+                self.name = "length_min_max"
+                self.validate = self._validate_both
+            else:
+                self.name = "length_min"
+                self.validate = self._validate_min
+        elif max_length is not None:
+            self.name = "length_max"
+            self.validate = self._validate_max
+        else:
+            raise ValueError("both min_length and max_length are None")
+
+    def validate(self, field_name, data, errors):
+        """To be replaced by __init__"""
+
+    def _validate_both(self, field_name, data, errors):
+        try:
+            if self.min_length <= len(data) <= self.max_length:
+                return True
+
+            length_ = len(data)
+            if self.min_length > length_:
+                errors[field_name]["__ERRORS"] = {
+                    "min_length": f"length is {length_}, but should be >= {self.min_length}"
+                }
+            else:
+                errors[field_name]["__ERRORS"] = {
+                    "max_length": f"length is {length_}, but should be <= {self.max_length}"
+                }
+        except TypeError:
+            errors[field_name]["__ERRORS"] = {
+                "type": f"{type(data).__name__} doesn't have length"
+            }
+
+    def _validate_min(self, field_name, data, errors):
+        try:
+            if self.min_length <= len(data):
+                return True
+            else:
+                errors[field_name]["__ERRORS"] = {
+                    "min_length": f"length is {len(data)}, but should be >= {self.min_length}"
+                }
+        except TypeError:
+            errors[field_name]["__ERRORS"] = {
+                "type": f"{type(data).__name__} doesn't have length"
+            }
+
+    def _validate_max(self, field_name, data, errors):
+        try:
+            if self.max_length >= len(data):
+                return True
+            else:
+                errors[field_name]["__ERRORS"] = {
+                    "max_length": f"length is {len(data)}, but should be <= {self.max_length}"
+                }
+        except TypeError:
+            errors[field_name]["__ERRORS"] = {
+                "type": f"{type(data).__name__} doesn't have length"
+            }

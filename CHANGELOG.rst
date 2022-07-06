@@ -1,3 +1,11 @@
+0.30.0 (2022-07-06)
+___________________
+
+Experimental - contrib.model:
++++++++++++++++++++++++++++++
+
+- added length validator, e.g. ``validators.Length(min_length=1, max_length=2)``
+
 0.29.0 (2022-07-05)
 ___________________
 

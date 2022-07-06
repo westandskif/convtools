@@ -674,6 +674,43 @@ def test_model__validators__regex():
         build(TestModel, {"a": 123})
 
 
+def test_model__validators__length():
+    with pytest.raises(ValueError):
+
+        class TestModel(DictModel):
+            a: str = validate(validators.Length())
+
+    class TestModel(DictModel):
+        a: str = validate(validators.Length(min_length=1))
+        b: str = validate(validators.Length(max_length=2))
+        c: str = validate(validators.Length(min_length=1, max_length=2))
+
+    obj, errors = build(TestModel, {"a": "x", "b": "x", "c": "x"})
+    assert obj.a == "x" and obj.b == "x" and obj.c == "x"
+    obj, errors = build(TestModel, {"a": "xx", "b": "xx", "c": "xx"})
+    assert obj.a == "xx" and obj.b == "xx" and obj.c == "xx"
+    obj, errors = build(TestModel, {"a": "", "b": "xxx", "c": ""})
+    assert (
+        errors["a"]["__ERRORS"]["min_length"]
+        and errors["b"]["__ERRORS"]["max_length"]
+        and errors["c"]["__ERRORS"]["min_length"]
+    )
+    obj, errors = build(TestModel, {"a": "x", "b": "x", "c": "xxx"})
+    assert errors["c"]["__ERRORS"]["max_length"]
+
+    for kwargs in [
+        {"min_length": 1},
+        {"max_length": 1},
+        {"min_length": 1, "max_length": 2},
+    ]:
+
+        class TestModel(DictModel):
+            a: str = validate(validators.Length(**kwargs))
+
+        obj, errors = build(TestModel, {"a": None})
+        assert errors["a"]["__ERRORS"]["type"]
+
+
 def test_model__validators__comparisons():
     class TestModel(DictModel):
         a: int = cast().validate(validators.Gt(10))
