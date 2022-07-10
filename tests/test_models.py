@@ -1739,7 +1739,7 @@ def benchmark_data_2():
 
 def test_model__benchmark_1_pydantic_validation(benchmark, benchmark_data_1):
     try:
-        from pydantic import BaseModel, StrictStr, StrictInt, StrictFloat
+        from pydantic import BaseModel, StrictFloat, StrictInt, StrictStr
     except ImportError:
         return
 
@@ -1756,7 +1756,7 @@ def test_model__benchmark_1_pydantic_validation_failed(
     benchmark, benchmark_data_2
 ):
     try:
-        from pydantic import BaseModel, StrictStr, StrictInt, StrictFloat
+        from pydantic import BaseModel, StrictFloat, StrictInt, StrictStr
     except ImportError:
         return
 
