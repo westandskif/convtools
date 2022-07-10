@@ -13,6 +13,9 @@ ______
    fine, 10.1 is not`
 #. if there's a model instance, it is valid.
 
+
+:ref:`2022-07-10 comparison: pydantic vs convtools models<ref_models_vs_pydantic>`
+
 Interface
 _________
 

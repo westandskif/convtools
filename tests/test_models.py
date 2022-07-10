@@ -1737,7 +1737,45 @@ def benchmark_data_2():
     }
 
 
-def test_model__benchmark_1_pydantic(benchmark, benchmark_data_1):
+def test_model__benchmark_1_pydantic_validation(benchmark, benchmark_data_1):
+    try:
+        from pydantic import BaseModel, StrictStr, StrictInt, StrictFloat
+    except ImportError:
+        return
+
+    class PydanticModel(BaseModel):
+        name: StrictStr
+        age: StrictInt
+        friends: t.List[StrictInt]
+        settings: t.Dict[StrictStr, StrictFloat]
+
+    benchmark(PydanticModel.parse_obj, benchmark_data_1)
+
+
+def test_model__benchmark_1_pydantic_validation_failed(
+    benchmark, benchmark_data_2
+):
+    try:
+        from pydantic import BaseModel, StrictStr, StrictInt, StrictFloat
+    except ImportError:
+        return
+
+    class PydanticModel(BaseModel):
+        name: StrictStr
+        age: StrictInt
+        friends: t.List[StrictInt]
+        settings: t.Dict[StrictStr, StrictFloat]
+
+    def f(data):
+        try:
+            PydanticModel.parse_obj(data)
+        except Exception:
+            pass
+
+    benchmark(f, benchmark_data_2)
+
+
+def test_model__benchmark_1_pydantic_casting(benchmark, benchmark_data_1):
     try:
         from pydantic import BaseModel
     except ImportError:
@@ -1760,6 +1798,16 @@ def test_model__benchmark_1_validation(benchmark, benchmark_data_1):
         settings: t.Dict[str, float]
 
     benchmark(build, TestModel, benchmark_data_1)
+
+
+def test_model__benchmark_2_validation_failed(benchmark, benchmark_data_2):
+    class TestModel(DictModel):
+        name: str
+        age: int
+        friends: t.List[int]
+        settings: t.Dict[str, float]
+
+    benchmark(build, TestModel, benchmark_data_2)
 
 
 def test_model__benchmark_1_casting(benchmark, benchmark_data_1):
@@ -1791,7 +1839,7 @@ def test_model__benchmark_1_cattrs(benchmark, benchmark_data_1):
     benchmark(cattrs.structure, benchmark_data_1, AttrsModel)
 
 
-def test_model__benchmark_2_pydantic(benchmark, benchmark_data_2):
+def test_model__benchmark_2_pydantic_casting(benchmark, benchmark_data_2):
     try:
         from pydantic import BaseModel
     except ImportError:
