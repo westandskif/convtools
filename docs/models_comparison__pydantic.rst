@@ -9,7 +9,7 @@ Context:
 * documented on 2022-07-10
 * ``python==3.9.7``
 * ``pydantic==1.8.2``
-* ``convtools==0.3.1``
+* ``convtools==0.31.0``
 
 To keep the below concise, let's assume the following imports are made:
 
