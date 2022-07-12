@@ -1,3 +1,13 @@
+0.32.0 (2022-07-12)
+___________________
+
+Features
+++++++++
+
+- introduced ``c.iter_windows(width=7, step=1)`` / ``(...).iter_windows(...)``
+  conversions, which iterate through an iterable and yield windows as tuples
+
+
 0.31.0 (2022-07-06)
 ___________________
 

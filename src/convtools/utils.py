@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import typing as t
+from collections import deque
 from typing import TYPE_CHECKING
 from weakref import finalize
 
@@ -209,3 +210,22 @@ def drop_dumped_code(name_to_code_piece):
                 os.remove(code_piece.abs_path)
             except FileNotFoundError:  # pragma: no cover
                 pass
+
+
+def iter_windows(collection, width, step):
+    window = deque(maxlen=width)
+    window_append = window.append
+
+    index = 0
+    for index, obj in enumerate(collection):
+        window_append(obj)
+        if index % step == 0:
+            yield tuple(window)
+
+    index += 1
+    window.popleft()
+    while window:
+        if index % step == 0:
+            yield tuple(window)
+        index += 1
+        window.popleft()

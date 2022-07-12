@@ -1685,7 +1685,6 @@ def test_model__bool():
     assert obj.a is False
 
 
-# TODO: support sets
 if PY_VERSION >= (3, 10):
 
     def test_model__simplified_typing():
@@ -1710,9 +1709,12 @@ if PY_VERSION == (3, 9):
         class TestModel(DictModel):
             a_1: list[int] = field("a").cast()
             a_2: t.List[int] = field("a").cast()
+            a_3: set[int] = field("a").cast()
 
-        obj, errors = build(TestModel, {"a": ("1", 2.0)})
-        assert obj.a_1 == [1, 2] and obj.a_2 == [1, 2]
+        obj, errors = build(TestModel, {"a": ("1", 2.0, 1)})
+        assert (
+            obj.a_1 == [1, 2, 1] and obj.a_2 == [1, 2, 1] and obj.a_3 == {1, 2}
+        )
 
 
 @pytest.fixture

@@ -1217,8 +1217,8 @@ ____________________________________________________
 
       c.min(c.item("a"), c.item("b"))
 
-15. Shortcuts II: take_while, drop_while, chunk_by, chunk_by_condition
-______________________________________________________________________
+15. Shortcuts II: take_while, drop_while, chunk_by, chunk_by_condition, iter_windows
+____________________________________________________________________________________
 
 .. list-table::
  :class: cheatsheet-table
@@ -1298,6 +1298,26 @@ ______________________________________________________________________
           "x": c.ReduceFuncs.Last(c.item("x")),
           "y": c.ReduceFuncs.Sum(c.item("y")),
       })
+
+ * - .. code-block:: python
+
+      input_data = range(3)
+
+   - .. code-block:: python
+
+      # slide a window of width=3, step=1,
+      # yielding windows as tuples
+      [
+          (0,),
+          (0, 1),
+          (1, 2),
+          (2,),
+      ]
+
+   - .. code-block:: python
+
+      c.iter_windows(2, step=1)
+
 
 16. Debugging
 _____________

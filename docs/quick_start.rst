@@ -664,8 +664,8 @@ It works as follows: if it finds any function calls, index/attribute lookups,
 it just caches the input, because the IF cannot be sure whether it's cheap or
 applicable to run the input code twice.
 
-7.2. Processing collections - II: chunk_by, chunk_by_condition
-______________________________________________________________
+7.2. Processing collections - II: chunk_by, chunk_by_condition, iter_windows
+____________________________________________________________________________
 
 Points to learn:
 
@@ -674,6 +674,11 @@ Points to learn:
 #. :py:obj:`c.chunk_by_condition<convtools.conversion.Conversion.chunk_by_condition>`
    allows to slice iterables into chunks based on a condition, which is a
    function of a current chunk and an element
+#. :py:obj:`c.iter_windows<convtools.conversion.Conversion.iter_windows>` /
+   ``(...).iter_windows`` iterates through an iterable and yields tuples, which
+   are obtained by sliding a window of a given width and by moving the window
+   by specified step size as follows: ``c.iter_windows(width=7, step=1)``
+
 
 A simple pipe first:
 

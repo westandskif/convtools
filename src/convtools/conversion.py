@@ -170,6 +170,12 @@ class Conversion:
     def iter_mut(self, *args, **kwargs):
         return self.this.iter_mut(*args, **kwargs)
 
+    def iter_windows(self, *args, **kwargs):
+        """Iterates through an iterable and yields tuples, which are obtained
+        by sliding a windows of a given width, moving it by specified step
+        size"""
+        return self.this.iter_windows(*args, **kwargs)
+
     def zip(self, *args, **kwargs):
         """Conversion which calls :py:obj:`zip` on conversions.
 

@@ -12,7 +12,7 @@ from keyword import iskeyword
 from random import choice
 
 from .heuristics import Weights
-from .utils import BaseCtx, BaseOptions, Code, CodeStorage
+from .utils import BaseCtx, BaseOptions, Code, CodeStorage, iter_windows
 
 
 black: "t.Optional[t.Any]" = None
@@ -572,6 +572,12 @@ class BaseConversion(t.Generic[CT]):
 
         """
         return IterMutConversion(self, *mutations)
+
+    def iter_windows(self, width, step=1):
+        """Iterates through an iterable and yields tuples, which are obtained
+        by sliding a windows of a given width, moving it by specified step
+        size"""
+        return CallFunc(iter_windows, self, width, step)
 
     def flatten(self) -> "Call":
         """Conversion which calls :py:obj:`itertools.chain.from_iterable` on
