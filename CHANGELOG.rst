@@ -1,3 +1,15 @@
+0.33.0 (2022-07-14)
+___________________
+
+Experimental - contrib.model:
++++++++++++++++++++++++++++++
+
+- [BREAKING] contrib.models: renamed ``cached_model_method`` to
+  ``cached_model_classmethod``
+- contrib.models ``cached_model_classmethod`` now allows to call it from
+  sibling class methods (it no longer requires version parameter, its signature
+  now is ``cls, data``)
+
 0.32.0 (2022-07-12)
 ___________________
 

@@ -29,7 +29,7 @@ _________
        ObjectModel,
        build,
        build_or_raise,
-       cached_model_method,
+       cached_model_classmethod,
        cast,
        casters,
        field,
@@ -175,8 +175,8 @@ All-in-one example:
        random_number: float = field(cls_method="get_random")
        same_random_number: float = field(cls_method="get_random")
 
-       @cached_model_method
-       def get_random(self, data):
+       @cached_model_classmethod
+       def get_random(cls, data):
            # returns data, errors
            return random(), None
 

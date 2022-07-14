@@ -3,3 +3,5 @@ build/
 pip-wheel-metadata/
 src/convtools.egg-info/
 tmp/
+.git/
+.mypy_cache/

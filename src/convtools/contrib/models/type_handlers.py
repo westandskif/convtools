@@ -265,13 +265,9 @@ def model_type_to_code(outer_args: TypeValueCodeGenArgs):
                         method,
                         name_prefix=pipeline.cls_method,
                     )
-                    if getattr(method, "cached_model_method", False):
-                        args.base_conversion.requires_versions = True
-                        fetcher = fetcher.call(
-                            c.this, c.escaped_string("run_ctx_.version")
-                        )
-                    else:
-                        fetcher = fetcher.call(c.this)
+                    fetcher = fetcher.call(c.this)
+                    if hasattr(method, "finalize"):
+                        args.finalizers.add(method.finalize)
 
                     fetch_field_code = fetcher.gen_code_and_update_ctx(
                         args.data_code, args.ctx

@@ -17,13 +17,10 @@ from .utils import TypeValueWrapper
 
 
 class TypeConversionRunCtx:
-    __slots__ = ("version", "visited_model_data")
-    counter = 0
+    __slots__ = ("visited_model_data",)
 
     def __init__(self, tracks_visited):
         self.visited_model_data = {} if tracks_visited else None
-        self.version = self.counter
-        TypeConversionRunCtx.counter += 1
 
 
 def union_path_to_indexes(path):
@@ -47,11 +44,11 @@ class TypeConversion(BaseConversion):
         super().__init__()
         self.type_value_wrapper = type_value_wrapper
         self.tracks_visited = False
-        self.requires_versions = False
         self.union_args_getter = None
 
     def _to_code(self, code_input, ctx):
         code = Code()
+        finalizers = set()
         ctx["ErrorsDict"] = ErrorsDict
         ctx["TypeConversionRunCtx"] = TypeConversionRunCtx
 
@@ -87,6 +84,7 @@ class TypeConversion(BaseConversion):
                 path_before_model=(),
                 model_depth=0,
                 union_paths=union_paths,
+                finalizers=finalizers,
             ),
         )
         if union_paths:
@@ -104,9 +102,17 @@ class TypeConversion(BaseConversion):
         code.lines_info[run_ctx_line] = (
             code.lines_info[run_ctx_line][0],
             f"run_ctx_ = TypeConversionRunCtx({self.tracks_visited})"
-            if self.tracks_visited or self.requires_versions
+            if self.tracks_visited
             else "run_ctx_ = None",
         )
+        if finalizers:
+            for finalizer in finalizers:
+                code.add_line(
+                    c.call_func(finalizer).gen_code_and_update_ctx(
+                        "not needed", ctx
+                    ),
+                    0,
+                )
         code.add_line("if errors_:", 1)
         code.add_line("errors_.lock()", 0)
         code.add_line("return None, errors_", -1)

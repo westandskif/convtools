@@ -34,6 +34,7 @@ TypeValueCodeGenArgs = namedtuple(
         "path_before_model",
         "model_depth",
         "union_paths",
+        "finalizers",
     ],
 )
 

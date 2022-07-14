@@ -24,20 +24,24 @@ if TYPE_CHECKING:
     from typing import Optional, Type, Union
 
 
-def cached_model_method(func):
-    ctx = {"key": (None, -1)}
+def cached_model_classmethod(func):
+    empty_value = (None, object())
+    ctx = {"key": empty_value}
 
     @wraps(func)
-    def wrapper(cls, data, version):
-        result, version_ = ctx["key"]
-        if version_ == version:
+    def wrapper(cls, data):
+        result, data_ = ctx["key"]
+        if data_ is data:
             return result
 
         result = func(cls, data)
-        ctx["key"] = result, version
+        ctx["key"] = result, data
         return result
 
-    wrapper.cached_model_method = True
+    def clear():
+        ctx["key"] = empty_value
+
+    wrapper.finalize = clear
 
     return classmethod(wrapper)
 

@@ -2,6 +2,7 @@ import json
 import re
 import sys
 import typing as t
+import weakref
 from datetime import date, datetime
 from decimal import ROUND_DOWN, Decimal
 from enum import Enum
@@ -16,7 +17,7 @@ from convtools.contrib.models import (
     ValidationError,
     build,
     build_or_raise,
-    cached_model_method,
+    cached_model_classmethod,
     cast,
     casters,
     field,
@@ -640,14 +641,15 @@ def test_model__cls_method():
         b: float = field(cls_method="get_random")
         c: float = field(cls_method="get_random")
         d: float = field(cls_method="get_random2")
+        e: float = field(cls_method="get_random3")
 
-        @classmethod
+        @cached_model_classmethod
         def get_a(cls, data):
             if data > 100:
                 return None, {"too_big": True}
             return int(data), None
 
-        @cached_model_method
+        @cached_model_classmethod
         def get_random(cls, data):
             return random(), None
 
@@ -655,11 +657,23 @@ def test_model__cls_method():
         def get_random2(cls, data):
             return random(), None
 
+        @classmethod
+        def get_random3(cls, data):
+            value = cls.get_random(data)[0]
+            for i in range(3):
+                assert cls.get_random(data)[0] == value
+            return value + 0.1, None
+
     obj, errors = build(TestModel, 100.1)
     assert errors["a"]["__ERRORS"]["too_big"]
 
     obj, errors = build(TestModel, 100.0)
-    assert obj.a == 100 and obj.b == obj.c and obj.b != obj.d
+    assert (
+        obj.a == 100
+        and obj.b == obj.c
+        and obj.e - 0.1 - obj.c < 1e-15
+        and obj.b != obj.d
+    )
 
     with pytest.raises(RuntimeError):
 
@@ -673,6 +687,23 @@ def test_model__cls_method():
 
             def get_a(self, data):
                 pass
+
+    class TestModel(DictModel):
+        a: int = field(cls_method=True)
+
+        @cached_model_classmethod
+        def get_a(cls, data):
+            return data["a"], None
+
+    class Data(dict):
+        pass
+
+    data = Data({"a": 1})
+    weak_data = weakref.ref(data)
+
+    obj, errors = build(TestModel, data)
+    data = None
+    assert obj.a == 1 and weak_data() is None
 
 
 def test_model__validators__type():
@@ -832,6 +863,7 @@ def test_model__exceptions():
         None,
         None,
         None,
+        set(),
     )
     with pytest.raises(Exception):
         type_value_to_code(args)
