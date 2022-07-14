@@ -1043,7 +1043,15 @@ class TestModel3(DictModel):
     b: "t.Optional[TestModel3]"
 
 
-def test_model__self_type():
+class Item(DictModel):
+    tag: t.Optional["Tag"] = None
+
+
+class Tag(DictModel):
+    item: t.Optional[Item] = None
+
+
+def test_model__cycles():
     x1 = {"a": "1", "b": None}
     x2 = {"a": "2", "b": x1}
     x3 = {"a": "3", "b": x2}
@@ -1063,6 +1071,24 @@ def test_model__self_type():
     x2 = {"a": "2", "b": x1}
     obj, errors = build(TestModel3, x2)
     assert obj.a == 2 and obj.b.a == 1 and obj.b.b is None
+
+    item_data = {"tag": None}
+    tag_data = {"item": item_data}
+
+    item_data["tag"] = tag_data
+
+    item, errors = build(Item, item_data)
+    assert item.tag.item.wrapped_object__ is item
+    assert item.tag.item.tag is item.tag
+
+
+item_data = {"tag": None}
+tag_data = {"item": item_data}
+
+item_data["tag"] = tag_data
+
+
+obj, errors = build(Item, item_data)
 
 
 def test_model__prepare_validate():

@@ -70,8 +70,12 @@ class ProxyObject:
     def __init__(self):
         self.wrapped_object__ = None
 
-    def __getattr__(self, name):
-        return getattr(self.wrapped_object__, name)
+    def __getattribute__(
+        self, name, __raw_get_attribute__=object.__getattribute__
+    ):
+        if name == "wrapped_object__":
+            return __raw_get_attribute__(self, "wrapped_object__")
+        return getattr(__raw_get_attribute__(self, "wrapped_object__"), name)
 
 
 class DictModel(BaseModel):

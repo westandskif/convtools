@@ -1,3 +1,12 @@
+0.33.1 (2022-07-14)
+___________________
+
+Experimental - contrib.model:
++++++++++++++++++++++++++++++
+
+- fixed ``ProxyObject`` to properly forward __getattr__ calls to a wrapped
+  object (required in cases where cyclic dependencies exist)
+
 0.33.0 (2022-07-14)
 ___________________
 
