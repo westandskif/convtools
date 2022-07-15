@@ -47,7 +47,9 @@ Let's:
   * read tab-delimited ``tests/csvs/ac.csv`` file, which contains two columns
     ``a`` and ``c`` and a header in the first row
   * take ``a`` and ``c`` columns, omitting other imaginary ones :)
-  * add a new column ``B``, which is a sum of ``a`` and ``c``
+  * add a new column ``B``, which is a sum of ``a`` and ``c`` (`casting to
+    types is needed, since the simple` :py:obj:`csv.reader` `is used under the
+    hood, so everything is a string`)
   * rename ``a`` column to ``A``
   * drop ``c`` column in the end
   * store the result in ``tests/csvs/out.csv`` file
@@ -55,14 +57,13 @@ Let's:
 .. code-block:: python
 
    (
-       Table
-       .from_csv(
+       Table.from_csv(
            "tests/csvs/ac.csv",
            header=True,
            dialect=Table.csv_dialect(delimiter="\t"),
        )
        .take("a", "c")
-       .update(B=c.col("a") + c.col("c"))
+       .update(B=c.col("a").as_type(int) + c.col("c").as_type(int))
        .rename({"a": "A"})
        .drop("c")
        .into_csv("tests/csvs/out.csv")
