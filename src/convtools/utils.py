@@ -222,10 +222,11 @@ def iter_windows(collection, width, step):
         if index % step == 0:
             yield tuple(window)
 
-    index += 1
-    window.popleft()
-    while window:
-        if index % step == 0:
-            yield tuple(window)
+    if window:
         index += 1
         window.popleft()
+        while window:
+            if index % step == 0:
+                yield tuple(window)
+            index += 1
+            window.popleft()

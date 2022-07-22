@@ -29,3 +29,5 @@ def test_iter_window():
         (1, 2),
         (3, 4),
     ]
+
+    assert list(c.iter_windows(2).execute([])) == []
