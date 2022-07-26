@@ -172,8 +172,8 @@ Just pass an iterable of one of tuple/list/dict:
 #. :py:obj:`convtools.contrib.tables.Table.into_csv`
 
 
-5. Rename, take, drop columns
-_____________________________
+5. Rename, take / rearrange, drop columns
+_________________________________________
 
 These methods operate with column names and can accept multiple values:
 
@@ -181,12 +181,13 @@ These methods operate with column names and can accept multiple values:
 
    # just to show all at once
    list(
-       Table.from_rows([(1, 2), (2, 3)], ["a", "b"])
-       .rename({"a": "A"})
+       Table.from_rows([("A", "b", "c"), (1, 2, 3), (2, 3, 4)], header=True)
+       .rename({"A": "a"})
        .drop("b")
-       .take("A")
+       .take("c", ...)  # put "c" column as the first one
        .into_iter_rows(dict)
    )
+   # Out[2]: [{'c': 3, 'a': 1}, {'c': 4, 'a': 2}]
 
 **For more details see:**
 
@@ -211,6 +212,7 @@ To process data:
        .update(c=c.call_func(abs, c.col("c")))  # updating new column: "c"
        .into_iter_rows(dict)
    )
+   # Out[3]: [{'a': 1, 'b': -2, 'c': 1}, {'a': 2, 'b': -3, 'c': 1}]
 
 **For more details see:**
 

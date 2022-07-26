@@ -130,6 +130,36 @@ def test_table_take():
         (4, 2, 2),
     ]
 
+    result = list(
+        Table.from_rows([[1, 2, 3, 4]], header=["a", "b", "c", "d"])
+        .take("b", "d", ...)
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("b", "d", "a", "c"),
+        (2, 4, 1, 3),
+    ]
+
+    result = list(
+        Table.from_rows([[1, 2, 3, 4]], header=["a", "b", "c", "d"])
+        .take(..., "c", "a")
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("b", "d", "c", "a"),
+        (2, 4, 3, 1),
+    ]
+
+    result = list(
+        Table.from_rows([[1, 2, 3, 4]], header=["a", "b", "c", "d"])
+        .take("b", ..., "a")
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("b", "c", "d", "a"),
+        (2, 3, 4, 1),
+    ]
+
 
 def test_table_drop():
     result = list(

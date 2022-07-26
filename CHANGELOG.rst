@@ -1,3 +1,13 @@
+0.34.0 (2022-07-26)
+___________________
+
+contrib.tables:
++++++++++++++++
+
+- updated ``Table`` to support ellipsis to signify other non-mentioned columns
+  so it's possible to easily re-arrange columns like this:
+  ``table.take("c", ...)`` / ``table.take(..., "a", "b")``
+
 0.33.2 (2022-07-22)
 ___________________
 
@@ -9,7 +19,7 @@ Bugfix
 0.33.1 (2022-07-14)
 ___________________
 
-Experimental - contrib.model:
+Experimental - contrib.models
 +++++++++++++++++++++++++++++
 
 - fixed ``ProxyObject`` to properly forward __getattr__ calls to a wrapped
@@ -18,7 +28,7 @@ Experimental - contrib.model:
 0.33.0 (2022-07-14)
 ___________________
 
-Experimental - contrib.model:
+Experimental - contrib.models
 +++++++++++++++++++++++++++++
 
 - [BREAKING] contrib.models: renamed ``cached_model_method`` to
@@ -40,7 +50,7 @@ Features
 0.31.0 (2022-07-06)
 ___________________
 
-Experimental - contrib.model:
+Experimental - contrib.models
 +++++++++++++++++++++++++++++
 
 - added Enum validator, e.g. ``validators.Enum(UserDefinedEnum)`` to check
@@ -49,7 +59,7 @@ Experimental - contrib.model:
 0.30.0 (2022-07-06)
 ___________________
 
-Experimental - contrib.model:
+Experimental - contrib.models
 +++++++++++++++++++++++++++++
 
 - added length validator, e.g. ``validators.Length(min_length=1, max_length=2)``
@@ -65,7 +75,7 @@ ___________________
   obliged to use naive pre-warming; if they don't request it, they will deal
   with global lookups to ``__naive_values__`` dict)
 
-Experimental - contrib.model:
+Experimental - contrib.models
 +++++++++++++++++++++++++++++
 
 - updated casters to support expression-mode, where they can be used as a part
@@ -77,7 +87,7 @@ Experimental - contrib.model:
 0.28.0 (2022-07-03)
 ___________________
 
-Experimental - contrib.model:
+Experimental - contrib.models
 +++++++++++++++++++++++++++++
 
 - added ``typing.Set`` support
@@ -87,7 +97,7 @@ Experimental - contrib.model:
 0.27.0 (2022-07-01)
 ___________________
 
-Experimental - contrib.model:
+Experimental - contrib.models
 +++++++++++++++++++++++++++++
 
 - added ``a: bool = cast()`` support
@@ -96,7 +106,7 @@ Experimental - contrib.model:
 0.26.0 (2022-06-30)
 ___________________
 
-Experimental - contrib.model:
+Experimental - contrib.models
 +++++++++++++++++++++++++++++
 
 - reworked errors, returned by ``build`` and ``build_or_raise`` to allow for

@@ -470,8 +470,15 @@ class Table:
 
         return self
 
-    def take(self, *column_names: str) -> "Table":
-        """Leaves only specified columns, omitting the rest.
+    def take(self, *column_names: "t.Union[str, t.Any]") -> "Table":
+        """Leaves only specified columns, omitting the rest. ``...`` references
+        non-mentioned columns, so it's easy to both take a few columns:
+
+        >>> table.take("a", "b")
+
+        and rearrange them:
+
+        >>> table.take("c", "d", ...)
 
         Args:
           column_names: columns to keep

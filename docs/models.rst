@@ -137,6 +137,12 @@ Built-in validators:
   ``Enum(UserDefinedEnum)`` - checks whether an object is a valid value of a
   provided Enum subclass
 
+At this point, there are no built-in validators for url / email, since every
+project needs differ. Something that is defined in a standard may be
+unacceptable (*punycode urls / email addresses with ip addresses instead of
+domains*). It should be easy to introduce a validator of your choice using
+``Custom``.
+
 
 All-in-one example:
 

@@ -129,17 +129,30 @@ class MetaColumns:
         self.columns.append(column)
         return column, state
 
-    def take(self, *column_names: str) -> "MetaColumns":
+    def take(self, *column_names) -> "MetaColumns":
+        column_names_set = set(column_names)
         name_to_column = self.get_name_to_column()
-        missing_columns = set(column_names).difference(name_to_column)
+        missing_columns = column_names_set.difference(name_to_column)
+
+        ellipsis_ = ...
+
+        if ellipsis_ in missing_columns:
+            missing_columns.remove(...)
         if missing_columns:
             raise ValueError("missing columns", missing_columns)
 
         new_columns = MetaColumns(self.duplicate_columns)
 
         for column_name in column_names:
-            column = name_to_column[column_name]
-            new_columns.add(column.name, column.index, column.conversion)
+            if column_name is ellipsis_:
+                for name_, column_ in name_to_column.items():
+                    if name_ not in column_names_set:
+                        new_columns.add(
+                            column_.name, column_.index, column_.conversion
+                        )
+            else:
+                column = name_to_column[column_name]
+                new_columns.add(column.name, column.index, column.conversion)
 
         return new_columns
 
