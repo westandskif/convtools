@@ -4,12 +4,12 @@ convtools
 
 **convtools** is a python library to declaratively define data transforms:
 
-* ``convtools.contrib.models`` - data validation based on ``typing`` -
-  **experimental**
-* ``convtools.contrib.tables`` - stream processing of table-like data (e.g.
-  CSV)
 * ``convtools.conversion`` - pipelines for processing collections, doing
   complex aggregations and joins.
+* ``convtools.contrib.tables`` - stream processing of table-like data (e.g.
+  CSV)
+* ``convtools.contrib.models`` - data validation based on ``typing`` -
+  **experimental**
 
 .. image:: https://img.shields.io/pypi/pyversions/convtools.svg
     :target: https://pypi.org/project/convtools/
@@ -52,11 +52,11 @@ Why would you need this?
 
 * you prefer declarative approach
 * you love functional programming
-* you believe that Python is high-level enough not make you write aggregations
-  and joins by hand
+* you believe that Python is high-level enough not to make you write
+  aggregations and joins by hand
 * you need to serialize/validate objects
 * you need to dynamically define transforms (including at runtime)
-* you like the idea of having something write ad hoc code for you
+* you like the idea of having something write ad hoc code for you :)
 
 
 Installation:
@@ -67,11 +67,8 @@ Installation:
    pip install convtools
 
 
-What's the workflow?
-====================
-
-
-**Conversions** - data transforms, complex aggregations, joins:
+Conversions - data transforms, aggregations, joins
+==================================================
 
 .. code-block:: python
 
@@ -201,7 +198,44 @@ What's the workflow?
             {"id": 3, "name": "Bob", "age": None, "country": None},
         ]
 
-**Contrib / Table** - stream processing of table-like data
+What reducers are supported by aggregations?
+++++++++++++++++++++++++++++++++++++++++++++
+
+Built-in ones, exposed like ``c.ReduceFuncs.Sum``:
+ * Sum
+ * SumOrNone
+ * Max
+ * MaxRow
+ * Min
+ * MinRow
+ * Count
+ * CountDistinct
+ * First
+ * Last
+ * Average
+ * Median
+ * Percentile - ``c.ReduceFuncs.Percentile(95.0, c.item("x"))``
+ * Mode
+ * TopK - ``c.ReduceFuncs.TopK(3, c.item("x"))``
+ * Array
+ * ArrayDistinct
+ * ArraySorted - ``c.ReduceFuncs.ArraySorted(c.item("x"), key=lambda v: v, reverse=True)``
+ * Dict - ``c.ReduceFuncs.Dict(c.item("key"), c.item("x"))``
+ * DictArray
+ * DictSum
+ * DictSumOrNone
+ * DictMax
+ * DictMin
+ * DictCount
+ * DictCountDistinct
+ * DictFirst
+ * DictLast
+
+and any reduce function of two arguments you pass in ``c.reduce``.
+
+
+Contrib / Table - stream processing of table-like data
+======================================================
 
 ``Table`` helper allows to massage CSVs and table-like data:
  * join / zip / chain tables
@@ -242,7 +276,8 @@ What's the workflow?
    )
 
 
-**Contrib / Model** - data validation (**experimental**)
+Contrib / Model - data validation (experimental)
+================================================
 
 .. code-block:: python
 
@@ -318,40 +353,7 @@ What's the workflow?
    In [5]: errors
    Out[5]: {'data': {0: {'age': {'__ERRORS': {'int_caster': 'losing fractional part: 21.1; if desired, use casters.IntLossy'}}}}}
 
-What reducers are supported by aggregations?
-============================================
 
-Any reduce function of two arguments you pass in ``c.reduce`` OR the following
-ones, exposed like ``c.ReduceFuncs.Sum``:
-
-#. Sum
-#. SumOrNone
-#. Max
-#. MaxRow
-#. Min
-#. MinRow
-#. Count
-#. CountDistinct
-#. First
-#. Last
-#. Average
-#. Median
-#. Percentile - ``c.ReduceFuncs.Percentile(95.0, c.item("x"))``
-#. Mode
-#. TopK - ``c.ReduceFuncs.TopK(3, c.item("x"))``
-#. Array
-#. ArrayDistinct
-#. ArraySorted - ``c.ReduceFuncs.ArraySorted(c.item("x"), key=lambda v: v, reverse=True)``
-#. Dict - ``c.ReduceFuncs.Dict(c.item("key"), c.item("x"))``
-#. DictArray
-#. DictSum
-#. DictSumOrNone
-#. DictMax
-#. DictMin
-#. DictCount
-#. DictCountDistinct
-#. DictFirst
-#. DictLast
 
 
 Is it any different from tools like Pandas / Polars?
@@ -371,7 +373,7 @@ Is it any different from tools like Pandas / Polars?
 Is this thing debuggable?
 =========================
 
-Despite being compiled at runtime, it is, by both ``pdb`` and ``pydevd``
+Despite being compiled at runtime, it is (by both ``pdb`` and ``pydevd``).
 
 Docs
 ====
