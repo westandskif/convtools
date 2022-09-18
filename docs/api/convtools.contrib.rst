@@ -1,14 +1,6 @@
 convtools.contrib package
 =========================
 
-Subpackages
------------
-
-.. toctree::
-   :maxdepth: 4
-
-   convtools.contrib.models
-
 Submodules
 ----------
 

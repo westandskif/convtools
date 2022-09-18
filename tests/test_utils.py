@@ -7,6 +7,7 @@ from convtools.base import (
     CodeGenerationOptionsCtx,
     This,
 )
+from convtools.utils import Code
 
 
 def test_code_generation_ctx():
@@ -109,3 +110,11 @@ def test_ignores_input():
     assert not c.aggregate({"a": 1}).ignores_input()
     assert not c.this.add_label("a").ignores_input()
     assert not c(int).call(c.item(0)).ignores_input()
+
+
+def test_code():
+    code = Code()
+    code.add_line("a = 1", 0, "1")
+    assert code.as_expression() == "1"
+    code.add_line("b = 2", 0, "2")
+    assert code.as_expression() is None

@@ -40,6 +40,15 @@ def test_naive_conversion():
 
     assert c.naive({1: 2}).item(c.this).execute(1) == 2
 
+    def f1(x):
+        return x + 1
+
+    assert "f1" in get_code_str(c.naive(f1).call(1).gen_converter())
+    code_str = get_code_str(
+        c.naive(f1, name_prefix="prefix").call(1).gen_converter()
+    )
+    assert "f1" not in code_str and "prefix" in code_str
+
 
 def test_gen_converter():
     class A:
@@ -885,3 +894,14 @@ def test_generator_exception_handling():
 def test_call_like_methods():
     assert c.inline_expr("1").is_itself_callable_like()
     assert c.item(1).is_itself_callable_like() is None
+
+
+class CustomConversion(c.BaseConversion):
+    def _to_code(self, code_input, ctx):
+        code = Code()
+        code.add_line("return 1", 0)
+        return code
+
+
+def test_to_code():
+    assert CustomConversion().execute(None) == 1

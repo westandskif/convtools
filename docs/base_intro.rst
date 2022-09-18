@@ -4,5 +4,3 @@
   complex aggregations and joins.
 * ``convtools.contrib.tables`` - stream processing of table-like data (e.g.
   CSV)
-* ``convtools.contrib.models`` - data validation based on ``typing`` -
-  **experimental**

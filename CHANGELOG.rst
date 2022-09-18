@@ -1,3 +1,12 @@
+0.35.0 (2022-09-18)
+___________________
+
+DROPPED Experimental - contrib.models
++++++++++++++++++++++++++++++++++++++
+
+One day this may become a separate lib (if pydantic v2 turns to be not what it
+claims to be), but not today while all python `typing` internals are unstable.
+
 0.34.0 (2022-07-26)
 ___________________
 

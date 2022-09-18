@@ -15,7 +15,6 @@ Next steps:
 #. :ref:`QuickStart<convtools_quickstart>`
 #. :ref:`Cheatsheet<convtools_cheatsheet>`
 #. :ref:`Table - Stream processing<convtools_tables>`
-#. :ref:`Model - Data validation<convtools_models>`
 
 A few more examples:
 
@@ -34,7 +33,6 @@ Contents
 
    QuickStart <quick_start>
    Cheatsheet <cheatsheet>
-   Contrib / Model <models>
    Contrib / Table <tables>
    Contrib / Fs <fs>
 
