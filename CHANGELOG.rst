@@ -1,3 +1,12 @@
+0.36.0 (2022-09-20)
+___________________
+
+contrib.tables:
++++++++++++++++
+
+- added ``Table.explode`` method to explode a table to a long format by
+  exploding a column with iterables
+
 0.35.0 (2022-09-18)
 ___________________
 

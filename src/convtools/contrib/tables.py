@@ -16,12 +16,15 @@ from ..base import (
     And,
     BaseConversion,
     ConverterOptionsCtx,
+    EscapedString,
     GeneratorComp,
     GetItem,
     If,
+    InlineExpr,
     InputArg,
     NaiveConversion,
     This,
+    Tuple,
     ensure_conversion,
 )
 from ..columns import ColumnChanges, ColumnRef, MetaColumns
@@ -783,6 +786,57 @@ class Table:
             meta_columns=new_columns,
             pending_changes=ColumnChanges.MUTATE,
         )
+
+    def explode(self, column_name: str):
+        """Explodes a table to a long format by exploding a column with
+        iterables, e.g.:
+
+        >>> | a |   b    |
+        >>> | 1 | [2, 3] |
+        >>> | 4 | [5, 6] |
+        >>>
+        >>> table.explode("b")
+        >>>
+        >>> | a | b |
+        >>> | 1 | 2 |
+        >>> | 1 | 3 |
+        >>> | 2 | 5 |
+        >>> | 2 | 6 |
+
+        Args:
+         - column_name: column with iterables to be exploded
+
+        """
+        columns = self.columns
+        try:
+            index = columns.index(column_name)
+        except ValueError as e:
+            raise ValueError("unknown column", column_name) from e
+
+        c_row = EscapedString("row_")
+        c_value = EscapedString("value_")
+        c_values = c_row.item(index)
+
+        new_rows = (
+            InlineExpr(
+                """({new_row} for {row} in {rows} for {value} in {values})"""
+            )
+            .pass_args(
+                new_row=Tuple(
+                    *(
+                        c_value if i == index else c_row.item(i)
+                        for i in range(len(columns))
+                    )
+                ),
+                row=c_row,
+                rows=This,
+                value=c_value,
+                values=c_values,
+            )
+            .execute(self.into_iter_rows(tuple, include_header=False))
+        )
+
+        return Table.from_rows(new_rows, header=columns)
 
     def move_rows_objects(self) -> "t.List[t.Iterable]":
         """Moves out rows objects including files to be closed later"""

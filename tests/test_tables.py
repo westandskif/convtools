@@ -603,3 +603,25 @@ def test_table_zip():
         (2, None),
         (3, None),
     ]
+
+
+def test_table_explode():
+    result = list(
+        Table.from_rows(
+            [["a", "b", "c"], [1, [2, 3], 10], [4, [5, 6], 20]], header=True
+        )
+        .explode("b")
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"a": 1, "b": 2, "c": 10},
+        {"a": 1, "b": 3, "c": 10},
+        {"a": 4, "b": 5, "c": 20},
+        {"a": 4, "b": 6, "c": 20},
+    ]
+    with pytest.raises(ValueError):
+        (
+            Table.from_rows([["a", "b"]], header=True)
+            .explode("c")
+            .into_iter_rows(dict)
+        )

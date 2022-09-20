@@ -313,3 +313,9 @@ But you most definitely can leverage piping to callables like this:
        lambda it: Table.from_rows(it, header=True).into_iter_rows(dict)
    ).as_type(list)
    conversion.execute(input_data)
+
+12. Explode tables
+__________________
+
+.. automethod:: convtools.contrib.tables.Table.explode
+   :noindex:
