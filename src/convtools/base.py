@@ -807,11 +807,7 @@ class BaseConversion(t.Generic[CT]):
         self"""
         return self.pipe(SortConversion(key=key, reverse=reverse))
 
-    def add_label(
-        self,
-        label_name: t.Union[str, dict],
-        conversion: t.Optional[t.Any] = None,
-    ) -> "BaseConversion":
+    def add_label(self, label_name: t.Union[str, dict]) -> "BaseConversion":
         """Labels data so it can be reused further:
 
         Basic:
@@ -826,27 +822,13 @@ class BaseConversion(t.Generic[CT]):
         >>>     c.Mut.set_attr("_count", c.label("count")),
         >>> )
 
-        Rare:
-        >>> c.iter(
-        >>>     c.item(0)
-        >>> ).add_label(
-        >>>     "before_5",
-        >>>     c.take_while(c.this < 5).as_type(list)
-        >>> ).iter(
-        >>>     c.this + c.label("before_5").item(-1)
-        >>> )
-
         Args:
           label_name: a name of the label to be applied or a dict with labels
             to conversions
-          conversion: a conversion to be applied before labeling
         Returns:
           LabelConversion: the labeled conversion
         """
-        return self.pipe(
-            This() if conversion is None else conversion,
-            label_input=label_name,
-        )
+        return self.pipe(This, label_input=label_name)
 
     def tap(self, *mutations: "BaseMutation") -> "TapConversion":
         """Allows to tap into the processing of a conversion and mutate it

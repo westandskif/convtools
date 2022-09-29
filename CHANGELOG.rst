@@ -1,3 +1,15 @@
+0.37.0 (2022-09-29)
+___________________
+
+BREAKING CHANGES:
++++++++++++++++++
+
+- changed signature: ``(...).add_label(label_name: t.Union[str, dict],
+  conversion)`` to ``(...).add_label(label_name: t.Union[str, dict])``. The
+  reason is that it had confusing behavior of applying the conversion after
+  labeling.
+
+
 0.36.0 (2022-09-20)
 ___________________
 
