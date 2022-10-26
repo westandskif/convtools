@@ -533,6 +533,48 @@ def test_if():
     ]
 
 
+def test_if_multiple():
+    assert c.if_multiple((1, 2), (3, 4), else_=5).execute(None) == 2
+    assert (
+        c.if_multiple((c.this.is_(None), 2), (3, 4), else_=5).execute(None)
+        == 2
+    )
+    assert c.list_comp(
+        (
+            c.if_multiple(
+                (c.this < 0, c.this * 10), (c.this == 0, None), else_=5
+            ),
+            c.if_multiple(
+                (c.this < 0, c.this * -100), (c.this == 0, None), else_=7
+            ),
+        )
+    ).execute([-3, -2, 0, 1, 2]) == [
+        (-30, 300),
+        (-20, 200),
+        (None, None),
+        (5, 7),
+        (5, 7),
+    ]
+
+    converter = c.if_multiple(
+        (
+            c.this.pipe(len) > 3,
+            c.aggregate(c.ReduceFuncs.Sum(c.this + c.input_arg("base"))),
+        ),
+        (c.this.pipe(len) == 2, c.this),
+        else_=None,
+    ).gen_converter()
+    assert converter([0, 1, 2, 3], base=10) == 46
+    assert converter([0, 1], base=10) == [0, 1]
+    assert converter([1], base=10) is None
+    converter = c.if_multiple(
+        (c.this < 10, c.this / 2), (c.this == 10, None), else_=c.this * 1.5
+    ).gen_converter()
+    assert (
+        converter(4) == 2 and converter(10) is None and converter(100) == 150
+    )
+
+
 def test_callfunc():
     def func(i, abc=None):
         assert i == 1 and abc == 2

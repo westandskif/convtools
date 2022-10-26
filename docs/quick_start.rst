@@ -469,8 +469,8 @@ Next:
            pipe80_338 = data_.items()
            return ((key, item) for key, items in pipe80_338 for item in items if key)
 
-7.1. Processing collections - I: iter, filter, sort, pipe, label, if
-____________________________________________________________________
+7.1. Processing collections - I: iter, filter, sort, pipe, label, if, if_multiple
+_________________________________________________________________________________
 
 Points to learn:
 
@@ -503,6 +503,9 @@ Points to learn:
 
    * if a condition is not passed, then the input is used as a condition
    * if any branch is not passed, then the input is passed untouched
+
+#. :py:obj:`c.if_multiple<convtools.base.IfMultiple>` allows to combine
+   multiple conditions-result pairs to build case-when like conversion
 
 A simple pipe first:
 
@@ -663,6 +666,41 @@ Now let's use some labels:
 It works as follows: if it finds any function calls, index/attribute lookups,
 it just caches the input, because the IF cannot be sure whether it's cheap or
 applicable to run the input code twice.
+
+Let's finish the section with reviewing how ``c.if_multiple`` works:
+
+.. tabs::
+
+  .. tab:: convtools
+
+    .. code-block:: python
+
+      c.iter(
+          c.if_multiple(
+              (c.this < 0, c.this * 10),
+              (c.this == 0, None),
+              else_=5
+          )
+      ).gen_converter(debug=True)
+
+  .. tab:: compiled code
+
+    .. code-block:: python
+
+      def if_multiple_dt(data_):
+          if data_ < 0:
+              return data_ * 10
+          if data_ == 0:
+              return None
+          return 5
+
+
+      def converter(data_):
+          try:
+              return (if_multiple_dt(i_) for i_ in data_)
+          except __exceptions_to_dump_sources:
+              __convtools__code_storage.dump_sources()
+              raise
 
 7.2. Processing collections - II: chunk_by, chunk_by_condition, iter_windows
 ____________________________________________________________________________
@@ -1102,7 +1140,83 @@ The following :py:obj:`mutations<convtools.mutations.Mutations>` are available:
           return [tap_e6(i_6w, data) for i_6w in data_]
 
 
-12. Debugging & setting Options
+12. Cumulative
+______________
+
+It's possible to calculate cumulative metrics by defining two conversions:
+  * what to do to calculate the initial value based on the first met element
+  * how to reduce to elements to one
+
+This is the main method: :py:obj:`c.cumulative OR
+(...).cumulative<convtools.base.Cumulative>` and here is a way to reset
+cumulative to the initial state:
+:py:obj:`c.this.cumulative_reset<convtools.base.CumulativeReset>`
+
+.. tabs::
+
+  .. tab:: convtools
+
+    .. code-block:: python
+
+      assert (
+          c.iter(c.cumulative(c.this, c.this + c.PREV))
+          .as_type(list)
+          .execute([0, 1, 2, 3, 4], debug=True)
+      ) == [0, 1, 3, 6, 10]
+
+  .. tab:: compiled code
+
+    .. code-block:: python
+
+      def pipe_(_labels, input_):
+          result_ = (input_ + _labels["4e855c593eb24509a4fbc0d28bcc3d61"]) if ("4e855c593eb24509a4fbc0d28bcc3d61" in _labels) else input_
+          _labels["4e855c593eb24509a4fbc0d28bcc3d61"] = result_
+          return result_
+
+
+      def converter(data_):
+          _labels = {}
+          try:
+              return [pipe_(_labels, i_) for i_ in data_]
+          except __exceptions_to_dump_sources:
+              __convtools__code_storage.dump_sources()
+              raise
+
+.. tabs::
+
+  .. tab:: convtools
+
+    .. code-block:: python
+
+      assert (
+          c.iter(
+              c.cumulative_reset("abc")
+              .iter(c.cumulative(c.this, c.this + c.PREV, label_name="abc"))
+              .as_type(list)
+          )
+          .as_type(list)
+          .execute([[0, 1, 2], [3, 4]], debug=True)
+      ) == [[0, 1, 3], [3, 7]]
+
+  .. tab:: compiled code
+
+    .. code-block:: python
+
+      def pipe_(_labels, input_):
+          result_ = (input_ + _labels["4e855c593eb24509a4fbc0d28bcc3d61"]) if ("4e855c593eb24509a4fbc0d28bcc3d61" in _labels) else input_
+          _labels["4e855c593eb24509a4fbc0d28bcc3d61"] = result_
+          return result_
+
+
+      def converter(data_):
+          _labels = {}
+          try:
+              return [pipe_(_labels, i_) for i_ in data_]
+          except __exceptions_to_dump_sources:
+              __convtools__code_storage.dump_sources()
+              raise
+
+13. Debugging & setting Options
 _______________________________
 
 Compiled converters are debuggable callables, which dump generated code on disk
@@ -1136,7 +1250,7 @@ See :py:obj:`c.OptionsCtx()<convtools.base.ConverterOptionsCtx>` API docs for
 the full list of available options.
 
 
-13. Details: inner input data passing
+14. Details: inner input data passing
 _____________________________________
 
 There are few conversions which change the input for next conversions:

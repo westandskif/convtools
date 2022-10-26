@@ -10,6 +10,7 @@ from collections import deque
 from itertools import chain
 from keyword import iskeyword
 from random import choice
+from uuid import uuid4
 
 from .heuristics import Weights
 from .utils import BaseCtx, BaseOptions, Code, CodeStorage, iter_windows
@@ -129,6 +130,9 @@ class _None:
     pass
 
 
+_none = _None()
+
+
 class BaseConversion(t.Generic[CT]):
     """This is the base class  of every conversion (so you are not going to use
     this directly).
@@ -147,7 +151,7 @@ class BaseConversion(t.Generic[CT]):
       * `pipe`
       * overloaded operators"""
 
-    _none = _None()
+    _none = _none
     valid_pipe_output = True
     used_in_narrow_context = False
     trackable_dependency = False
@@ -305,9 +309,8 @@ class BaseConversion(t.Generic[CT]):
                 (dep, isinstance(dep, LazyEscapedString))
                 for dep in self.get_dependencies()
             )
-            if isinstance(dep, InputArg)
+            if (isinstance(dep, InputArg) or is_lazy)
             and dep.name not in args_to_skip
-            or is_lazy
         }
         if for_top_level_converter:
             non_resolved_lazy = [
@@ -334,12 +337,20 @@ class BaseConversion(t.Generic[CT]):
             positional_args_as_def_names.append("_none")
             positional_args_as_conversions.append(EscapedString("_none"))
 
-        if "_labels" not in args_to_skip and self.contents & (
-            # self.ContentTypes.LABEL_USAGE | self.ContentTypes.NEW_LABEL
-            20
+        if (
+            LabelConversion.labels_code_name not in args_to_skip
+            and self.contents
+            & (
+                # self.ContentTypes.LABEL_USAGE | self.ContentTypes.NEW_LABEL
+                20
+            )
         ):
-            positional_args_as_def_names.append("_labels")
-            positional_args_as_conversions.append(EscapedString("_labels"))
+            positional_args_as_def_names.append(
+                LabelConversion.labels_code_name
+            )
+            positional_args_as_conversions.append(
+                EscapedString(LabelConversion.labels_code_name)
+            )
 
         suffix = None
         for key, dep in args.items():
@@ -425,6 +436,7 @@ class BaseConversion(t.Generic[CT]):
             cls.NAIVE_TO_WARM_UP: None,
             "__convtools__code_storage": CodeStorage(),
             "__exceptions_to_dump_sources": cls.exceptions_to_dump_sources,
+            # SetUpCumulative.__cumulative_names__
         }
         return ctx
 
@@ -466,7 +478,13 @@ class BaseConversion(t.Generic[CT]):
         has_none = self.contents & 128  # self.ContentTypes.NONE_USAGE
         ctx = self._init_ctx(debug=debug)
 
-        args_to_skip = ("self", "cls", "_none", "_naive", "_labels")
+        args_to_skip = (
+            "self",
+            "cls",
+            "_none",
+            "_naive",
+            LabelConversion.labels_code_name,
+        )
         if signature is not None:
             function_ctx = self.as_function_ctx(
                 ctx, args_to_skip=args_to_skip, for_top_level_converter=True
@@ -515,7 +533,7 @@ class BaseConversion(t.Generic[CT]):
                 code.add_line("global __none__", 0)
                 code.add_line("_none = __none__", 0)
             if has_labels:
-                code.add_line("_labels = {}", 0)
+                code.add_line(f"{LabelConversion.labels_code_name} = {{}}", 0)
 
             code.add_line("try:", 1)
 
@@ -877,6 +895,14 @@ class BaseConversion(t.Generic[CT]):
             )
         )
 
+    def cumulative(self, prepare_first, reduce_two, label_name=None):
+        """Shortcut for :py:obj:`Cumulative`"""
+        return Cumulative(self, prepare_first, reduce_two, label_name)
+
+    def cumulative_reset(self, label_name):
+        """Shortcut for :py:obj:`CumulativeReset`"""
+        return CumulativeReset(self, label_name)
+
 
 class BaseMutation(BaseConversion):
     used_in_narrow_context = True
@@ -1006,7 +1032,7 @@ class EscapedString(BaseConversion):
     )
     weight = Weights.STEP
 
-    def __init__(self, s):
+    def __init__(self, s: str):
         super().__init__()
         self.s = s
 
@@ -1069,6 +1095,8 @@ class LabelConversion(BaseConversion):
     ) & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     weight = Weights.DICT_LOOKUP
 
+    labels_code_name = "_labels"
+
     def __init__(self, label_name: str):
         """
         Args:
@@ -1080,7 +1108,7 @@ class LabelConversion(BaseConversion):
         self.label_name = label_name
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return f"_labels[{repr(self.label_name)}]"
+        return f"{self.labels_code_name}[{repr(self.label_name)}]"
 
 
 class Namespace(BaseConversion):
@@ -1446,6 +1474,69 @@ class If(BaseConversion):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return self.conversion.gen_code_and_update_ctx(code_input, ctx)
+
+
+class IfMultiple(BaseConversion):
+    """Builds a short-circuit conversion, which evaluates multiple conversions
+    and stops at first true one:
+
+    >>> converter = c.if_multiple(
+    >>>     (c.this < 10, c.this / 2),
+    >>>     (c.this == 10, None),
+    >>>     else_=c.this * 2
+    >>> ).gen_converter()
+
+    is equivalent of:
+
+    >>> def converter(data_):
+    >>>     if data_ < 10:
+    >>>         return data_ / 2
+    >>>     if data_ == 10:
+    >>>         return None
+    >>>     return data_ * 2
+    """
+
+    self_content_type = (
+        BaseConversion.self_content_type
+        & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
+
+    def __init__(self, *condition_to_value_pairs, else_):
+        super().__init__()
+        self.condition_to_value_pairs = [
+            (self.ensure_conversion(condition), self.ensure_conversion(value))
+            for condition, value in condition_to_value_pairs
+        ]
+        self.else_ = self.ensure_conversion(else_)
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        code = Code()
+        suffix = self.gen_name("", ctx, self)
+        converter_name = f"if_multiple{suffix}"
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
+        function_ctx.add_arg("data_", This())
+        with function_ctx:
+            code.add_line("def placeholder", 1)
+            for condition, value in self.condition_to_value_pairs:
+                condition_code = condition.gen_code_and_update_ctx(
+                    "data_", ctx
+                )
+                value_code = value.gen_code_and_update_ctx("data_", ctx)
+                code.add_line(f"if {condition_code}:", 1)
+                code.add_line(f"return {value_code}", -1)
+            else_code = self.else_.gen_code_and_update_ctx("data_", ctx)
+            code.add_line(f"return {else_code}", -1)
+
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
+            conversion = function_ctx.gen_conversion(
+                converter_name, code.to_string(0)
+            )
+        return function_ctx.call_with_all_args(
+            conversion
+        ).gen_code_and_update_ctx(code_input, ctx)
 
 
 class Not(BaseConversion):
@@ -2617,7 +2708,7 @@ class PipeConversion(BaseConversion):
             if self.label_input:
                 for label_name, label_c in self.label_input.items():
                     code.add_line(
-                        f"_labels['{label_name}'] = "
+                        f"{LabelConversion.labels_code_name}['{label_name}'] = "
                         f"{label_c.gen_code_and_update_ctx(var_input, ctx)}",
                         0,
                     )
@@ -2625,7 +2716,7 @@ class PipeConversion(BaseConversion):
                 code.add_line(f"{var_result} = {where_code}", 0)
                 for label_name, label_c in self.label_output.items():
                     code.add_line(
-                        f"_labels['{label_name}'] = "
+                        f"{LabelConversion.labels_code_name}['{label_name}'] = "
                         f"{label_c.gen_code_and_update_ctx(var_result, ctx)}",
                         0,
                     )
@@ -2760,3 +2851,94 @@ class Breakpoint(BaseConversion):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return self.conversion.gen_code_and_update_ctx(code_input, ctx)
+
+
+class CumulativeReset(BaseConversion):
+    """A conversion which resets cumulative values to their initial states. The
+    main use case is within nested iterables:
+
+    >>> assert (
+    >>>     c.iter(
+    >>>         c.cumulative_reset("abc")
+    >>>         .iter(c.cumulative(c.this, c.this + c.PREV, label_name="abc"))
+    >>>         .as_type(list)
+    >>>     )
+    >>>     .as_type(list)
+    >>>     .execute([[0, 1, 2], [3, 4]])
+    >>> ) == [[0, 1, 3], [3, 7]]
+    """
+
+    def __init__(self, parent: "t.Any", label_name: str):
+        super().__init__()
+        self.label_name = label_name
+        self.parent = self.ensure_conversion(parent)
+        self.contents |= BaseConversion.ContentTypes.NEW_LABEL
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return (
+            f"(_labels.pop({repr(self.label_name)}, None), "
+            f"{self.parent.gen_code_and_update_ctx(code_input, ctx)})[1]"
+        )
+
+
+class Cumulative(BaseConversion):
+    """A conversion which calculates cumulative values. The main use case is
+    using it within iterables:
+
+    >>> assert (
+    >>>     c.iter(c.cumulative(c.this, c.this + c.PREV))
+    >>>     .as_type(list)
+    >>>     .execute([0, 1, 2, 3, 4])
+    >>> ) == [0, 1, 3, 6, 10]
+    """
+
+    PREV = LazyEscapedString("prev_value")
+
+    def __init__(
+        self,
+        parent: "t.Any",
+        prepare_first: "t.Any",
+        reduce_two: "t.Any",
+        label_name: "t.Optional[str]" = None,
+    ):
+        """
+        Args:
+          parent: conversion which is used as an input
+          prepare_first: conversion which gets initial value from the first
+            element
+          reduce_two: conversion which reduces two values to one
+          label_name: custom name of cumulative to be used. It is needed when
+            :py:obj:`CumulativeReset`
+        """
+        super().__init__()
+        self.label_name = label_name or uuid4().hex
+
+        self.parent = self.ensure_conversion(parent)
+
+        label_conversion = LabelConversion(self.label_name)
+
+        self.prepare_first = self.ensure_conversion(prepare_first)
+        self.reduce_two = self.ensure_conversion(
+            Namespace(
+                reduce_two,
+                name_to_code={
+                    self.PREV.name: label_conversion.gen_code_and_update_ctx(
+                        None, label_conversion._init_ctx()
+                    )
+                },
+            )
+        )
+        self.contents |= BaseConversion.ContentTypes.NEW_LABEL
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        return PipeConversion(
+            self.parent,
+            If(
+                NaiveConversion(self.label_name).in_(
+                    EscapedString(LabelConversion.labels_code_name)
+                ),
+                self.reduce_two,
+                self.prepare_first,
+            ),
+            label_output=self.label_name,
+        ).gen_code_and_update_ctx(code_input, ctx)

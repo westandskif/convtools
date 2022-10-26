@@ -19,6 +19,7 @@ from .base import (
     CodeGenerationOptionsCtx,
     ConversionException,
     ConverterOptionsCtx,
+    Cumulative,
     Dict,
     DictComp,
     DropWhile,
@@ -29,6 +30,7 @@ from .base import (
     GetAttr,
     GetItem,
     If,
+    IfMultiple,
     InlineExpr,
     InputArg,
     LabelConversion,
@@ -93,6 +95,7 @@ class Conversion:
     or_ = Or
     not_ = Not
     if_ = If
+    if_multiple = IfMultiple
     eq = Eq
 
     this = This
@@ -213,6 +216,14 @@ class Conversion:
     def breakpoint(self):
         """c.this.breakpoint() shortcut"""
         return self.this.breakpoint()
+
+    PREV = Cumulative.PREV
+
+    def cumulative(self, prepare_first, reduce_two, label_name=None):
+        return self.this.cumulative(prepare_first, reduce_two, label_name)
+
+    def cumulative_reset(self, label_name):
+        return self.this.cumulative_reset(label_name)
 
 
 conversion = Conversion()
