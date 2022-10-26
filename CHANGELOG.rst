@@ -1,3 +1,12 @@
+0.38.0 (2022-10-26)
+___________________
+
+Features
+++++++++
+
+- introduced cumulative conversions: ``c.iter(c.cumulative(c.this, c.this + c.PREV))``
+- introduced ``c.if_multiple((c.this < 0, c.this * 10), (c.this == 0, None), else_=5)``
+
 0.37.0 (2022-09-29)
 ___________________
 

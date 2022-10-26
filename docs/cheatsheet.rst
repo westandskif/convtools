@@ -331,6 +331,27 @@ __________________________________
 
  * - .. code-block:: python
 
+      input_data = [1, 2, 3]
+
+   - .. code-block:: python
+
+      # leave 2 as is
+      # if <= 2, then multiply by -1
+      # else multiply by 3
+      result = [-1, 2, 9]
+
+   - .. code-block:: python
+
+      c.list_comp(
+          c.if_multiple(
+              (c.this == 2, 2),
+              (c.this <= 2, c.this * -1),
+              else_=c.this * 3
+          )
+      )
+
+ * - .. code-block:: python
+
       input_data = [
           ("Nick", "2020-01-01"),
           ("Nick", "2020-01-02"),
@@ -1504,3 +1525,48 @@ __________
             (1, 2, 4, 3),
             (0, 0, 6, 5),
         ]
+
+18. Cumulative
+______________
+
+.. list-table::
+ :class: cheatsheet-table
+ :widths: 25 65
+ :header-rows: 1
+
+ * - task
+   - conversion
+ * - .. code-block:: python
+
+      # calculate cumulative sum
+
+   - .. code-block:: python
+
+       assert (
+           c.iter(c.cumulative(c.this, c.this + c.PREV))
+           .as_type(list)
+           .execute([0, 1, 2, 3, 4])
+       ) == [0, 1, 3, 6, 10]
+
+ * - .. code-block:: python
+
+      # calculate cumulative sum within nested
+      # iter, reset cumulative on every iteration
+
+   - .. code-block:: python
+
+       assert (
+           c.iter(
+               c.cumulative_reset("abc")
+               .iter(
+                   c.cumulative(
+                       c.this,
+                       c.this + c.PREV,
+                       label_name="abc"
+                   )
+               )
+               .as_type(list)
+           )
+           .as_type(list)
+           .execute([[0, 1, 2], [3, 4]])
+       ) == [[0, 1, 3], [3, 7]]
