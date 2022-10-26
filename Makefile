@@ -11,6 +11,7 @@ docs_from_scratch:
 
 build:
 	rm -rf dist/*
+	python setup.py clean --all
 	python setup.py sdist bdist_wheel
 
 upload:
