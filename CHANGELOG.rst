@@ -1,3 +1,13 @@
+0.39.0 (2022-12-06)
+___________________
+
+Misc
+++++
+
+- reworked ``c.join`` so it has its custom simpler implementation
+  (on python 3.9 it has become approximately 1.62x, 1.95x, 2.15x times faster
+  for inner, left and outer joins correspondingly)
+
 0.38.0 (2022-10-26)
 ___________________
 

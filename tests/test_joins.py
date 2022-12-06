@@ -11,11 +11,9 @@ def test_join_conditions():
         True
         and join_conditions.inner_loop_conditions == []
         and join_conditions.left_collection_filters == []
-        and join_conditions.left_row_filters == []
         and join_conditions.left_row_hashers == [c.LEFT]
         and join_conditions.pre_filter == []
         and join_conditions.right_collection_filters == []
-        and join_conditions.right_row_filters == []
         and join_conditions.right_row_hashers == [c.RIGHT]
     )
 
@@ -37,11 +35,9 @@ def test_join_conditions():
         True
         and join_conditions.inner_loop_conditions == []
         and join_conditions.left_collection_filters == [c13]
-        and join_conditions.left_row_filters == []
         and join_conditions.left_row_hashers == [c11, c21]
         and join_conditions.pre_filter == [c01]
         and join_conditions.right_collection_filters == [c23]
-        and join_conditions.right_row_filters == []
         and join_conditions.right_row_hashers == [c12, c22]
     )
     join_conditions = _JoinConditions.from_condition(
@@ -49,13 +45,11 @@ def test_join_conditions():
     )
     assert (
         True
-        and join_conditions.inner_loop_conditions == []
+        and join_conditions.inner_loop_conditions == [c13]
         and join_conditions.left_collection_filters == []
-        and join_conditions.left_row_filters == [c13]
         and join_conditions.left_row_hashers == [c11, c21]
         and join_conditions.pre_filter == [c01]
         and join_conditions.right_collection_filters == [c23]
-        and join_conditions.right_row_filters == []
         and join_conditions.right_row_hashers == [c12, c22]
     )
     join_conditions = _JoinConditions.from_condition(
@@ -63,27 +57,25 @@ def test_join_conditions():
     )
     assert (
         True
-        and join_conditions.inner_loop_conditions == []
-        and join_conditions.left_collection_filters == [c13]
-        and join_conditions.left_row_filters == []
-        and join_conditions.left_row_hashers == [c11, c21]
+        and join_conditions.swapped
+        and join_conditions.how == "left"
+        and join_conditions.inner_loop_conditions == [c23]
+        and join_conditions.right_collection_filters == [c13]
+        and join_conditions.right_row_hashers == [c11, c21]
         and join_conditions.pre_filter == [c01]
-        and join_conditions.right_collection_filters == []
-        and join_conditions.right_row_filters == [c23]
-        and join_conditions.right_row_hashers == [c12, c22]
+        and join_conditions.left_collection_filters == []
+        and join_conditions.left_row_hashers == [c12, c22]
     )
     join_conditions = _JoinConditions.from_condition(
         c.and_(c11 == c12, c22 == c21, c13).and_(c23, c01), how="outer"
     )
     assert (
         True
-        and join_conditions.inner_loop_conditions == []
+        and join_conditions.inner_loop_conditions == [c13, c23]
         and join_conditions.left_collection_filters == []
-        and join_conditions.left_row_filters == [c13]
         and join_conditions.left_row_hashers == [c11, c21]
         and join_conditions.pre_filter == [c01]
         and join_conditions.right_collection_filters == []
-        and join_conditions.right_row_filters == [c23]
         and join_conditions.right_row_hashers == [c12, c22]
     )
     with pytest.raises(AssertionError):
@@ -95,11 +87,9 @@ def test_join_conditions():
         True
         and join_conditions.inner_loop_conditions == [c1]
         and join_conditions.left_collection_filters == []
-        and join_conditions.left_row_filters == []
         and join_conditions.left_row_hashers == []
         and join_conditions.pre_filter == []
         and join_conditions.right_collection_filters == []
-        and join_conditions.right_row_filters == []
         and join_conditions.right_row_hashers == []
     )
 
@@ -109,11 +99,9 @@ def test_join_conditions():
         True
         and join_conditions.inner_loop_conditions == [cond]
         and join_conditions.left_collection_filters == []
-        and join_conditions.left_row_filters == []
         and join_conditions.left_row_hashers == []
         and join_conditions.pre_filter == []
         and join_conditions.right_collection_filters == []
-        and join_conditions.right_row_filters == []
         and join_conditions.right_row_hashers == []
     )
 
@@ -125,13 +113,11 @@ def test_join_conditions():
     )
     assert (
         True
-        and join_conditions.inner_loop_conditions == []
+        and join_conditions.inner_loop_conditions == [c1, c2]
         and join_conditions.left_collection_filters == []
-        and join_conditions.left_row_filters == [c1]
         and join_conditions.left_row_hashers == []
         and join_conditions.pre_filter == [c3]
         and join_conditions.right_collection_filters == []
-        and join_conditions.right_row_filters == [c2]
         and join_conditions.right_row_hashers == []
     )
 
@@ -143,11 +129,9 @@ def test_join_conditions():
         True
         and join_conditions.inner_loop_conditions == [c1]
         and join_conditions.left_collection_filters == [c2]
-        and join_conditions.left_row_filters == []
         and join_conditions.left_row_hashers == []
         and join_conditions.pre_filter == []
         and join_conditions.right_collection_filters == [c3]
-        and join_conditions.right_row_filters == []
         and join_conditions.right_row_hashers == []
     )
 
@@ -286,6 +270,29 @@ def test_nested_loop_joins():
     )
     assert join3(([-1, 0, 1], [2, 1, 1])) == [(-1, 2), (0, 1), (0, 1)]
 
+    join = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.and_(
+                c.LEFT.item("id") <= c.RIGHT.item("ID"),
+                c.RIGHT.item("ID") < 3,
+            ),
+        )
+        .as_type(list)
+        .gen_converter()
+    )
+    assert join(
+        [
+            [{"id": i} for i in range(1)],
+            [{"ID": i} for i in range(4)],
+        ]
+    ) == [
+        ({"id": 0}, {"ID": 0}),
+        ({"id": 0}, {"ID": 1}),
+        ({"id": 0}, {"ID": 2}),
+    ]
+
 
 def test_left_join():
     join1 = (
@@ -352,6 +359,34 @@ def test_left_join():
     ]
     # fmt: on
 
+    join = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.and_(
+                c.LEFT.item("id") == c.RIGHT.item("ID"),
+                c.input_arg("flag"),
+            ),
+            how="left",
+        )
+        .as_type(list)
+        .gen_converter(debug=False)
+    )
+    assert join(
+        [
+            [{"id": i} for i in range(1)],
+            [{"ID": i} for i in range(1)],
+        ],
+        flag=True,
+    ) == [({"id": 0}, {"ID": 0})]
+    assert join(
+        [
+            [{"id": i} for i in range(1)],
+            [{"ID": i} for i in range(1)],
+        ],
+        flag=False,
+    ) == [({"id": 0}, None)]
+
 
 def test_right_join():
     join1 = (
@@ -415,6 +450,34 @@ def test_right_join():
     ]
     # fmt: on
 
+    join = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.and_(
+                c.LEFT.item("id") == c.RIGHT.item("ID"),
+                c.input_arg("flag"),
+            ),
+            how="right",
+        )
+        .as_type(list)
+        .gen_converter()
+    )
+    assert join(
+        [
+            [{"id": i} for i in range(1)],
+            [{"ID": i} for i in range(1)],
+        ],
+        flag=True,
+    ) == [({"id": 0}, {"ID": 0})]
+    assert join(
+        [
+            [{"id": i} for i in range(1)],
+            [{"ID": i} for i in range(1)],
+        ],
+        flag=False,
+    ) == [(None, {"ID": 0})]
+
 
 def test_outer_join():
     join1 = (
@@ -464,6 +527,36 @@ def test_outer_join():
         (None, 4),
         (None, 5),
         (None, 8),
+    ]
+    join = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.and_(
+                c.LEFT.item("id") == c.RIGHT.item("ID"),
+                c.input_arg("flag"),
+            ),
+            how="outer",
+        )
+        .as_type(list)
+        .gen_converter()
+    )
+    assert join(
+        [
+            [{"id": i} for i in range(1)],
+            [{"ID": i} for i in range(1)],
+        ],
+        flag=True,
+    ) == [({"id": 0}, {"ID": 0})]
+    assert join(
+        [
+            [{"id": i} for i in range(1)],
+            [{"ID": i} for i in range(1)],
+        ],
+        flag=False,
+    ) == [
+        ({"id": 0}, None),
+        (None, {"ID": 0}),
     ]
 
 
