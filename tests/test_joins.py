@@ -293,6 +293,22 @@ def test_nested_loop_joins():
         ({"id": 0}, {"ID": 2}),
     ]
 
+    join = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.LEFT.item(0) < c.RIGHT.item(0),
+        )
+        .as_type(list)
+        .gen_converter()
+    )
+    assert join(
+        [
+            ((1, 2), (2, 3)),
+            ((0, -1), (3, 4)),
+        ]
+    ) == [((1, 2), (3, 4)), ((2, 3), (3, 4))]
+
 
 def test_left_join():
     join1 = (

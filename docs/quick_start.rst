@@ -476,7 +476,7 @@ Points to learn:
 
 #. :py:obj:`c.iter<convtools.base.GeneratorComp>` iterates through an iterable,
    applying conversion to each element
-#. :py:obj:`c.filter<convtools.base.FilterConversion>` iterates through an
+#. :py:obj:`c.filter<convtools.base.BaseConversion.filter>` iterates through an
    iterable, filtering it by a passed conversion, taking items for which the
    conversion resolves to true
 #. :py:obj:`c.sort<convtools.base.SortConversion>` passes the input to

@@ -11,7 +11,6 @@ from .base import (
     CallFunc,
     Eq,
     EscapedString,
-    FilterConversion,
     If,
     LazyEscapedString,
     ListComp,
@@ -22,6 +21,8 @@ from .base import (
 )
 from .columns import ColumnRef
 from .utils import Code
+
+_none = BaseConversion._none
 
 
 class JoinException(Exception):
@@ -55,7 +56,7 @@ class _JoinConditions:
     RIGHT_NAME = RIGHT.name
     _ANY = {LEFT_NAME, RIGHT_NAME}
 
-    def __init__(self, how="inner", _swapped=False):
+    def __init__(self, how="inner", swapped=False):
         if how == "right":
             raise AssertionError(
                 "initialize via from_condition; it should have replaced right with left"
@@ -68,7 +69,7 @@ class _JoinConditions:
         self.right_row_hashers = []
 
         self.how = how
-        self.swapped = _swapped
+        self.swapped = swapped
 
         self.inner_join = how == "inner"
         self.left_join = how in {"left", "outer"}
@@ -105,7 +106,7 @@ class _JoinConditions:
     @classmethod
     def from_condition(cls, condition, how="inner") -> "_JoinConditions":
         if how == "right":
-            join_conditions = cls(how="left", _swapped=True)
+            join_conditions = cls(how="left", swapped=True)
         else:
             join_conditions = cls(how)
 
@@ -259,7 +260,7 @@ class JoinConversion(BaseConversion):
             self.condition, how=self.how
         )
 
-        suffix = self.gen_name("", ctx, self)
+        suffix = self.gen_random_name("", ctx)
         converter_name = f"join{suffix}"
         code = Code()
         function_ctx = self.condition.as_function_ctx(ctx, optimize_naive=True)
@@ -279,7 +280,7 @@ class JoinConversion(BaseConversion):
             if join_conditions.left_collection_filters:
                 code.add_line(
                     "left_ = %s"
-                    % FilterConversion(
+                    % This.filter(
                         join_conditions.wrap_with_namespace(
                             And(*join_conditions.left_collection_filters),
                             left=True,
@@ -351,7 +352,7 @@ class JoinConversion(BaseConversion):
                     % If(
                         c_left_key.in_(c_hash_to_right_items),
                         c_hash_to_right_items.item(c_left_key).pipe(
-                            FilterConversion(
+                            This.filter(
                                 join_conditions.wrap_with_namespace(
                                     And(
                                         *join_conditions.inner_loop_conditions
@@ -377,10 +378,11 @@ class JoinConversion(BaseConversion):
                         "right_ = %s"
                         % ListComp(
                             This,
-                            where=join_conditions.wrap_with_namespace(
+                            join_conditions.wrap_with_namespace(
                                 And(*join_conditions.right_collection_filters),
                                 right=True,
                             ),
+                            _none,
                         ).gen_code_and_update_ctx("right_", ctx),
                         0,
                     )
@@ -400,7 +402,7 @@ class JoinConversion(BaseConversion):
                 code.add_line(
                     "right_items = %s"
                     % (
-                        FilterConversion(
+                        This.filter(
                             Namespace(
                                 And(*join_conditions.inner_loop_conditions),
                                 name_to_code={

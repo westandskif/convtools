@@ -2,24 +2,65 @@ from collections import OrderedDict
 from types import GeneratorType
 
 from convtools import conversion as c
-from convtools.base import Call, FilterConversion, PipeConversion
+from convtools.base import (
+    Call,
+    PipeConversion,
+    ListComp,
+    BaseConversion,
+    TupleComp,
+    SetComp,
+)
+from .utils import get_code_str
+
+_none = BaseConversion._none
 
 
 def test_generator_type_casts():
-    assert isinstance(c.generator_comp(c.this).as_type(list), c.list_comp)
-    assert isinstance(c.generator_comp(c.this).as_type(tuple), c.tuple_comp)
-    assert isinstance(c.generator_comp(c.this).as_type(set), c.set_comp)
+    assert isinstance(c.generator_comp(c.this).as_type(list), ListComp)
+    assert isinstance(c.generator_comp(c.this).as_type(tuple), TupleComp)
+    assert isinstance(c.generator_comp(c.this).as_type(set), SetComp)
     conversion = c.this.iter(c.this).as_type(set)
-    assert isinstance(conversion, PipeConversion) and isinstance(
-        conversion.where, c.set_comp
-    )
+    assert isinstance(conversion, SetComp)
     assert isinstance(
         c.generator_comp(c.this).as_type(lambda x: list(x)), Call
     )
     conversion = c.this.iter(c.this).as_type(lambda x: list(x))
-    assert isinstance(conversion, PipeConversion) and isinstance(
-        conversion.where, Call
+    assert isinstance(conversion, Call)
+    assert isinstance(
+        c.list_comp(c.this).iter(c.this).execute(range(10)), GeneratorType
     )
+
+    conversion = c.list_comp(c.this)
+    assert conversion is conversion.as_type(list)
+    conversion = c.set_comp(c.this)
+    assert conversion is conversion.as_type(set)
+    conversion = c.tuple_comp(c.this)
+    assert conversion is conversion.as_type(tuple)
+
+    assert c.set_comp(c.this).as_type(tuple).execute([1, 1, 2]) == (1, 2)
+
+    converter = c.list_comp(c.this + 1).iter(c.this * -1).gen_converter()
+    assert list(converter(range(3))) == [-1, -2, -3]
+    code_str = get_code_str(converter).replace("__naive_values__[", "")
+    assert "[" not in code_str and code_str.count("for ") == 1
+
+    converter = (
+        c.list_comp(c.this + 1, where=c.this > 0)
+        .iter(c.this * -1)
+        .gen_converter()
+    )
+    assert list(converter(range(3))) == [-2, -3]
+    code_str = get_code_str(converter).replace("__naive_values__[", "")
+    assert "[" not in code_str and code_str.count("for ") == 1
+
+    converter = (
+        c.list_comp(c.this + 1)
+        .iter(c.this * -1, where=c.this > 1)
+        .gen_converter()
+    )
+    assert list(converter(range(3))) == [-2, -3]
+    code_str = get_code_str(converter).replace("__naive_values__[", "")
+    assert "[" not in code_str and code_str.count("for ") == 2
 
 
 def test_comprehension_filter_cast_assumptions():
@@ -101,7 +142,7 @@ def test_comprehension_where():
         c.this.iter(c.this.neg(), where=c.this > 6)
         .as_type(list)
         .filter(c.this > -9)
-        .execute(range(10), debug=False)
+        .execute(range(10), debug=True)
     ) == [-7, -8]
     assert (
         c.iter(c.this.neg(), where=c.this > 6)

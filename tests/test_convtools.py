@@ -7,6 +7,7 @@ import pytest
 from convtools import conversion as c
 from convtools.base import LazyEscapedString, Namespace
 from convtools.utils import Code
+from .utils import get_code_str
 
 
 def test_docs():
@@ -23,16 +24,6 @@ def test_naive_conversion():
     assert c.naive(None).gen_converter()(10) is None
     assert c.naive("1").as_type(int).gen_converter()(10) == 1
     assert c.naive(1).gen_converter(method=True)(None, 10) == 1
-
-    def get_code_str(converter):
-        code_strs = [
-            code_piece.code_str
-            for code_piece in converter.__globals__[
-                "__convtools__code_storage"
-            ].name_to_code_piece.values()
-        ]
-        assert len(code_strs) == 1
-        return code_strs[0]
 
     assert "%abc" not in get_code_str(c.naive("%abc").gen_converter())
     assert "{abc" not in get_code_str(c.naive("{abc").gen_converter())
@@ -658,6 +649,17 @@ def test_list_comprehension():
     with pytest.raises(CustomException):
         list(wrapped_generator)
 
+    it = iter(range(10))
+    result = c.list_comp(c.this, where=False).execute(it)
+    assert next(it, -1) == -1 and result == []
+
+    assert c.iter(c.this + 1, where=c.this > 3).iter(c.this + 2).as_type(
+        list
+    ).execute(range(6)) == [7, 8]
+    assert c.iter(c.this + 1, where=c.this > 3).iter(
+        c.this + 2, where=c.this > 5
+    ).as_type(list).execute(range(6)) == [8]
+
 
 def test_tuple_comprehension():
     assert c.tuple_comp(1).gen_converter()(range(5)) == (1,) * 5
@@ -673,6 +675,10 @@ def test_tuple_comprehension():
     assert c.tuple_comp(c.item("name")).sort(
         key=lambda n: n, reverse=True
     ).gen_converter()(data) == ("Nick", "John", "Bill")
+
+    it = iter(range(10))
+    result = c.tuple_comp(c.this, where=False).execute(it)
+    assert next(it, -1) == -1 and result == ()
 
 
 def test_set_comprehension():
@@ -690,6 +696,9 @@ def test_set_comprehension():
         "Bill",
         "John",
     ]
+    it = iter(range(10))
+    result = c.set_comp(c.this, where=False).execute(it)
+    assert next(it, -1) == -1 and result == set()
 
 
 def test_dict_comprehension():
@@ -713,6 +722,10 @@ def test_dict_comprehension():
         .gen_converter()(data)
         .items()
     ) == [(1, "John"), (2, "Bill")]
+
+    it = iter(range(10))
+    result = c.dict_comp(c.this, c.this, where=False).execute(it)
+    assert next(it, -1) == -1 and result == {}
 
 
 def test_filter():

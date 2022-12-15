@@ -30,6 +30,8 @@ from ..base import (
 from ..columns import ColumnChanges, ColumnRef, MetaColumns
 from ..joins import JoinConversion, LeftJoinCondition, RightJoinCondition
 
+_none = BaseConversion._none
+
 
 class CloseFileIterator:
     """
@@ -350,7 +352,7 @@ class Table:
                     column_conversions.append(GetItem(column.index))
                 column.index = index
 
-            conversion = GeneratorComp(tuple(column_conversions))
+            conversion = GeneratorComp(tuple(column_conversions), _none, _none)
 
             self.pipeline = (
                 conversion
@@ -887,7 +889,7 @@ class Table:
                     for column in self.meta_columns.columns
                 )
             conversion = (self.pipeline or This()).pipe(
-                GeneratorComp(row_conversion)
+                GeneratorComp(row_conversion, _none, _none)
             )
 
         if conversion:

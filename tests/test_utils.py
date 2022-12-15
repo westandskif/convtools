@@ -3,57 +3,40 @@ import pytest
 from convtools import conversion as c
 from convtools.base import (
     BaseConversion,
-    CodeGenerationOptions,
-    CodeGenerationOptionsCtx,
+    ConverterOptions,
+    ConverterOptionsCtx,
     This,
 )
 from convtools.utils import Code
 
 
 def test_code_generation_ctx():
-    with CodeGenerationOptionsCtx() as options:
-        assert isinstance(options, CodeGenerationOptions)
+    with ConverterOptionsCtx() as options:
+        assert isinstance(options, ConverterOptions)
 
-        assert options.reducers_run_stage is None
-        assert (
-            CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
-            is None
-        )
+        assert options.debug is False
+        assert ConverterOptionsCtx.get_option_value("debug") is False
 
-        options.reducers_run_stage = True
-        assert (
-            CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
-            is True
-        )
+        options.debug = True
+        assert ConverterOptionsCtx.get_option_value("debug") is True
 
-        with CodeGenerationOptionsCtx() as options2:
-            assert options2.reducers_run_stage is True
-            assert (
-                CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
-                is True
-            )
+        with ConverterOptionsCtx() as options2:
+            assert options2.debug is True
+            assert ConverterOptionsCtx.get_option_value("debug") is True
 
-            options2.to_defaults("reducers_run_stage")
-            assert options2.reducers_run_stage is None
+            options2.to_defaults("debug")
+            assert options2.debug is False
 
-            options2.reducers_run_stage = True
+            options2.debug = True
             options2.to_defaults()
-            assert options2.reducers_run_stage is None
-            assert (
-                CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
-                is None
-            )
+            assert options2.debug is False
+            assert ConverterOptionsCtx.get_option_value("debug") is False
 
-            assert options.reducers_run_stage is True
+            assert options.debug is True
 
-        assert (
-            CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
-            is True
-        )
+        assert ConverterOptionsCtx.get_option_value("debug") is True
 
-    assert (
-        CodeGenerationOptionsCtx.get_option_value("reducers_run_stage") is None
-    )
+    assert ConverterOptionsCtx.get_option_value("debug") is False
 
 
 def test_replace_word():
