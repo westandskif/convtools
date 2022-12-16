@@ -2130,12 +2130,6 @@ class SetComp(BaseComp):
         condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
         return f"{{{item_code} for {param_code} in {code_iterable} if {condition_code}}}"
 
-    def to_iter(self):
-        return GeneratorComp(This, _none, self)
-
-    def iter(self, element_conv, *, where=_none) -> "BaseConversion":
-        return self.to_iter().iter(element_conv, where=where)
-
     def as_type(self, callable_):
         if NaiveConversion.get_value(callable_) is set:
             return self

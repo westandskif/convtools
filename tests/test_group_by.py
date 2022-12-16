@@ -5,6 +5,7 @@ import pytest
 
 from convtools import conversion as c
 from convtools.base import LazyEscapedString, Namespace
+from convtools.aggregations import MultiStatementReducer
 
 from .utils import get_code_str
 
@@ -782,3 +783,46 @@ def test_group_by_delegate():
     assert list(converter([{"a": 1, "b": 0}, {"a": 1, "b": 3}])) == [
         {"a": 1, "b": 3, "c": 4},
     ] and re.findall(r"return iter_mut\w*\(\(\{", get_code_str(converter))
+
+    with c.OptionsCtx() as options:
+        options.debug = True
+        converter = c.aggregate(
+            {
+                "a": c.ReduceFuncs.Sum(c.item(1)),
+                "b": c.ReduceFuncs.Sum(c.item(0)),
+                "c": c.ReduceFuncs.Sum(c.item(1), where=c.item(1) > 1),
+                "d": c.ReduceFuncs.Sum(c.item(0), where=c.item(1) > 1),
+                "e": c.ReduceFuncs.Sum(c.item(1), where=c.item(1) > 2),
+            }
+        ).gen_converter()
+        assert (
+            converter(zip(range(10), range(100, 110)))
+            == {
+                "a": 1045,
+                "b": 45,
+                "c": 1045,
+                "d": 45,
+                "e": 1045,
+            }
+            and converter.__globals__["__BROKEN_EARLY__"]
+        )
+
+        converter = c.aggregate(c.ReduceFuncs.Sum(c.this)).gen_converter()
+        assert (
+            converter(range(10)) == 45
+            and converter.__globals__["__BROKEN_EARLY__"]
+        )
+
+        class SumIfGt5(MultiStatementReducer):
+            prepare_first = ("if {0} and {0} > 5:", "    %(result)s = {0}")
+            reduce = (
+                "if {0} and {0} > 5:",
+                "    %(result)s = {prev_result} + {0}",
+            )
+            default = c.inline_expr("0")
+
+        converter = c.aggregate(SumIfGt5(c.this)).gen_converter()
+        assert (
+            converter(range(10)) == 30
+            and converter.__globals__["__BROKEN_EARLY__"]
+        )

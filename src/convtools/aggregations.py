@@ -7,6 +7,7 @@ from math import ceil
 from .base import (
     BaseConversion,
     CallFunc,
+    ConverterOptionsCtx,
     ConversionException,
     EscapedString,
     GeneratorItem,
@@ -71,7 +72,7 @@ class ReduceBlock:
                 raise AssertionError
             self.reduce_two[k] = v
 
-        self.checksum_flag |= reduce_block.checksum_flag
+        self.checksum_flag += reduce_block.checksum_flag
         return self
 
     def iter_reduce_lines(self, lines_info_dict) -> t.Iterable[str]:
@@ -222,6 +223,7 @@ class ReduceBlocks:
         var_row,
         expected_checksum,
     ) -> Code:
+        is_debug = ConverterOptionsCtx.get_option_value("debug")
         var_checksum = ReduceBlock.var_checksum
         first_phase_code = Code()
         second_phase_code = Code()
@@ -250,24 +252,32 @@ class ReduceBlocks:
 
             if is_single_block:
                 if block.unconditional_init:
+                    if is_debug:
+                        first_phase_code.add_line(
+                            "globals()['__BROKEN_EARLY__'] = True", 0
+                        )
                     first_phase_code.add_line("break", 0)
                 else:
                     first_phase_code.add_line(
                         f"if {any_var_agg_data_value} is not _none:", 1
                     )
+                    if is_debug:
+                        first_phase_code.add_line(
+                            "globals()['__BROKEN_EARLY__'] = True", 0
+                        )
                     first_phase_code.add_line("break", -1)
 
             else:
                 if block.unconditional_init:
                     first_phase_code.add_line(
-                        f"{var_checksum} |= {block.checksum_flag}", 0
+                        f"{var_checksum} += {block.checksum_flag}", 0
                     )
                 else:
                     first_phase_code.add_line(
                         f"if {any_var_agg_data_value} is not _none:", 1
                     )
                     first_phase_code.add_line(
-                        f"{var_checksum} |= {block.checksum_flag}", -1
+                        f"{var_checksum} += {block.checksum_flag}", -1
                     )
                 needs_sum_checking = True
 
@@ -302,8 +312,13 @@ class ReduceBlocks:
         resulting_code.add_code(first_phase_code)
         if needs_sum_checking:
             resulting_code.add_line(
-                f"if {var_checksum} == {expected_checksum}: break", 0
+                f"if {var_checksum} == {expected_checksum}:", 1
             )
+            if is_debug:
+                resulting_code.add_line(
+                    "globals()['__BROKEN_EARLY__'] = True", 0
+                )
+            resulting_code.add_line("break", -1)
         resulting_code.incr_indent_level(-1)
 
         if second_phase_code.has_lines():
