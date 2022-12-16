@@ -5,7 +5,6 @@ from decimal import Decimal
 from math import ceil
 
 from .base import (
-    CT,
     BaseConversion,
     CallFunc,
     ConversionException,
@@ -18,6 +17,7 @@ from .base import (
     List,
     ListComp,
     NaiveConversion,
+    Namespace,
     NamespaceCtx,
     This,
     Tuple,
@@ -114,10 +114,13 @@ class ReduceConditionalBlock(ReduceBlock):
         self.condition_code = condition_code
 
 
-class ReduceBlocks(t.Generic[RBT]):
+ReduceBlockType = t.Union[ReduceBlock, ReduceConditionalBlock]
+
+
+class ReduceBlocks:
     """Represents a set of reduce blocks"""
 
-    def __init__(self, var_agg_data, aggregate_mode, ctx):
+    def __init__(self, var_agg_data, aggregate_mode):
         self.var_agg_data = var_agg_data
         self.aggregate_mode = aggregate_mode
 
@@ -155,7 +158,7 @@ class ReduceBlocks(t.Generic[RBT]):
             else f"{self.var_agg_data}.v{index}"
         )
 
-    def _add_block(self, reduce_block: RBT):
+    def _add_block(self, reduce_block: ReduceBlockType):
         self.number += 1
 
         if reduce_block.unconditional_init:
@@ -173,7 +176,7 @@ class ReduceBlocks(t.Generic[RBT]):
         else:
             return self.other_blocks.append(reduce_block)
 
-    def iter_blocks(self) -> t.Iterable[RBT]:
+    def iter_blocks(self) -> t.Generator[ReduceBlockType, None, None]:
         yield from self.condition_to_blocks.values()
         yield from self.other_blocks
 
@@ -334,7 +337,7 @@ def {converter_name}({code_args}):
 RT = t.TypeVar("RT", bound="BaseReducer")
 
 
-class BaseReducer(BaseConversion, t.Generic[RBT, CT]):
+class BaseReducer(BaseConversion):
     """Base of a reduce operation to be used during the aggregation"""
 
     expressions: t.Tuple[t.Any, ...]
@@ -376,7 +379,7 @@ class BaseReducer(BaseConversion, t.Generic[RBT, CT]):
         reducer_code_input: str,
         checksum_flag: int,
         ctx: dict,
-    ) -> RBT:
+    ) -> ReduceBlockType:
         raise NotImplementedError
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
@@ -458,7 +461,7 @@ class MultiStatementReducer(BaseReducer):
         reducer_code_input: str,
         checksum_flag: int,
         ctx: dict,
-    ) -> RBT:
+    ) -> ReduceBlockType:
         if self.initial is _none:
             reduce_initial = self._format_statements(
                 (
@@ -572,7 +575,7 @@ class Reduce(BaseReducer):
         reducer_code_input: str,
         checksum_flag: int,
         ctx: dict,
-    ) -> RBT:
+    ) -> ReduceBlockType:
         _ = self.to_call_with_2_args.call_like(
             self.initial,
             *self.expressions,
@@ -641,27 +644,42 @@ class GroupBy:
         return Grouper(self.by, reducer)
 
 
-def delegate_input_switching_method(name):
+def delegate_input_switching_method(name, force_iter_first=False):
     def method(self, *args, **kwargs):
+        conversion = self.conversion
+        if force_iter_first:
+            conversion = conversion.to_iter()
         return Grouper(
             by=self.by,
             reducer=self.reducer,
-            conversion=getattr(self.conversion, name)(*args, **kwargs),
+            conversion=getattr(conversion, name)(*args, **kwargs),
         )
 
     return method
 
 
 class Grouper(BaseConversion):
+    """Fully initialized GroupBy conversion, which delegates some of methods
+    like iter to its internals"""
+
     self_content_type = (
         BaseConversion.self_content_type
         | BaseConversion.ContentTypes.AGGREGATION
         | BaseConversion.ContentTypes.NONE_USAGE
     )
 
-    SIGNATURE = LazyEscapedString("signature")
-    AGG_DATA = LazyEscapedString("agg_data")
-    AGG_RESULT_ITEM = LazyEscapedString("agg_result_item")
+    SIGNATURE_NAME = "signature"
+    AGG_DATA_NAME = "agg_data"
+    AGG_RESULT_ITEM_NAME = "agg_result_item"
+    SIGNATURE = Namespace(
+        LazyEscapedString(SIGNATURE_NAME), {SIGNATURE_NAME: None}
+    )
+    AGG_DATA = Namespace(
+        LazyEscapedString(AGG_DATA_NAME), {AGG_DATA_NAME: None}
+    )
+    AGG_RESULT_ITEM = Namespace(
+        LazyEscapedString(AGG_RESULT_ITEM_NAME), {AGG_RESULT_ITEM_NAME: None}
+    )
     AGG_RESULT_ITEM.weight = Weights.UNPREDICTABLE
 
     def __init__(self, by, reducer, conversion=None):
@@ -689,19 +707,16 @@ class Grouper(BaseConversion):
                 else self.AGG_RESULT_ITEM
             )
 
-    iter = delegate_input_switching_method("iter")
-    iter_mut = delegate_input_switching_method("iter_mut")
-    iter_windows = delegate_input_switching_method("iter_windows")
+    iter = delegate_input_switching_method("iter", True)
+    iter_mut = delegate_input_switching_method("iter_mut", True)
+    iter_windows = delegate_input_switching_method("iter_windows", True)
     filter = delegate_input_switching_method("filter")
-    flatten = delegate_input_switching_method("flatten")
-    take_while = delegate_input_switching_method("take_while")
-    drop_while = delegate_input_switching_method("drop_while")
-    as_type = delegate_input_switching_method("as_type")
-    sort = delegate_input_switching_method("sort")
-    tap = delegate_input_switching_method("tap")
-    and_then = delegate_input_switching_method("and_then")
-    cumulative = delegate_input_switching_method("cumulative")
-    cumulative_reset = delegate_input_switching_method("cumulative_reset")
+    flatten = delegate_input_switching_method("flatten", True)
+    take_while = delegate_input_switching_method("take_while", True)
+    drop_while = delegate_input_switching_method("drop_while", True)
+    as_type = delegate_input_switching_method("as_type", True)
+    sort = delegate_input_switching_method("sort", True)
+    tap = delegate_input_switching_method("tap", True)
 
     def _gen_agg_data_container(self, container_name, number_of_reducers, ctx):
         attrs = [f"v{i}" for i in range(number_of_reducers)]
@@ -733,9 +748,7 @@ class Grouper(BaseConversion):
         function_ctx.add_arg("data_", This())
 
         with function_ctx:
-            reduce_blocks = ReduceBlocks(
-                var_agg_data, self.aggregate_mode, ctx
-            )
+            reduce_blocks = ReduceBlocks(var_agg_data, self.aggregate_mode)
             if "exchange_reducer_code_input_methods" not in ctx:
                 ctx["exchange_reducer_code_input_methods"] = []
 
@@ -780,9 +793,9 @@ class Grouper(BaseConversion):
 
             with NamespaceCtx(
                 {
-                    self.SIGNATURE.name: var_signature,
-                    self.AGG_DATA.name: var_agg_data,
-                    self.AGG_RESULT_ITEM.name: code_agg_result,
+                    self.SIGNATURE_NAME: var_signature,
+                    self.AGG_DATA_NAME: var_agg_data,
+                    self.AGG_RESULT_ITEM_NAME: code_agg_result,
                 },
                 ctx,
             ):

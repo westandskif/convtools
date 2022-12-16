@@ -50,6 +50,10 @@ def test_base_zip():
     with pytest.raises(ValueError):
         c.zip(1, 2, a=1)
 
+    assert c.this.pipe(c.this, label_output="abc").flatten().as_type(
+        list
+    ).execute([[1], [2]]) == [1, 2]
+
 
 def test_zip_in_aggregate():
     input_data = [

@@ -22,6 +22,7 @@ from .base import (
 from .columns import ColumnRef
 from .utils import Code
 
+
 _none = BaseConversion._none
 
 

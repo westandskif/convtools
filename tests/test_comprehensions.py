@@ -3,14 +3,16 @@ from types import GeneratorType
 
 from convtools import conversion as c
 from convtools.base import (
-    Call,
-    PipeConversion,
-    ListComp,
     BaseConversion,
-    TupleComp,
+    Call,
+    ListComp,
+    PipeConversion,
     SetComp,
+    TupleComp,
 )
+
 from .utils import get_code_str
+
 
 _none = BaseConversion._none
 
@@ -62,6 +64,31 @@ def test_generator_type_casts():
     code_str = get_code_str(converter).replace("__naive_values__[", "")
     assert "[" not in code_str and code_str.count("for ") == 2
 
+    assert c.list_comp(c.this).as_type(tuple).execute(range(2)) == (0, 1)
+    assert c.list_comp(c.this).as_type(set).execute([1, 1, 2]) == {1, 2}
+    assert c.list_comp(c.this).as_type(frozenset).execute(
+        [1, 1, 2]
+    ) == frozenset((1, 2))
+
+    assert list(
+        c.tuple_comp(c.this + 1).iter(c.this + 2).execute(range(3))
+    ) == [3, 4, 5]
+    assert list(
+        c.tuple_comp(c.this + 1)
+        .iter(c.this + 2, where=c.this > 1)
+        .execute(range(3))
+    ) == [4, 5]
+
+    assert c.tuple_comp(c.this + 1).as_type(list).execute(range(3)) == [
+        1,
+        2,
+        3,
+    ]
+    assert c.tuple_comp(c.this + 1).as_type(set).execute({1, 2, 2}) == {2, 3}
+    assert c.tuple_comp(c.this + 1).as_type(frozenset).execute(
+        {1, 2, 2}
+    ) == frozenset((2, 3))
+
 
 def test_comprehension_filter_cast_assumptions():
     assert isinstance(
@@ -69,7 +96,7 @@ def test_comprehension_filter_cast_assumptions():
         GeneratorType,
     )
     assert isinstance(
-        c.generator_comp(c.this).filter(c.this, cast=None).execute(range(10)),
+        c.generator_comp(c.this).filter(c.this).execute(range(10)),
         GeneratorType,
     )
     assert (c.list_comp(c.this).filter(c.this).execute(range(3))) == [

@@ -142,13 +142,10 @@ class Conversion:
     chunk_by_condition = ChunkByCondition
     CHUNK = ChunkByCondition.CHUNK
 
-    def iter(self, item, where=_none, self_conv=_none):
-        return GeneratorComp(item, where, self_conv)
-
-    generator_comp = iter
-
     def iter(self, item, *, where=_none):
         return GeneratorComp(item, where, _none)
+
+    generator_comp = iter
 
     def list_comp(self, item, *, where=_none):
         return ListComp(item, where, _none)

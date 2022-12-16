@@ -7,6 +7,7 @@ import pytest
 from convtools import conversion as c
 from convtools.base import LazyEscapedString, Namespace
 from convtools.utils import Code
+
 from .utils import get_code_str
 
 
@@ -699,6 +700,10 @@ def test_set_comprehension():
     it = iter(range(10))
     result = c.set_comp(c.this, where=False).execute(it)
     assert next(it, -1) == -1 and result == set()
+
+    assert c.set_comp(c.this % 3).iter(c.this + 1).as_type(tuple).execute(
+        range(10)
+    ) == (1, 2, 3)
 
 
 def test_dict_comprehension():

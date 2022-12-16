@@ -30,6 +30,7 @@ from ..base import (
 from ..columns import ColumnChanges, ColumnRef, MetaColumns
 from ..joins import JoinConversion, LeftJoinCondition, RightJoinCondition
 
+
 _none = BaseConversion._none
 
 

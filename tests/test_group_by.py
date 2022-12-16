@@ -1,9 +1,12 @@
+import re
 from datetime import date
 
 import pytest
 
 from convtools import conversion as c
 from convtools.base import LazyEscapedString, Namespace
+
+from .utils import get_code_str
 
 
 def test_manually_defined_reducers():
@@ -750,3 +753,32 @@ def test_aggregate_func():
         "b": ["foo", "bar"],
         "b_max_a": "bar",
     }
+
+
+def test_group_by_delegate():
+    converter = (
+        c.group_by(c.item("a"))
+        .aggregate({"a": c.item("a"), "b": c.ReduceFuncs.Sum(c.item("b"))})
+        .iter(c.item("b"))
+        .as_type(set)
+        .gen_converter()
+    )
+    assert converter(
+        [
+            {"a": 1, "b": 0},
+            {"a": 1, "b": 3},
+            {"a": 2, "b": 0},
+            {"a": 2, "b": 3},
+            {"a": 3, "b": 1},
+            {"a": 3, "b": 3},
+        ]
+    ) == {3, 4} and "return {{" in get_code_str(converter)
+    converter = (
+        c.group_by(c.item("a"))
+        .aggregate({"a": c.item("a"), "b": c.ReduceFuncs.Sum(c.item("b"))})
+        .iter_mut(c.Mut.set_item("c", c.item("a") + c.item("b")))
+        .gen_converter()
+    )
+    assert list(converter([{"a": 1, "b": 0}, {"a": 1, "b": 3}])) == [
+        {"a": 1, "b": 3, "c": 4},
+    ] and re.findall(r"return iter_mut\w*\(\(\{", get_code_str(converter))

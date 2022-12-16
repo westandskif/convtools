@@ -76,6 +76,12 @@ def test_add_sources():
         converter(None)
     converter.__globals__["__convtools__code_storage"].dump_sources()
 
+    conversion = This()
+    ctx = conversion._init_ctx()
+    code_str = "def abc(): return 1"
+    assert conversion.compile_converter("abc", code_str, ctx)() == 1
+    assert conversion.compile_converter("abc", code_str, ctx)() == 1
+
 
 def test_ignores_input():
     assert c(0).ignores_input()
