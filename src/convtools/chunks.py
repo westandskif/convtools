@@ -4,14 +4,7 @@ Provides conversions for slicing iterables into chunks.
 import typing as t
 
 from .aggregations import Aggregate
-from .base import (
-    BaseConversion,
-    Code,
-    GeneratorComp,
-    LazyEscapedString,
-    Namespace,
-    This,
-)
+from .base import BaseConversion, Code, LazyEscapedString, Namespace, This
 
 
 _none = BaseConversion._none
@@ -19,9 +12,7 @@ _none = BaseConversion._none
 
 class BaseChunkBy(BaseConversion):
     def aggregate(self, *args, **kwargs) -> "BaseConversion":
-        return self.pipe(
-            GeneratorComp(Aggregate(*args, **kwargs), _none, _none)
-        )
+        return self.iter(Aggregate(*args, **kwargs))
 
 
 class ChunkBy(BaseChunkBy):

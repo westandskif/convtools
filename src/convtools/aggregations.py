@@ -7,8 +7,8 @@ from math import ceil
 from .base import (
     BaseConversion,
     CallFunc,
-    ConverterOptionsCtx,
     ConversionException,
+    ConverterOptionsCtx,
     EscapedString,
     GeneratorItem,
     GetItem,
@@ -722,6 +722,7 @@ class Grouper(BaseConversion):
                 else self.AGG_RESULT_ITEM
             )
 
+    to_iter = delegate_input_switching_method("to_iter")
     iter = delegate_input_switching_method("iter", True)
     iter_mut = delegate_input_switching_method("iter_mut", True)
     iter_windows = delegate_input_switching_method("iter_windows", True)

@@ -889,9 +889,7 @@ class Table:
                     )
                     for column in self.meta_columns.columns
                 )
-            conversion = (self.pipeline or This()).pipe(
-                GeneratorComp(row_conversion, _none, _none)
-            )
+            conversion = (self.pipeline or This()).iter(row_conversion)
 
         if conversion:
             converter = conversion.gen_converter()

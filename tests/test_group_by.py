@@ -1,11 +1,12 @@
 import re
 from datetime import date
+from types import GeneratorType
 
 import pytest
 
 from convtools import conversion as c
-from convtools.base import LazyEscapedString, Namespace
 from convtools.aggregations import MultiStatementReducer
+from convtools.base import LazyEscapedString, Namespace
 
 from .utils import get_code_str
 
@@ -826,3 +827,11 @@ def test_group_by_delegate():
             converter(range(10)) == 30
             and converter.__globals__["__BROKEN_EARLY__"]
         )
+
+    result = (
+        c.group_by(c.item(0))
+        .aggregate(c.ReduceFuncs.Sum(c.item(1)))
+        .to_iter()
+        .execute([(1, 1), (1, 2), (3, 4)])
+    )
+    assert isinstance(result, GeneratorType) and list(result) == [3, 4]

@@ -1,3 +1,19 @@
+0.40.0 (2022-12-16)
+___________________
+
+Misc
+++++
+
+- simplified inner group by code generation
+- updated ``c.group_by``, ``(...).pipe`` and comprehensions to delegate method
+  calls to their internals where possible
+- updated internals of code generation, fixed random seed for reproducible code
+  generation
+- internally replaced ``FilterConversion`` with ``c.iter``
+- added internal ``(...).to_iter()`` method (may become public later, once
+  documented)
+
+
 0.39.0 (2022-12-06)
 ___________________
 
