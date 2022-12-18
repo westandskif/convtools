@@ -9,7 +9,7 @@ import typing as t
 from collections import deque
 from itertools import chain
 from keyword import iskeyword
-from random import choice
+from random import Random
 from uuid import uuid4
 
 from .heuristics import Weights
@@ -26,7 +26,7 @@ except ImportError:
 
 
 class CodeGenerationOptions(BaseOptions):
-    reducers_run_stage = None
+    pass
 
 
 class CodeGenerationOptionsCtx(BaseCtx):
@@ -131,6 +131,8 @@ class _None:
 
 
 _none = _None()
+_random = Random(1)
+choice = _random.choice
 
 
 class BaseConversion(t.Generic[CT]):
@@ -175,6 +177,8 @@ class BaseConversion(t.Generic[CT]):
 
     output_hints = 0
     weight = Weights.UNPREDICTABLE
+
+    base_type_to_cast: "t.Union[_None, t.Type]" = _none
 
     def __init__(self):
         self._depends_on = {}
@@ -225,14 +229,6 @@ class BaseConversion(t.Generic[CT]):
         self.depends_on(conversion)
         return conversion
 
-    def clone(self: CT) -> CT:
-        clone: CT = self.__class__.__new__(self.__class__)
-        clone.__dict__.update(self.__dict__)
-        clone._depends_on = dict(  # pylint:disable=protected-access
-            self._depends_on.items()
-        )
-        return clone
-
     def gen_code_and_update_ctx(self, code_input, ctx) -> str:
         """The main method which generates the code and stores necessary info
         in the context (which will be passed as locals() and globals() on to
@@ -257,32 +253,40 @@ class BaseConversion(t.Generic[CT]):
     PREFIXED_HASH_TO_NAME = "_prefixed_hash_to_name"
     GENERATED_NAMES = "_generated_names"
 
+    def gen_random_name(self, prefix, ctx) -> str:
+        generated_names = ctx[self.GENERATED_NAMES]
+        name = prefix or "_"
+        for _ in range(10):
+            if _ or iskeyword(name):
+                if name == "_":
+                    name = f"{name}{choice(self.allowed_symbols)}"
+                else:
+                    name = f"{name}_{choice(self.allowed_symbols)}"
+
+            if name not in generated_names:
+                generated_names.add(name)
+                return name
+
+        raise AssertionError("failed to generate unique filename", name)
+
     def gen_name(self, prefix, ctx, item_to_hash) -> str:
         """Generates name of variable to be used in the generated code. This
         also ensures that same items_to_hash will yield same names."""
         prefixed_hash_to_name = ctx[self.PREFIXED_HASH_TO_NAME]
-        generated_names = ctx[self.GENERATED_NAMES]
+        prefixed_hash = (prefix, item_to_hash)
         try:
-            prefixed_hash = (prefix, item_to_hash)
             if prefixed_hash in prefixed_hash_to_name:
                 return prefixed_hash_to_name[prefixed_hash]
+            name = self.gen_random_name(prefix, ctx)
+
         except TypeError:
             prefixed_hash = (prefix, id(item_to_hash))
             if prefixed_hash in prefixed_hash_to_name:
                 return prefixed_hash_to_name[prefixed_hash]
+            name = self.gen_random_name(prefix, ctx)
 
-        name = prefix
-        for _ in range(10):
-            if _ or iskeyword(name):
-                name += (
-                    f"_{choice(self.allowed_symbols)}"
-                    f"{choice(self.allowed_symbols)}"
-                )
-            if name not in generated_names:
-                prefixed_hash_to_name[prefixed_hash] = name
-                generated_names.add(name)
-                return name
-        raise AssertionError("failed to generate unique filename", name)
+        prefixed_hash_to_name[prefixed_hash] = name
+        return name
 
     _word_pattern_format = r"((?<=\W)|^){}((?=\W)|$)"
 
@@ -356,7 +360,7 @@ class BaseConversion(t.Generic[CT]):
         for key, dep in args.items():
             dep_name, is_named_conversion = key
             if is_named_conversion:
-                suffix = suffix or self.gen_name("_", ctx, self)
+                suffix = suffix or self.gen_random_name("_", ctx)
                 def_name = f"{dep.name}{suffix}"
                 name_to_code[dep.name] = def_name
             else:
@@ -516,7 +520,7 @@ class BaseConversion(t.Generic[CT]):
 
         with function_ctx:
             code = Code()
-            converter_name = self.gen_name(converter_name, ctx, self)
+            converter_name = self.gen_random_name(converter_name, ctx)
 
             code_ = self.to_code(initial_code_input, ctx)
             if code_ is None:
@@ -571,6 +575,9 @@ class BaseConversion(t.Generic[CT]):
             debug=debug or ConverterOptionsCtx.get_option_value("debug")
         )(*args, **kwargs)
 
+    def to_iter(self):
+        return GeneratorComp(This, _none, self)
+
     def iter(self, element_conv, *, where=None) -> "BaseConversion":
         """Shortcut for
         ``self.pipe(c.generator_comp(element_conv, where=condition))``
@@ -580,7 +587,31 @@ class BaseConversion(t.Generic[CT]):
           where (object): condition inside the comprehension
 
         """
-        return self.pipe(GeneratorComp(element_conv, where=where))
+        return GeneratorComp(element_conv, where=where, self_conv=self)
+
+    def filter(self, condition_conv, cast=None) -> "BaseConversion":
+        """Generates the code to iterate the input, taking items for which the
+        provided conversion resolves to a truth value.
+
+        Args:
+          condition_conv (object): to be wrapped with
+            :py:obj:`ensure_conversion` and used on each item of a collection
+            to filter it
+          cast (callable): to wrap the generator of filtered items
+        Returns:
+          BaseConversion: the generator of filtered items, wrapped with `cast`
+          if provided
+        """
+        cast = _none if cast is None else cast
+        result = self.to_iter().iter(This, where=condition_conv)
+
+        if cast is _none and self.base_type_to_cast is not _none:
+            cast = self.base_type_to_cast
+
+        if cast is not _none:
+            result = result.as_type(cast)
+
+        return result
 
     def iter_mut(self, *mutations: "BaseMutation") -> "IterMutConversion":
         """Conversion which results in a generator of mutated elements
@@ -815,11 +846,6 @@ class BaseConversion(t.Generic[CT]):
         """Shortcut for CallFunc(len, self)"""
         return CallFunc(len, self)
 
-    def filter(self, condition_conv, cast=_none) -> "BaseConversion":
-        """Shortcut for calling :py:obj:`convtools.base.FilterConversion` on
-        self"""
-        return self.pipe(FilterConversion(condition_conv, cast=cast))
-
     def sort(self, key=None, reverse=False) -> "BaseConversion":
         """Shortcut for calling :py:obj:`convtools.base.SortConversion` on
         self"""
@@ -917,15 +943,16 @@ class BaseMethodConversion(BaseConversion):
 
     def __init__(self, self_conv):
         super().__init__()
-        if self_conv is self._none:
-            self.self_conv = None
-        else:
-            self.self_conv = self.ensure_conversion(self_conv)
+        self.self_conv = (
+            self_conv
+            if self_conv is self._none
+            else self.ensure_conversion(self_conv)
+        )
 
     def get_self_and_input_code(
         self, code_input: str, ctx: dict
     ) -> t.Tuple[str, str]:
-        if self.self_conv is None:
+        if self.self_conv is self._none:
             return (code_input, code_input)
         return (
             self.self_conv.gen_code_and_update_ctx(code_input, ctx),
@@ -1020,6 +1047,14 @@ class NaiveConversion(BaseConversion):
 
     def is_itself_callable(self) -> t.Optional[bool]:
         return callable(self.value)
+
+    @staticmethod
+    def get_value(conversion) -> bool:
+        return (
+            conversion.value
+            if isinstance(conversion, NaiveConversion)
+            else conversion
+        )
 
 
 class EscapedString(BaseConversion):
@@ -1255,6 +1290,9 @@ class NamespaceCtx:
     NAMESPACES = BaseConversion.NAMESPACES
 
     def __init__(self, name_to_code: "t.Dict[str, str]", ctx):
+        name_to_code = {
+            name: code for name, code in name_to_code.items() if code
+        }
         if name_to_code:
             self._name_to_code = name_to_code
             self._ctx = ctx
@@ -1319,11 +1357,14 @@ class LazyEscapedString(BaseConversion):
         self.name = name
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        code = NamespaceCtx.name_to_code(ctx)[self.name]
-        if code is True:
-            return code_input
-        if code:
-            return code
+        name_to_code = NamespaceCtx.name_to_code(ctx)
+        if self.name in name_to_code:
+            code = name_to_code[self.name]
+            if code is True:
+                return code_input
+            if code:
+                return code
+            raise AssertionError("it's a bug")
 
         raise ValueError("LazyEscapedString is left uninitialized", self.name)
 
@@ -1511,7 +1552,7 @@ class IfMultiple(BaseConversion):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         code = Code()
-        suffix = self.gen_name("", ctx, self)
+        suffix = self.gen_random_name("_", ctx)
         converter_name = f"if_multiple{suffix}"
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", This())
@@ -1566,7 +1607,9 @@ class InlineExpr(BaseConversion):
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     )
 
-    def __init__(self, code_str, weight=Weights.UNPREDICTABLE):
+    def __init__(
+        self, code_str, weight=Weights.UNPREDICTABLE, args=None, kwargs=None
+    ):
         """
         Args:
           code_str (str): python code string. Supports `{}` expressions of
@@ -1576,8 +1619,14 @@ class InlineExpr(BaseConversion):
         self.weight = weight
         super().__init__()
         self.code_str = code_str
-        self.args = []
-        self.kwargs = {}
+        self.args = (
+            [self.ensure_conversion(arg) for arg in args] if args else []
+        )
+        self.kwargs = (
+            {k: self.ensure_conversion(v) for k, v in kwargs.items()}
+            if kwargs
+            else {}
+        )
 
     def pass_args(self, *args, **kwargs):
         """The method passes arguments to the code to be inlined.
@@ -1590,12 +1639,7 @@ class InlineExpr(BaseConversion):
         Returns:
           InlineExpr: Clone of the conversion after arguments are passed.
         """
-        self_clone = self.clone()
-        self_clone.args = [self_clone.ensure_conversion(arg) for arg in args]
-        self_clone.kwargs = {
-            k: self_clone.ensure_conversion(v) for k, v in kwargs.items()
-        }
-        return self_clone
+        return InlineExpr(self.code_str, self.weight, args, kwargs)
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         code = self.code_str.format(
@@ -1734,7 +1778,7 @@ class GetItem(BaseMethodConversion):
         ):
             return CallFunc(
                 self.get_or_default_functions[indexes_length - 1],
-                (This() if self.self_conv is None else self.self_conv),
+                (This() if self.self_conv is self._none else self.self_conv),
                 *self.indexes,
                 self.default,
             )
@@ -1819,15 +1863,7 @@ class GetItem(BaseMethodConversion):
             if do_caching and key in ctx[self.CONVERTERS_CACHE]:
                 converter_name = ctx[self.CONVERTERS_CACHE][key]
             else:
-                converter_name = self.gen_name(
-                    self.prefix,
-                    ctx,
-                    (
-                        self,
-                        len(function_ctx.args_as_def_names),
-                        len(function_ctx.kwargs_as_def_names),
-                    ),
-                )
+                converter_name = self.gen_random_name(self.prefix, ctx)
                 converter_code = self.template.format(
                     code_args=function_ctx.get_def_all_args_code(),
                     converter_name=converter_name,
@@ -1922,50 +1958,6 @@ def ApplyFunc(  # pylint:disable=invalid-name
     return InlineExpr("{}()").pass_args(func)
 
 
-class FilterConversion(BaseConversion):
-    """Generates the code to iterate the input, taking items for which the
-    provided conversion resolves to a truth value."""
-
-    def __init__(self, condition_conv, cast=BaseConversion._none):
-        """
-        Args:
-          condition_conv (object): to be wrapped with
-            :py:obj:`ensure_conversion` and used on each item of a collection
-            to filter it
-          cast (callable): to wrap the generator of filtered items
-        Returns:
-          BaseConversion: the generator of filtered items, wrapped with `cast`
-          if provided
-        """
-        super().__init__()
-        if cast is None or cast is self._none:
-            result = GeneratorComp(This(), where=condition_conv)
-        elif cast is list:
-            result = ListComp(This(), where=condition_conv)
-        elif cast is tuple:
-            result = TupleComp(This(), where=condition_conv)
-        elif cast is set:
-            result = SetComp(This(), where=condition_conv)
-        elif callable(cast):
-            gen = GeneratorComp(This(), where=condition_conv)
-            result = NaiveConversion(cast).call(gen)
-        else:
-            raise AssertionError(f"cannot cast generator to cast={cast}")
-        self.conversion = self.ensure_conversion(result)
-
-    def as_type(self, callable_):
-        return self.conversion.as_type(callable_)
-
-    def filter(self, condition_conv, cast=BaseConversion._none):
-        return self.conversion.filter(condition_conv, cast=cast)
-
-    def sort(self, key=None, reverse=False):
-        return self.conversion.sort(key, reverse)
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        return self.conversion.gen_code_and_update_ctx(code_input, ctx)
-
-
 class SortConversion(BaseConversion):
     """Generates the code to sort the input."""
 
@@ -1990,13 +1982,37 @@ class SortConversion(BaseConversion):
         )
 
 
-class BaseComprehensionConversion(BaseConversion):
-    """This is the base conversion to generate a code, which creates a
-    collection like: list/dict/etc."""
+class GeneratorItem:
+    """Internal use only - defines a conversion of each element of a
+    comprehension"""
 
-    sorting_requested = None
+    __slots__ = ["item", "custom_for_params"]
 
-    def __init__(self, item, *, where=None):
+    def __init__(self, item, *custom_for_params):
+        self.item = ensure_conversion(item)
+        self.custom_for_params = tuple(
+            ensure_conversion(param) for param in custom_for_params
+        )
+
+    @classmethod
+    def ensure_type(cls, item):
+        if isinstance(item, GeneratorItem):
+            return item
+        return cls(item)
+
+    def _replace(self, item):
+        return GeneratorItem(item, *self.custom_for_params)
+
+
+class BaseComp(BaseMethodConversion):
+    """Base conversion of non-dict comprehension"""
+
+    def __init__(
+        self,
+        generator_item,
+        where,
+        self_conv,
+    ):
         """
         Args:
           item (object): to be wrapped with :py:obj:`ensure_conversion`
@@ -2006,110 +2022,184 @@ class BaseComprehensionConversion(BaseConversion):
             e.g. for ``[i * 2 for i in l if i > 0]`` an item would be
             ``c.generator_comp(c.this * 2, where=c.this > 0)``
         """
-        super().__init__()
-        self.item = self.ensure_conversion(item)
-        self.where = None if where is None else self.ensure_conversion(where)
+        super().__init__(self_conv)
+
+        self.generator_item = GeneratorItem.ensure_type(generator_item)
+        self.depends_on(self.generator_item.item)
+
+        for param in self.generator_item.custom_for_params:
+            self.depends_on(param)
+
+        self.where = _none if where is None else self.ensure_conversion(where)
         self.number_of_input_uses = 1
 
-    def gen_item_code(self, code_input, ctx):
-        return self.item.gen_code_and_update_ctx(code_input, ctx)
-
-    def gen_generator_code(self, code_input, ctx):
-        suffix = self.gen_name("", ctx, self)
-        param_code = f"i_{suffix}"
-        for_params_code = param_code
-
-        item_code = self.gen_item_code(param_code, ctx)
-        gen_code = f"{item_code} for {for_params_code} in {code_input}"
-
-        if self.where is not None:
-            condition_code = self.where.gen_code_and_update_ctx(
+    def get_item_n_param_codes(self, ctx):
+        if self.generator_item.custom_for_params:
+            param_code = ", ".join(
+                param.gen_code_and_update_ctx(None, ctx)
+                for param in self.generator_item.custom_for_params
+            )
+            item_code = self.generator_item.item.gen_code_and_update_ctx(
+                None, ctx
+            )
+        else:
+            param_code = self.gen_random_name("i", ctx)
+            item_code = self.generator_item.item.gen_code_and_update_ctx(
                 param_code, ctx
             )
-            if condition_code == "True":
-                pass
-            elif condition_code == "False":
-                gen_code = ""
-            else:
-                gen_code = f"{gen_code} if {condition_code}"
+        return item_code, param_code
 
-        return gen_code
+    def get_iterable_code(self, code_input, ctx):
+        code_self, _ = self.get_self_and_input_code(code_input, ctx)
+        return code_self
 
 
-class GeneratorComp(BaseComprehensionConversion):
+class GeneratorComp(BaseComp):
     """Generates python generator comprehension code."""
 
-    def as_type(self, callable_):
-        if callable_ in (list, set, tuple):
-            kwargs = dict(item=self.item, where=self.where)
-            if callable_ is list:
-                comp = ListComp(**kwargs)
-            elif callable_ is tuple:
-                comp = TupleComp(**kwargs)
-            else:
-                comp = SetComp(**kwargs)
-            return comp
-        return super().as_type(callable_)
-
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return f"({self.gen_generator_code(code_input, ctx)})"
+        item_code, param_code = self.get_item_n_param_codes(ctx)
+        code_iterable = self.get_iterable_code(code_input, ctx)
 
+        if self.where is _none:
+            return f"({item_code} for {param_code} in {code_iterable})"
 
-class SetComp(BaseComprehensionConversion):
-    """Generates python set comprehension code (obviously non-sortable)"""
+        condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
+        return f"({item_code} for {param_code} in {code_iterable} if {condition_code})"
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        return f"{{{self.gen_generator_code(code_input, ctx)}}}"
+    def to_iter(self):
+        return self
 
-    def filter(self, condition_conv, cast=BaseConversion._none):
-        if cast is self._none:
-            cast = set
+    def iter(self, element_conv, *, where=None) -> "BaseConversion":
+        where = _none if where is None else where
 
-        return super().filter(condition_conv, cast=cast)
+        cannot_consume = self.generator_item.item is not This and (
+            where is not _none
+            or ensure_conversion(element_conv).number_of_input_uses >= 2
+        )
+        if cannot_consume:
+            return super().iter(element_conv, where=where)
 
+        where_conditions = []
+        if self.where is not _none:
+            where_conditions.append(self.where)
+        if where is not _none:
+            where_conditions.append(where)
 
-class ListComp(BaseComprehensionConversion):
-    """Generates python list comprehension code."""
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        return f"[{self.gen_generator_code(code_input, ctx)}]"
-
-    def filter(self, condition_conv, cast=BaseConversion._none):
-        if cast is self._none:
-            return GeneratorComp(self.item, where=self.where).filter(
-                condition_conv, cast=list
-            )
-        return super().filter(condition_conv, cast=cast)
-
-    def sort(self, key=None, reverse=False) -> "BaseConversion":
-        return GeneratorComp(self.item, where=self.where).sort(key, reverse)
-
-
-class TupleComp(BaseComprehensionConversion):
-    """Generates python tuple comprehension code."""
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        return f"tuple({self.gen_generator_code(code_input, ctx)})"
-
-    def filter(self, condition_conv, cast=BaseConversion._none):
-        if cast is self._none:
-            return GeneratorComp(self.item, where=self.where).filter(
-                condition_conv, cast=tuple
-            )
-        return super().filter(condition_conv, cast=cast)
-
-    def sort(self, key=None, reverse=False) -> "BaseConversion":
-        return (
-            GeneratorComp(self.item, where=self.where)
-            .sort(key, reverse)
-            .as_type(tuple)
+        return GeneratorComp(
+            (
+                self.generator_item
+                if element_conv is This
+                else self.generator_item._replace(
+                    self.generator_item.item.pipe(element_conv)
+                )
+            ),
+            And(*where_conditions) if where_conditions else _none,
+            self.self_conv,
         )
 
+    def as_type(self, callable_):
+        value = NaiveConversion.get_value(callable_)
+        if value is list:
+            return ListComp(
+                self.generator_item, where=self.where, self_conv=self.self_conv
+            )
+        elif value is tuple:
+            return TupleComp(
+                self.generator_item, where=self.where, self_conv=self.self_conv
+            )
+        elif value is set:
+            return SetComp(
+                self.generator_item, where=self.where, self_conv=self.self_conv
+            )
+        return super().as_type(callable_)
 
-class DictComp(BaseComprehensionConversion):
+
+class SetComp(BaseComp):
+    """Generates python set comprehension code (obviously non-sortable)"""
+
+    base_type_to_cast = set
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        item_code, param_code = self.get_item_n_param_codes(ctx)
+        code_iterable = self.get_iterable_code(code_input, ctx)
+
+        if self.where is _none:
+            return f"{{{item_code} for {param_code} in {code_iterable}}}"
+
+        condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
+        return f"{{{item_code} for {param_code} in {code_iterable} if {condition_code}}}"
+
+    def as_type(self, callable_):
+        if NaiveConversion.get_value(callable_) is set:
+            return self
+        return super().as_type(callable_)
+
+
+class ListComp(BaseComp):
+    """Generates python list comprehension code."""
+
+    base_type_to_cast = list
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        item_code, param_code = self.get_item_n_param_codes(ctx)
+        code_iterable = self.get_iterable_code(code_input, ctx)
+
+        if self.where is _none:
+            return f"[{item_code} for {param_code} in {code_iterable}]"
+
+        condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
+        return f"[{item_code} for {param_code} in {code_iterable} if {condition_code}]"
+
+    def to_iter(self):
+        return GeneratorComp(self.generator_item, self.where, self.self_conv)
+
+    def iter(self, element_conv, *, where=None) -> "BaseConversion":
+        return self.to_iter().iter(element_conv, where=where)
+
+    def as_type(self, callable_):
+        if NaiveConversion.get_value(callable_) is list:
+            return self
+        return self.to_iter().as_type(callable_)
+
+    def sort(self, key=None, reverse=False) -> "BaseConversion":
+        return self.to_iter().sort(key, reverse)
+
+
+class TupleComp(BaseComp):
+    """Generates python tuple comprehension code."""
+
+    base_type_to_cast = tuple
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        item_code, param_code = self.get_item_n_param_codes(ctx)
+        code_iterable = self.get_iterable_code(code_input, ctx)
+
+        if self.where is _none:
+            return f"tuple({item_code} for {param_code} in {code_iterable})"
+
+        condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
+        return f"tuple({item_code} for {param_code} in {code_iterable} if {condition_code})"
+
+    def to_iter(self):
+        return GeneratorComp(self.generator_item, self.where, self.self_conv)
+
+    def iter(self, element_conv, *, where=None) -> "BaseConversion":
+        return self.to_iter().iter(element_conv, where=where)
+
+    def as_type(self, callable_):
+        if NaiveConversion.get_value(callable_) is tuple:
+            return self
+        return self.to_iter().as_type(callable_)
+
+    def sort(self, key=None, reverse=False) -> "BaseConversion":
+        return self.to_iter().sort(key, reverse).as_type(tuple)
+
+
+class DictComp(BaseMethodConversion):
     """Generates python dict comprehension code."""
 
-    def __init__(self, key, value, *, where=None):
+    def __init__(self, key, value, where, self_conv):
         """
         Args:
           key (object): to be wrapped with :py:obj:`ensure_conversion` and
@@ -2117,35 +2207,30 @@ class DictComp(BaseComprehensionConversion):
           value (object): to be wrapped with :py:obj:`ensure_conversion` and
             used on each item of a collection to form values
         """
-        super().__init__(item=None, where=where)
+        super().__init__(self_conv)
         self.key = self.ensure_conversion(key)
         self.value = self.ensure_conversion(value)
+        self.where = _none if where is None else self.ensure_conversion(where)
         self.number_of_input_uses = 1
 
-    def gen_item_code(self, code_input, ctx):
-        key_code = self.key.gen_code_and_update_ctx(code_input, ctx)
-        value_code = self.value.gen_code_and_update_ctx(code_input, ctx)
-        return f"{key_code}: {value_code}"
-
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        return f"{{{self.gen_generator_code(code_input, ctx)}}}"
+        param_code = self.gen_random_name("i", ctx)
+        key_code = self.key.gen_code_and_update_ctx(param_code, ctx)
+        value_code = self.value.gen_code_and_update_ctx(param_code, ctx)
+        code_iterable = BaseComp.get_iterable_code(self, code_input, ctx)
+        if self.where is _none:
+            return f"{{{key_code}: {value_code} for {param_code} in {code_iterable}}}"
+
+        condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
+        return f"{{{key_code}: {value_code} for {param_code} in {code_iterable} if {condition_code}}}"
 
     def filter(self, condition_conv, cast=BaseConversion._none):
         if cast is self._none:
             cast = dict
-        return GeneratorComp((self.key, self.value), where=self.where).filter(
-            condition_conv, cast=dict
-        )
+        return self.call_method("items").filter(condition_conv, cast=dict)
 
     def sort(self, key=None, reverse=False) -> "BaseConversion":
-        return (
-            GeneratorComp(
-                (self.key, self.value),
-                where=self.where,
-            )
-            .sort(key, reverse)
-            .as_type(dict)
-        )
+        return self.call_method("items").sort(key, reverse).as_type(dict)
 
 
 class BaseCollectionConversion(BaseConversion):
@@ -2190,7 +2275,7 @@ class BaseCollectionConversion(BaseConversion):
     def gen_optional_items_generator_code(self, code_input, ctx):
         inner_code_input = "data_"
         code = Code()
-        converter_name = self.gen_name("optional_items_generator", ctx, self)
+        converter_name = self.gen_random_name("optional_items_generator", ctx)
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", This())
         with function_ctx:
@@ -2425,7 +2510,7 @@ class TakeWhile(BaseConversion):
         return self
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_name("_", ctx, ("take_while", self, code_input))
+        suffix = self.gen_random_name("_", ctx)
         converter_name = f"take_while{suffix}"
         var_it = f"it{suffix}"
         var_item = f"item{suffix}"
@@ -2477,7 +2562,7 @@ class DropWhile(BaseConversion):
         self.cast = self._none
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_name("_", ctx, ("drop_while", self, code_input))
+        suffix = self.gen_random_name("_", ctx)
         converter_name = f"drop_while{suffix}"
         var_it = f"it{suffix}"
         var_item = f"item{suffix}"
@@ -2513,6 +2598,36 @@ class DropWhile(BaseConversion):
         return function_ctx.call_with_all_args(
             conversion
         ).gen_code_and_update_ctx(code_input, ctx)
+
+
+def delegate_simple_0_args(name):
+    def method(self):
+        if self.label_output is None:
+            return self._replace(getattr(self.where, name)())
+        return getattr(super(self.__class__, self), name)()
+
+    return method
+
+
+def delegate_simple_1_arg(name):
+    def method(self, arg):
+        if self.label_output is None and (
+            self.what is This
+            or ensure_conversion(arg).number_of_input_uses == 0
+        ):
+            return self._replace(getattr(self.where, name)(arg))
+        return getattr(super(self.__class__, self), name)(arg)
+
+    return method
+
+
+def delegate_input_switching_method(name):
+    def method(self, *args, **kwargs):
+        if self.label_output is None:
+            return self._replace(getattr(self.where, name)(*args, **kwargs))
+        return getattr(super(self.__class__, self), name)(*args, **kwargs)
+
+    return method
 
 
 class PipeConversion(BaseConversion):
@@ -2634,36 +2749,65 @@ class PipeConversion(BaseConversion):
             )
             self.contents |= 4  # self.ContentTypes.NEW_LABEL
 
-    #     if self.to_be_inlined and self.DEBUG:
-    #         from pprint import pprint
-
-    #         print("\n")
-    #         print("INLINING:")
-    #         pprint(self.__dict__)
-    #         print("WHAT:")
-    #         pprint(self.what.__dict__)
-    #         print("WHERE:")
-    #         pprint(self.where.__dict__)
-    #         # breakpoint()
-
-    # DEBUG = False
-
-    def replace(self, where):
+    def _replace(self, where):
+        if self.label_output:
+            raise AssertionError("it's a bug")
         return PipeConversion(
-            what=self.what,
-            where=where,
+            self.what,
+            where,
             label_input=self.label_input,
             label_output=self.label_output,
         )
 
-    def as_type(self, callable_):
-        return self.replace(self.where.as_type(callable_))
+    def __hash__(self):
+        return id(self)
 
-    def filter(self, condition_conv, cast=BaseConversion._none):
-        return self.replace(self.where.filter(condition_conv, cast=cast))
+    __add__ = delegate_simple_1_arg("__add__")
+    add = delegate_simple_1_arg("add")
+    __and__ = delegate_simple_1_arg("__and__")
+    __eq__ = delegate_simple_1_arg("__eq__")
+    __floordiv__ = delegate_simple_1_arg("__floordiv__")
+    floor_div = delegate_simple_1_arg("floor_div")
+    __ge__ = delegate_simple_1_arg("__ge__")
+    gte = delegate_simple_1_arg("gte")
+    __gt__ = delegate_simple_1_arg("__gt__")
+    gt = delegate_simple_1_arg("gt")
+    __le__ = delegate_simple_1_arg("__le__")
+    lte = delegate_simple_1_arg("lte")
+    __lt__ = delegate_simple_1_arg("__lt__")
+    lt = delegate_simple_1_arg("lt")
+    __mod__ = delegate_simple_1_arg("__mod__")
+    mod = delegate_simple_1_arg("mod")
+    __mul__ = delegate_simple_1_arg("__mul__")
+    mul = delegate_simple_1_arg("mul")
+    __ne__ = delegate_simple_1_arg("__ne__")
+    not_eq = delegate_simple_1_arg("not_eq")
+    __or__ = delegate_simple_1_arg("__or__")
+    __sub__ = delegate_simple_1_arg("__sub__")
+    sub = delegate_simple_1_arg("sub")
+    __truediv__ = delegate_simple_1_arg("__truediv__")
+    div = delegate_simple_1_arg("div")
+    as_type = delegate_simple_1_arg("as_type")
+    in_ = delegate_simple_1_arg("in_")
+    not_in = delegate_simple_1_arg("not_in")
+    is_ = delegate_simple_1_arg("is_")
+    is_not = delegate_simple_1_arg("is_not")
 
-    def sort(self, key=None, reverse=False):
-        return self.replace(self.where.sort(key, reverse))
+    __neg__ = delegate_simple_0_args("__neg__")
+    neg = delegate_simple_0_args("neg")
+    __invert__ = delegate_simple_0_args("__invert__")
+    not_ = delegate_simple_0_args("not_")
+    flatten = delegate_simple_0_args("flatten")
+    len = delegate_simple_0_args("len")
+
+    iter = delegate_input_switching_method("iter")
+    iter_mut = delegate_input_switching_method("iter_mut")
+    iter_windows = delegate_input_switching_method("iter_windows")
+    filter = delegate_input_switching_method("filter")
+    pipe = delegate_input_switching_method("pipe")
+    drop_while = delegate_input_switching_method("drop_while")
+    take_while = delegate_input_switching_method("take_while")
+    tap = delegate_input_switching_method("tap")
 
     @staticmethod
     def _prepare_labels(
@@ -2689,7 +2833,7 @@ class PipeConversion(BaseConversion):
                 self.what.gen_code_and_update_ctx(code_input, ctx), ctx
             )
 
-        suffix = self.gen_name("_", ctx, ("pipe", self, code_input))
+        suffix = self.gen_random_name("_", ctx)
         converter_name = f"pipe{suffix}"
         var_result = f"result{suffix}"
         var_input = f"input{suffix}"
@@ -2754,7 +2898,7 @@ class TapConversion(BaseConversion):
         self.number_of_input_uses = 1
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_name("", ctx, self)
+        suffix = self.gen_random_name("", ctx)
         converter_name = f"tap_{suffix}"
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", self.obj)
@@ -2783,7 +2927,7 @@ class IterMutConversion(TapConversion):
     IterMutConversion takes any number of mutations"""
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_name("", ctx, self)
+        suffix = self.gen_random_name("", ctx)
         converter_name = f"iter_mut_{suffix}"
         code_item = f"item_{suffix}"
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)

@@ -25,7 +25,6 @@ from .base import (
     DropWhile,
     Eq,
     EscapedString,
-    FilterConversion,
     GeneratorComp,
     GetAttr,
     GetItem,
@@ -56,6 +55,8 @@ from .mutations import Mutations
 
 
 __all__ = ["conversion", "Conversion"]
+
+_none = BaseConversion._none
 
 
 class Conversion:
@@ -109,7 +110,7 @@ class Conversion:
     call_func = staticmethod(CallFunc)
     apply_func = staticmethod(ApplyFunc)
 
-    filter = FilterConversion
+    filter = This.filter
     sort = SortConversion
 
     #: Shortcut to `InputArg`
@@ -124,13 +125,6 @@ class Conversion:
     set = Set
     dict = Dict
     optional = OptionalCollectionItem
-
-    generator_comp = GeneratorComp
-    iter = GeneratorComp
-    list_comp = ListComp
-    tuple_comp = TupleComp
-    set_comp = SetComp
-    dict_comp = DictComp
 
     group_by = GroupBy
     aggregate = staticmethod(Aggregate)
@@ -147,6 +141,23 @@ class Conversion:
     chunk_by = ChunkBy
     chunk_by_condition = ChunkByCondition
     CHUNK = ChunkByCondition.CHUNK
+
+    def iter(self, item, *, where=None):
+        return GeneratorComp(item, where, _none)
+
+    generator_comp = iter
+
+    def list_comp(self, item, *, where=None):
+        return ListComp(item, where, _none)
+
+    def tuple_comp(self, item, *, where=None):
+        return TupleComp(item, where, _none)
+
+    def set_comp(self, item, *, where=None):
+        return SetComp(item, where, _none)
+
+    def dict_comp(self, key, value, *, where=None):
+        return DictComp(key, value, where, _none)
 
     def reduce(self, to_call_with_2_args, *args, **kwargs):
         if (

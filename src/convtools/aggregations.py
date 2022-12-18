@@ -5,23 +5,27 @@ from decimal import Decimal
 from math import ceil
 
 from .base import (
-    CT,
     BaseConversion,
     CallFunc,
-    CodeGenerationOptionsCtx,
     ConversionException,
+    ConverterOptionsCtx,
     EscapedString,
-    FilterConversion,
+    GeneratorItem,
     GetItem,
     If,
     InlineExpr,
+    LazyEscapedString,
     List,
+    ListComp,
     NaiveConversion,
+    Namespace,
+    NamespaceCtx,
     This,
     Tuple,
     _None,
     ensure_conversion,
 )
+from .heuristics import Weights
 from .utils import Code
 
 
@@ -33,7 +37,6 @@ class ReduceBlock:
     """Represents a section of code of a single reducer"""
 
     var_checksum = "checksum_"
-    var_expected_checksum = "expected_checksum_"
 
     def __init__(
         self,
@@ -69,7 +72,7 @@ class ReduceBlock:
                 raise AssertionError
             self.reduce_two[k] = v
 
-        self.checksum_flag |= reduce_block.checksum_flag
+        self.checksum_flag += reduce_block.checksum_flag
         return self
 
     def iter_reduce_lines(self, lines_info_dict) -> t.Iterable[str]:
@@ -112,15 +115,51 @@ class ReduceConditionalBlock(ReduceBlock):
         self.condition_code = condition_code
 
 
-class ReduceBlocks(t.Generic[RBT]):
+ReduceBlockType = t.Union[ReduceBlock, ReduceConditionalBlock]
+
+
+class ReduceBlocks:
     """Represents a set of reduce blocks"""
 
-    def __init__(self):
+    def __init__(self, var_agg_data, aggregate_mode):
+        self.var_agg_data = var_agg_data
+        self.aggregate_mode = aggregate_mode
+
+        self.block_key_to_index = {}
+        self.agg_data_values = []
+
         self.condition_to_blocks = {}
         self.other_blocks = []
         self.number = 0
 
-    def add_block(self, reduce_block: RBT):
+    def exchange_reducer_code_input(self, reducer, reducer_code_input, ctx):
+        checksum_flag = 1 if self.aggregate_mode else 0
+        agg_data_value = self._gen_agg_data_value(self.number)
+        reduce_block = reducer.gen_reduce_code_block(
+            agg_data_value,
+            reducer_code_input,
+            checksum_flag,
+            ctx,
+        )
+        key = reduce_block.as_key()
+        index = self.block_key_to_index.get(key)
+
+        if index is not None:
+            return self._gen_agg_data_value(index)
+
+        self.block_key_to_index[key] = self.number
+        self._add_block(reduce_block)
+        self.agg_data_values.append(agg_data_value)
+        return agg_data_value
+
+    def _gen_agg_data_value(self, index):
+        return (
+            f"{self.var_agg_data}_v{index}"
+            if self.aggregate_mode
+            else f"{self.var_agg_data}.v{index}"
+        )
+
+    def _add_block(self, reduce_block: ReduceBlockType):
         self.number += 1
 
         if reduce_block.unconditional_init:
@@ -138,7 +177,7 @@ class ReduceBlocks(t.Generic[RBT]):
         else:
             return self.other_blocks.append(reduce_block)
 
-    def iter_blocks(self) -> t.Iterable[RBT]:
+    def iter_blocks(self) -> t.Generator[ReduceBlockType, None, None]:
         yield from self.condition_to_blocks.values()
         yield from self.other_blocks
 
@@ -182,9 +221,10 @@ class ReduceBlocks(t.Generic[RBT]):
     def gen_aggregate_code(
         self,
         var_row,
-        var_checksum,
-        var_expected_checksum,
+        expected_checksum,
     ) -> Code:
+        is_debug = ConverterOptionsCtx.get_option_value("debug")
+        var_checksum = ReduceBlock.var_checksum
         first_phase_code = Code()
         second_phase_code = Code()
 
@@ -212,24 +252,32 @@ class ReduceBlocks(t.Generic[RBT]):
 
             if is_single_block:
                 if block.unconditional_init:
+                    if is_debug:
+                        first_phase_code.add_line(
+                            "globals()['__BROKEN_EARLY__'] = True", 0
+                        )
                     first_phase_code.add_line("break", 0)
                 else:
                     first_phase_code.add_line(
                         f"if {any_var_agg_data_value} is not _none:", 1
                     )
+                    if is_debug:
+                        first_phase_code.add_line(
+                            "globals()['__BROKEN_EARLY__'] = True", 0
+                        )
                     first_phase_code.add_line("break", -1)
 
             else:
                 if block.unconditional_init:
                     first_phase_code.add_line(
-                        f"{var_checksum} |= {block.checksum_flag}", 0
+                        f"{var_checksum} += {block.checksum_flag}", 0
                     )
                 else:
                     first_phase_code.add_line(
                         f"if {any_var_agg_data_value} is not _none:", 1
                     )
                     first_phase_code.add_line(
-                        f"{var_checksum} |= {block.checksum_flag}", -1
+                        f"{var_checksum} += {block.checksum_flag}", -1
                     )
                 needs_sum_checking = True
 
@@ -264,8 +312,13 @@ class ReduceBlocks(t.Generic[RBT]):
         resulting_code.add_code(first_phase_code)
         if needs_sum_checking:
             resulting_code.add_line(
-                f"if {var_checksum} == {var_expected_checksum}: break", 0
+                f"if {var_checksum} == {expected_checksum}:", 1
             )
+            if is_debug:
+                resulting_code.add_line(
+                    "globals()['__BROKEN_EARLY__'] = True", 0
+                )
+            resulting_code.add_line("break", -1)
         resulting_code.incr_indent_level(-1)
 
         if second_phase_code.has_lines():
@@ -288,7 +341,6 @@ def {converter_name}({code_args}):
 AGGREGATE_TEMPLATE = """
 def {converter_name}({code_args}):
     {code_init_agg_vars}
-    {var_expected_checksum} = {val_expected_checksum}
     {var_checksum} = 0
 
 {code_aggregate}
@@ -300,13 +352,13 @@ def {converter_name}({code_args}):
 RT = t.TypeVar("RT", bound="BaseReducer")
 
 
-class BaseReducer(BaseConversion, t.Generic[RBT, CT]):
+class BaseReducer(BaseConversion):
     """Base of a reduce operation to be used during the aggregation"""
 
     expressions: t.Tuple[t.Any, ...]
     post_conversion: t.Optional[BaseConversion] = None
     default: t.Any
-    where: t.Optional[BaseConversion] = None
+    where: t.Any = _none
     unconditional_init: bool = False
 
     self_content_type = (
@@ -342,24 +394,16 @@ class BaseReducer(BaseConversion, t.Generic[RBT, CT]):
         reducer_code_input: str,
         checksum_flag: int,
         ctx: dict,
-    ) -> RBT:
+    ) -> ReduceBlockType:
         raise NotImplementedError
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
-        if (
-            CodeGenerationOptionsCtx.get_option_value("reducers_run_stage")
-            == "collecting_reducer_inputs"
-        ):
-            reducer_result_code = self.gen_name(
-                "rrc_", ctx, (self, code_input)
-            )
-            reducer_inputs_info = ctx["_reducer_inputs_info"][-1]
-            reducer_inputs_info[(code_input, reducer_result_code)].append(self)
-            return self.conversion.gen_code_and_update_ctx(
-                reducer_result_code, ctx
-            )
-
-        raise AssertionError("reducers cannot be used outside of aggregations")
+        code_input = ctx["exchange_reducer_code_input_methods"][-1](
+            reducer=self,
+            reducer_code_input=code_input,
+            ctx=ctx,
+        )
+        return self.conversion.gen_code_and_update_ctx(code_input, ctx)
 
     def prepare_default_n_initial(self, default, initial):
         if default is _none:
@@ -398,7 +442,7 @@ class MultiStatementReducer(BaseReducer):
 
     def __init__(self, *expressions, initial=_none, default=_none, where=None):
         super().__init__(default, initial)
-        self.where = None if where is None else self.ensure_conversion(where)
+        self.where = _none if where is None else self.ensure_conversion(where)
 
         self.expressions = tuple(
             self.ensure_conversion(expr)
@@ -432,7 +476,7 @@ class MultiStatementReducer(BaseReducer):
         reducer_code_input: str,
         checksum_flag: int,
         ctx: dict,
-    ) -> RBT:
+    ) -> ReduceBlockType:
         if self.initial is _none:
             reduce_initial = self._format_statements(
                 (
@@ -470,7 +514,7 @@ class MultiStatementReducer(BaseReducer):
             "checksum_flag": checksum_flag,
             "unconditional_init": self.unconditional_init,
         }
-        if self.where is not None:
+        if self.where is not _none:
             condition_code = self.where.gen_code_and_update_ctx(
                 reducer_code_input, ctx
             )
@@ -533,7 +577,7 @@ class Reduce(BaseReducer):
             aggregation value OR there is a condition for that
         """
         super().__init__(default, initial)
-        self.where = None if where is None else self.ensure_conversion(where)
+        self.where = _none if where is None else self.ensure_conversion(where)
         self.to_call_with_2_args = self.ensure_conversion(to_call_with_2_args)
         self.expressions = tuple(
             self.ensure_conversion(expr) for expr in expressions
@@ -546,7 +590,7 @@ class Reduce(BaseReducer):
         reducer_code_input: str,
         checksum_flag: int,
         ctx: dict,
-    ) -> RBT:
+    ) -> ReduceBlockType:
         _ = self.to_call_with_2_args.call_like(
             self.initial,
             *self.expressions,
@@ -566,7 +610,7 @@ class Reduce(BaseReducer):
             "checksum_flag": checksum_flag,
             "unconditional_init": self.unconditional_init,
         }
-        if self.where is not None:
+        if self.where is not _none:
             condition_code = self.where.gen_code_and_update_ctx(
                 reducer_code_input, ctx
             )
@@ -582,7 +626,7 @@ class Reduce(BaseReducer):
         return block_cls(**kwargs)
 
 
-class GroupBy(BaseConversion, t.Generic[RBT, CT]):
+class GroupBy:
     """Generates the function which aggregates the data, grouping by
     conversions, specified in `__init__` method and returns list of items in a
     format defined by the parameter passed to ``aggregate`` method.
@@ -597,13 +641,7 @@ class GroupBy(BaseConversion, t.Generic[RBT, CT]):
        for some function calls) won't result in calculating this reduce twice
     """
 
-    self_content_type = (
-        BaseConversion.self_content_type
-        | BaseConversion.ContentTypes.AGGREGATION
-        | BaseConversion.ContentTypes.NONE_USAGE
-    )
-
-    def __init__(self, *by: t.Tuple[BaseConversion, ...]):
+    def __init__(self, *by):
         """Takes any number of conversions to group by
 
         Args:
@@ -612,42 +650,89 @@ class GroupBy(BaseConversion, t.Generic[RBT, CT]):
             object to allow using such tuples as keys. If nothing is passed,
             aggregate the input into a single object.
         """
-        super().__init__()
-        self.by = [self.ensure_conversion(by_) for by_ in by]
-        self.agg_result: t.Optional[BaseConversion] = None
-        self.aggregate_mode = len(self.by) == 0
-        self.filter_conversion = None
-        self.filter_cast = None
+        self.by = by
 
     def aggregate(
         self, reducer: t.Union[dict, list, set, tuple, BaseConversion]
-    ) -> "GroupBy":
-        """Takes the conversion which defines the desired output of
-        aggregation"""
-        self_clone = self.clone()
-        self_clone.agg_result = self_clone.ensure_conversion(reducer)
-        self_clone.contents = self_clone.contents & ~self.ContentTypes.REDUCER
+    ) -> "Grouper":
 
-        if isinstance(self_clone.agg_result, NaiveConversion):
-            raise AssertionError("unexpected reducer type", type(reducer))
+        return Grouper(self.by, reducer)
 
-        self_clone.number_of_input_uses = 1
-        return self_clone
 
-    def filter(
-        self, condition_conv, cast=BaseConversion._none
-    ) -> "BaseConversion":
-        if cast is self._none:
-            cast = list
-        if self.aggregate_mode or self.filter_conversion is not None:
-            return super().filter(condition_conv, cast=cast)
-        self_clone = self.clone()
-        self_clone.filter_conversion = self_clone.ensure_conversion(
-            condition_conv
+def delegate_input_switching_method(name, force_iter_first=False):
+    def method(self, *args, **kwargs):
+        conversion = self.conversion
+        if force_iter_first:
+            conversion = conversion.to_iter()
+        return Grouper(
+            by=self.by,
+            reducer=self.reducer,
+            conversion=getattr(conversion, name)(*args, **kwargs),
         )
-        self_clone.filter_cast = cast
-        self_clone.number_of_input_uses = 1
-        return self_clone
+
+    return method
+
+
+class Grouper(BaseConversion):
+    """Fully initialized GroupBy conversion, which delegates some of methods
+    like iter to its internals"""
+
+    self_content_type = (
+        BaseConversion.self_content_type
+        | BaseConversion.ContentTypes.AGGREGATION
+        | BaseConversion.ContentTypes.NONE_USAGE
+    )
+
+    SIGNATURE_NAME = "signature"
+    AGG_DATA_NAME = "agg_data"
+    AGG_RESULT_ITEM_NAME = "agg_result_item"
+    SIGNATURE = Namespace(
+        LazyEscapedString(SIGNATURE_NAME), {SIGNATURE_NAME: None}
+    )
+    AGG_DATA = Namespace(
+        LazyEscapedString(AGG_DATA_NAME), {AGG_DATA_NAME: None}
+    )
+    AGG_RESULT_ITEM = Namespace(
+        LazyEscapedString(AGG_RESULT_ITEM_NAME), {AGG_RESULT_ITEM_NAME: None}
+    )
+    AGG_RESULT_ITEM.weight = Weights.UNPREDICTABLE
+
+    def __init__(self, by, reducer, conversion=None):
+        super().__init__()
+        self.by = [self.ensure_conversion(by_) for by_ in by]
+        self.reducer = self.ensure_conversion(reducer)
+        self.contents = self.contents & ~self.ContentTypes.REDUCER
+        self.number_of_input_uses = 1
+        self.aggregate_mode = len(self.by) == 0
+
+        if conversion:
+            self.conversion = conversion
+        else:
+            self.conversion = (
+                ListComp(
+                    GeneratorItem(
+                        self.AGG_RESULT_ITEM,
+                        self.SIGNATURE,
+                        self.AGG_DATA,
+                    ),
+                    _none,
+                    _none,
+                )
+                if len(self.by)
+                else self.AGG_RESULT_ITEM
+            )
+
+    to_iter = delegate_input_switching_method("to_iter")
+    iter = delegate_input_switching_method("iter", True)
+    iter_mut = delegate_input_switching_method("iter_mut", True)
+    iter_windows = delegate_input_switching_method("iter_windows", True)
+    filter = delegate_input_switching_method("filter")
+    flatten = delegate_input_switching_method("flatten", True)
+    take_while = delegate_input_switching_method("take_while", True)
+    drop_while = delegate_input_switching_method("drop_while", True)
+    as_type = delegate_input_switching_method("as_type", True)
+    sort = delegate_input_switching_method("sort", True)
+    tap = delegate_input_switching_method("tap", True)
 
     def _gen_agg_data_container(self, container_name, number_of_reducers, ctx):
         attrs = [f"v{i}" for i in range(number_of_reducers)]
@@ -665,10 +750,10 @@ class GroupBy(BaseConversion, t.Generic[RBT, CT]):
         return self.compile_converter(container_name, code.to_string(0), ctx)
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
-        if self.agg_result is None:
-            raise AssertionError("aggregate hasn't been called")
-        aggregate_mode = len(self.by) == 0
-        suffix = self.gen_name("_", ctx, self)
+        ctx["defaultdict"] = defaultdict
+        ctx["ListSortedOnceWrapper"] = ListSortedOnceWrapper
+
+        suffix = self.gen_random_name("_", ctx)
         var_row = f"row{suffix}"
         var_signature = f"signature{suffix}"
         var_signature_to_agg_data = f"signature_to_agg_data{suffix}"
@@ -676,157 +761,83 @@ class GroupBy(BaseConversion, t.Generic[RBT, CT]):
         var_agg_data_cls = f"AggData{suffix}"
 
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
+        function_ctx.add_arg("data_", This())
+
         with function_ctx:
+            reduce_blocks = ReduceBlocks(var_agg_data, self.aggregate_mode)
+            if "exchange_reducer_code_input_methods" not in ctx:
+                ctx["exchange_reducer_code_input_methods"] = []
 
-            signature_code_items = [
-                by_.gen_code_and_update_ctx(var_row, ctx) for by_ in self.by
-            ]
-            replacements = {}
-
-            # remembering code replacements for group by keys
-            if len(signature_code_items) == 1:
-                code_signature = signature_code_items[0]
-                replacements[code_signature] = var_signature
-            else:
-                code_signature = f"({','.join(signature_code_items)},)"
-                replacements.update(
-                    {
-                        code: f"{var_signature}[{index}]"
-                        for index, (code, by_) in enumerate(
-                            zip(signature_code_items, self.by)
-                        )
-                    }
-                )
-
-            # collecting inputs of reducers and reducers themselves
-            with CodeGenerationOptionsCtx() as options:
-                options.reducers_run_stage = "collecting_reducer_inputs"
-                if "_reducer_inputs_info" not in ctx:
-                    ctx["_reducer_inputs_info"] = []
-                ctx["_reducer_inputs_info"].append(defaultdict(list))
-
-                code_agg_result = self.agg_result.gen_code_and_update_ctx(
+            ctx["exchange_reducer_code_input_methods"].append(
+                reduce_blocks.exchange_reducer_code_input
+            )
+            try:
+                code_agg_result = self.reducer.gen_code_and_update_ctx(
                     var_row, ctx
                 )
+            finally:
+                ctx["exchange_reducer_code_input_methods"].pop()
+                if not ctx["exchange_reducer_code_input_methods"]:
+                    del ctx["exchange_reducer_code_input_methods"]
 
-                reducer_inputs_info = ctx["_reducer_inputs_info"].pop()
-
-            def gen_agg_data_value(value_index):
-                if aggregate_mode:
-                    return f"{var_agg_data}_v{value_index}"
-                else:
-                    return f"{var_agg_data}.v{value_index}"
-
-            expected_checksum = 0
-            var_agg_data_values = []
-
-            blocks: "t.List[RBT]" = []
-            key_to_index: "t.Dict[t.Any, int]" = {}
-            # reusing same reducers, remembering code replacements for reducers
-            for (
-                reducer_code_input,
-                reducer_result_code,
-            ), reducers in reducer_inputs_info.items():
-                for reducer in reducers:
-                    reduce_block_index = len(blocks)
-                    checksum_flag = (
-                        1 << reduce_block_index if self.aggregate_mode else 0
-                    )
-                    var_agg_data_value = gen_agg_data_value(reduce_block_index)
-                    reduce_block = reducer.gen_reduce_code_block(
-                        var_agg_data_value,
-                        reducer_code_input,
-                        checksum_flag,
-                        ctx,
-                    )
-
-                    key = reduce_block.as_key()
-                    if key in key_to_index:
-                        reduce_block_index = key_to_index[key]
-                    else:
-                        key_to_index[key] = len(blocks)
-                        blocks.append(reduce_block)
-                        var_agg_data_values.append(var_agg_data_value)
-                        expected_checksum |= checksum_flag
-
-                    replacements[reducer_result_code] = gen_agg_data_value(
-                        reduce_block_index
-                    )
-
-            reduce_blocks: ReduceBlocks = ReduceBlocks()
-            for block in blocks:
-                reduce_blocks.add_block(block)
-
-            ctx.update({"defaultdict": defaultdict})
-
-            if aggregate_mode:
-                _ = " = ".join(var_agg_data_values)
-                code_init_agg_vars = f"{_} = _none"
-            else:
-                ctx[var_agg_data_cls] = self._gen_agg_data_container(
-                    var_agg_data_cls, reduce_blocks.number, ctx
-                )
-
-            # used by SortedArrayReducer
-            ctx["ListSortedOnceWrapper"] = ListSortedOnceWrapper
-
-            for code_from, code_to in replacements.items():
+            by_is_single = len(self.by) == 1
+            code_signature = []
+            for index, by_ in enumerate(self.by):
+                code_by = by_.gen_code_and_update_ctx(var_row, ctx)
+                code_signature.append(code_by)
                 code_agg_result = self.replace_word(
-                    code_agg_result, code_from, code_to
+                    code_agg_result,
+                    code_by,
+                    (
+                        var_signature
+                        if by_is_single
+                        else f"{var_signature}[{index}]"
+                    ),
                 )
+
+            code_signature = (
+                code_signature[0]
+                if by_is_single
+                else f"({', '.join(code_signature)})"
+            )
 
             if var_row in code_agg_result:
                 raise ConversionException(
-                    "something other than a group by key or a "
-                    "reducer was used",
+                    "something other than group_by keys and reducers have been used",
                     code_agg_result,
                 )
-            if self.aggregate_mode:
-                code_agg_result = f"    return {code_agg_result}"
-            else:
-                if self.filter_conversion is None:
-                    code_agg_result = (
-                        f"    return [{code_agg_result} "
-                        f"for {var_signature}, {var_agg_data} "
-                        f"in {var_signature_to_agg_data}.items()]"
-                    )
-                else:
-                    code_filtered_result = FilterConversion(
-                        self.filter_conversion,
-                        self.filter_cast,
-                    ).gen_code_and_update_ctx("result_", ctx)
-                    code_agg_result = (
-                        f"    result_ = ({code_agg_result} "
-                        f"for {var_signature}, {var_agg_data} "
-                        f"in {var_signature_to_agg_data}.items())\n"
-                        f"    filtered_result_ = {code_filtered_result}\n"
-                    ) + (
-                        "    yield from filtered_result_"
-                        if self.filter_cast is None
-                        else "    return filtered_result_"
-                    )
 
-            function_ctx.add_arg("data_", This())
+            with NamespaceCtx(
+                {
+                    self.SIGNATURE_NAME: var_signature,
+                    self.AGG_DATA_NAME: var_agg_data,
+                    self.AGG_RESULT_ITEM_NAME: code_agg_result,
+                },
+                ctx,
+            ):
+                code_final_result = (
+                    self.conversion.gen_code_and_update_ctx(None, ctx)
+                    if self.aggregate_mode
+                    else self.conversion.gen_code_and_update_ctx(
+                        f"{var_signature_to_agg_data}.items()", ctx
+                    )
+                )
 
             agg_template_kwargs = dict(
                 code_args=function_ctx.get_def_all_args_code(),
-                code_result=code_agg_result,
+                code_result=f"    return {code_final_result}",
                 var_row=var_row,
-                expected_checksum=expected_checksum,
             )
 
             if self.aggregate_mode:
                 converter_name = f"aggregate{suffix}"
                 grouper_code = AGGREGATE_TEMPLATE.format(
                     converter_name=converter_name,
-                    code_init_agg_vars=code_init_agg_vars,
-                    var_expected_checksum=ReduceBlock.var_expected_checksum,
-                    val_expected_checksum=expected_checksum,
+                    code_init_agg_vars=f"{' = '.join(reduce_blocks.agg_data_values)} = _none",
                     var_checksum=ReduceBlock.var_checksum,
                     code_aggregate=reduce_blocks.gen_aggregate_code(
                         var_row=var_row,
-                        var_checksum=ReduceBlock.var_checksum,
-                        var_expected_checksum=expected_checksum,
+                        expected_checksum=reduce_blocks.number,
                     ).to_string(
                         base_indent_level=1,
                     ),
@@ -834,6 +845,9 @@ class GroupBy(BaseConversion, t.Generic[RBT, CT]):
                 )
             else:
                 converter_name = f"group_by{suffix}"
+                ctx[var_agg_data_cls] = self._gen_agg_data_container(
+                    var_agg_data_cls, reduce_blocks.number, ctx
+                )
                 grouper_code = GROUPER_TEMPLATE.format(
                     converter_name=converter_name,
                     var_signature_to_agg_data=var_signature_to_agg_data,

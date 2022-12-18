@@ -1,9 +1,14 @@
+import re
 from datetime import date
+from types import GeneratorType
 
 import pytest
 
 from convtools import conversion as c
+from convtools.aggregations import MultiStatementReducer
 from convtools.base import LazyEscapedString, Namespace
+
+from .utils import get_code_str
 
 
 def test_manually_defined_reducers():
@@ -22,10 +27,11 @@ def test_manually_defined_reducers():
             c.item(c.input_arg("group_key")),
             initial=int,
             default=int,
+            where=None,
         )
     )
     grouper = grouper_base.filter(c.this > 20).gen_converter(
-        signature="data_, group_key='debit'", debug=False
+        signature="data_, group_key='debit'"
     )
     assert grouper(data) == [540, 25]
     assert list(grouper(data, group_key="balance")) == [82, 120]
@@ -39,6 +45,23 @@ def test_manually_defined_reducers():
         signature="data_, group_key='debit'", debug=False
     )
     assert grouper(data, group_key="balance") == {82, 120}
+
+    assert c.group_by(c.item("name")).aggregate(
+        {
+            "name": c.item("name"),
+            "value": c.reduce(
+                lambda a, b: max(a, b),
+                c.item(c.input_arg("group_key")),
+                initial=int,
+                default=int,
+                where=c.item(c.input_arg("group_key")) > 10,
+            ),
+        }
+    ).execute(data, group_key="debit") == [
+        {"name": "John", "value": 300},
+        {"name": "Nick", "value": 18},
+        {"name": "Bill", "value": 18},
+    ]
 
 
 def test_grouping():
@@ -485,7 +508,9 @@ def test_base_reducer():
                 default=0,
             ),
         )
-    ).filter(c.this > 5).gen_converter(debug=False)([1, 2, 3]) == [
+    ).filter(c.this > 5).as_type(list).gen_converter(debug=False)(
+        [1, 2, 3]
+    ) == [
         6,
         6,
         6,
@@ -556,7 +581,7 @@ def test_piped_group_by():
             }
         )
     ).execute(
-        input_data
+        input_data, debug=True
     ) == [
         {"b": "foo", "set_a": [5], "min_amount": 1},
         {"b": "bar", "set_a": [10], "min_amount": 5},
@@ -748,3 +773,83 @@ def test_aggregate_func():
         "b": ["foo", "bar"],
         "b_max_a": "bar",
     }
+
+
+def test_group_by_delegate():
+    converter = (
+        c.group_by(c.item("a"))
+        .aggregate({"a": c.item("a"), "b": c.ReduceFuncs.Sum(c.item("b"))})
+        .iter(c.item("b"))
+        .as_type(set)
+        .gen_converter()
+    )
+    assert converter(
+        [
+            {"a": 1, "b": 0},
+            {"a": 1, "b": 3},
+            {"a": 2, "b": 0},
+            {"a": 2, "b": 3},
+            {"a": 3, "b": 1},
+            {"a": 3, "b": 3},
+        ]
+    ) == {3, 4} and "return {{" in get_code_str(converter)
+    converter = (
+        c.group_by(c.item("a"))
+        .aggregate({"a": c.item("a"), "b": c.ReduceFuncs.Sum(c.item("b"))})
+        .iter_mut(c.Mut.set_item("c", c.item("a") + c.item("b")))
+        .gen_converter()
+    )
+    assert list(converter([{"a": 1, "b": 0}, {"a": 1, "b": 3}])) == [
+        {"a": 1, "b": 3, "c": 4},
+    ] and re.findall(r"return iter_mut\w*\(\(\{", get_code_str(converter))
+
+    with c.OptionsCtx() as options:
+        options.debug = True
+        converter = c.aggregate(
+            {
+                "a": c.ReduceFuncs.Sum(c.item(1)),
+                "b": c.ReduceFuncs.Sum(c.item(0)),
+                "c": c.ReduceFuncs.Sum(c.item(1), where=c.item(1) > 1),
+                "d": c.ReduceFuncs.Sum(c.item(0), where=c.item(1) > 1),
+                "e": c.ReduceFuncs.Sum(c.item(1), where=c.item(1) > 2),
+            }
+        ).gen_converter()
+        assert (
+            converter(zip(range(10), range(100, 110)))
+            == {
+                "a": 1045,
+                "b": 45,
+                "c": 1045,
+                "d": 45,
+                "e": 1045,
+            }
+            and converter.__globals__["__BROKEN_EARLY__"]
+        )
+
+        converter = c.aggregate(c.ReduceFuncs.Sum(c.this)).gen_converter()
+        assert (
+            converter(range(10)) == 45
+            and converter.__globals__["__BROKEN_EARLY__"]
+        )
+
+        class SumIfGt5(MultiStatementReducer):
+            prepare_first = ("if {0} and {0} > 5:", "    %(result)s = {0}")
+            reduce = (
+                "if {0} and {0} > 5:",
+                "    %(result)s = {prev_result} + {0}",
+            )
+            default = c.inline_expr("0")
+
+        converter = c.aggregate(SumIfGt5(c.this)).gen_converter()
+        assert (
+            converter(range(10)) == 30
+            and converter.__globals__["__BROKEN_EARLY__"]
+        )
+
+    result = (
+        c.group_by(c.item(0))
+        .aggregate(c.ReduceFuncs.Sum(c.item(1)))
+        .to_iter()
+        .execute([(1, 1), (1, 2), (3, 4)])
+    )
+    assert isinstance(result, GeneratorType) and list(result) == [3, 4]

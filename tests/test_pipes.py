@@ -1,10 +1,22 @@
 from datetime import date, datetime
 from decimal import Decimal
+from unittest.mock import patch
 
 from convtools import conversion as c
+from convtools.base import PipeConversion
 
 
-def test_pipes():
+def test_pipes_base():
+    assert (
+        c.this.pipe(
+            c.iter(c.this + 10).as_type(list),
+            label_output="abc",
+        )
+        .filter(c.this > c.label("abc").item(0))
+        .as_type(list)
+        .execute([1, 2, 3])
+    ) == [12, 13]
+
     assert c.list_comp(c.inline_expr("{0} ** 2").pass_args(c.this)).pipe(
         c.call_func(sum, c.this)
     ).pipe(
@@ -60,6 +72,136 @@ def test_pipes():
         .execute(None)
         == 10
     )
+    assert (c.item(0).pipe(c.this + 1) + c.item(1)).execute([2, 3]) == 6
+
+    for conversion, in_, out in [
+        (c.item(0).pipe(c.this) + 2, (1,), 3),
+        (c.item(0).pipe(c.this).add(2), (1,), 3),
+        (c.item(0).pipe(c.this) & 2, (1,), 2),
+        (c.item(0).pipe(c.this) == 2, (1,), False),
+        (c.item(0).pipe(c.this) // 2, (3,), 1),
+        (c.item(0).pipe(c.this).floor_div(2), (3,), 1),
+        (c.item(0).pipe(c.this) >= 2, (2,), True),
+        (c.item(0).pipe(c.this).gte(2), (2,), True),
+        (c.item(0).pipe(c.this) > 2, (2,), False),
+        (c.item(0).pipe(c.this).gt(2), (2,), False),
+        (c.item(0).pipe(c.this) <= 2, (2,), True),
+        (c.item(0).pipe(c.this).lte(2), (2,), True),
+        (c.item(0).pipe(c.this) < 2, (2,), False),
+        (c.item(0).pipe(c.this).lt(2), (2,), False),
+        (c.item(0).pipe(c.this) % 2, (3,), 1),
+        (c.item(0).pipe(c.this).mod(2), (3,), 1),
+        (c.item(0).pipe(c.this) * 2, (3,), 6),
+        (c.item(0).pipe(c.this).mul(2), (3,), 6),
+        (c.item(0).pipe(c.this) != 2, (3,), True),
+        (c.item(0).pipe(c.this).not_eq(2), (3,), True),
+        (c.item(0).pipe(c.this) | 2, (0,), 2),
+        (c.item(0).pipe(c.this) - 2, (5,), 3),
+        (c.item(0).pipe(c.this).sub(2), (5,), 3),
+        (c.item(0).pipe(c.this) / 2, (5,), 2.5),
+        (c.item(0).pipe(c.this).div(2), (5,), 2.5),
+        (c.item(0).pipe(c.iter(c.this)).as_type(list), ((5,),), [5]),
+        (c.item(0).pipe(c.this).in_([2]), (2,), True),
+        (c.item(0).pipe(c.this).not_in([2]), (3,), True),
+        (c.item(0).pipe(c.this).is_(3), (3,), True),
+        (c.item(0).pipe(c.this).is_not(3), (3,), False),
+        (-c.item(0).pipe(c.this), (3,), -3),
+        (c.item(0).pipe(c.this).neg(), (3,), -3),
+        (~c.item(0).pipe(c.this), (True,), False),
+        (c.item(0).pipe(c.this).not_(), (True,), False),
+        (
+            c.item(0).pipe(c.this).flatten().as_type(list),
+            ([[1], [2]],),
+            [1, 2],
+        ),
+        (c.item(0).pipe(c.this).len(), ([1, 2, 1],), 3),
+    ]:
+        assert (
+            isinstance(conversion, PipeConversion)
+            and conversion.execute(in_) == out
+        )
+
+    conversion = c.item(0).pipe(c.this) + c.item(1)
+    assert (
+        not isinstance(conversion, PipeConversion)
+        and conversion.execute((1, 2)) == 3
+    )
+    conversion = (
+        c.item(0)
+        .pipe(c.this, label_output={"abc": c.item(-1)})
+        .iter(c.this + c.label("abc"))
+        .as_type(list)
+    )
+    assert conversion.execute(((1, 2),)) == [3, 4]
+
+    old_replace = PipeConversion._replace
+    count = 0
+
+    def new_replace(pipe, where):
+        nonlocal count
+        count += 1
+        # if count == 1:
+        #     print(f"[{count}] REPLACING THIS:")
+        #     pipe.where.gen_converter(debug=True)
+        # print(f"[{count}] WITH THIS:")
+        # where.gen_converter(debug=True)
+        return old_replace(pipe, where)
+
+    with patch.object(PipeConversion, "_replace", new_replace):
+        # delegate iter
+        count = 0
+        assert (
+            c.item("a")
+            .pipe(c.item("b"))
+            .iter(c.this + 1)
+            .iter(c.this + 2)
+            .as_type(list)
+            .execute({"a": {"b": [1, 2, 3]}})
+            == [4, 5, 6]
+            and count == 3
+        )
+
+        # delegate iter_mut
+        count = 0
+        data = {"a": {"b": [[1], [2], [3]]}}
+        c.item("a").pipe(c.item("b")).iter_mut(
+            c.Mut.set_item(0, c.item(0) + c.item(0))
+        ).as_type(list).execute(data)
+        assert data["a"]["b"] == [[2], [4], [6]] and count == 2
+
+        # delegate iter_windows
+        count = 0
+        assert (
+            c.item("a")
+            .pipe(c.item("b"))
+            .iter_windows(2)
+            .as_type(list)
+            .execute({"a": {"b": [1, 2, 3]}})
+            == [(1,), (1, 2), (2, 3), (3,)]
+            and count == 2
+        )
+
+        # delegate filter
+        count = 0
+        assert (
+            c.item("a")
+            .pipe(c.item("b"))
+            .filter(c.this > 1)
+            .as_type(list)
+            .execute({"a": {"b": [1, 2, 3]}})
+            == [2, 3]
+            and count == 2
+        )
+
+        # delegate pipe
+        count = 0
+        assert (
+            c.item("a")
+            .pipe(c.item("b"))
+            .pipe(c.item(1))
+            .execute({"a": {"b": [1, 2, 3]}})
+            == 2
+        ) and count == 1
 
 
 def test_pipe_single_call_functions():

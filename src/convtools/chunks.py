@@ -4,19 +4,15 @@ Provides conversions for slicing iterables into chunks.
 import typing as t
 
 from .aggregations import Aggregate
-from .base import (
-    BaseConversion,
-    Code,
-    GeneratorComp,
-    LazyEscapedString,
-    Namespace,
-    This,
-)
+from .base import BaseConversion, Code, LazyEscapedString, Namespace, This
+
+
+_none = BaseConversion._none
 
 
 class BaseChunkBy(BaseConversion):
     def aggregate(self, *args, **kwargs) -> "BaseConversion":
-        return self.pipe(GeneratorComp(Aggregate(*args, **kwargs)))
+        return self.iter(Aggregate(*args, **kwargs))
 
 
 class ChunkBy(BaseChunkBy):
@@ -82,7 +78,7 @@ class ChunkBy(BaseChunkBy):
         self.size = size
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        converter_name = self.gen_name("chunk_by", ctx, self)
+        converter_name = self.gen_random_name("chunk_by", ctx)
         function_ctx = (self.by or This()).as_function_ctx(
             ctx, optimize_naive=True
         )
@@ -222,7 +218,7 @@ class ChunkByCondition(BaseChunkBy):
         )
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        converter_name = self.gen_name("chunk_by_condition", ctx, self)
+        converter_name = self.gen_random_name("chunk_by_condition", ctx)
         function_ctx = self.condition.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("items_", This())
 
