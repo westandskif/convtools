@@ -91,14 +91,14 @@ def test_generator_type_casts():
 
 
 def test_comprehension_filter_cast_assumptions():
-    assert isinstance(
-        c.generator_comp(c.this).filter(c.this).execute(range(10)),
-        GeneratorType,
+    result = c.generator_comp(c.this).filter(c.this).execute(range(3))
+    assert isinstance(result, GeneratorType) and list(result) == [1, 2]
+
+    result = (
+        c.generator_comp(c.this).filter(c.this, cast=None).execute(range(3))
     )
-    assert isinstance(
-        c.generator_comp(c.this).filter(c.this).execute(range(10)),
-        GeneratorType,
-    )
+    assert isinstance(result, GeneratorType) and list(result) == [1, 2]
+
     assert (c.list_comp(c.this).filter(c.this).execute(range(3))) == [
         1,
         2,
