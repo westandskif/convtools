@@ -1,5 +1,6 @@
 from collections import namedtuple
 from datetime import date
+from types import GeneratorType
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -661,6 +662,8 @@ def test_list_comprehension():
         c.this + 2, where=c.this > 5
     ).as_type(list).execute(range(6)) == [8]
 
+    assert c.list_comp(c.this + 1, where=None).execute(range(3)) == [1, 2, 3]
+
 
 def test_tuple_comprehension():
     assert c.tuple_comp(1).gen_converter()(range(5)) == (1,) * 5
@@ -680,6 +683,7 @@ def test_tuple_comprehension():
     it = iter(range(10))
     result = c.tuple_comp(c.this, where=False).execute(it)
     assert next(it, -1) == -1 and result == ()
+    assert c.tuple_comp(c.this + 1, where=None).execute(range(3)) == (1, 2, 3)
 
 
 def test_set_comprehension():
@@ -704,6 +708,7 @@ def test_set_comprehension():
     assert c.set_comp(c.this % 3).iter(c.this + 1).as_type(tuple).execute(
         range(10)
     ) == (1, 2, 3)
+    assert c.set_comp(c.this + 1, where=None).execute(range(3)) == {1, 2, 3}
 
 
 def test_dict_comprehension():
@@ -731,6 +736,7 @@ def test_dict_comprehension():
     it = iter(range(10))
     result = c.dict_comp(c.this, c.this, where=False).execute(it)
     assert next(it, -1) == -1 and result == {}
+    assert c.dict_comp(c.this, c.this, where=None).execute(range(1)) == {0: 0}
 
 
 def test_filter():
@@ -756,6 +762,8 @@ def test_filter():
     assert c.list_comp(c.this).filter(
         c.this > 1, cast=lambda x: list(x)
     ).execute(range(4)) == [2, 3]
+    result = c.this.filter(c.this.gt(1), cast=None).execute(range(3))
+    assert isinstance(result, GeneratorType) and list(result) == [2]
 
 
 def test_sort():

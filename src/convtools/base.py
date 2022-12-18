@@ -253,9 +253,6 @@ class BaseConversion(t.Generic[CT]):
     PREFIXED_HASH_TO_NAME = "_prefixed_hash_to_name"
     GENERATED_NAMES = "_generated_names"
 
-    # TODO: WHAT TO DO IF __EQ__ IS USED FOR DICTS
-    # HOW TO OVERLOAD?
-
     def gen_random_name(self, prefix, ctx) -> str:
         generated_names = ctx[self.GENERATED_NAMES]
         name = prefix or "_"
@@ -581,7 +578,7 @@ class BaseConversion(t.Generic[CT]):
     def to_iter(self):
         return GeneratorComp(This, _none, self)
 
-    def iter(self, element_conv, *, where=_none) -> "BaseConversion":
+    def iter(self, element_conv, *, where=None) -> "BaseConversion":
         """Shortcut for
         ``self.pipe(c.generator_comp(element_conv, where=condition))``
 
@@ -592,7 +589,7 @@ class BaseConversion(t.Generic[CT]):
         """
         return GeneratorComp(element_conv, where=where, self_conv=self)
 
-    def filter(self, condition_conv, cast=_none) -> "BaseConversion":
+    def filter(self, condition_conv, cast=None) -> "BaseConversion":
         """Generates the code to iterate the input, taking items for which the
         provided conversion resolves to a truth value.
 
@@ -605,6 +602,7 @@ class BaseConversion(t.Generic[CT]):
           BaseConversion: the generator of filtered items, wrapped with `cast`
           if provided
         """
+        cast = _none if cast is None else cast
         result = self.to_iter().iter(This, where=condition_conv)
 
         if cast is _none and self.base_type_to_cast is not _none:
@@ -2032,7 +2030,7 @@ class BaseComp(BaseMethodConversion):
         for param in self.generator_item.custom_for_params:
             self.depends_on(param)
 
-        self.where = where if where is _none else self.ensure_conversion(where)
+        self.where = _none if where is None else self.ensure_conversion(where)
         self.number_of_input_uses = 1
 
     def get_item_n_param_codes(self, ctx):
@@ -2072,7 +2070,9 @@ class GeneratorComp(BaseComp):
     def to_iter(self):
         return self
 
-    def iter(self, element_conv, *, where=_none) -> "BaseConversion":
+    def iter(self, element_conv, *, where=None) -> "BaseConversion":
+        where = _none if where is None else where
+
         cannot_consume = self.generator_item.item is not This and (
             where is not _none
             or ensure_conversion(element_conv).number_of_input_uses >= 2
@@ -2154,7 +2154,7 @@ class ListComp(BaseComp):
     def to_iter(self):
         return GeneratorComp(self.generator_item, self.where, self.self_conv)
 
-    def iter(self, element_conv, *, where=_none) -> "BaseConversion":
+    def iter(self, element_conv, *, where=None) -> "BaseConversion":
         return self.to_iter().iter(element_conv, where=where)
 
     def as_type(self, callable_):
@@ -2184,7 +2184,7 @@ class TupleComp(BaseComp):
     def to_iter(self):
         return GeneratorComp(self.generator_item, self.where, self.self_conv)
 
-    def iter(self, element_conv, *, where=_none) -> "BaseConversion":
+    def iter(self, element_conv, *, where=None) -> "BaseConversion":
         return self.to_iter().iter(element_conv, where=where)
 
     def as_type(self, callable_):
@@ -2210,7 +2210,7 @@ class DictComp(BaseMethodConversion):
         super().__init__(self_conv)
         self.key = self.ensure_conversion(key)
         self.value = self.ensure_conversion(value)
-        self.where = where if where is _none else self.ensure_conversion(where)
+        self.where = _none if where is None else self.ensure_conversion(where)
         self.number_of_input_uses = 1
 
     def _gen_code_and_update_ctx(self, code_input, ctx):

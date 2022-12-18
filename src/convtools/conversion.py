@@ -142,21 +142,21 @@ class Conversion:
     chunk_by_condition = ChunkByCondition
     CHUNK = ChunkByCondition.CHUNK
 
-    def iter(self, item, *, where=_none):
+    def iter(self, item, *, where=None):
         return GeneratorComp(item, where, _none)
 
     generator_comp = iter
 
-    def list_comp(self, item, *, where=_none):
+    def list_comp(self, item, *, where=None):
         return ListComp(item, where, _none)
 
-    def tuple_comp(self, item, *, where=_none):
+    def tuple_comp(self, item, *, where=None):
         return TupleComp(item, where, _none)
 
-    def set_comp(self, item, *, where=_none):
+    def set_comp(self, item, *, where=None):
         return SetComp(item, where, _none)
 
-    def dict_comp(self, key, value, *, where=_none):
+    def dict_comp(self, key, value, *, where=None):
         return DictComp(key, value, where, _none)
 
     def reduce(self, to_call_with_2_args, *args, **kwargs):

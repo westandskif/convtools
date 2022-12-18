@@ -27,6 +27,7 @@ def test_manually_defined_reducers():
             c.item(c.input_arg("group_key")),
             initial=int,
             default=int,
+            where=None,
         )
     )
     grouper = grouper_base.filter(c.this > 20).gen_converter(
@@ -44,6 +45,23 @@ def test_manually_defined_reducers():
         signature="data_, group_key='debit'", debug=False
     )
     assert grouper(data, group_key="balance") == {82, 120}
+
+    assert c.group_by(c.item("name")).aggregate(
+        {
+            "name": c.item("name"),
+            "value": c.reduce(
+                lambda a, b: max(a, b),
+                c.item(c.input_arg("group_key")),
+                initial=int,
+                default=int,
+                where=c.item(c.input_arg("group_key")) > 10,
+            ),
+        }
+    ).execute(data, group_key="debit") == [
+        {"name": "John", "value": 300},
+        {"name": "Nick", "value": 18},
+        {"name": "Bill", "value": 18},
+    ]
 
 
 def test_grouping():

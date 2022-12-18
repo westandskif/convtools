@@ -358,7 +358,7 @@ class BaseReducer(BaseConversion):
     expressions: t.Tuple[t.Any, ...]
     post_conversion: t.Optional[BaseConversion] = None
     default: t.Any
-    where: t.Optional[BaseConversion] = None
+    where: t.Any = _none
     unconditional_init: bool = False
 
     self_content_type = (
@@ -442,7 +442,7 @@ class MultiStatementReducer(BaseReducer):
 
     def __init__(self, *expressions, initial=_none, default=_none, where=None):
         super().__init__(default, initial)
-        self.where = None if where is None else self.ensure_conversion(where)
+        self.where = _none if where is None else self.ensure_conversion(where)
 
         self.expressions = tuple(
             self.ensure_conversion(expr)
@@ -514,7 +514,7 @@ class MultiStatementReducer(BaseReducer):
             "checksum_flag": checksum_flag,
             "unconditional_init": self.unconditional_init,
         }
-        if self.where is not None:
+        if self.where is not _none:
             condition_code = self.where.gen_code_and_update_ctx(
                 reducer_code_input, ctx
             )
@@ -577,7 +577,7 @@ class Reduce(BaseReducer):
             aggregation value OR there is a condition for that
         """
         super().__init__(default, initial)
-        self.where = None if where is None else self.ensure_conversion(where)
+        self.where = _none if where is None else self.ensure_conversion(where)
         self.to_call_with_2_args = self.ensure_conversion(to_call_with_2_args)
         self.expressions = tuple(
             self.ensure_conversion(expr) for expr in expressions
@@ -610,7 +610,7 @@ class Reduce(BaseReducer):
             "checksum_flag": checksum_flag,
             "unconditional_init": self.unconditional_init,
         }
-        if self.where is not None:
+        if self.where is not _none:
             condition_code = self.where.gen_code_and_update_ctx(
                 reducer_code_input, ctx
             )
