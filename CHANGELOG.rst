@@ -1,3 +1,12 @@
+0.40.1 (2022-12-19)
+___________________
+
+Bugfix
+++++++
+
+- fixed group by code generation: unnecessary comprehension condition
+
+
 0.40.0 (2022-12-18)
 ___________________
 
