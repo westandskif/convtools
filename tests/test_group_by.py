@@ -783,16 +783,22 @@ def test_group_by_delegate():
         .as_type(set)
         .gen_converter()
     )
-    assert converter(
-        [
-            {"a": 1, "b": 0},
-            {"a": 1, "b": 3},
-            {"a": 2, "b": 0},
-            {"a": 2, "b": 3},
-            {"a": 3, "b": 1},
-            {"a": 3, "b": 3},
-        ]
-    ) == {3, 4} and "return {{" in get_code_str(converter)
+    code_str = get_code_str(converter)
+    assert (
+        converter(
+            [
+                {"a": 1, "b": 0},
+                {"a": 1, "b": 3},
+                {"a": 2, "b": 0},
+                {"a": 2, "b": 3},
+                {"a": 3, "b": 1},
+                {"a": 3, "b": 3},
+            ]
+        )
+        == {3, 4}
+        and "return {{" in code_str
+        and ".items() if " not in code_str
+    )
     converter = (
         c.group_by(c.item("a"))
         .aggregate({"a": c.item("a"), "b": c.ReduceFuncs.Sum(c.item("b"))})

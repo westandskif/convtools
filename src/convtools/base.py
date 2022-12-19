@@ -2030,7 +2030,11 @@ class BaseComp(BaseMethodConversion):
         for param in self.generator_item.custom_for_params:
             self.depends_on(param)
 
-        self.where = _none if where is None else self.ensure_conversion(where)
+        self.where = (
+            _none
+            if (where is None or where is _none)
+            else self.ensure_conversion(where)
+        )
         self.number_of_input_uses = 1
 
     def get_item_n_param_codes(self, ctx):
@@ -2071,7 +2075,7 @@ class GeneratorComp(BaseComp):
         return self
 
     def iter(self, element_conv, *, where=None) -> "BaseConversion":
-        where = _none if where is None else where
+        where = _none if (where is None or where is _none) else where
 
         cannot_consume = self.generator_item.item is not This and (
             where is not _none
@@ -2210,7 +2214,11 @@ class DictComp(BaseMethodConversion):
         super().__init__(self_conv)
         self.key = self.ensure_conversion(key)
         self.value = self.ensure_conversion(value)
-        self.where = _none if where is None else self.ensure_conversion(where)
+        self.where = (
+            _none
+            if (where is None or where is _none)
+            else self.ensure_conversion(where)
+        )
         self.number_of_input_uses = 1
 
     def _gen_code_and_update_ctx(self, code_input, ctx):

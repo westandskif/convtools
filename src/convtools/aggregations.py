@@ -442,7 +442,11 @@ class MultiStatementReducer(BaseReducer):
 
     def __init__(self, *expressions, initial=_none, default=_none, where=None):
         super().__init__(default, initial)
-        self.where = _none if where is None else self.ensure_conversion(where)
+        self.where = (
+            _none
+            if (where is None or where is _none)
+            else self.ensure_conversion(where)
+        )
 
         self.expressions = tuple(
             self.ensure_conversion(expr)
@@ -577,7 +581,11 @@ class Reduce(BaseReducer):
             aggregation value OR there is a condition for that
         """
         super().__init__(default, initial)
-        self.where = _none if where is None else self.ensure_conversion(where)
+        self.where = (
+            _none
+            if (where is None or where is _none)
+            else self.ensure_conversion(where)
+        )
         self.to_call_with_2_args = self.ensure_conversion(to_call_with_2_args)
         self.expressions = tuple(
             self.ensure_conversion(expr) for expr in expressions

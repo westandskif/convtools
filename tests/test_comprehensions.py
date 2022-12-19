@@ -44,7 +44,11 @@ def test_generator_type_casts():
     converter = c.list_comp(c.this + 1).iter(c.this * -1).gen_converter()
     assert list(converter(range(3))) == [-1, -2, -3]
     code_str = get_code_str(converter).replace("__naive_values__[", "")
-    assert "[" not in code_str and code_str.count("for ") == 1
+    assert (
+        "[" not in code_str
+        and code_str.count("for ") == 1
+        and " if " not in code_str
+    )
 
     converter = (
         c.list_comp(c.this + 1, where=c.this > 0)
