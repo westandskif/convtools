@@ -2651,6 +2651,9 @@ class PipeConversion(BaseConversion):
 
     weight = 0
     function_call_threshold = Weights.FUNCTION_CALL * 1.33
+    self_content_type = (
+        BaseConversion.self_content_type
+    ) & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
 
     def __init__(
         self,

@@ -204,6 +204,15 @@ def test_pipes_base():
         ) and count == 1
 
 
+def test_pipe_inlining():
+    assert c.iter(
+        (c.this() + 1).pipe(c.this() + 2).pipe(c.this() + 3).pipe(round)
+    ).as_type(list).execute(range(3)) == [6, 7, 8]
+    assert c.iter(
+        (c.this() + 1).pipe(c.this() + c.this()).pipe(c.this() + 3).pipe(round)
+    ).as_type(list).execute(range(3)) == [5, 7, 9]
+
+
 def test_pipe_single_call_functions():
     class CustomException(Exception):
         pass
