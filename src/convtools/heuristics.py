@@ -4,44 +4,36 @@ execution
 """
 import os
 import sys
-from collections import defaultdict
-from time import sleep
 from timeit import Timer
 
 
-def print_new_weights(sleep_time=0.2):  # pragma: no cover
+class CustomTimer(Timer):
+    def autorange(self, min_time_taken):
+        i = 1
+        while True:
+            for j in 1, 2, 5:
+                number = i * j
+                time_taken = self.timeit(number)
+                if time_taken >= min_time_taken:
+                    return (number, time_taken)
+            i *= 10
+
+
+def print_new_weights():  # pragma: no cover
 
     config = {
-        "LOGICAL": Timer("x or y", "x=0; y=1"),
-        "DICT_LOOKUP": Timer("d['abc']", "d = {'abc': 1}"),
-        "MATH_SIMPLE": Timer("x / y", "x=1;y=2"),
-        "ATTR_LOOKUP": Timer("A.b", "class A: b = 1"),
-        "TUPLE_INIT": Timer("(x,2,3,4,5)", "x=1"),
-        "LIST_INIT": Timer("[1,2,3,4,5]"),
-        "SET_INIT": Timer("{1,2,3,4,5}"),
-        "DICT_INIT": Timer("{'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5}"),
-        "FUNCTION_CALL": Timer("f(1,2,3)", "def f(x,y,z): return z"),
+        "LOGICAL": CustomTimer("x or y", "x=0; y=1"),
+        "DICT_LOOKUP": CustomTimer("d['abc']", "d = {'abc': 1}"),
+        "MATH_SIMPLE": CustomTimer("x / y", "x=1;y=2"),
+        "ATTR_LOOKUP": CustomTimer("A.b", "class A: b = 1"),
+        "TUPLE_INIT": CustomTimer("(x,2,3,4,5)", "x=1"),
+        "LIST_INIT": CustomTimer("[1,2,3,4,5]"),
+        "SET_INIT": CustomTimer("{1,2,3,4,5}"),
+        "DICT_INIT": CustomTimer("{'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5}"),
     }
-    total_time = 0
-    total_iterations = 0
     print("# CALCULATING BASE TIME")
-    for _ in range(10):
-        iterations, time_ = Timer("'abc'").autorange()
-        total_time += time_
-        total_iterations += iterations
-        sleep(sleep_time)
-
+    total_iterations, total_time = CustomTimer("'abc'").autorange(5)
     base_time = total_time / total_iterations / 100
-
-    attempts = 10
-    name_to_info = defaultdict(lambda: {"time": 0, "iterations": 0})
-
-    for i in range(attempts):
-        print(f"# MEASURING: attempt {i} out of {attempts}")
-        for name, timer in config.items():
-            iterations_, time_ = timer.autorange()
-            name_to_info[name]["iterations"] += iterations_
-            name_to_info[name]["time"] += time_
 
     print(f"#{'.'.join(map(str, sys.version_info[:3]))}")
     print(
@@ -51,11 +43,13 @@ def print_new_weights(sleep_time=0.2):  # pragma: no cover
     print("    STEP = 100")
 
     max_it = 1
-    for name, info in name_to_info.items():
-        it = int(info["time"] / info["iterations"] / base_time)
+    for name, timer in config.items():
+        iterations, time_taken = timer.autorange(1)
+        it = int(time_taken / iterations / base_time)
         print(f"    {name} = {it}")
         max_it = max(max_it, it)
 
+    print("    FUNCTION_CALL = DICT_LOOKUP * 4")
     print(f"    UNPREDICTABLE = {max_it * 100}")
 
 
@@ -70,100 +64,100 @@ if PY_VERSION <= (3, 6):
 
     # 3.6.15
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 7.700267359999997e-11
+        # base_time: 4.0131668955436906e-11
         STEP = 100
-        LOGICAL = 254
-        DICT_LOOKUP = 326
-        MATH_SIMPLE = 408
-        ATTR_LOOKUP = 369
-        TUPLE_INIT = 583
-        LIST_INIT = 880
-        SET_INIT = 1767
-        DICT_INIT = 1961
-        FUNCTION_CALL = 1085
-        UNPREDICTABLE = 196100
+        LOGICAL = 252
+        DICT_LOOKUP = 327
+        MATH_SIMPLE = 378
+        ATTR_LOOKUP = 345
+        TUPLE_INIT = 543
+        LIST_INIT = 681
+        SET_INIT = 1725
+        DICT_INIT = 1746
+        FUNCTION_CALL = DICT_LOOKUP * 4
+        UNPREDICTABLE = 174600
 
 elif PY_VERSION <= (3, 7):  # pragma: no cover
 
-    # 3.7.13
+    # 3.7.16
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 7.392884344000038e-11
+        # base_time: 4.080330146e-11
         STEP = 100
-        LOGICAL = 255
-        DICT_LOOKUP = 381
-        MATH_SIMPLE = 392
-        ATTR_LOOKUP = 368
-        TUPLE_INIT = 594
-        LIST_INIT = 837
-        SET_INIT = 1744
-        DICT_INIT = 1850
-        FUNCTION_CALL = 1016
-        UNPREDICTABLE = 185000
+        LOGICAL = 236
+        DICT_LOOKUP = 337
+        MATH_SIMPLE = 365
+        ATTR_LOOKUP = 319
+        TUPLE_INIT = 526
+        LIST_INIT = 657
+        SET_INIT = 1643
+        DICT_INIT = 1695
+        FUNCTION_CALL = DICT_LOOKUP * 4
+        UNPREDICTABLE = 169500
 
 elif PY_VERSION == (3, 8):  # pragma: no cover
 
-    # 3.8.12
+    # 3.8.16
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 8.61443491599998e-11
+        # base_time: 4.104652208499999e-11
         STEP = 100
-        LOGICAL = 268
-        DICT_LOOKUP = 373
-        MATH_SIMPLE = 429
-        ATTR_LOOKUP = 386
-        TUPLE_INIT = 586
-        LIST_INIT = 863
-        SET_INIT = 2119
-        DICT_INIT = 2030
-        FUNCTION_CALL = 1142
-        UNPREDICTABLE = 211900
+        LOGICAL = 227
+        DICT_LOOKUP = 321
+        MATH_SIMPLE = 372
+        ATTR_LOOKUP = 311
+        TUPLE_INIT = 537
+        LIST_INIT = 680
+        SET_INIT = 1689
+        DICT_INIT = 1704
+        FUNCTION_CALL = DICT_LOOKUP * 4
+        UNPREDICTABLE = 170400
 
 elif PY_VERSION == (3, 9):  # pragma: no cover
 
-    # 3.9.13
+    # 3.9.7
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 9.54243965400002e-11
+        # base_time: 4.018004396e-11
         STEP = 100
-        LOGICAL = 226
-        DICT_LOOKUP = 355
-        MATH_SIMPLE = 411
-        ATTR_LOOKUP = 354
-        TUPLE_INIT = 579
-        LIST_INIT = 671
-        SET_INIT = 1481
-        DICT_INIT = 1914
-        FUNCTION_CALL = 917
-        UNPREDICTABLE = 191400
+        LOGICAL = 242
+        DICT_LOOKUP = 357
+        MATH_SIMPLE = 402
+        ATTR_LOOKUP = 332
+        TUPLE_INIT = 602
+        LIST_INIT = 747
+        SET_INIT = 1430
+        DICT_INIT = 1953
+        FUNCTION_CALL = DICT_LOOKUP * 4
+        UNPREDICTABLE = 195300
 
 elif PY_VERSION == (3, 10):  # pragma: no cover
 
-    # 3.10.5
+    # 3.10.9
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 1.1034814140000008e-10
+        # base_time: 4.078415354015305e-11
         STEP = 100
-        LOGICAL = 230
-        DICT_LOOKUP = 301
-        MATH_SIMPLE = 343
-        ATTR_LOOKUP = 273
-        TUPLE_INIT = 680
-        LIST_INIT = 675
-        SET_INIT = 1377
-        DICT_INIT = 1914
-        FUNCTION_CALL = 832
-        UNPREDICTABLE = 191400
+        LOGICAL = 206
+        DICT_LOOKUP = 307
+        MATH_SIMPLE = 368
+        ATTR_LOOKUP = 304
+        TUPLE_INIT = 571
+        LIST_INIT = 679
+        SET_INIT = 1445
+        DICT_INIT = 1822
+        FUNCTION_CALL = DICT_LOOKUP * 4
+        UNPREDICTABLE = 182200
 
 else:
 
-    # 3.11.0
+    # 3.11.1
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 4.266721995547413e-11
+        # base_time: 4.269156000053045e-11
         STEP = 100
-        LOGICAL = 174
-        DICT_LOOKUP = 307
-        MATH_SIMPLE = 347
-        ATTR_LOOKUP = 286
+        LOGICAL = 177
+        DICT_LOOKUP = 312
+        MATH_SIMPLE = 343
+        ATTR_LOOKUP = 285
         TUPLE_INIT = 532
-        LIST_INIT = 681
-        SET_INIT = 1378
-        DICT_INIT = 1950
-        FUNCTION_CALL = 573
-        UNPREDICTABLE = 195000
+        LIST_INIT = 672
+        SET_INIT = 1382
+        DICT_INIT = 2115
+        FUNCTION_CALL = DICT_LOOKUP * 4
+        UNPREDICTABLE = 211500
