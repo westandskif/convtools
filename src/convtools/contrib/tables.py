@@ -301,6 +301,7 @@ class Table:
         """
 
         file_to_close: "t.Optional[t.TextIO]"
+        buffer: "t.TextIO"
         if isinstance(filepath_or_buffer, str):
             buffer = (
                 file_to_close
@@ -947,6 +948,7 @@ class Table:
         row_type = list if self.row_type is list else tuple
 
         f_to_close = None
+        f: "t.TextIO"
         if isinstance(filepath_or_buffer, str):
             f = f_to_close = open(  # pylint:disable=consider-using-with
                 filepath_or_buffer, "w", encoding=encoding

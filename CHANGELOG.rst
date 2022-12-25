@@ -1,3 +1,12 @@
+0.40.2 (2022-12-19)
+___________________
+
+Misc
+++++
+
+- updated pipe inlining weights
+- added initial set of benchmarks to catch regressions
+
 0.40.1 (2022-12-19)
 ___________________
 
