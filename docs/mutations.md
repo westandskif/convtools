@@ -21,10 +21,10 @@ and they cannot be used outside of the below methods.
 `c.iter_mut(*mutations)` mutates each element of a sequence and returns an
 iterator of mutated objects.
 
-{!.examples/api__iter_mut.md!}
+{!examples-md/api__iter_mut.md!}
 
 ## c.tap
 
 `c.tap(*mutations)` and `tap` conversion method mutate a single object.
 
-{!.examples/api__tap.md!}
+{!examples-md/api__tap.md!}

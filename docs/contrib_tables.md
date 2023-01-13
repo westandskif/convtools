@@ -40,7 +40,7 @@ arguments are:
 * `type_` should be exactly one of the following: `dict`, `list`, `dict`
 * `include_header=None` whether to emit header or not
 
-{!.examples/contrib_tables_read_rows.md!}
+{!examples-md/contrib_tables_read_rows.md!}
 
 
 
@@ -78,7 +78,7 @@ arguments are:
   `Table.csv_dialect(delimiter="\t")` for tab-separated files.
 * `encoding` - default is `utf-8`
 
-{!.examples/contrib_tables_read_csv.md!}
+{!examples-md/contrib_tables_read_csv.md!}
 
 
 ## Rename, take / rearrange, drop columns
@@ -94,7 +94,7 @@ arguments are:
 	   it's easy to rearrange them: `table.take("c", "d", ...)`
 1. `drop(*column_names)` obviously drops columns, keeping the rest as-is.
 
-{!.examples/contrib_tables_rename_take_rearrange_drop.md!}
+{!examples-md/contrib_tables_rename_take_rearrange_drop.md!}
 
 
 ## Add, update columns
@@ -105,7 +105,7 @@ while values are conversions to be applied row-wise.
 
 Use `c.col("column name")` to reference the values of various columns.
 
-{!.examples/contrib_tables_add_update.md!}
+{!examples-md/contrib_tables_add_update.md!}
 
 
 ## Filter rows
@@ -115,7 +115,7 @@ a condition.
 
 Use `c.col("column name")` to reference the values of various columns.
 
-{!.examples/contrib_tables_filter.md!}
+{!examples-md/contrib_tables_filter.md!}
 
 
 ## Join tables
@@ -132,7 +132,7 @@ To join two tables, use `join` method, which accepts the following arguments:
   column names of conflicting columns (_`on` columns passed as an iterable of
   strings don't count_). Default is `("_LEFT", "_RIGHT")`.
 
-{!.examples/contrib_tables_join.md!}
+{!examples-md/contrib_tables_join.md!}
 
 
 ## Chain tables
@@ -142,7 +142,7 @@ To join two tables, use `join` method, which accepts the following arguments:
 * `table` to chain
 * `fill_value` is used to fill gaps; default is `None`
 
-{!.examples/contrib_tables_chain.md!}
+{!examples-md/contrib_tables_chain.md!}
 
 
 ## Zip tables
@@ -160,7 +160,7 @@ To join two tables, use `join` method, which accepts the following arguments:
 	  duplicate columns in case of collision because `dict` will take care of
 	  it
 
-{!.examples/contrib_tables_zip.md!}
+{!examples-md/contrib_tables_zip.md!}
 
 
 ## Explode table
@@ -169,7 +169,7 @@ To join two tables, use `join` method, which accepts the following arguments:
 table with values of these lists, by repeating values of other columns. It's
 only parameter is `column_name` to explode.
 
-{!.examples/contrib_tables_explode.md!}
+{!examples-md/contrib_tables_explode.md!}
 
 
 ## Using tables inside conversions
@@ -179,7 +179,7 @@ it would create more than one code generating layer.
 
 But you most definitely can leverage piping to callables:
 
-{!.examples/contrib_tables_pipe.md!}
+{!examples-md/contrib_tables_pipe.md!}
 
 !!! note
 	Keep in mind, that unlike conversions, `Table` doesn't have `gen_converter`

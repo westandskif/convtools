@@ -70,8 +70,8 @@ Every reducer keyword arguments:
 
 ## c.group_by
 
-{!.examples/welcome__group_by.md!}
+{!examples-md/welcome__group_by.md!}
 
 ## c.aggregate
 
-{!.examples/welcome__aggregations.md!}
+{!examples-md/welcome__aggregations.md!}

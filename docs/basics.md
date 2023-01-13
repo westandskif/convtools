@@ -25,14 +25,14 @@ So the steps of getting a converter function are:
    compile a function, which implements the transform you just defined
 1. you use the resulting function as many times as needed
 
-{!.examples/getting_started__this.md!}
+{!examples-md/getting_started__this.md!}
 
 Many examples will contain `debug=True` just so the generated code is visible
 for those who are curious, not because it's required :)
 
 If we need a converter function to run it only once, then we can shorten it to:
 
-{!.examples/getting_started__this_execute.md!}
+{!examples-md/getting_started__this_execute.md!}
 
 
 ## c.item
@@ -53,21 +53,21 @@ There are two ways to do it:
 1. `c.item(1)` - same, but shorter
 
 
-{!.examples/getting_started__item.md!}
+{!examples-md/getting_started__item.md!}
 
 #### With default
 
 Should you need to suppress `KeyError` to achieve `dict.get(key, default)`
 behavior:
 
-{!.examples/getting_started__item_default.md!}
+{!examples-md/getting_started__item_default.md!}
 
 
 #### Multiple indexes / keys
 
 Sometimes you may need to perform multiple subsequent index/key lookups:
 
-{!.examples/getting_started__item_multi.md!}
+{!examples-md/getting_started__item_multi.md!}
 
 
 ## c.attr
@@ -84,7 +84,7 @@ just use `c.attr("value")`.
 
 Here is all-in one example:
 
-{!.examples/getting_started__attr.md!}
+{!examples-md/getting_started__attr.md!}
 
 
 ## c.naive
@@ -106,7 +106,7 @@ def f(data):
 here we made `VALUE_TO_VERBOSE` available to the function. To build an
 equivalent conversion wrap an object to be exposed into `c.naive`:
 
-{!.examples/getting_started__naive.md!}
+{!examples-md/getting_started__naive.md!}
 
 _And yes, you can pass conversions as arguments to other conversions (notice
 `.item(c.this)` part)._
@@ -127,7 +127,7 @@ def f(data, *, increment):
 To build a conversion like this use `c.input_arg("increment")` to reference the
 keyword argument to be passed:
 
-{!.examples/getting_started__input_arg.md!}
+{!examples-md/getting_started__input_arg.md!}
 
 
 ## Calling functions
@@ -148,7 +148,7 @@ We can either:
 1. use `call_method` on `datetime`
 1. expose `datetime.strptime` via `c.naive` and then call it
 
-{!.examples/getting_started__call.md!}
+{!examples-md/getting_started__call.md!}
 
 !!! tip
 	If we think about which one is faster, have a look at the generated code.
@@ -167,7 +167,7 @@ are:
 1. `apply_method`
 1. `apply`
 
-{!.examples/getting_started__apply.md!}
+{!examples-md/getting_started__apply.md!}
 
 
 ## Controlling converter function signature
@@ -181,7 +181,7 @@ there are three parameters of `gen_converter` to achieve that:
 
 just make sure you to include `data_` in case your conversion uses the input.
 
-{!.examples/getting_started__signature.md!}
+{!examples-md/getting_started__signature.md!}
 
 
 ## Debug
@@ -195,7 +195,7 @@ mode. There are 2 ways:
 _In both cases it makes sense to install `black` code formatter (`pip install
 black`), it will be used automatically once installed._
 
-{!.examples/getting_started__debug.md!}
+{!examples-md/getting_started__debug.md!}
 
 Another way to debug is to use `breakpoint` method:
 
@@ -218,7 +218,7 @@ There are two ways to pass custom code expression as a string:
 1. `c.inline_expr`
 
 
-{!.examples/api__inline_n_escaped.md!}
+{!examples-md/api__inline_n_escaped.md!}
 
 
 **Now that we know the basics and how the thing works, we are ready to go over
