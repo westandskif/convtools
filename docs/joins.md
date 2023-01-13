@@ -14,4 +14,4 @@ tuples.
    `c.RIGHT` reference elements of the left and right sequences.
  * `how` is any of `"inner" | "left" | "right" | "outer"`
 
-{!.examples/welcome__join.md!}
+{!examples-md/welcome__join.md!}

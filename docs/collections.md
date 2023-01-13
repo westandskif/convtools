@@ -11,7 +11,7 @@ The syntax to create a conversion, which builds a `dict`, `list`, `tuple` or a
 
 Let's build a dict from a tuple of two integers:
 
-{!.examples/api__collections.md!}
+{!examples-md/api__collections.md!}
 
 **So to summarize on `c()` wrapper, it:**
 
@@ -24,19 +24,19 @@ Let's build a dict from a tuple of two integers:
 It's possible to mark a particular item as optional, so it disappears from an
 `dict`/`list`/`tuple`/`set` in certain cases:
 
-{!.examples/api__collections_optional.md!}
+{!examples-md/api__collections_optional.md!}
 
 
 ## Operators and fundamental methods
 
-{!.examples/api__operators.md!}
+{!examples-md/api__operators.md!}
 
 
 ## Type casting
 
 To cast to a type use a naive conversion method `as_type`:
 
-{!.examples/api__as_type.md!}
+{!examples-md/api__as_type.md!}
 
 !!! note
 	It may seem useless as it can be replaced with piping the result to `list`
@@ -61,7 +61,7 @@ Each of them accepts `where` argument to support conditions like:
 `[x for x in items if x > 10]`.
 
 A few examples:
-{!.examples/api__comp.md!}
+{!examples-md/api__comp.md!}
 
 !!! note
 	It's important to note that a conversion passed into `iter`, `list_comp`
@@ -73,14 +73,14 @@ A few examples:
 
 To filter an input use `c.filter` or `filter` conversion method:
 
-{!.examples/api__filter.md!}
+{!examples-md/api__filter.md!}
 
 
 #### sort
 
 `sort` method is a shortcut to `c.call_func(sorted, c.this, ...)`
 
-{!.examples/api__sort.md!}
+{!examples-md/api__sort.md!}
 
 
 #### zip, repeat, flatten
@@ -92,11 +92,11 @@ to have these shortcuts/helpers:
 1. `c.repeat`
 1. `flatten` method
 
-{!.examples/api__zip_repeat_flatten.md!}
+{!examples-md/api__zip_repeat_flatten.md!}
 
 `c.zip` supports keyword arguments to build dicts:
 
-{!.examples/api__zip_to_dict.md!}
+{!examples-md/api__zip_to_dict.md!}
 
 
 #### len, min, max
@@ -115,12 +115,12 @@ combination of them. Here are two conversions to achieve this:
 1. `c.chunk_by_condition(condition)` - it takes the condition as a conversion
    of an element (`c.this`) and the existing chunk (`c.CHUNK`)
 
-{!.examples/api__chunk.md!}
+{!examples-md/api__chunk.md!}
 
 We'll cover aggregations later, but bear with me -- chunk conversions have
 `aggregate` method:
 
-{!.examples/api__chunk_aggregate.md!}
+{!examples-md/api__chunk_aggregate.md!}
 
 
 #### take_while, drop_while
@@ -130,7 +130,7 @@ We'll cover aggregations later, but bear with me -- chunk conversions have
 1. `drop_while` reimplements `itertools.dropwhile` - yields elements starting
    from the first one where condition evaluates to true
 
-{!.examples/api__take_drop_while.md!}
+{!examples-md/api__take_drop_while.md!}
 
 
 #### iter_windows
@@ -139,7 +139,7 @@ We'll cover aggregations later, but bear with me -- chunk conversions have
 obtained by sliding a window of a given width and by moving the window by
 specified step size as follows: `c.iter_windows(width=7, step=1)`
 
-{!.examples/api__iter_windows.md!}
+{!examples-md/api__iter_windows.md!}
 
 #### cumulative
 
@@ -149,7 +149,7 @@ define cumulative conversions.
  * `prepare_first` defines conversion of the first element
  * `reduce_two` defines conversion of two elements
 
-{!.examples/api__cumulative.md!}
+{!examples-md/api__cumulative.md!}
 
 In cases where the value in accumulator needs to be cleared, usually it happens
 in nested iterators, take 2 steps:
@@ -157,4 +157,4 @@ in nested iterators, take 2 steps:
 1. label your cumulative
 1. use `c.cumulative_reset` to reset where necessary
 
-{!.examples/api__cumulative_2.md!}
+{!examples-md/api__cumulative_2.md!}

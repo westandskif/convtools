@@ -11,7 +11,7 @@ There are 2 conversions which allow to define conditions:
 1. `c.if_(condition, if_true, if_false)` for a single condition
 1. `c.if_multiple(*condition_to_value_pairs, else_)` obviously for multiple conditions
 
-{!.examples/api__if.md!}
+{!examples-md/api__if.md!}
 
 
 ## Pipes
@@ -19,14 +19,14 @@ There are 2 conversions which allow to define conditions:
 Pipe is the most important conversion which allows to pass results of one
 conversion to another. The syntax is simple: `first.pipe(second)`.
 
-{!.examples/api__pipe.md!}
+{!examples-md/api__pipe.md!}
 
 You can also pipe to callables, have a look at its signature:
 `pipe(next_conversion, *args, label_input=None, label_output=None, **kwargs)`.
 It accepts `*args` and `**kwargs`, which are passed to a callable after pipe
 input:
 
-{!.examples/api__pipe_callable.md!}
+{!examples-md/api__pipe_callable.md!}
 
 #### and_then
 
@@ -34,7 +34,7 @@ input:
 condition is true (by default condition is standard python's truth check).
 `condition` accepts both conversions and callables.
 
-{!.examples/api__and_then.md!}
+{!examples-md/api__and_then.md!}
 
 #### Labels
 
@@ -55,4 +55,4 @@ There are two ways to label data for further use:
 
 To reference previously labeled data use `c.label("label_name")`.
 
-{!.examples/api__pipe_labels.md!}
+{!examples-md/api__pipe_labels.md!}

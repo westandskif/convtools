@@ -9,7 +9,7 @@ from convtools import conversion as c
 DOCS_ROOT = "./docs"
 
 RAW_EXAMPLES_DIR = os.path.join(DOCS_ROOT, "examples-raw")
-MD_EXAMPLES_DIRNAME = os.path.join(DOCS_ROOT, ".examples")
+MD_EXAMPLES_DIRNAME = os.path.join(DOCS_ROOT, "examples-md")
 
 LAST_BUILD_LOG = os.path.join(MD_EXAMPLES_DIRNAME, ".last_build.csv")
 

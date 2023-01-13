@@ -25,13 +25,13 @@ pip install convtools
 
 #### Pipes
 
-{!.examples/welcome__pipes.md!}
+{!examples-md/welcome__pipes.md!}
 
 #### Aggregations & Group By
 
-{!.examples/welcome__aggregations.md!}
+{!examples-md/welcome__aggregations.md!}
 
-{!.examples/welcome__group_by.md!}
+{!examples-md/welcome__group_by.md!}
 
 ##### Built-in reducers like `c.ReduceFuncs.Sum`
     * Sum - auto-replaces False values with 0; default=0
@@ -79,11 +79,11 @@ pip install convtools
 
 #### Joins
 
-{!.examples/welcome__join.md!}
+{!examples-md/welcome__join.md!}
 
 #### Tables
 
-{!.examples/welcome__tables.md!}
+{!examples-md/welcome__tables.md!}
 
 
 **And of course you can mix all this together!**
