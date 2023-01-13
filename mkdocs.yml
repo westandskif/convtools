@@ -11,7 +11,7 @@ repo_name: westandskif/convtools
 repo_url: https://github.com/westandskif/convtools
 
 nav:
-  - Welcome: welcome.md
+  - Welcome: README.md
   - Usage:
      - Basics: basics.md
      - Collections: collections.md
