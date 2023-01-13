@@ -10,6 +10,7 @@ Conversions are defined in realtime based on table headers and called methods:
 """
 import csv
 import typing as t  # pylint: disable=unused-import
+from collections.abc import Sized
 from itertools import chain, zip_longest
 
 from ..base import (
@@ -185,17 +186,27 @@ class Table:
                 next(rows)
 
         first_row = next(rows)
+        first_row_is_sized = isinstance(first_row, Sized)
         row_type = type(first_row)
         pending_changes = 0
 
         index: "t.Union[str, int]"
         if isinstance(header, (tuple, list)):
-            if len(header) != len(first_row):
-                raise ValueError("non-matching number of columns")
-            for index, column in enumerate(header):
-                pending_changes |= columns.add(column, index, None)[1]
+            if first_row_is_sized:
+                if len(header) != len(first_row):
+                    raise ValueError("non-matching number of columns")
+                for index, column in enumerate(header):
+                    pending_changes |= columns.add(column, index, None)[1]
+            else:
+                if len(header) != 1:
+                    raise ValueError("non-matching number of columns")
+                pending_changes |= columns.add(header[0], None, This())[1]
 
         elif isinstance(header, dict):
+            if not first_row_is_sized:
+                raise ValueError(
+                    "first row is not sized to apply header as dict"
+                )
             if len(header) != len(first_row):
                 raise ValueError("non-matching number of columns")
             for name, index in header.items():

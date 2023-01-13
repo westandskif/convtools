@@ -1,13 +1,10 @@
 .PHONY: docs build
 
-readme:
-	rst_include include -q docs/github_readme.rst README.rst
+docs:
+	python build-docs-examples.py
 
-docs: readme
-	python setup.py build_sphinx
-
-docs_from_scratch:
-	python setup.py build_sphinx -E
+docs_serve:
+	mkdocs serve
 
 build:
 	rm -rf dist/*

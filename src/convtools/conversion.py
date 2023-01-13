@@ -1,7 +1,7 @@
 """
 The main module exposing public API (via conversion object)
 """
-import itertools
+from itertools import repeat
 
 from .aggregations import (
     Aggregate,
@@ -102,13 +102,22 @@ class Conversion:
     this = This
 
     #: Shortcut to :py:obj:`convtools.base.BaseConversion.and_then`
-    and_then = this.and_then
+    and_then = This.and_then
 
     naive = NaiveConversion
     item = GetItem
     attr = GetAttr
     call_func = staticmethod(CallFunc)
     apply_func = staticmethod(ApplyFunc)
+    __call__ = staticmethod(ensure_conversion)
+
+    call = This.call
+    apply = This.apply
+
+    tap = This.tap
+    iter_mut = This.iter_mut
+    iter_windows = This.iter_windows
+    flatten = This.flatten
 
     filter = This.filter
     sort = SortConversion
@@ -142,6 +151,14 @@ class Conversion:
     chunk_by_condition = ChunkByCondition
     CHUNK = ChunkByCondition.CHUNK
 
+    breakpoint = This.breakpoint
+    date_trunc = This.date_trunc
+    datetime_trunc = This.datetime_trunc
+
+    PREV = Cumulative.PREV
+    cumulative = This.cumulative
+    cumulative_reset = This.cumulative_reset
+
     def iter(self, item, *, where=None):
         return GeneratorComp(item, where, _none)
 
@@ -168,28 +185,6 @@ class Conversion:
             return to_call_with_2_args(*args, **kwargs)
         return Reduce(to_call_with_2_args, *args, **kwargs)
 
-    def __call__(self, obj: object):
-        """Shortcut for ``ensure_conversion``"""
-        return ensure_conversion(obj)
-
-    def call(self, *args, **kwargs):
-        return self.this.call(*args, **kwargs)
-
-    def apply(self, args, kwargs):
-        return self.this.apply(args, kwargs)
-
-    def tap(self, *args, **kwargs):
-        return self.this.tap(*args, **kwargs)
-
-    def iter_mut(self, *args, **kwargs):
-        return self.this.iter_mut(*args, **kwargs)
-
-    def iter_windows(self, *args, **kwargs):
-        """Iterates through an iterable and yields tuples, which are obtained
-        by sliding a windows of a given width, moving it by specified step
-        size"""
-        return self.this.iter_windows(*args, **kwargs)
-
     def zip(self, *args, **kwargs):
         """Conversion which calls :py:obj:`zip` on conversions.
 
@@ -201,40 +196,24 @@ class Conversion:
         if args and kwargs:
             raise ValueError("pass either args or kwargs")
         if args:
-            return self.call_func(zip, *args)
+            return CallFunc(zip, *args)
 
-        return self.call_func(zip, *kwargs.values()).iter(
+        return CallFunc(zip, *kwargs.values()).iter(
             {name: self.item(index) for index, name in enumerate(kwargs)}
         )
 
     def repeat(self, obj, times=None):
         """shortcut to call :py:obj:`itertools.repeat`"""
         args = () if times is None else (times,)
-        return self.call_func(itertools.repeat, obj, *args)
+        return CallFunc(repeat, obj, *args)
 
-    def flatten(self):
-        """c.this.flatten() shortcut"""
-        return self.this.flatten()
-
-    def min(self, arg1, arg2, *args):
+    def min(self, arg, *args):
         """c.call_func(min, ...) shortcut"""
-        return self.call_func(min, arg1, arg2, *args)
+        return CallFunc(min, arg, *args)
 
-    def max(self, arg1, arg2, *args):
+    def max(self, arg, *args):
         """c.call_func(max, ...) shortcut"""
-        return self.call_func(max, arg1, arg2, *args)
-
-    def breakpoint(self):
-        """c.this.breakpoint() shortcut"""
-        return self.this.breakpoint()
-
-    PREV = Cumulative.PREV
-
-    def cumulative(self, prepare_first, reduce_two, label_name=None):
-        return self.this.cumulative(prepare_first, reduce_two, label_name)
-
-    def cumulative_reset(self, label_name):
-        return self.this.cumulative_reset(label_name)
+        return CallFunc(max, arg, *args)
 
 
 conversion = Conversion()

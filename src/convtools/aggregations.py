@@ -254,7 +254,8 @@ class ReduceBlocks:
                 if block.unconditional_init:
                     if is_debug:
                         first_phase_code.add_line(
-                            "globals()['__BROKEN_EARLY__'] = True", 0
+                            "globals()['__BROKEN_EARLY__'] = True  # DEBUG ONLY",
+                            0,
                         )
                     first_phase_code.add_line("break", 0)
                 else:
@@ -263,7 +264,8 @@ class ReduceBlocks:
                     )
                     if is_debug:
                         first_phase_code.add_line(
-                            "globals()['__BROKEN_EARLY__'] = True", 0
+                            "globals()['__BROKEN_EARLY__'] = True  # DEBUG ONLY",
+                            0,
                         )
                     first_phase_code.add_line("break", -1)
 
@@ -316,7 +318,7 @@ class ReduceBlocks:
             )
             if is_debug:
                 resulting_code.add_line(
-                    "globals()['__BROKEN_EARLY__'] = True", 0
+                    "globals()['__BROKEN_EARLY__'] = True  # DEBUG ONLY", 0
                 )
             resulting_code.add_line("break", -1)
         resulting_code.incr_indent_level(-1)
