@@ -4,6 +4,15 @@
 transforms using a declarative approach, while under the hood it generates
 ad-hoc python code (_see the debug stdout tabs below_).
 
+[![License](https://img.shields.io/github/license/westandskif/convtools.svg)](https://github.com/westandskif/convtools/blob/master/LICENSE.txt)
+[![codecov](https://codecov.io/gh/westandskif/convtools/branch/master/graph/badge.svg)]( https://codecov.io/gh/westandskif/convtools)
+[![Tests status](https://github.com/westandskif/convtools/workflows/tests/badge.svg)](https://github.com/westandskif/convtools/actions/workflows/pytest.yml)
+[![Docs status](https://readthedocs.org/projects/convtools/badge/?version=latest)](https://convtools.readthedocs.io/en/latest/?badge=latest)
+[![PyPI](https://badge.fury.io/py/convtools.svg)](https://pypi.org/project/convtools/)
+[![Twitter](https://img.shields.io/twitter/url?label=convtools&style=social&url=https%3A%2F%2Ftwitter.com%2Fconvtools)](https://twitter.com/convtools)
+[![Downloads](https://static.pepy.tech/badge/convtools)](https://pepy.tech/project/convtools)
+[![Python versions](https://img.shields.io/pypi/pyversions/convtools.svg)](https://pypi.org/project/convtools/)
+
 ### Installation
 ```
 pip install convtools
