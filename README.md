@@ -10,7 +10,7 @@ ad-hoc python code.
 [![Docs status](https://readthedocs.org/projects/convtools/badge/?version=latest)](https://convtools.readthedocs.io/en/latest/?badge=latest)
 [![PyPI](https://badge.fury.io/py/convtools.svg)](https://pypi.org/project/convtools/)
 [![Twitter](https://img.shields.io/twitter/url?label=convtools&style=social&url=https%3A%2F%2Ftwitter.com%2Fconvtools)](https://twitter.com/convtools)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/convtools)
+[![Downloads](https://static.pepy.tech/badge/convtools)](https://pepy.tech/project/convtools)
 [![Python versions](https://img.shields.io/pypi/pyversions/convtools.svg)](https://pypi.org/project/convtools/)
 
 ____
