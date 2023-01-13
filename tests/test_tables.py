@@ -115,6 +115,23 @@ def test_table_base_init():
         Table.from_rows(["name", "cde"], header=False).into_iter_rows(dict)
     ) == [{"COLUMN_0": "name"}, {"COLUMN_0": "cde"}]
 
+    assert list(Table.from_rows([0, 1, 2]).into_iter_rows(dict)) == [
+        {"COLUMN_0": 0},
+        {"COLUMN_0": 1},
+        {"COLUMN_0": 2},
+    ]
+    assert list(
+        Table.from_rows([0, 1, 2], header=["a"]).into_iter_rows(dict)
+    ) == [
+        {"a": 0},
+        {"a": 1},
+        {"a": 2},
+    ]
+    with pytest.raises(ValueError):
+        Table.from_rows([0, 1, 2], header=["a", "b"]).into_iter_rows(dict)
+    with pytest.raises(ValueError):
+        Table.from_rows([0, 1, 2], header={"a": 1}).into_iter_rows(dict)
+
 
 def test_table_take():
     result = list(

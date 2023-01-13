@@ -104,10 +104,8 @@ def test_min_max():
     assert c.min(c.item(0), c.item(1)).execute((0, 1)) == 0
     assert c((2, 1)).pipe(c.min(c.item(0), c.item(1))).execute(None) == 1
 
-    with pytest.raises(TypeError):
-        c.min(c.this).execute(-1)
-    with pytest.raises(TypeError):
-        c.max(c.this).execute(-1)
+    assert c.min(c.this).execute(range(3)) == 0
+    assert c.max(c.this).execute(range(3)) == 2
 
 
 def test_breakpoint():

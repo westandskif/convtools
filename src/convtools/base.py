@@ -12,6 +12,17 @@ from keyword import iskeyword
 from random import Random
 from uuid import uuid4
 
+from .dt import (
+    DayOfWeekStep,
+    MonthStep,
+    TruncModes,
+    date_to_day,
+    date_to_month,
+    datetime_to_day,
+    datetime_to_microsecond,
+    datetime_to_month,
+    to_step,
+)
 from .heuristics import Weights
 from .utils import BaseCtx, BaseOptions, Code, CodeStorage, iter_windows
 
@@ -413,7 +424,8 @@ class BaseConversion(t.Generic[CT]):
 
         if added:
             if is_debug:
-                print("\n", code)
+                sys.stdout.write(code)
+                sys.stdout.write("\n")
             code_obj = compile(code, abs_path, "exec", optimize=2)
             exec(code_obj, ctx)  # pylint:disable=exec-used
             ctx[converter_name].conv_name = converter_name
@@ -928,6 +940,165 @@ class BaseConversion(t.Generic[CT]):
     def cumulative_reset(self, label_name):
         """Shortcut for :py:obj:`CumulativeReset`"""
         return CumulativeReset(self, label_name)
+
+    def date_trunc(self, step, offset=None, mode="start"):
+        """Truncates a date to periods of certain length, specified by step and
+        offset, passed as either a STEP-STRING (see below) or a
+        :py:obj:`datetime.timedelta`.
+        It also supports multiple modes of truncating dates.
+
+        >>> conversion.date_trunc("1mo")
+        >>> conversion.date_trunc("3mo", "1mo")
+        >>> conversion.date_trunc("3mo", "1mo", mode="end_inclusive")
+
+        STEP-STRING is a string which is comprised of numbers and suffixes:
+         - y: year
+         - mo: month
+         - sun/mon/tue/wed/thu/fri/sat: days of week
+         - d: day
+         - h: hour
+         - m: minute
+         - s: second
+         - ms: millisecond
+         - us: microsecond
+
+        so -2d8h10us means minus 2 days 8 hours and 10 microseconds.
+
+        WARNING:
+         * y/mo support only y/mo as offsets
+         * days of week don't support offsets
+         * as this method truncates dates, not datetimes, it accepts only whole
+           number of days as steps and offsets
+
+        Args:
+          step: defines period length. If it's a year, month or a day of week,
+            it defines beginnings of periods too.
+          offset (optional): defines the shift of the expected date grid
+            relative to 0-point. Positive offset shifts a grid to the right.
+          mode (Literal["start", "end", "end_inclusive"]): defines truncating
+            mode: "start" returns period start; "end" returns a start of the
+            next period, complies with default interval definition where start
+            is inclusive and end is not; "end_inclusive" returns the end of the
+            current interval
+
+        """
+        step = to_step(step)
+        mode = TruncModes.to_internal(mode)
+        if offset is not None:
+            offset = to_step(offset)
+        if isinstance(step, MonthStep):
+            return CallFunc(
+                date_to_month,
+                self,
+                step.to_months(),
+                0 if offset is None else offset.to_months(),
+                mode,
+            )
+        elif isinstance(step, DayOfWeekStep):
+            if offset is not None:
+                raise ValueError(
+                    "offsets are not applicable to day-of-week steps"
+                )
+            return CallFunc(
+                date_to_day,
+                self,
+                step.to_days(),
+                step.day_of_week_offset,
+                mode,
+            )
+        return CallFunc(
+            date_to_day,
+            self,
+            step.to_days(),
+            0 if offset is None else offset.to_days(),
+            mode,
+        )
+
+    def datetime_trunc(self, step, offset=None, mode="start"):
+        """Truncates a date to periods of certain length, specified by step and
+        offset, passed as either a STEP-STRING (see below) or a
+        :py:obj:`datetime.timedelta`.
+        It also supports multiple modes of truncating dates.
+
+        >>> conversion.datetime_trunc("1mo")
+        >>> conversion.datetime_trunc("3mo", "1mo")
+        >>> conversion.datetime_trunc("3mo", "1mo", mode="end_inclusive")
+
+        STEP-STRING is a string which is comprised of numbers and suffixes:
+         - y: year
+         - mo: month
+         - sun/mon/tue/wed/thu/fri/sat: days of week
+         - d: day
+         - h: hour
+         - m: minute
+         - s: second
+         - ms: millisecond
+         - us: microsecond
+
+        so "-2d8h10us" means minus 2 days 8 hours and 10 microseconds.
+
+        WARNING:
+         * y/mo support only y/mo as offsets
+         * days of week don't support offsets
+         * any steps defined as deterministic units (d, h, m, s, ms, us) can
+           only be used with offsets defined by deterministic units too
+
+        Args:
+          step: defines period length. If it's a year, month or a day of week,
+            it defines beginnings of periods too.
+          offset (optional): defines the shift of the expected date grid
+            relative to 0-point. Positive offset shifts a grid to the right.
+          mode (Literal["start", "end", "end_inclusive"]): defines truncating
+            mode: "start" returns period start; "end" returns a start of the
+            next period, complies with default interval definition where start
+            is inclusive and end is not; "end_inclusive" returns the end of the
+            current interval
+        """
+        step = to_step(step)
+        mode = TruncModes.to_internal(mode)
+        if offset is not None:
+            offset = to_step(offset)
+
+        if isinstance(step, MonthStep):
+            return CallFunc(
+                datetime_to_month,
+                self,
+                step.to_months(),
+                0 if offset is None else offset.to_months(),
+                mode,
+            )
+
+        elif isinstance(step, DayOfWeekStep):
+            if offset is not None:
+                raise ValueError(
+                    "offsets are not applicable to day-of-week steps"
+                )
+            return CallFunc(
+                datetime_to_day,
+                self,
+                step.to_days(),
+                step.day_of_week_offset,
+                mode,
+            )
+
+        if step.can_be_cast_to_days() and (
+            offset is None or offset.can_be_cast_to_days()
+        ):
+            return CallFunc(
+                datetime_to_day,
+                self,
+                step.to_days(),
+                0 if offset is None else offset.to_days(),
+                mode,
+            )
+
+        return CallFunc(
+            datetime_to_microsecond,
+            self,
+            step.to_us(),
+            0 if offset is None else offset.to_us(),
+            mode,
+        )
 
 
 class BaseMutation(BaseConversion):

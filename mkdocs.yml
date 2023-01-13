@@ -1,0 +1,41 @@
+site_name: convtools
+theme:
+  name: material
+        # highlightjs: true
+        # hljs_languages:
+        #     - python
+  features:
+    - content.code.copy
+
+repo_name: westandskif/convtools
+repo_url: https://github.com/westandskif/convtools
+
+nav:
+  - Welcome: welcome.md
+  - Usage:
+     - Basics: basics.md
+     - Collections: collections.md
+     - Conditions and Pipes: conditions_n_pipes.md
+     - Group By and Aggregate: aggregations.md
+     - Joins: joins.md
+     - Mutations: mutations.md
+     - Contrib / Tables: contrib_tables.md
+     - Contrib / Fs: contrib_fs.md
+  - Changelog: CHANGELOG.md
+  - Breaking changes: BREAKING_CHANGES.md
+  - Contributors: contributors.md
+  - License: LICENSE.md
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - tables
+  - markdown_include.include:
+      base_path: docs
+  - pymdownx.tabbed:
+      alternate_style: true 
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.inlinehilite:
+  - pymdownx.superfences:

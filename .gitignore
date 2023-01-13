@@ -42,6 +42,7 @@ dist/*
 sdist/*
 docs/_rst/*
 docs/_build/*
+docs/.examples/*
 cover/*
 pip-wheel-metadata/
 MANIFEST
