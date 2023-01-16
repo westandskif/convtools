@@ -14,6 +14,32 @@ Both accept one or more formats, supported by `datetime.strptime`.
 {!examples-md/api__dates_parse.md!}
 
 
+## Date/Time Step
+
+For the sake of convenience (kudos to
+[Polars](https://github.com/pola-rs/polars) for the idea), let's introduce a
+definition of date/time step, to be used below. It's a concatenated string,
+which may contain an optional negative sign and then numbers and suffixes:
+
+* `y`: year
+* `mo`: month
+* `sun`/`mon`/`tue`/`wed`/`thu`/`fri`/`sat`: days of week
+* `d`: day
+* `h`: hour
+* `m`: minute
+* `s`: second
+* `ms`: millisecond
+* `us`: microsecond
+
+Step examples:
+
+* `-2d8h10us` means minus 2 days 8 hours and 10 microseconds
+* `2tue` every other Tuesday
+* `3mo` every quarter
+
+It also accepts `datetime.timedelta`.
+
+
 ## Truncating dates
 
 Dates and datetimes can be truncated by applying a date/datetime grid, which is
@@ -25,23 +51,10 @@ defined by `step` and `offset`.
 
 The methods above have the parameters:
 
-* `step` defines the period of date/datetime grid to be applied. It can be
-  either `datetime.timedelta` or a simple STEP-STRING,
-  which is defined as a concatenated string of an optional negative sign and
-  then numbers and suffixes:
-    * `y`: year
-    * `mo`: month
-    * `sun`/`mon`/`tue`/`wed`/`thu`/`fri`/`sat`: days of week
-    * `d`: day
-    * `h`: hour
-    * `m`: minute
-    * `s`: second
-    * `ms`: millisecond
-    * `us`: microsecond
-
-* `offset` (optional) defines the offset of the date/datetime grid to be
-  applied. It supports the same values as `step` does.
-
+* `step` (step) defines the period of date/datetime grid to be used when
+  truncating
+* `offset` (optional step) defines the offset of the date/datetime grid to be
+  applied
 * `mode` (default is `"start"`) defines which part of a date/datetime grid
   period is to be returned
     * `"start"` returns the beginning of a grid period
@@ -50,17 +63,12 @@ The methods above have the parameters:
 	* `"end"` return the exclusive end of a grid period (_e.g. for a monthly
 	  grid for Jan: it's Feb 1st_)
 
-Step examples:
-
-* `-2d8h10us` means minus 2 days 8 hours and 10 microseconds
-* `2tue` every other Tuesday
-* `3mo` every quarter
-
 !!! warning
-      * y/mo steps support only y/mo as offsets
-      * days of week don't support offsets
-	  * truncating to dates, not datetimes, is possible for whole number of
-	    days only
+      * y/mo steps support only y/mo offsets
+	  * days of week don't support offsets (_otherwise we would get undesired
+	    days of week_)
+	  * when truncating dates, not datetimes, it is possible for whole number
+	    of days only
       * any steps defined as deterministic units (d, h, m, s, ms, us) can
         only be used with offsets defined by deterministic units too
 
@@ -69,18 +77,25 @@ Step examples:
 
 ## Date grids
 
-Date grids are used to generate gap free series of dates/datetimes.
-`DateGrid("mo").around(dt_start, dt_end)` returns an iterator of dates of the
-monthly grid, which contains the provided period.
+Date grids are not conversions, these are just helper functions which generate
+gap free series of dates/datetimes.
+
+e.g. `DateGrid("mo").around(dt_start, dt_end)` returns an iterator of dates of
+the monthly grid, which contains the provided period.
+
+!!! note
+	It is intentionally different from Postgres' `generate_series(start, end,
+	interval)` because it is not convenient in some cases, where you need to
+	truncate `start` and `end` to a required precision first, otherwise you
+	risk missing the very first period.
 
 1. `DateGrid` generates `date` grids
 1. `DateTimeGrid` generates `datetime` grids
 
 Arguments are:
 
-* `step` defines grid period length (see how STEP-STRING is defined above)
-* `offset` defined the shift of the expected date/datetime grid relative to
-  0-point
+* `step` (step) defines grid period length (see how STEP-STRING is defined above)
+* `offset` (optional step) defined the offset of the date/datetime grid
 * `mode` (default is `"start"`) defines which part of a date/datetime grid
   period is to be returned
     * `"start"` returns the beginning of a grid period
