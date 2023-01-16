@@ -18,6 +18,7 @@ nav:
      - Conditions and Pipes: conditions_n_pipes.md
      - Group By and Aggregate: aggregations.md
      - Joins: joins.md
+     - Dates: dates.md
      - Mutations: mutations.md
      - Contrib / Tables: contrib_tables.md
      - Contrib / Fs: contrib_fs.md

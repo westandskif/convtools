@@ -159,6 +159,9 @@ class Conversion:
     cumulative = This.cumulative
     cumulative_reset = This.cumulative_reset
 
+    date_parse = This.date_parse
+    datetime_parse = This.datetime_parse
+
     def iter(self, item, *, where=None):
         return GeneratorComp(item, where, _none)
 

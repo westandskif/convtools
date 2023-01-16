@@ -7,6 +7,7 @@ import string
 import sys
 import typing as t
 from collections import deque
+from datetime import datetime
 from itertools import chain
 from keyword import iskeyword
 from random import Random
@@ -16,11 +17,13 @@ from .dt import (
     DayOfWeekStep,
     MonthStep,
     TruncModes,
-    date_to_day,
-    date_to_month,
-    datetime_to_day,
-    datetime_to_microsecond,
-    datetime_to_month,
+    date_parse,
+    date_trunc_to_day,
+    date_trunc_to_month,
+    datetime_parse,
+    datetime_trunc_to_day,
+    datetime_trunc_to_microsecond,
+    datetime_trunc_to_month,
     to_step,
 )
 from .heuristics import Weights
@@ -941,10 +944,29 @@ class BaseConversion(t.Generic[CT]):
         """Shortcut for :py:obj:`CumulativeReset`"""
         return CumulativeReset(self, label_name)
 
+    def date_parse(self, main_format, *other_formats):
+        if other_formats:
+            return CallFunc(
+                date_parse, self, main_format, NaiveConversion(other_formats)
+            )
+        return CallFunc(datetime.strptime, self, main_format).call_method(
+            "date"
+        )
+
+    def datetime_parse(self, main_format, *other_formats):
+        if other_formats:
+            return CallFunc(
+                datetime_parse,
+                self,
+                main_format,
+                NaiveConversion(other_formats),
+            )
+        return CallFunc(datetime.strptime, self, main_format)
+
     def date_trunc(self, step, offset=None, mode="start"):
         """Truncates a date to periods of certain length, specified by step and
         offset, passed as either a STEP-STRING (see below) or a
-        :py:obj:`datetime.timedelta`.
+        `datetime.timedelta`.
         It also supports multiple modes of truncating dates.
 
         >>> conversion.date_trunc("1mo")
@@ -988,7 +1010,7 @@ class BaseConversion(t.Generic[CT]):
             offset = to_step(offset)
         if isinstance(step, MonthStep):
             return CallFunc(
-                date_to_month,
+                date_trunc_to_month,
                 self,
                 step.to_months(),
                 0 if offset is None else offset.to_months(),
@@ -1000,14 +1022,14 @@ class BaseConversion(t.Generic[CT]):
                     "offsets are not applicable to day-of-week steps"
                 )
             return CallFunc(
-                date_to_day,
+                date_trunc_to_day,
                 self,
                 step.to_days(),
                 step.day_of_week_offset,
                 mode,
             )
         return CallFunc(
-            date_to_day,
+            date_trunc_to_day,
             self,
             step.to_days(),
             0 if offset is None else offset.to_days(),
@@ -1061,7 +1083,7 @@ class BaseConversion(t.Generic[CT]):
 
         if isinstance(step, MonthStep):
             return CallFunc(
-                datetime_to_month,
+                datetime_trunc_to_month,
                 self,
                 step.to_months(),
                 0 if offset is None else offset.to_months(),
@@ -1074,7 +1096,7 @@ class BaseConversion(t.Generic[CT]):
                     "offsets are not applicable to day-of-week steps"
                 )
             return CallFunc(
-                datetime_to_day,
+                datetime_trunc_to_day,
                 self,
                 step.to_days(),
                 step.day_of_week_offset,
@@ -1085,7 +1107,7 @@ class BaseConversion(t.Generic[CT]):
             offset is None or offset.can_be_cast_to_days()
         ):
             return CallFunc(
-                datetime_to_day,
+                datetime_trunc_to_day,
                 self,
                 step.to_days(),
                 0 if offset is None else offset.to_days(),
@@ -1093,7 +1115,7 @@ class BaseConversion(t.Generic[CT]):
             )
 
         return CallFunc(
-            datetime_to_microsecond,
+            datetime_trunc_to_microsecond,
             self,
             step.to_us(),
             0 if offset is None else offset.to_us(),

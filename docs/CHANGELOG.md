@@ -1,3 +1,16 @@
+## 0.41.0 (2023-01-16)
+
+**Features**
+
+- introduced `c.date_parse` / `c.datetime_parse` shortcut and extension of
+  `datetime.strptime`
+- introduced `c.date_trunc` / `c.datetime_trunc` to truncate dates to years,
+  months, days-of-week, etc. (including multiples of them like quarters -
+  `3mo`). Support offsets.
+- introduced `DateGrid` / `DateTimeGrid` helpers to build gap-less series of
+  dates/datetimes. Support offsets.
+
+
 ## 0.40.2 (2022-12-19)
 
 

@@ -5,6 +5,10 @@ with c.OptionsCtx() as options:
     options.debug = True
 
     # READING CSV
+    # file content:
+    #   a,b
+    #   1,2
+    #   2,3
     assert list(
         Table
         .from_csv("tests/csvs/ab.csv", header=True)
@@ -16,6 +20,10 @@ with c.OptionsCtx() as options:
     ]
 
     # READING TSV
+    # file content:
+    #   a\tb
+    #   1\t2
+    #   2\t3
     assert list(
         Table.from_csv(
             "tests/csvs/ac.csv",
@@ -28,6 +36,10 @@ with c.OptionsCtx() as options:
     ]
 
     # READ TSV + SKIP EXISTING HEADER + REMAP COLUMNS
+    # file content:
+    #   a\tb
+    #   1\t2
+    #   2\t3
     assert list(
         Table.from_csv(
             "tests/csvs/ac.csv",
