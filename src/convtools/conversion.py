@@ -19,7 +19,6 @@ from .base import (
     CodeGenerationOptionsCtx,
     ConversionException,
     ConverterOptionsCtx,
-    Cumulative,
     Dict,
     DictComp,
     DropWhile,
@@ -50,6 +49,7 @@ from .base import (
 )
 from .chunks import ChunkBy, ChunkByCondition
 from .columns import ColumnRef
+from .cumulative import Cumulative
 from .joins import JoinConversion, _JoinConditions
 from .mutations import Mutations
 
@@ -117,6 +117,7 @@ class Conversion:
     tap = This.tap
     iter_mut = This.iter_mut
     iter_windows = This.iter_windows
+    iter_unique = This.iter_unique
     flatten = This.flatten
 
     filter = This.filter

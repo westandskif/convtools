@@ -7,9 +7,11 @@ docs_serve:
 	mkdocs serve
 
 build:
-	rm -rf dist/*
+	find build -delete || true
+	find dist -delete || true
 	python setup.py clean --all
 	python setup.py sdist bdist_wheel
+	find build -delete || true
 
 upload:
 	twine upload dist/*

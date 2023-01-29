@@ -1,3 +1,5 @@
+from types import GeneratorType
+
 from convtools import conversion as c
 
 
@@ -47,3 +49,36 @@ def test_drop_while():
         .execute(range(10))
     )
     assert result == []
+
+
+def test_iter_unique():
+    assert c.this.iter_unique().as_type(list).execute([1, 1, 2]) == [1, 2]
+
+    result = c.iter_unique(
+        c.and_(c.input_arg("y"), c.this), by_=c.this % c.input_arg("x")
+    ).execute(range(5), x=2, y=10)
+    assert isinstance(result, GeneratorType) and list(result) == [0, 1]
+
+    assert c.iter_unique(c.item("name"), by_=c.item("id")).as_type(
+        list
+    ).execute(
+        [
+            {"name": "foo", "id": 1},
+            {"name": "foo", "id": 2},
+        ]
+    ) == [
+        "foo",
+        "foo",
+    ]
+
+    assert c.iter_unique(c.item(0), c.item(0)).as_type(list).execute(
+        [
+            (1,),
+            (0,),
+            (0,),
+        ]
+    ) == [1, 0]
+
+    assert c.item(c.input_arg("key")).iter_unique().as_type(list).execute(
+        {"a": [1, 2, 1]}, key="a"
+    ) == [1, 2]
