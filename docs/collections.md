@@ -133,6 +133,19 @@ We'll cover aggregations later, but bear with me -- chunk conversions have
 {!examples-md/api__take_drop_while.md!}
 
 
+#### iter_unique
+
+`c.iter_unique(element_conv=None, by_=None)` and `iter_unique` methods iterate
+through an iterable and yield processed elements, which are distinct in terms
+of the provided condition:
+
+
+ * if `element_conv` is `None`, it assumes `c.this`
+ * if `by_` is None, it assumes `element_conv`
+
+{!examples-md/api__iter_unique.md!}
+
+
 #### iter_windows
 
 `c.iter_windows` iterates through an iterable and yields tuples, which are

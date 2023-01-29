@@ -1,7 +1,6 @@
 """
 Base and basic conversions are defined here.
 """
-import pdb
 import re
 import string
 import sys
@@ -11,7 +10,6 @@ from datetime import datetime
 from itertools import chain
 from keyword import iskeyword
 from random import Random
-from uuid import uuid4
 
 from .dt import (
     DayOfWeekStep,
@@ -27,7 +25,20 @@ from .dt import (
     to_step,
 )
 from .heuristics import Weights
-from .utils import BaseCtx, BaseOptions, Code, CodeStorage, iter_windows
+from .utils import (
+    BaseCtx,
+    BaseOptions,
+    Code,
+    CodeStorage,
+    LazyModule,
+    iter_windows,
+)
+
+
+convtools_cumulative = LazyModule("convtools.cumulative")
+convtools_debug = LazyModule("convtools.debug")
+convtools_mutations = LazyModule("convtools.mutations")
+convtools_unique = LazyModule("convtools.unique")
 
 
 black: "t.Optional[t.Any]" = None
@@ -604,6 +615,23 @@ class BaseConversion(t.Generic[CT]):
         """
         return GeneratorComp(element_conv, where=where, self_conv=self)
 
+    def iter_unique(self, element_conv=None, by_=None) -> "BaseConversion":
+        """
+        Creates a conversion which iterates over the input and yields unique
+        ones (supports custom uniqueness conditions)
+
+        Args:
+          element_conv: defines a conversion to be applied to each element to
+            be returned; if it is None, it means `c.this`
+          by_: defines a conversion to be applied to each element to check for
+            uniqueness; if it is None, it means to use `element_conv` for
+            uniqueness
+        """
+        element_conv = This if element_conv is None else element_conv
+        return convtools_unique.IterUnique(
+            self, element_conv, element_conv if by_ is None else by_
+        )
+
     def filter(self, condition_conv, cast=None) -> "BaseConversion":
         """Generates the code to iterate the input, taking items for which the
         provided conversion resolves to a truth value.
@@ -628,14 +656,14 @@ class BaseConversion(t.Generic[CT]):
 
         return result
 
-    def iter_mut(self, *mutations: "BaseMutation") -> "IterMutConversion":
+    def iter_mut(self, *mutations: "BaseMutation") -> "BaseConversion":
         """Conversion which results in a generator of mutated elements
 
         Args:
           mutations (BaseMutation): conversion to be run on each element
 
         """
-        return IterMutConversion(self, *mutations)
+        return convtools_mutations.IterMutConversion(self, *mutations)
 
     def iter_windows(self, width, step=1):
         """Iterates through an iterable and yields tuples, which are obtained
@@ -889,7 +917,7 @@ class BaseConversion(t.Generic[CT]):
         """
         return self.pipe(This, label_input=label_name)
 
-    def tap(self, *mutations: "BaseMutation") -> "TapConversion":
+    def tap(self, *mutations: "BaseMutation") -> "BaseConversion":
         """Allows to tap into the processing of a conversion and mutate it
         in place. Accepts multiple mutations, order matters.
 
@@ -897,7 +925,7 @@ class BaseConversion(t.Generic[CT]):
           mutations (iterable of BaseMutation): mutations to process the
             conversion
         """
-        return TapConversion(self, *mutations)
+        return convtools_mutations.TapConversion(self, *mutations)
 
     def pipe(
         self,
@@ -919,7 +947,7 @@ class BaseConversion(t.Generic[CT]):
 
     def breakpoint(self):
         """Shortcut to Breakpoint(self)"""
-        return Breakpoint(self)
+        return convtools_debug.Breakpoint(self)
 
     def and_then(self, conversion, condition=bool) -> "BaseConversion":
         """Applies conversion if condition is true, otherwise leaves untouched.
@@ -938,11 +966,13 @@ class BaseConversion(t.Generic[CT]):
 
     def cumulative(self, prepare_first, reduce_two, label_name=None):
         """Shortcut for :py:obj:`Cumulative`"""
-        return Cumulative(self, prepare_first, reduce_two, label_name)
+        return convtools_cumulative.Cumulative(
+            self, prepare_first, reduce_two, label_name
+        )
 
     def cumulative_reset(self, label_name):
         """Shortcut for :py:obj:`CumulativeReset`"""
-        return CumulativeReset(self, label_name)
+        return convtools_cumulative.CumulativeReset(self, label_name)
 
     def date_parse(self, main_format, *other_formats):
         if other_formats:
@@ -3084,209 +3114,3 @@ class PipeConversion(BaseConversion):
         return function_ctx.call_with_all_args(
             conversion
         ).gen_code_and_update_ctx(None, ctx)
-
-
-class TapConversion(BaseConversion):
-    """This conversion generates the code which mutates the input data
-    in-place.  TapConversion takes any number of mutations"""
-
-    weight = Weights.FUNCTION_CALL
-
-    def __init__(self, obj, *mutations: BaseMutation):
-        super().__init__()
-        self.obj = self.ensure_conversion(obj)
-        self.mutations = [
-            self.ensure_conversion(mut, explicitly_allowed_cls=BaseMutation)
-            for mut in mutations
-        ]
-        self.number_of_input_uses = 1
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_random_name("", ctx)
-        converter_name = f"tap_{suffix}"
-        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
-        function_ctx.add_arg("data_", self.obj)
-        with function_ctx:
-            code = Code()
-            code.add_line("def placeholder", 1)
-            for mut in self.mutations:
-                code.add_line(mut.gen_code_and_update_ctx("data_", ctx), 0)
-            code.add_line("return data_", 0)
-
-            code.lines_info[0] = (
-                0,
-                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-            )
-            conversion = function_ctx.gen_conversion(
-                converter_name, code.to_string(base_indent_level=0)
-            )
-        return function_ctx.call_with_all_args(
-            conversion
-        ).gen_code_and_update_ctx(code_input, ctx)
-
-
-class IterMutConversion(TapConversion):
-    """This conversion generates the code which iterates and mutates the
-    elements in-place. The result is a generator.
-    IterMutConversion takes any number of mutations"""
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_random_name("", ctx)
-        converter_name = f"iter_mut_{suffix}"
-        code_item = f"item_{suffix}"
-        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
-        function_ctx.add_arg("data_", self.obj)
-
-        with function_ctx:
-            code = Code()
-            code.add_line("def placeholder", 1)
-            code.add_line(f"for {code_item} in data_:", 1)
-            for mut in self.mutations:
-                code.add_line(
-                    mut.gen_code_and_update_ctx(f"{code_item}", ctx), 0
-                )
-
-            code.add_line(f"yield {code_item}", 0)
-
-            code.lines_info[0] = (
-                0,
-                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-            )
-            conversion = function_ctx.gen_conversion(
-                converter_name, code.to_string(base_indent_level=0)
-            )
-        return function_ctx.call_with_all_args(
-            conversion
-        ).gen_code_and_update_ctx(code_input, ctx)
-
-
-if "pydevd" in sys.modules:  # pragma: no cover
-
-    def debug_func(obj):
-        import pydevd  # type: ignore # pylint: disable=import-outside-toplevel
-
-        pydevd.settrace()
-        return obj
-
-elif sys.version_info[:2] < (3, 7):  # pragma: no cover
-
-    def debug_func(obj):
-        pdb.set_trace()  # pylint: disable=forgotten-debug-statement
-        return obj
-
-else:  # pragma: no cover
-
-    def debug_func(obj):
-        breakpoint()  # pylint: disable=undefined-variable,forgotten-debug-statement # noqa: F821,E501
-        return obj
-
-
-class Breakpoint(BaseConversion):
-    """Defines the conversion which wraps another one and puts a breakpoint
-    after it"""
-
-    self_content_type = (
-        BaseConversion.self_content_type
-        | BaseConversion.ContentTypes.BREAKPOINT
-    ) & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
-    debug_func = staticmethod(debug_func)
-
-    def __init__(self, to_debug):
-        super().__init__()
-        self.conversion = self.ensure_conversion(
-            ensure_conversion(to_debug).pipe(self.debug_func)
-        )
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        return self.conversion.gen_code_and_update_ctx(code_input, ctx)
-
-
-class CumulativeReset(BaseConversion):
-    """A conversion which resets cumulative values to their initial states. The
-    main use case is within nested iterables:
-
-    >>> assert (
-    >>>     c.iter(
-    >>>         c.cumulative_reset("abc")
-    >>>         .iter(c.cumulative(c.this, c.this + c.PREV, label_name="abc"))
-    >>>         .as_type(list)
-    >>>     )
-    >>>     .as_type(list)
-    >>>     .execute([[0, 1, 2], [3, 4]])
-    >>> ) == [[0, 1, 3], [3, 7]]
-    """
-
-    def __init__(self, parent: "t.Any", label_name: str):
-        super().__init__()
-        self.label_name = label_name
-        self.parent = self.ensure_conversion(parent)
-        self.contents |= BaseConversion.ContentTypes.NEW_LABEL
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        return (
-            f"(_labels.pop({repr(self.label_name)}, None), "
-            f"{self.parent.gen_code_and_update_ctx(code_input, ctx)})[1]"
-        )
-
-
-class Cumulative(BaseConversion):
-    """A conversion which calculates cumulative values. The main use case is
-    using it within iterables:
-
-    >>> assert (
-    >>>     c.iter(c.cumulative(c.this, c.this + c.PREV))
-    >>>     .as_type(list)
-    >>>     .execute([0, 1, 2, 3, 4])
-    >>> ) == [0, 1, 3, 6, 10]
-    """
-
-    PREV = LazyEscapedString("prev_value")
-
-    def __init__(
-        self,
-        parent: "t.Any",
-        prepare_first: "t.Any",
-        reduce_two: "t.Any",
-        label_name: "t.Optional[str]" = None,
-    ):
-        """
-        Args:
-          parent: conversion which is used as an input
-          prepare_first: conversion which gets initial value from the first
-            element
-          reduce_two: conversion which reduces two values to one
-          label_name: custom name of cumulative to be used. It is needed when
-            :py:obj:`CumulativeReset`
-        """
-        super().__init__()
-        self.label_name = label_name or uuid4().hex
-
-        self.parent = self.ensure_conversion(parent)
-
-        label_conversion = LabelConversion(self.label_name)
-
-        self.prepare_first = self.ensure_conversion(prepare_first)
-        self.reduce_two = self.ensure_conversion(
-            Namespace(
-                reduce_two,
-                name_to_code={
-                    self.PREV.name: label_conversion.gen_code_and_update_ctx(
-                        None, label_conversion._init_ctx()
-                    )
-                },
-            )
-        )
-        self.contents |= BaseConversion.ContentTypes.NEW_LABEL
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        return PipeConversion(
-            self.parent,
-            If(
-                NaiveConversion(self.label_name).in_(
-                    EscapedString(LabelConversion.labels_code_name)
-                ),
-                self.reduce_two,
-                self.prepare_first,
-            ),
-            label_output=self.label_name,
-        ).gen_code_and_update_ctx(code_input, ctx)

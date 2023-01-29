@@ -1,3 +1,11 @@
+## 0.42.0 (2023-01-29)
+
+**Features**
+
+- introduced `c.iter_unique(element_conv=None, by_=None)` and
+  `(...).iter_unique` methods which define a conversion, which iterates over
+  the input and yields values unique based on the provided condition
+
 ## 0.41.0 (2023-01-16)
 
 **Features**

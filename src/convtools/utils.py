@@ -8,6 +8,7 @@ import tempfile
 import threading
 import typing as t
 from collections import deque
+from importlib import import_module
 from typing import TYPE_CHECKING
 from weakref import finalize
 
@@ -230,3 +231,26 @@ def iter_windows(collection, width, step):
                 yield tuple(window)
             index += 1
             window.popleft()
+
+
+obj_getattribute = object.__getattribute__
+
+
+class LazyModule:
+    """Lazy import helper, which caches results of importlib.import_module"""
+
+    __slots__ = ["name", "package", "_module"]
+
+    def __init__(self, name, package=None):
+        self.name = name
+        self.package = package
+        self._module = None
+
+    def __getattribute__(self, name):
+        module = obj_getattribute(self, "_module")
+        if module is None:
+            module = self._module = import_module(
+                obj_getattribute(self, "name"),
+                obj_getattribute(self, "package"),
+            )
+        return getattr(module, name)
