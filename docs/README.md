@@ -1,8 +1,18 @@
 # Welcome to convtools
 
-**convtools** is a niche python library created to dynamically define data
-transforms using a declarative approach, while under the hood it generates
-ad-hoc python code (_see the debug stdout tabs below_).
+**convtools** is a specialized Python library designed for defining data
+transformations dynamically using a declarative approach. It automatically
+generates custom Python code for the user in the background.
+
+### ChatGPT's take on it :)
+
+	Introducing ConvTools, the revolutionary Python library for dynamic data
+	transformations! With its declarative approach, transforming data has never
+	been easier. Say goodbye to manual coding, ConvTools automatically
+	generates the code for you, saving you time and effort. Whether you're
+	working with large datasets or need to make real-time updates, ConvTools is
+	the solution you've been searching for. Get ready to experience the power
+	of efficient and effortless data transformation!
 
 [![License](https://img.shields.io/github/license/westandskif/convtools.svg)](https://github.com/westandskif/convtools/blob/master/LICENSE.txt)
 [![codecov](https://codecov.io/gh/westandskif/convtools/branch/master/graph/badge.svg)]( https://codecov.io/gh/westandskif/convtools)
