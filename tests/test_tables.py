@@ -316,6 +316,31 @@ def test_table_inner_join():
         (2, 3, 3, 4),
     ]
 
+    result = list(
+        Table.from_rows(
+            [
+                {"a": 1, "b": 2},
+                {"a": 2, "b": 3},
+            ]
+        )
+        .join(
+            Table.from_rows(
+                [
+                    (1, 10),
+                    (2, 20),
+                ],
+                header=["a", "c"],
+            ),
+            on="a",
+            how="inner",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"a": 1, "b": 2, "c": 10},
+        {"a": 2, "b": 3, "c": 20},
+    ]
+
 
 def test_table_left_simple():
     result = list(

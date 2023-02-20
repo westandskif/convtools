@@ -1,3 +1,10 @@
+## 0.42.1 (2023-02-20)
+
+**Bugfix**
+
+- fixed `Table.join` for cases where the right part has internal row type
+  different from the left one
+
 ## 0.42.0 (2023-01-29)
 
 **Features**

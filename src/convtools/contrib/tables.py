@@ -784,7 +784,7 @@ class Table:
             how,
         ).execute(
             left.into_iter_rows(left.row_type),
-            right=right.into_iter_rows(left.row_type),
+            right=right.into_iter_rows(right.row_type),
             debug=ConverterOptionsCtx.get_option_value("debug"),
         )
         new_columns = MetaColumns(
