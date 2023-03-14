@@ -59,8 +59,8 @@
                 size_ = 1
         yield chunk_
     
-    def pipe_i(input_i):
-        return list(chunk_by(input_i))
+    def pipe_i(input_):
+        return list(chunk_by(input_))
     
     def pipe_(input_):
         return pipe_i(take_while_e(input_))
