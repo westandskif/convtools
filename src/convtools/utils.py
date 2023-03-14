@@ -160,52 +160,65 @@ debug_dir = LazyDebugDir()
 
 
 class CodePiece:
-    __slots__ = ("code_str", "abs_path", "is_dumped")
+    """Piece of source code (a function at the moment)"""
 
-    def __init__(self, code_str, abs_path, is_dumped):
-        self.code_str = code_str
+    __slots__ = (
+        "converter_name",
+        "code_parts",
+        "abs_path",
+        "is_dumped",
+    )
+
+    def __init__(self, converter_name, code_parts, abs_path, is_dumped):
+        self.converter_name = converter_name
+        self.code_parts = code_parts
         self.abs_path = abs_path
         self.is_dumped = is_dumped
 
 
 class CodeStorage:
-    """Container which stores a map of converter names to generated code
-    pieces. It allows to dump code sources on disk into a debug directory."""
+    """Container which stores generated code pieces. It allows to dump code
+    sources on disk into a debug directory."""
 
     def __init__(self):
-        self.name_to_code_piece = {}
-        finalize(self, drop_dumped_code, self.name_to_code_piece)
+        self.key_to_code_piece = {}
+        self.converter_names = set()
+        finalize(self, drop_dumped_code, self.key_to_code_piece)
 
     def add_sources(self, converter_name, code_str):
-        if converter_name in self.name_to_code_piece:
-            code_piece = self.name_to_code_piece[converter_name]
-            if code_piece.code_str == code_str:
-                return code_piece.abs_path, False
+        def_name = f"def {converter_name}("
+        code_parts = (def_name, code_str.replace(def_name, ""))
 
+        code_piece = self.key_to_code_piece.get(code_parts[1])
+        if code_piece is not None:
+            return code_piece, False
+
+        if converter_name in self.converter_names:
             raise Exception(
                 "converter with a different code already exists",
                 converter_name,
             )
+        self.converter_names.add(converter_name)
 
         abs_path = os.path.join(
             debug_dir.get(), f"_{id(self)}_{converter_name}.py"
         )
-        self.name_to_code_piece[converter_name] = CodePiece(
-            code_str, abs_path, False
+        code_piece = self.key_to_code_piece[code_parts[1]] = CodePiece(
+            converter_name, code_parts, abs_path, False
         )
-        return abs_path, True
+        return code_piece, True
 
     def dump_sources(self):
         debug_dir.ensure_initialized()
-        for code_piece in self.name_to_code_piece.values():
+        for code_piece in self.key_to_code_piece.values():
             if not code_piece.is_dumped:
                 with open(code_piece.abs_path, "w", encoding="utf-8") as f:
-                    f.write(code_piece.code_str)
+                    f.write("".join(code_piece.code_parts))
                 code_piece.is_dumped = True
 
 
-def drop_dumped_code(name_to_code_piece):
-    for code_piece in name_to_code_piece.values():
+def drop_dumped_code(key_to_code_piece):
+    for code_piece in key_to_code_piece.values():
         if code_piece.is_dumped:
             try:
                 os.remove(code_piece.abs_path)

@@ -420,7 +420,7 @@ class BaseConversion(t.Generic[CT]):
 
     def compile_converter(
         self, converter_name: str, code: str, ctx: dict
-    ) -> t.Callable:
+    ) -> str:
         is_debug = ctx.get(
             "__debug", False
         ) or ConverterOptionsCtx.get_option_value("debug")
@@ -432,7 +432,7 @@ class BaseConversion(t.Generic[CT]):
             except black.InvalidInput:
                 pass
 
-        abs_path, added = ctx["__convtools__code_storage"].add_sources(
+        code_piece, added = ctx["__convtools__code_storage"].add_sources(
             converter_name, code
         )
 
@@ -440,10 +440,12 @@ class BaseConversion(t.Generic[CT]):
             if is_debug:
                 sys.stdout.write(code)
                 sys.stdout.write("\n")
-            code_obj = compile(code, abs_path, "exec", optimize=2)
+            code_obj = compile(code, code_piece.abs_path, "exec", optimize=2)
             exec(code_obj, ctx)  # pylint:disable=exec-used
             ctx[converter_name].conv_name = converter_name
-        return ctx[converter_name]
+            return converter_name
+        else:
+            return code_piece.converter_name
 
     NAMESPACES = "_name_to_code_input"
     CONVERTERS_CACHE = "_converters_cache"
@@ -1438,15 +1440,17 @@ class FunctionCtx:
         self.naive_to_optimize = None
 
     def gen_function(self, name, code):
+        return self.ctx[self.compile_n_return_name(name, code)]
+
+    def gen_conversion(self, name, code):
+        return EscapedString(self.compile_n_return_name(name, code))
+
+    def compile_n_return_name(self, name, code):
         return self.conversion.compile_converter(
             converter_name=name,
             code=code,
             ctx=self.ctx,
         )
-
-    def gen_conversion(self, name, code):
-        self.gen_function(name, code)
-        return EscapedString(name)
 
     def call_with_all_args(self, conversion):
         return conversion.call(*self.args_to_pass, **self.kwargs_to_pass)
@@ -2093,7 +2097,9 @@ class GetItem(BaseMethodConversion):
                     get_or_default_code=code_output,
                     default_code=default_code,
                 )
-                function_ctx.gen_function(converter_name, converter_code)
+                converter_name = function_ctx.compile_n_return_name(
+                    converter_name, converter_code
+                )
                 if do_caching:
                     ctx[self.CONVERTERS_CACHE][key] = converter_name
 
@@ -3069,8 +3075,8 @@ class PipeConversion(BaseConversion):
 
         suffix = self.gen_random_name("_", ctx)
         converter_name = f"pipe{suffix}"
-        var_result = f"result{suffix}"
-        var_input = f"input{suffix}"
+        var_result = "result_"
+        var_input = "input_"
 
         function_ctx = self.input_args_container.as_function_ctx(
             ctx, optimize_naive=True

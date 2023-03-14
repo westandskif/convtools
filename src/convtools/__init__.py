@@ -4,4 +4,4 @@ from .conversion import conversion  # noqa: F401
 from .dt import DateGrid, DateTimeGrid
 
 
-__version__ = "0.42.1"
+__version__ = "0.42.2"

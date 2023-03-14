@@ -683,11 +683,11 @@ def test_conditional_init_merges():
         sum(
             code_line.count("<")
             for code_line in next(
-                code_piece.code_str
-                for name, code_piece in converter.__globals__[
+                code_piece.code_parts[1]
+                for code_piece in converter.__globals__[
                     "__convtools__code_storage"
-                ].name_to_code_piece.items()
-                if name.startswith("group_by")
+                ].key_to_code_piece.values()
+                if code_piece.converter_name.startswith("group_by")
             )
         )
         == 1

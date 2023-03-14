@@ -12,8 +12,8 @@ def get_code_str(converter):
     if isinstance(converter, BaseConversion):
         converter = converter.gen_converter()
     return "\n".join(
-        code_piece.code_str
+        "".join(code_piece.code_parts)
         for code_piece in converter.__globals__[
             "__convtools__code_storage"
-        ].name_to_code_piece.values()
+        ].key_to_code_piece.values()
     )

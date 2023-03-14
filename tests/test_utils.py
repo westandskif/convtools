@@ -63,13 +63,14 @@ def test_replace_word():
 def test_add_sources():
     converter = This().gen_converter(debug=False)
     code_storage = converter.__globals__["__convtools__code_storage"]
-    for (
-        converter_name,
-        code_piece,
-    ) in code_storage.name_to_code_piece.items():
-        code_storage.add_sources(converter_name, code_piece.code_str)
+    for code_piece in code_storage.key_to_code_piece.values():
+        code_storage.add_sources(
+            code_piece.converter_name, "".join(code_piece.code_parts)
+        )
         with pytest.raises(Exception):
-            code_storage.add_sources(converter_name, code_piece.code_str + " ")
+            code_storage.add_sources(
+                code_piece.converter_name, "".join(code_piece.code_parts) + " "
+            )
 
     converter = c.escaped_string("abc + 1").gen_converter(debug=True)
     with pytest.raises(NameError):
@@ -79,8 +80,7 @@ def test_add_sources():
     conversion = This()
     ctx = conversion._init_ctx()
     code_str = "def abc(): return 1"
-    assert conversion.compile_converter("abc", code_str, ctx)() == 1
-    assert conversion.compile_converter("abc", code_str, ctx)() == 1
+    assert ctx[conversion.compile_converter("abc", code_str, ctx)]() == 1
 
 
 def test_ignores_input():

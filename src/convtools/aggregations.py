@@ -757,7 +757,9 @@ class Grouper(BaseConversion):
                 code.add_line(f"self.{attr} = _none", 0)
         else:
             code.add_line("pass", 0)
-        return self.compile_converter(container_name, code.to_string(0), ctx)
+        return ctx[
+            self.compile_converter(container_name, code.to_string(0), ctx)
+        ]
 
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         ctx["defaultdict"] = defaultdict

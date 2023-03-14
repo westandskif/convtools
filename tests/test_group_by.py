@@ -11,6 +11,42 @@ from convtools.base import LazyEscapedString, Namespace
 from .utils import get_code_str
 
 
+def test_group_by_with_attr_lookups():
+    converter = (
+        c.group_by(c.attr("original_payment", "source", default=None))
+        .aggregate(
+            (
+                c.attr("original_payment", "source", default=None),
+                c.ReduceFuncs.Max(c.attr("date_original")),
+            )
+        )
+        .gen_converter()
+    )
+
+    class A:
+        class original_payment:
+            source = 1
+
+        date_original = 100
+
+    class B:
+        date_original = 10
+
+    assert converter([A, B]) == [(1, 100), (None, 10)]
+
+    converter = (
+        c.group_by(c.call_func(int, c.this).pipe((c.this, c.this)))
+        .aggregate(
+            (
+                c.call_func(int, c.this).pipe((c.this, c.this)),
+                c.ReduceFuncs.Count(),
+            )
+        )
+        .gen_converter()
+    )
+    assert converter(["1", "2"]) == [((1, 1), 1), ((2, 2), 1)]
+
+
 def test_manually_defined_reducers():
     data = [
         {"name": "John", "category": "Games", "debit": 10, "balance": 90},

@@ -1,3 +1,11 @@
+## 0.42.2 (2023-03-14)
+
+**Bugfix**
+
+- fixed `c.group_by` for cases where group by keys are generated functions
+  (e.g. deep attr lookup with default). No worries about silent errors, it used
+  to fail hard.
+
 ## 0.42.1 (2023-02-20)
 
 **Bugfix**
