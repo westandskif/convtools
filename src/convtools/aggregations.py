@@ -716,9 +716,9 @@ class Grouper(BaseConversion):
         self.aggregate_mode = len(self.by) == 0
 
         if conversion:
-            self.conversion = conversion
+            self.conversion = self.ensure_conversion(conversion)
         else:
-            self.conversion = (
+            self.conversion = self.ensure_conversion(
                 ListComp(
                     GeneratorItem(
                         self.AGG_RESULT_ITEM,

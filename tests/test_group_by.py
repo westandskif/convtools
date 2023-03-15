@@ -895,3 +895,32 @@ def test_group_by_delegate():
         .execute([(1, 1), (1, 2), (3, 4)])
     )
     assert isinstance(result, GeneratorType) and list(result) == [3, 4]
+
+
+def test_group_by_with_labels():
+    converter = (
+        c.this.pipe(c.this, label_input={"label_d": c.item(0, "b")})
+        .pipe(
+            c.group_by(c.item("a"))
+            .aggregate(
+                {
+                    "a": c.item("a"),
+                    "sum": c.ReduceFuncs.Sum(c.item("b")),
+                }
+            )
+            .iter_mut(
+                c.Mut.set_item("c", c.input_arg("input_c")),
+                c.Mut.set_item("d", c.label("label_d")),
+            )
+            .as_type(list)
+        )
+        .gen_converter(debug=True)
+    )
+    assert converter(
+        [
+            {"a": 1, "b": 0},
+            {"a": 1, "b": 1},
+            {"a": 1, "b": 2},
+        ],
+        input_c=7,
+    ) == [{"a": 1, "sum": 3, "c": 7, "d": 0}]

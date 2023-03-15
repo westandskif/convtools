@@ -1,3 +1,10 @@
+## 0.42.3 (2023-03-15)
+
+**Bugfix**
+
+- fixed `c.group_by` for cases with input_arg/label inside and
+  iter/as_type/sort/tap methods called on it
+
 ## 0.42.2 (2023-03-14)
 
 **Bugfix**
