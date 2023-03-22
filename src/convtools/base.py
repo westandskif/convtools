@@ -121,7 +121,7 @@ def ensure_conversion(
             explicitly_allowed_cls is None
             or not isinstance(conversion, explicitly_allowed_cls)
         ):
-            raise Exception(
+            raise AssertionError(
                 f"{conversion} cannot be used in this context unless "
                 "explicitly allowed"
             )
@@ -1560,7 +1560,7 @@ class NamespaceControlledUnit(BaseConversion):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         if self.namespace_ctx.active:
-            raise Exception(
+            raise AssertionError(
                 "rendering prevented by parent NamespaceCtx, "
                 "move rendering out"
             )
@@ -2599,7 +2599,7 @@ class OptionalCollectionItem(BaseConversion):
             skip_if is not self._none or keep_if is not self._none
         )
         if condition_is_passed and skip_value is not None:
-            raise Exception("both condition and skip_value are passed")
+            raise ValueError("both condition and skip_value are passed")
         self.conversion = self.ensure_conversion(conversion)
         if condition_is_passed:
             if skip_if is not self._none:
@@ -2615,7 +2615,7 @@ class OptionalCollectionItem(BaseConversion):
                 )
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        raise Exception(
+        raise AssertionError(
             "OptionalCollectionItem cannot be used outside of collections"
         )
 

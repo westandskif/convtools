@@ -638,7 +638,6 @@ class DateTimeGrid:
     def around(
         self, dt_start: datetime, dt_end: datetime
     ) -> "Iterator[datetime]":
-
         return self.f(dt_start, dt_end, self.step, self.offset, self.mode)
 
 

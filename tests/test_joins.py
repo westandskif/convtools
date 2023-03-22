@@ -137,7 +137,6 @@ def test_join_conditions():
 
 
 def test_hash_joins():
-
     join1 = (
         c.join(c.item(0), c.item(1), c.LEFT.item("id") == c.RIGHT.item("id"))
         .as_type(list)

@@ -5,7 +5,6 @@ from convtools import conversion as c
 
 
 def test_doc__index_word_count():
-
     # Let's say we need to count words across all files
     input_data = [
         "war-and-peace-1.txt",

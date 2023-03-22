@@ -1,5 +1,5 @@
 tags
-build/
+dist/
 pip-wheel-metadata/
 src/convtools.egg-info/
 tmp/
