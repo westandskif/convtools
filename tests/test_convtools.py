@@ -634,7 +634,9 @@ def test_list_comprehension():
     assert c.list_comp(c.item("name")).sort(
         key=lambda n: n, reverse=True
     ).gen_converter()(data) == ["Nick", "John", "Bill"]
-    assert c.list_comp({(c.item("name"),)},).execute(data) == [
+    assert c.list_comp(
+        {(c.item("name"),)},
+    ).execute(data) == [
         {("John",)},
         {("Bill",)},
         {("Nick",)},

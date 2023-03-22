@@ -1,12 +1,76 @@
-[tool.towncrier]
-package = "convtools"
-package_dir = "src"
-filename = "CHANGELOG.rst"
-directory = "CHANGES/"
-title_format = "{version} ({project_date})"
-template = "CHANGES/.TEMPLATE.rst"
-issue_format = "`#{issue} <https://github.com/westandskif/convtools/issues/{issue}>`_"
-underlines = "-+~"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.sources]
+"src/convtools" = "convtools"
+
+[tool.hatch.build.targets.sdist]
+include = ["/src"]
+
+
+[project]
+name = "convtools"
+version = "0.42.3"
+description = "convtools allows to define and reuse conversions for processing collections and csv tables, complex aggregations and joins."
+readme = "README.md"
+requires-python = ">=3.6,<3.12"
+license = {file = "LICENSE.txt"}
+keywords = ["etl", "converters", "codegen", "convtools"]
+authors = [
+  {email = "nikita.almakov@gmail.com", name = "Nikita Almakov"},
+]
+maintainers = [
+  {email = "nikita.almakov@gmail.com", name = "Nikita Almakov"},
+]
+classifiers = [
+	"Development Status :: 5 - Production/Stable",
+	"Intended Audience :: Developers",
+	"License :: OSI Approved :: MIT License",
+	"Operating System :: OS Independent",
+	"Programming Language :: Python",
+	"Programming Language :: Python :: 3 :: Only",
+	"Programming Language :: Python :: 3.6",
+	"Programming Language :: Python :: 3.7",
+	"Programming Language :: Python :: 3.8",
+	"Programming Language :: Python :: 3.9",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Topic :: Software Development :: Code Generators",
+	"Topic :: Software Development :: Libraries",
+	"Topic :: Software Development :: Libraries :: Python Modules",
+	"Topic :: Utilities",
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov", "pytest-benchmark"]
+lint = [
+    "black",
+    "flake8",
+    "isort",
+    "mypy",
+    "pylint",
+]
+build = [
+    "hatch",
+]
+doc = [
+    "markdown-include",
+    "mdx-truly-sane-lists",
+    "mkdocs",
+    "mkdocs-exclude",
+    "mkdocs-material",
+    "pygments",
+    "pymdown-extensions",
+]
+
+[project.urls]
+homepage = "https://github.com/westandskif/convtools"
+documentation = "https://convtools.readthedocs.io/en/latest/"
+repository = "https://github.com/westandskif/convtools"
+changelog = "https://github.com/westandskif/convtools/blob/master/docs/CHANGELOG.md"
+
 
 [tool.black]
 line-length = 79
@@ -24,4 +88,11 @@ lines_between_types = 0
 multi_line_output = 3
 order_by_type = true
 use_parentheses = true
+src_paths = ["src", "tests"]
 
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--cov convtools --cov-report term-missing --cov-report xml --verbose"
+testpaths = [
+    "tests",
+]

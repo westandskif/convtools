@@ -9,7 +9,6 @@ import sys
 
 PY_VERSION = sys.version_info[0:2]
 if PY_VERSION <= (3, 6):
-
     # 3.6.15
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
         # base_time: 4.0568550033715e-11
@@ -26,7 +25,6 @@ if PY_VERSION <= (3, 6):
         UNPREDICTABLE = 171100
 
 elif PY_VERSION <= (3, 7):  # pragma: no cover
-
     # 3.7.16
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
         # base_time: 4.08321829275715e-11
@@ -43,7 +41,6 @@ elif PY_VERSION <= (3, 7):  # pragma: no cover
         UNPREDICTABLE = 168500
 
 elif PY_VERSION == (3, 8):  # pragma: no cover
-
     # 3.8.16
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
         # base_time: 4.144752377655609e-11
@@ -60,7 +57,6 @@ elif PY_VERSION == (3, 8):  # pragma: no cover
         UNPREDICTABLE = 175800
 
 elif PY_VERSION == (3, 9):  # pragma: no cover
-
     # 3.9.12
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
         # base_time: 4.01792780282291e-11
@@ -77,7 +73,6 @@ elif PY_VERSION == (3, 9):  # pragma: no cover
         UNPREDICTABLE = 191200
 
 elif PY_VERSION == (3, 10):  # pragma: no cover
-
     # 3.10.9
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
         # base_time: 4.1176799481692785e-11
@@ -94,7 +89,6 @@ elif PY_VERSION == (3, 10):  # pragma: no cover
         UNPREDICTABLE = 179800
 
 else:
-
     # 3.11.1
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
         # base_time: 4.285590663856272e-11

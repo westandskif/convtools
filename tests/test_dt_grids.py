@@ -12,7 +12,6 @@ def utc(*args, **kwargs):
 
 
 def test_date_grid():
-
     result = list(DateGrid("y").around(date(2000, 1, 1), date(2004, 1, 1)))
     assert result == [
         date(2000, 1, 1),

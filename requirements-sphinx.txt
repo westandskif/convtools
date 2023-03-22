@@ -1,5 +1,0 @@
-rst_include
-sphinx==4.*
-sphinx-copybutton==0.4.*
-furo==2021.7.5b38
-sphinx-tabs==3.1.*

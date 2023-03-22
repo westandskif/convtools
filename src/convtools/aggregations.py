@@ -665,7 +665,6 @@ class GroupBy:
     def aggregate(
         self, reducer: t.Union[dict, list, set, tuple, BaseConversion]
     ) -> "Grouper":
-
         return Grouper(self.by, reducer)
 
 
@@ -835,11 +834,11 @@ class Grouper(BaseConversion):
                     )
                 )
 
-            agg_template_kwargs = dict(
-                code_args=function_ctx.get_def_all_args_code(),
-                code_result=f"    return {code_final_result}",
-                var_row=var_row,
-            )
+            agg_template_kwargs = {
+                "code_args": function_ctx.get_def_all_args_code(),
+                "code_result": f"    return {code_final_result}",
+                "var_row": var_row,
+            }
 
             if self.aggregate_mode:
                 converter_name = f"aggregate{suffix}"

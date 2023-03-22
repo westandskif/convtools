@@ -194,7 +194,7 @@ class CodeStorage:
             return code_piece, False
 
         if converter_name in self.converter_names:
-            raise Exception(
+            raise ValueError(
                 "converter with a different code already exists",
                 converter_name,
             )

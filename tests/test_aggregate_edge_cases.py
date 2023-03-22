@@ -405,8 +405,16 @@ def test_nested_group_by():
     assert c.group_by(c.item(0)).aggregate(
         (
             c.item(0),
-            c.if_(c.item(1), c.item(1), c.item(1),).pipe(
-                c.if_(c.this, c.this, c.this,).pipe(
+            c.if_(
+                c.item(1),
+                c.item(1),
+                c.item(1),
+            ).pipe(
+                c.if_(
+                    c.this,
+                    c.this,
+                    c.this,
+                ).pipe(
                     c.ReduceFuncs.Sum(
                         c.if_(
                             c.this,

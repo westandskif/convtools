@@ -55,7 +55,7 @@ def test_replace_word():
         (" abc ", "abc", "cde", " cde "),
         (" abc abc abc abc  ", "abc", "cde", " cde cde cde cde  "),
     ]
-    for (where, word, with_what, expected_result) in cases:
+    for where, word, with_what, expected_result in cases:
         result = BaseConversion.replace_word(where, word, with_what)
         assert result == expected_result
 

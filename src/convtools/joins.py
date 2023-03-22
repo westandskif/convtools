@@ -373,7 +373,6 @@ class JoinConversion(BaseConversion):
                 )
 
             else:
-
                 if join_conditions.right_collection_filters:
                     code.add_line(
                         "right_ = %s"
