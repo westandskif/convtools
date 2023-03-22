@@ -1,3 +1,12 @@
+## 0.42.4 (2023-03-22)
+
+** Misc **
+
+- locked CI dependencies
+- switched packaging to hatch
+- dropped setup.py and setup.cfg in favor of pyproject.toml
+
+
 ## 0.42.3 (2023-03-15)
 
 **Bugfix**
