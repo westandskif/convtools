@@ -17,4 +17,4 @@ mkdocs:
 # Optionally declare the Python requirements required to build your docs
 python:
    install:
-     - requirements: requirements/py-3.9-test-lint-doc-build.txt
+     - requirements: ci-requirements/py3.9-lint-doc-build/requirements.txt
