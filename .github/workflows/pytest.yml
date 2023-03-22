@@ -22,6 +22,7 @@ jobs:
         if: ${{ matrix.python-version == '3.9' }}
         run: |
           pip install -r requirements/py-3.9-test-lint-doc-build.txt
+          pip install -e .
           # stop the build if there are Python syntax errors or undefined names
           flake8 src tests --count --select=E9,F63,F7,F82 --show-source --statistics
           # stop the build if there is something black can fix
@@ -34,4 +35,5 @@ jobs:
         if: ${{ matrix.python-version != '3.9' }}
         run: |
           pip install -r requirements/py-${{ matrix.python-version }}-test.txt
+          pip install -e .
           pytest --benchmark-skip
