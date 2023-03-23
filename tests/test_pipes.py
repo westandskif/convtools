@@ -3,7 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from convtools import conversion as c
-from convtools.base import PipeConversion
+from convtools._base import PipeConversion
 
 
 def test_pipes_base():
@@ -237,7 +237,7 @@ def test_pipe_single_call_functions():
 
 def test_pipe_conversion():
     from convtools import conversion as c
-    from convtools.base import PipeConversion
+    from convtools._base import PipeConversion
 
     assert PipeConversion(c.naive([1, 2, 3]), c.item(1)).execute(None) == 2
     assert (

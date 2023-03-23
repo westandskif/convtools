@@ -1,7 +1,7 @@
 import pytest
 
 from convtools import conversion as c
-from convtools.base import LazyEscapedString
+from convtools._base import LazyEscapedString
 
 
 def test_bad_namespace_usage():

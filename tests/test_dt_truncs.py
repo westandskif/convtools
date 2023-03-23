@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from convtools import conversion as c
-from convtools.dt import to_step
+from convtools._dt import to_step
 
 
 def utc(*args, **kwargs):

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from convtools import conversion as c
-from convtools.base import LazyEscapedString, Namespace
-from convtools.utils import Code
+from convtools._base import LazyEscapedString, Namespace
+from convtools._utils import Code
 
 from .utils import get_code_str
 

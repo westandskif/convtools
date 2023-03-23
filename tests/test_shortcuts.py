@@ -1,7 +1,7 @@
 import pytest
 
 from convtools import conversion as c
-from convtools.debug import Breakpoint
+from convtools._debug import Breakpoint
 
 
 def test_base_zip():

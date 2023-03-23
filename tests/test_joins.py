@@ -1,8 +1,8 @@
 import pytest
 
 from convtools import conversion as c
-from convtools.base import Eq
-from convtools.conversion import _JoinConditions
+from convtools._base import Eq
+from convtools._conversion import _JoinConditions
 
 
 def test_join_conditions():

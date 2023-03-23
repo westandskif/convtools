@@ -1,6 +1,6 @@
 """Provides conversions for working with unique values"""
-from .base import BaseConversion, EscapedString
-from .utils import Code
+from ._base import BaseConversion, EscapedString
+from ._utils import Code
 
 
 class IterUnique(BaseConversion):

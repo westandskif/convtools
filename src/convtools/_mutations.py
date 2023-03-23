@@ -1,7 +1,7 @@
 """This module brings in-place mutations"""
-from .base import BaseConversion, BaseMutation
-from .heuristics import Weights
-from .utils import Code
+from ._base import BaseConversion, BaseMutation
+from ._heuristics import Weights
+from ._utils import Code
 
 
 class BaseNameValueMutation(BaseMutation):

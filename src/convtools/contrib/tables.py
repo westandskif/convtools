@@ -13,7 +13,7 @@ import typing as t  # pylint: disable=unused-import
 from collections.abc import Sized
 from itertools import chain, zip_longest
 
-from ..base import (
+from .._base import (
     And,
     BaseConversion,
     ConverterOptionsCtx,
@@ -28,8 +28,8 @@ from ..base import (
     Tuple,
     ensure_conversion,
 )
-from ..columns import ColumnChanges, ColumnRef, MetaColumns
-from ..joins import JoinConversion, LeftJoinCondition, RightJoinCondition
+from .._columns import ColumnChanges, ColumnRef, MetaColumns
+from .._joins import JoinConversion, LeftJoinCondition, RightJoinCondition
 
 
 _none = BaseConversion._none

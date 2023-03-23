@@ -1,3 +1,17 @@
+## 1.0.0 (2023-03-23)
+
+- renamed all non-public modules so the only supported way to import is
+  directly from "convtools", e.g.:
+
+    * `from convtools import conversion as c`
+    * `from convtools import DateGrid, DateTimeGrid`
+
+- contrib ones are left as is:
+
+    * `from convtools.contrib.tables import Table`
+	* `from convtools.contrib.fs import split_buffer`
+
+
 ## 0.37.0 (2022-09-29)
 
 Changed `add_label` signature from:
@@ -10,6 +24,7 @@ to:
 ```
 The reason is that it had confusing behavior of applying the conversion after
 labeling.
+
 
 ## 0.24.0 (2022-05-29)
 
@@ -47,27 +62,28 @@ confusion. Now it's dropped.
   only, no longer injecting conditions inside comprehensions & reducers.
   Now to pass conditions to comprehensions & reducers, use the following:
 
-  .. code-block:: python
-
-     # REPLACE THIS
-     c.ReduceFuncs.Array(c.item("a")).filter(c.item("b") == "bar")
-     # WITH THAT
-     c.ReduceFuncs.Array(c.item("a"), where=c.item("b") == "bar")
-     # if the condition is to be applied before the aggregation
-     # or leave as is if you want to filter the resulting array
+```python
+# REPLACE THIS
+c.ReduceFuncs.Array(c.item("a")).filter(c.item("b") == "bar")
+# WITH THAT
+c.ReduceFuncs.Array(c.item("a"), where=c.item("b") == "bar")
+# if the condition is to be applied before the aggregation
+# or leave as is if you want to filter the resulting array
+```
+  
 
 - ``c.generator_comp(...).filter(condition)`` no longer pushes condition inside
   the comprehension, the filtering works on resulting generator
 
-  .. code-block:: python
-
-     # REPLACE THIS
-     c.generator_comp(c.item("a")).filter(c.item("b") == "bar")
-     # WITH THAT
-     c.generator_comp(c.item("a"), where=c.item("b") == "bar")
-     # if the condition is to be put to the IF clause of the comprehension to
-     # work with the input elements or leave it as is if you want to filter the
-     # resulting generator
+```python
+# REPLACE THIS
+c.generator_comp(c.item("a")).filter(c.item("b") == "bar")
+# WITH THAT
+c.generator_comp(c.item("a"), where=c.item("b") == "bar")
+# if the condition is to be put to the IF clause of the comprehension to
+# work with the input elements or leave it as is if you want to filter the
+# resulting generator
+```
 
   The same applies to:
 

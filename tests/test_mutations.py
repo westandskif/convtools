@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 
 from convtools import conversion as c
-from convtools.base import GetItem
+from convtools._base import GetItem
 
 
 def test_mutation_item():

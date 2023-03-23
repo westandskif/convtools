@@ -2,7 +2,7 @@
 import pdb
 import sys
 
-from .base import BaseConversion, ensure_conversion
+from ._base import BaseConversion, ensure_conversion
 
 
 if "pydevd" in sys.modules:  # pragma: no cover

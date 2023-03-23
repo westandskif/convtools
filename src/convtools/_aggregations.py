@@ -4,7 +4,7 @@ from collections import defaultdict
 from decimal import Decimal
 from math import ceil
 
-from .base import (
+from ._base import (
     BaseConversion,
     CallFunc,
     ConversionException,
@@ -25,8 +25,8 @@ from .base import (
     _None,
     ensure_conversion,
 )
-from .heuristics import Weights
-from .utils import Code
+from ._heuristics import Weights
+from ._utils import Code
 
 
 _none = BaseConversion._none

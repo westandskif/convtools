@@ -3,7 +3,7 @@ The main module exposing public API (via conversion object)
 """
 from itertools import repeat
 
-from .aggregations import (
+from ._aggregations import (
     Aggregate,
     BaseReducer,
     GroupBy,
@@ -11,7 +11,7 @@ from .aggregations import (
     ReduceFuncs,
     ReducerDispatcher,
 )
-from .base import (
+from ._base import (
     And,
     ApplyFunc,
     BaseConversion,
@@ -47,11 +47,11 @@ from .base import (
     TupleComp,
     ensure_conversion,
 )
-from .chunks import ChunkBy, ChunkByCondition
-from .columns import ColumnRef
-from .cumulative import Cumulative
-from .joins import JoinConversion, _JoinConditions
-from .mutations import Mutations
+from ._chunks import ChunkBy, ChunkByCondition
+from ._columns import ColumnRef
+from ._cumulative import Cumulative
+from ._joins import JoinConversion, _JoinConditions
+from ._mutations import Mutations
 
 
 __all__ = ["conversion", "Conversion"]
@@ -62,22 +62,18 @@ _none = BaseConversion._none
 class Conversion:
     """The object, which exposes public API
 
-    .. code-block:: python
-
-      from convtools import conversion as c
-
-      convert = c.aggregate(
-          c.ReduceFuncs.DictSum(
-              c.item("name"),
-              c.item("value")
-          )
-      ).gen_converter(debug=True)
-
-      assert convert([
-          {"name": "Bob", "value": 10},
-          {"name": "Bob", "value": 7},
-          {"name": "Ron", "value": 3},
-      ]) == {'Bob': 17, 'Ron': 3}
+    >>> from convtools import conversion as c
+    >>> convert = c.aggregate(
+    >>>     c.ReduceFuncs.DictSum(
+    >>>         c.item("name"),
+    >>>         c.item("value")
+    >>>     )
+    >>> ).gen_converter(debug=True)
+    >>> assert convert([
+    >>>     {"name": "Bob", "value": 10},
+    >>>     {"name": "Bob", "value": 7},
+    >>>     {"name": "Ron", "value": 3},
+    >>> ]) == {'Bob': 17, 'Ron': 3}
 
     """
 

@@ -8,7 +8,7 @@ from typing import List, Tuple
 import pytest
 
 from convtools import conversion as c
-from convtools.aggregations import MultiStatementReducer
+from convtools._aggregations import MultiStatementReducer
 
 
 class SumReducer1(MultiStatementReducer):

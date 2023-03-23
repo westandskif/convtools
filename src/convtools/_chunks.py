@@ -3,8 +3,8 @@ Provides conversions for slicing iterables into chunks.
 """
 import typing as t
 
-from .aggregations import Aggregate
-from .base import BaseConversion, Code, LazyEscapedString, Namespace, This
+from ._aggregations import Aggregate
+from ._base import BaseConversion, Code, LazyEscapedString, Namespace, This
 
 
 _none = BaseConversion._none

@@ -2,7 +2,7 @@ from collections import OrderedDict
 from types import GeneratorType
 
 from convtools import conversion as c
-from convtools.base import (
+from convtools._base import (
     BaseConversion,
     Call,
     ListComp,

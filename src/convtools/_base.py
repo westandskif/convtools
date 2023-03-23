@@ -11,7 +11,7 @@ from itertools import chain
 from keyword import iskeyword
 from random import Random
 
-from .dt import (
+from ._dt import (
     DayOfWeekStep,
     MonthStep,
     TruncModes,
@@ -24,8 +24,8 @@ from .dt import (
     datetime_trunc_to_month,
     to_step,
 )
-from .heuristics import Weights
-from .utils import (
+from ._heuristics import Weights
+from ._utils import (
     BaseCtx,
     BaseOptions,
     Code,
@@ -35,10 +35,10 @@ from .utils import (
 )
 
 
-convtools_cumulative = LazyModule("convtools.cumulative")
-convtools_debug = LazyModule("convtools.debug")
-convtools_mutations = LazyModule("convtools.mutations")
-convtools_unique = LazyModule("convtools.unique")
+convtools_cumulative = LazyModule("convtools._cumulative")
+convtools_debug = LazyModule("convtools._debug")
+convtools_mutations = LazyModule("convtools._mutations")
+convtools_unique = LazyModule("convtools._unique")
 
 
 black: "t.Optional[t.Any]" = None
@@ -73,11 +73,9 @@ class ConverterOptionsCtx(BaseCtx):
 
     Example:
 
-    .. code-block:: python
-
-       with ConverterOptionsCtx() as options:
-           options.debug = True
-           # ...
+    >>> with ConverterOptionsCtx() as options:
+    >>>     options.debug = True
+    >>>     # ...
 
     """
 

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from convtools import conversion as c
-from convtools.columns import ColumnDef, MetaColumns
+from convtools._columns import ColumnDef, MetaColumns
 from convtools.contrib.tables import CloseFileIterator, Table
 
 

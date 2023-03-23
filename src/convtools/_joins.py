@@ -4,8 +4,8 @@ This module brings join functionality to the library
 import typing as t
 from itertools import chain, repeat
 
-from .aggregations import Aggregate, ReduceFuncs
-from .base import (
+from ._aggregations import Aggregate, ReduceFuncs
+from ._base import (
     And,
     BaseConversion,
     CallFunc,
@@ -19,8 +19,8 @@ from .base import (
     This,
     Tuple,
 )
-from .columns import ColumnRef
-from .utils import Code
+from ._columns import ColumnRef
+from ._utils import Code
 
 
 _none = BaseConversion._none

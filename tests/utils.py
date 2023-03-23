@@ -1,6 +1,6 @@
 from reprlib import Repr
 
-from convtools.base import BaseConversion
+from convtools._base import BaseConversion
 
 
 _repr = Repr()

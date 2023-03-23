@@ -1,6 +1,25 @@
+## 1.0.0 (2023-03-23)
+
+**Misc:**
+
+- stabilized API
+
+**BREAKING CHANGES:**
+
+- renamed all non-public modules so the only supported way to import is
+  directly from "convtools", e.g.:
+
+    * `from convtools import conversion as c`
+    * `from convtools import DateGrid, DateTimeGrid`
+
+- contrib ones are left as is:
+
+    * `from convtools.contrib.tables import Table`
+	* `from convtools.contrib.fs import split_buffer`
+
 ## 0.42.4 (2023-03-22)
 
-** Misc **
+**Misc**
 
 - locked CI dependencies
 - switched packaging to hatch

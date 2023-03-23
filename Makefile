@@ -7,6 +7,9 @@ install:
 docs:
 	python build-docs-examples.py
 
+docs_drop:
+	rm docs/examples-md/.last_build.csv || true
+
 docs_serve: docs
 	mkdocs serve
 

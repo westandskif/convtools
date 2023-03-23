@@ -5,7 +5,7 @@ conversions
 import typing as t
 from collections import defaultdict
 
-from .base import BaseConversion, ConversionException, GetItem
+from ._base import BaseConversion, ConversionException, GetItem
 
 
 class ColumnRef(BaseConversion):

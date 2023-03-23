@@ -5,8 +5,8 @@ from types import GeneratorType
 import pytest
 
 from convtools import conversion as c
-from convtools.aggregations import MultiStatementReducer
-from convtools.base import LazyEscapedString, Namespace
+from convtools._aggregations import MultiStatementReducer
+from convtools._base import LazyEscapedString, Namespace
 
 from .utils import get_code_str
 

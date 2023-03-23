@@ -1,13 +1,13 @@
 import pytest
 
 from convtools import conversion as c
-from convtools.base import (
+from convtools._base import (
     BaseConversion,
     ConverterOptions,
     ConverterOptionsCtx,
     This,
 )
-from convtools.utils import Code
+from convtools._utils import Code
 
 
 def test_code_generation_ctx():
