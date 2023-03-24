@@ -5,3 +5,4 @@ src/convtools.egg-info/
 tmp/
 .git/
 .mypy_cache/
+ci-requirements/

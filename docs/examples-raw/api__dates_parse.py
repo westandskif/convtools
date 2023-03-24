@@ -16,7 +16,7 @@ assert converter(["12/31/2020", "2021-01-01"]) == [
     date(2021, 1, 1),
 ]
 
-# SAME FOR DATETIMES, BUT LET'S USE METHOD
+# SAME FOR DATETIMES, BUT LET'S USE A METHOD
 converter = (
     c.item("dt").datetime_parse("%m/%d/%Y %H:%M").gen_converter(debug=True)
 )

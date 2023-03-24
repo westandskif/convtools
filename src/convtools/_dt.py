@@ -4,6 +4,8 @@ Defines datetime utility functions
 from datetime import date, datetime, timedelta
 from typing import Dict, Iterator, List, Type, Union
 
+from ._utils import _none
+
 
 date_from_ordinal = date.fromordinal
 datetime_from_ordinal = datetime.fromordinal
@@ -645,6 +647,7 @@ def date_parse(
     s,
     main_format,
     other_formats,
+    default,
     strptime__=datetime.strptime,
     exc__=(ValueError, TypeError),
 ):
@@ -659,13 +662,17 @@ def date_parse(
         except exc__:
             pass
 
-    raise ValueError("string doesn't match any format", s)
+    if default is _none:
+        raise ValueError("string doesn't match any format", s)
+
+    return default
 
 
 def datetime_parse(
     s,
     main_format,
     other_formats,
+    default,
     strptime__=datetime.strptime,
     exc__=(ValueError, TypeError),
 ):
@@ -680,4 +687,7 @@ def datetime_parse(
         except exc__:
             pass
 
-    raise ValueError("data doesn't match any format", s)
+    if default is _none:
+        raise ValueError("data doesn't match any format", s)
+
+    return default

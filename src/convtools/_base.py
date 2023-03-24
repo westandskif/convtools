@@ -31,6 +31,8 @@ from ._utils import (
     Code,
     CodeStorage,
     LazyModule,
+    _None,
+    _none,
     iter_windows,
 )
 
@@ -146,14 +148,6 @@ class ConversionException(Exception):
 CT = t.TypeVar("CT", bound="BaseConversion")
 
 
-class _None:
-    """Custom None type for the sake of typing AND ability to tell None passed
-    instead of default value to an optional parameter"""
-
-    pass
-
-
-_none = _None()
 _random = Random(1)
 choice = _random.choice
 
@@ -974,23 +968,50 @@ class BaseConversion(t.Generic[CT]):
         """Shortcut for :py:obj:`CumulativeReset`"""
         return convtools_cumulative.CumulativeReset(self, label_name)
 
-    def date_parse(self, main_format, *other_formats):
-        if other_formats:
-            return CallFunc(
-                date_parse, self, main_format, NaiveConversion(other_formats)
+    def date_parse(self, main_format, *other_formats, default=_none):
+        """Parses str to date using `main_format` first, then tries
+        `other_formats`, otherwise:
+          - returns `default if provided
+          - or raises ValueError
+        """
+        if other_formats or default is not _none:
+            default = ensure_conversion(default)
+            default_is_complex = not isinstance(default, NaiveConversion)
+            conversion = CallFunc(
+                date_parse,
+                self,
+                main_format,
+                NaiveConversion(other_formats),
+                None if default_is_complex else default,
             )
+            if default_is_complex:
+                conversion = conversion.or_(default)
+            return conversion
+
         return CallFunc(datetime.strptime, self, main_format).call_method(
             "date"
         )
 
-    def datetime_parse(self, main_format, *other_formats):
-        if other_formats:
-            return CallFunc(
+    def datetime_parse(self, main_format, *other_formats, default=_none):
+        """Parses str to datetime using `main_format` first, then tries
+        `other_formats`, otherwise:
+          - returns `default if provided
+          - or raises ValueError
+        """
+        if other_formats or default is not _none:
+            default = ensure_conversion(default)
+            default_is_complex = not isinstance(default, NaiveConversion)
+            conversion = CallFunc(
                 datetime_parse,
                 self,
                 main_format,
                 NaiveConversion(other_formats),
+                None if default_is_complex else default,
             )
+            if default_is_complex:
+                conversion = conversion.or_(default)
+            return conversion
+
         return CallFunc(datetime.strptime, self, main_format)
 
     def date_trunc(self, step, offset=None, mode="start"):

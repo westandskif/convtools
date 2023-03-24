@@ -1,3 +1,11 @@
+## 1.1.0 (2023-03-24)
+
+**Features**
+
+- added `default` to `c.date_parse` and `c.datetime_parse` to return when no
+  formats fit
+
+
 ## 1.0.0 (2023-03-23)
 
 **Misc:**

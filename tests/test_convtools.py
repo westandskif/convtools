@@ -307,6 +307,14 @@ def test_naive_conversion_item():
     assert c.this.eq(c.this == 2).execute(2) is False
     assert c.eq(c.this, c.this * 1, 7).execute(7) is True
 
+    method = MagicMock(return_value=-1)
+
+    converter = c.item(0, default=c.call_func(method)).gen_converter()
+    assert converter([10]) == 10
+    assert method.call_count == 0
+    assert converter([]) == -1
+    assert method.call_count == 1
+
 
 def test_item():
     assert c.item("key1").as_type(int).execute({"key1": "15"}) == 15

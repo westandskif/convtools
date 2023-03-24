@@ -6,12 +6,19 @@
 
 ## Parsing dates
 
-1. `c.date_parse` and `date_parse` parse dates
-1. `c.datetime_parse` and `datetime_parse` parse datetimes
+1. `c.date_parse(main_format, *other_formats, default=_none)` and `date_parse`
+   method parse dates
+1. `c.datetime_parse(main_format, *other_formats, default=_none)` and
+   `datetime_parse` method parse datetimes
 
 Both accept one or more formats, supported by `datetime.strptime`.
 
 {!examples-md/api__dates_parse.md!}
+
+Let's use `default`, so it is returned in cases where neither of provided
+formats fit:
+
+{!examples-md/api__dates_parse__default.md!}
 
 
 ## Date/Time Step

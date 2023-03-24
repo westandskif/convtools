@@ -267,3 +267,13 @@ class LazyModule:
                 obj_getattribute(self, "package"),
             )
         return getattr(module, name)
+
+
+class _None:
+    """Custom None type for the sake of typing AND ability to tell None passed
+    instead of default value to an optional parameter"""
+
+    pass
+
+
+_none = _None()
