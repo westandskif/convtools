@@ -11,11 +11,11 @@ include = ["/src"]
 
 [project]
 name = "convtools"
-version = "1.1.0"
+version = "1.1.1"
 description = "dynamic, declarative data transformations with automatic code generation"
 
 readme = "README.md"
-requires-python = ">=3.6,<3.12"
+requires-python = ">=3.6"
 license = {file = "LICENSE.txt"}
 keywords = ["etl", "converters", "codegen", "convtools"]
 authors = [

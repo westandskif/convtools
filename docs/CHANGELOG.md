@@ -1,3 +1,9 @@
+## 1.1.1 (2023-03-27)
+
+**Misc**
+
+- weakened python version requirements: changed `">=3.6,<3.12"` to `">=3.6"`
+
 ## 1.1.0 (2023-03-24)
 
 **Features**
