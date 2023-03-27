@@ -1,3 +1,9 @@
+## 1.1.2 (2023-03-27)
+
+**Bugfix**
+
+- fixed `c.naive` internals to work with `pypy`
+
 ## 1.1.1 (2023-03-27)
 
 **Misc**

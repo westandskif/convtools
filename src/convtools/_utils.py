@@ -277,3 +277,13 @@ class _None:
 
 
 _none = _None()
+
+
+def get_builtins_dict():
+    builtins = globals()["__builtins__"]
+    if isinstance(builtins, dict):
+        return builtins
+    # for pypy
+    return {
+        name: getattr(builtins, name) for name in dir(builtins)
+    }  # pragma: no cover

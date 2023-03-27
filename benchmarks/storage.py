@@ -37,7 +37,7 @@ class BenchmarkStorageItemV1:
         return (self.py_version[0:2], self.version, self.name)
 
     def get_key_to_compare_speed(self):
-        return (self.py_version[0:2], self.name)
+        return (self.name,)
 
     @staticmethod
     def get_field_names():
@@ -90,10 +90,7 @@ class BenchmarkResultsStorageV1:
         self.new_results.append(result)
 
     def get_base_time(self):
-        number, time_taken = SimpleTimer("'abc'").auto_measure(
-            rel_precision=0.001
-        )
-        return time_taken / number
+        return 1e-10
 
     def save(self):
         if not self.new_results:

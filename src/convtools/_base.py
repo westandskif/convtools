@@ -33,6 +33,7 @@ from ._utils import (
     LazyModule,
     _None,
     _none,
+    get_builtins_dict,
     iter_windows,
 )
 
@@ -1223,7 +1224,7 @@ class NaiveConversion(BaseConversion):
     inside other conversions.
     """
 
-    _builtin_dict = globals()["__builtins__"]
+    _builtin_dict = get_builtins_dict()
     self_content_type = (
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
