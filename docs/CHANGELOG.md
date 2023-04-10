@@ -1,3 +1,44 @@
+## 1.2.0 (2023-04-10)
+
+**Deprecations**
+
+- The following reducers never really worked with `initial` keyword argument
+  because the underlying data structure was never exposed and this led to
+  undefined behavior. Until `v2.0` such reducers with `internals_are_public ==
+  False` will ignore `initial`, in `v2.0` if `initial` is passed, they will
+  raise `ValueError`:
+
+```
+   * ArrayDistinct
+   * CountDistinct
+   * First
+   * Last
+   * MaxRow
+   * MinRow
+   * SortedArray
+   * Dict
+   * DictArray
+   * DictArrayDistinct
+   * DictCount
+   * DictCountDistinct
+   * DictFirst
+   * DictLast
+   * DictMax
+   * DictMin
+   * DictSum
+   * DictSumOrNone
+```
+
+**Bugfix**
+
+- now `c.ReduceFuncs.Count()` counts rows, while `c.ReduceFuncs.Count(c.this)`
+  counts not `None` values; both of these used to calculate rows (like SQL's
+  `count(*)`)
+- now `c.ReduceFuncs.DictCount(c.this)` counts rows, while
+  `c.ReduceFuncs.DictCount(c.item("key"), c.item("value"))` counts not `None`
+  values; both of these used to calculate rows (*like SQL's `count(*)`*)
+
+
 ## 1.1.2 (2023-03-27)
 
 **Bugfix**

@@ -43,16 +43,19 @@
     ```python
     def aggregate_i(_none, data_, *, __v=__naive_values__["__v"]):
         agg_data_i_v0 = _none
-        checksum_ = 0
     
+        checksum_ = 0
         it_ = iter(data_)
         for row_i in it_:
             if agg_data_i_v0 is _none:
-                agg_data_i_v0 = _d = defaultdict(list)
-                _d[row_i[0]].append(row_i)
+                checksum_ += 1
+                agg_data_i_v0 = defaultdict(list)
+                agg_data_i_v0[row_i[0]].append(row_i)
+            else:
+                agg_data_i_v0[row_i[0]].append(row_i)
+            if checksum_ == 1:
                 globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
                 break
-    
         for row_i in it_:
             agg_data_i_v0[row_i[0]].append(row_i)
     
@@ -85,16 +88,19 @@
     
     def aggregate_e(_none, data_, *, __v=__naive_values__["__v"]):
         agg_data_e_v0 = _none
-        checksum_ = 0
     
+        checksum_ = 0
         it_ = iter(data_)
         for row_e in it_:
             if agg_data_e_v0 is _none:
-                agg_data_e_v0 = _d = defaultdict(list)
-                _d[row_e[0]].append(row_e)
+                checksum_ += 1
+                agg_data_e_v0 = defaultdict(list)
+                agg_data_e_v0[row_e[0]].append(row_e)
+            else:
+                agg_data_e_v0[row_e[0]].append(row_e)
+            if checksum_ == 1:
                 globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
                 break
-    
         for row_e in it_:
             agg_data_e_v0[row_e[0]].append(row_e)
     

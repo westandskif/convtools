@@ -28,6 +28,7 @@ jobs:
           # stop the build if there is something black can fix
           black src tests --check
           isort src tests --check
+          mypy --check-untyped-defs src
           pytest --benchmark-skip
           bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV_TOKEN }}
 

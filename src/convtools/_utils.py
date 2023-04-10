@@ -47,6 +47,8 @@ class BaseOptionsMeta(type):
 class BaseOptions(object, metaclass=BaseOptionsMeta):
     """Container object, which carries current options"""
 
+    _option_attrs: dict
+
     def clone(self):
         clone = self.__class__()
         for option_attr in self._option_attrs.keys():
@@ -125,8 +127,12 @@ class Code:
     def incr_indent_level(self, incr: int):
         self.indent_level += incr
 
-    def has_lines(self):
-        return bool(self.lines_info)
+    def get_ref(self):
+        return len(self.lines_info), self.indent_level
+
+    def cut_to_ref(self, ref):
+        new_len, self.indent_level = ref
+        self.lines_info[new_len:] = ()
 
     def to_string(self, base_indent_level: int, single_indent: str = "    "):
         return "\n".join(
@@ -143,7 +149,7 @@ class LazyDebugDir:
         self.debug_dir = None
         self.dir_initialized = False
 
-    def get(self):
+    def get(self) -> str:
         if self.debug_dir is None:
             self.debug_dir = os.environ.get(
                 "PY_CONVTOOLS_DEBUG_DIR", None
@@ -152,7 +158,7 @@ class LazyDebugDir:
 
     def ensure_initialized(self):
         if not self.dir_initialized:
-            os.makedirs(self.debug_dir, exist_ok=True)
+            os.makedirs(self.get(), exist_ok=True)
             self.dir_initialized = True
 
 
@@ -181,7 +187,7 @@ class CodeStorage:
     sources on disk into a debug directory."""
 
     def __init__(self):
-        self.key_to_code_piece = {}
+        self.key_to_code_piece: "t.Dict[str, CodePiece]" = {}
         self.converter_names = set()
         finalize(self, drop_dumped_code, self.key_to_code_piece)
 
@@ -226,8 +232,13 @@ def drop_dumped_code(key_to_code_piece):
                 pass
 
 
-def iter_windows(collection, width, step):
-    window = deque(maxlen=width)
+T = t.TypeVar("T")
+
+
+def iter_windows(
+    collection: t.Iterator[T], width, step
+) -> t.Generator[t.Tuple[T, ...], None, None]:
+    window: "deque[T]" = deque(maxlen=width)
     window_append = window.append
 
     index = 0

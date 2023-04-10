@@ -154,6 +154,7 @@ disable=abstract-method,
         zip-builtin-not-iterating,
         line-too-long,
         consider-using-f-string,
+        not-callable,
 
 
 [REPORTS]

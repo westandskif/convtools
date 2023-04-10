@@ -28,4 +28,4 @@ checks:
 	black src tests
 	isort src tests
 	pylint src
-	mypy src
+	mypy --check-untyped-defs src

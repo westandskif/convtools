@@ -8,40 +8,8 @@ from typing import List, Tuple
 import pytest
 
 from convtools import conversion as c
-from convtools._aggregations import MultiStatementReducer
 
-
-class SumReducer1(MultiStatementReducer):
-    reduce = ("%(result)s = {prev_result} + ({0} or 1)",)
-    default = int
-    initial = int
-    unconditional_init = True
-
-
-class SumReducer2(MultiStatementReducer):
-    reduce = ("%(result)s = {prev_result} + ({0} or 2)",)
-    default = 0
-    initial = 0
-    unconditional_init = True
-
-
-class SumReducer3(MultiStatementReducer):
-    reduce = ("%(result)s = {prev_result} + ({0} or 3)",)
-    initial = 0
-    unconditional_init = True
-
-
-class SumReducer4(MultiStatementReducer):
-    prepare_first = ("%(result)s = {0}",)
-    reduce = ("%(result)s = {prev_result} + ({0} or 4)",)
-    default = c(0)
-    unconditional_init = True
-
-
-class SumReducer5(MultiStatementReducer):
-    reduce = ("%(result)s = {prev_result} + ({0} or 5)",)
-    default = c.inline_expr("0")
-    unconditional_init = True
+from .utils import get_code_str
 
 
 @pytest.fixture
@@ -70,43 +38,6 @@ def ordered_set(data):
 
 def weighted_average(samples: List[Tuple]):
     return sum(v * w for v, w in samples) / sum(x[1] for x in samples)
-
-
-def test_multi_statement_reducers(dict_series):
-    output = (
-        c.group_by(c.item("name"))
-        .aggregate(
-            (
-                c.item("name"),
-                SumReducer1(c.item("value")),
-                SumReducer2(c.item("value")),
-                SumReducer3(c.item("value")),
-                SumReducer4(c.item("value")),
-                SumReducer5(c.item("value"), initial=5),
-            )
-        )
-        .execute(dict_series, debug=False)
-    )
-    assert output == [("Nick", 3, 3, 3, 3, 8), ("John", 63, 63, 63, 63, 68)]
-
-    with pytest.raises(AttributeError):
-
-        class SumReducer(MultiStatementReducer):
-            reduce = ("%(result)s = %(result)s + ({0} or 4)",)
-            default = 0
-            unconditional_init = True
-
-        # prepare_first is not specified
-        c.aggregate(SumReducer(c.item("value"))).gen_converter()
-
-    with pytest.raises(ValueError):
-
-        class SumReducer(MultiStatementReducer):
-            reduce = ("%(result)s = %(result)s + ({0} or 4)",)
-            unconditional_init = True
-
-        # default is not provided
-        SumReducer(c.item("value"))
 
 
 def test_custom_reduce_initialization():
@@ -177,7 +108,7 @@ def test_average_with_group_by(series):
     assert eq(
         c.group_by(c.item(0))
         .aggregate(c.ReduceFuncs.Average(c.item(1)))
-        .execute(series),
+        .execute(series, debug=True),
         [
             statistics.mean(x[1] for x in series if x[0] == key)
             for key in ordered_set(x[0] for x in series)
@@ -274,6 +205,12 @@ def test_top_k(series, k):
         c.aggregate(c.ReduceFuncs.TopK(k, c.item(1))).execute(series),
         [x[1] for x in Counter(x[1] for x in series).most_common(k)],
     )
+
+
+def test_top_k_extra():
+    assert c.aggregate(c.ReduceFuncs.TopK(2, c.this)).execute(
+        [3, 3, 3, 2, 2, 1]
+    ) == [3, 2]
 
 
 @pytest.mark.parametrize("k", [0, -1])
@@ -598,7 +535,7 @@ def test_group_by_percentile():
                 "min": c.ReduceFuncs.Percentile(0, c.item("value")).pipe(
                     c_round
                 ),
-                "min": c.ReduceFuncs.Percentile(
+                "min2": c.ReduceFuncs.Percentile(
                     0, c.item("value"), where=c.and_(default=True)
                 ).pipe(c_round),
                 "percentile_5": c.ReduceFuncs.Percentile(
@@ -624,6 +561,7 @@ def test_group_by_percentile():
             "max": 90,
             "median": 45.0,
             "min": 0.0,
+            "min2": 0.0,
             "percentile_5": 4.5,
             "percentile_95": 85.5,
         },
@@ -632,6 +570,7 @@ def test_group_by_percentile():
             "max": 91,
             "median": 45.5,
             "min": 0.0,
+            "min2": 0.0,
             "percentile_5": 4.55,
             "percentile_95": 86.45,
         },
@@ -640,6 +579,7 @@ def test_group_by_percentile():
             "max": 92,
             "median": 46.0,
             "min": 0.0,
+            "min2": 0.0,
             "percentile_5": 4.6,
             "percentile_95": 87.4,
         },
@@ -685,34 +625,9 @@ def test_conditional_init_merges():
                 c.ReduceFuncs.Min(c.item(1)) + 1,
             ]
         )
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
-    assert (
-        sum(
-            code_line.count("<")
-            for code_line in next(
-                code_piece.code_parts[1]
-                for code_piece in converter.__globals__[
-                    "__convtools__code_storage"
-                ].key_to_code_piece.values()
-                if code_piece.converter_name.startswith("group_by")
-            )
-        )
-        == 1
-    )
-
-
-class SumIfGte10(MultiStatementReducer):
-    prepare_first = ("if {0} and {0} >= 10:", "    %(result)s = {0}")
-    reduce = (
-        "if {0} and {0} >= 10:",
-        "    %(result)s = {prev_result} + {0}",
-    )
-    default = c.inline_expr("0")
-
-
-def test_reducer_with_conditional_init():
-    assert c.aggregate(SumIfGte10(c.this)).execute(range(12)) == 21
+    assert get_code_str(converter).count(">") == 1
 
 
 def test_reducer_defaultdict_locking():
@@ -726,3 +641,24 @@ def test_reducer_defaultdict_locking():
     for data in result:
         with pytest.raises(KeyError):
             data[11]
+
+
+def test_reducer_bad_number_of_expressions():
+    with pytest.raises(ValueError):
+        c.aggregate(c.ReduceFuncs.Sum()).gen_converter()
+
+    with pytest.raises(ValueError):
+        c.aggregate(
+            c.ReduceFuncs.DictLast(c.this, c.this, c.this)
+        ).gen_converter()
+
+    assert c.aggregate(c.ReduceFuncs.DictCount((c.this, c.this))).execute(
+        [1, 1, 2]
+    ) == {1: 2, 2: 1}
+    with pytest.raises(ValueError):
+        c.aggregate(
+            c.ReduceFuncs.DictCount(c.this, c.this, c.this)
+        ).gen_converter()
+
+    with pytest.raises(TypeError):
+        c.reduce(lambda a, b: a + b, default=0)

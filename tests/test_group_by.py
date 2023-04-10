@@ -5,7 +5,6 @@ from types import GeneratorType
 import pytest
 
 from convtools import conversion as c
-from convtools._aggregations import MultiStatementReducer
 from convtools._base import LazyEscapedString, Namespace
 
 from .utils import get_code_str
@@ -378,12 +377,19 @@ def reducers_in_out():
         groupby=c.item("name"),
         reduce=c.ReduceFuncs.Count(c.item("debit")),
         data=reducer_data1 + reducer_data2,
-        output=[('Bill', 3), ('Nick', 2)],
+        output=[('Bill', 2), ('Nick', 2)],
         raises=None,
     ),
     dict(
         groupby=c.item("name"),
         reduce=c.ReduceFuncs.Count(c.item("debit"), where=c.item("debit").is_(None)),
+        data=reducer_data1 + reducer_data2,
+        output=[('Bill', 0), ('Nick', 0)],
+        raises=None,
+    ),
+    dict(
+        groupby=c.item("name"),
+        reduce=c.ReduceFuncs.Count(where=c.item("debit").is_(None)),
         data=reducer_data1 + reducer_data2,
         output=[('Bill', 1), ('Nick', 0)],
         raises=None,
@@ -474,9 +480,16 @@ def reducers_in_out():
     ),
     dict(
         groupby=True,
-        reduce=c.ReduceFuncs.DictCount(c.item("name"), c.item("debit")),
+        reduce=c.ReduceFuncs.DictCount(c.item("name")),
         data=reducer_data1 + reducer_data2 + reducer_data3,
         output=[(True, {'Bill': 4, 'Nick': 4})],
+        raises=None,
+    ),
+    dict(
+        groupby=True,
+        reduce=c.ReduceFuncs.DictCount(c.item("name"), c.item("debit")),
+        data=reducer_data1 + reducer_data2 + reducer_data3,
+        output=[(True, {'Bill': 3, 'Nick': 4})],
         raises=None,
     ),
     dict(
@@ -617,7 +630,7 @@ def test_piped_group_by():
             }
         )
     ).execute(
-        input_data, debug=True
+        input_data, debug=False
     ) == [
         {"b": "foo", "set_a": [5], "min_amount": 1},
         {"b": "bar", "set_a": [10], "min_amount": 5},
@@ -874,20 +887,6 @@ def test_group_by_delegate():
             and converter.__globals__["__BROKEN_EARLY__"]
         )
 
-        class SumIfGt5(MultiStatementReducer):
-            prepare_first = ("if {0} and {0} > 5:", "    %(result)s = {0}")
-            reduce = (
-                "if {0} and {0} > 5:",
-                "    %(result)s = {prev_result} + {0}",
-            )
-            default = c.inline_expr("0")
-
-        converter = c.aggregate(SumIfGt5(c.this)).gen_converter()
-        assert (
-            converter(range(10)) == 30
-            and converter.__globals__["__BROKEN_EARLY__"]
-        )
-
     result = (
         c.group_by(c.item(0))
         .aggregate(c.ReduceFuncs.Sum(c.item(1)))
@@ -924,3 +923,22 @@ def test_group_by_with_labels():
         ],
         input_c=7,
     ) == [{"a": 1, "sum": 3, "c": 7, "d": 0}]
+
+
+def test_group_by_none_counts():
+    converter = c.aggregate(c.ReduceFuncs.Count()).gen_converter()
+    assert converter((1,) * 10) == 10
+    assert converter((None,) * 10) == 10
+
+    converter = c.aggregate(c.ReduceFuncs.Count(c.this)).gen_converter()
+    assert converter((1,) * 10) == 10
+    assert converter((None,) * 10) == 0
+
+    converter = c.aggregate(c.ReduceFuncs.DictCount(c.this)).gen_converter()
+    assert converter((1,) * 10) == {1: 10}
+    assert converter((None,) * 10) == {None: 10}
+    converter = c.aggregate(
+        c.ReduceFuncs.DictCount(c.this, c.this)
+    ).gen_converter()
+    assert converter((1,) * 10) == {1: 10}
+    assert converter((None,) * 10) is None
