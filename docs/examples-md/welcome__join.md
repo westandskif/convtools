@@ -48,16 +48,19 @@
     ```python
     def aggregate_i(_none, data_, *, __v=__naive_values__["__v"]):
         agg_data_i_v0 = _none
-        checksum_ = 0
     
+        checksum_ = 0
         it_ = iter(data_)
         for row_i in it_:
             if row_i["age"] >= 18:
                 if agg_data_i_v0 is _none:
-                    agg_data_i_v0 = _d = defaultdict(list)
-                    _d[int(row_i["ID"])].append(row_i)
-                    break
-    
+                    checksum_ += 1
+                    agg_data_i_v0 = defaultdict(list)
+                    agg_data_i_v0[int(row_i["ID"])].append(row_i)
+                else:
+                    agg_data_i_v0[int(row_i["ID"])].append(row_i)
+            if checksum_ == 1:
+                break
         for row_i in it_:
             if row_i["age"] >= 18:
                 agg_data_i_v0[int(row_i["ID"])].append(row_i)

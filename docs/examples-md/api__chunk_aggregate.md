@@ -25,19 +25,23 @@
     ```python
     def aggregate_(_none, data_):
         agg_data__v0 = agg_data__v1 = agg_data__v2 = _none
-        checksum_ = 0
     
+        checksum_ = 0
         it_ = iter(data_)
         for row_ in it_:
             if agg_data__v0 is _none:
+                checksum_ += 1
                 agg_data__v0 = row_
                 agg_data__v1 = row_
                 agg_data__v2 = row_ or 0
+            else:
+                agg_data__v1 = row_
+                agg_data__v2 += row_ or 0
+            if checksum_ == 1:
                 break
-    
         for row_ in it_:
             agg_data__v1 = row_
-            agg_data__v2 = agg_data__v2 + (row_ or 0)
+            agg_data__v2 += row_ or 0
     
         return {
             "x": ((None if (agg_data__v0 is _none) else agg_data__v0)),

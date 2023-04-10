@@ -17,25 +17,13 @@
 === "debug stdout"
     ```python
     def optional_items_generator(data_):
-        yield (
-            "a",
-            data_[0],
-        )
+        yield ("a", data_[0])
         if not (data_[1] < 10):
-            yield (
-                "b",
-                data_[1],
-            )
+            yield ("b", data_[1])
         if data_[0]:
-            yield (
-                "c",
-                (data_[0] + data_[1]),
-            )
+            yield ("c", (data_[0] + data_[1]))
         if data_[0] != 1:
-            yield (
-                "d",
-                data_[0],
-            )
+            yield ("d", data_[0])
     
     def converter(data_):
         try:

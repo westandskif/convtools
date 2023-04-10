@@ -42,3 +42,4 @@ exclude_lines =
 
     from time import sleep
     from timeit import Timer
+    warnings.warn

@@ -28,32 +28,33 @@
     ```python
     def aggregate_(_none, data_, *, __get_1_or_default=__naive_values__["__get_1_or_default"]):
         agg_data__v0 = agg_data__v1 = _none
-        checksum_ = 0
     
+        checksum_ = 0
         it_ = iter(data_)
         for row_ in it_:
+            _r0_ = row_["a"]
             if row_["b"] == "bar":
                 if agg_data__v0 is _none:
-                    agg_data__v0 = [row_["a"]]
                     checksum_ += 1
+                    agg_data__v0 = [row_["a"]]
                 else:
                     agg_data__v0.append(row_["a"])
-            if row_["a"] is not None:
+            if _r0_ is not None:
                 if agg_data__v1 is _none:
-                    agg_data__v1 = (row_["a"], row_)
                     checksum_ += 1
+                    agg_data__v1 = (_r0_, row_)
                 else:
-                    if agg_data__v1[0] < row_["a"]:
-                        agg_data__v1 = (row_["a"], row_)
+                    if agg_data__v1[0] < _r0_:
+                        agg_data__v1 = (_r0_, row_)
             if checksum_ == 2:
                 break
-    
         for row_ in it_:
+            _r0_ = row_["a"]
             if row_["b"] == "bar":
                 agg_data__v0.append(row_["a"])
-            if row_["a"] is not None:
-                if agg_data__v1[0] < row_["a"]:
-                    agg_data__v1 = (row_["a"], row_)
+            if _r0_ is not None:
+                if agg_data__v1[0] < _r0_:
+                    agg_data__v1 = (_r0_, row_)
     
         return {
             "a": ((None if (agg_data__v0 is _none) else agg_data__v0)),

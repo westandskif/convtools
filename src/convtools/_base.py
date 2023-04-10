@@ -7,6 +7,7 @@ import sys
 import typing as t
 from collections import deque
 from datetime import datetime
+from decimal import Decimal
 from itertools import chain
 from keyword import iskeyword
 from random import Random
@@ -195,6 +196,7 @@ class BaseConversion(t.Generic[CT]):
 
     output_hints = 0
     weight = Weights.UNPREDICTABLE
+    function_call_threshold = Weights.FUNCTION_CALL * 1.33
 
     base_type_to_cast: "t.Union[_None, t.Type]" = _none
 
@@ -210,6 +212,12 @@ class BaseConversion(t.Generic[CT]):
     def add_hint(self, hint: int):
         self.output_hints |= hint
         return self
+
+    def has_hint(self, hint: int) -> int:
+        return self.output_hints & hint
+
+    def is_simple_for_n_uses(self, n):
+        return self.total_weight * (n - 1) < self.function_call_threshold
 
     def check_dependency(self, b):
         if (
@@ -234,8 +242,7 @@ class BaseConversion(t.Generic[CT]):
         return self
 
     def get_dependencies(self, types=None):
-        deps = self._depends_on.values()
-        deps = chain(deps, (self,))
+        deps: "t.Iterator[t.Any]" = chain(self._depends_on.values(), (self,))
         if types:
             deps = (dep for dep in deps if isinstance(dep, types))
         return deps
@@ -346,7 +353,7 @@ class BaseConversion(t.Generic[CT]):
         if len({dep_name for dep_name, _ in args}) != len(args):
             raise ValueError("duplicate args found", args)
 
-        name_to_code = {}
+        name_to_code: "t.Dict[str, str]" = {}
 
         positional_args_as_def_names = []
         positional_args_as_conversions = []
@@ -978,7 +985,7 @@ class BaseConversion(t.Generic[CT]):
         if other_formats or default is not _none:
             default = ensure_conversion(default)
             default_is_complex = not isinstance(default, NaiveConversion)
-            conversion = CallFunc(
+            conversion: "BaseConversion" = CallFunc(
                 date_parse,
                 self,
                 main_format,
@@ -1002,7 +1009,7 @@ class BaseConversion(t.Generic[CT]):
         if other_formats or default is not _none:
             default = ensure_conversion(default)
             default_is_complex = not isinstance(default, NaiveConversion)
-            conversion = CallFunc(
+            conversion: "BaseConversion" = CallFunc(
                 datetime_parse,
                 self,
                 main_format,
@@ -1218,6 +1225,9 @@ def var_name_from_string(s):
     return s
 
 
+NOT_NONE_FUNCS = {sum, min, max, len, int, float, Decimal}
+
+
 class NaiveConversion(BaseConversion):
     """Naive conversion gets compiled into the code, which just returns the
     `value` it's been initialized with.  Allows to make any object available
@@ -1292,6 +1302,15 @@ class NaiveConversion(BaseConversion):
 
     def is_itself_callable(self) -> t.Optional[bool]:
         return callable(self.value)
+
+    def call(self, *args, **kwargs) -> "Call":
+        conv = super().call(*args, **kwargs)
+        try:
+            if self.value in NOT_NONE_FUNCS:
+                conv.add_hint(BaseConversion.OutputHints.NOT_NONE)
+        except TypeError:
+            pass
+        return conv
 
     @staticmethod
     def get_value(conversion) -> bool:
@@ -1405,7 +1424,7 @@ class Namespace(BaseConversion):
     def __init__(
         self,
         conversion: "t.Any",
-        name_to_code: "t.Dict[str, t.Optional[t.Union[bool, str]]]",
+        name_to_code: "t.Dict[str, t.Union[bool, str, None]]",
     ):
         super().__init__()
         self.name_to_code = name_to_code
@@ -1536,7 +1555,9 @@ class NamespaceCtx:
 
     NAMESPACES = BaseConversion.NAMESPACES
 
-    def __init__(self, name_to_code: "t.Dict[str, str]", ctx):
+    def __init__(
+        self, name_to_code: "t.Mapping[str, t.Union[bool, str, None]]", ctx
+    ):
         name_to_code = {
             name: code for name, code in name_to_code.items() if code
         }
@@ -1546,7 +1567,7 @@ class NamespaceCtx:
 
     def __enter__(self):
         if self._name_to_code:
-            new_value: "t.Dict[str, str]" = {}
+            new_value: "t.MutableMapping[str, t.Union[bool, str, None]]" = {}
             new_value.update(self.name_to_code(self._ctx))
             new_value.update(self._name_to_code)
             self._ctx[self.NAMESPACES].append(new_value)
@@ -1559,7 +1580,7 @@ class NamespaceCtx:
         self.active = False
 
     @classmethod
-    def name_to_code(cls, ctx) -> "t.Dict[str, str]":
+    def name_to_code(cls, ctx) -> "t.Mapping[str, str]":
         return ctx[cls.NAMESPACES][-1]
 
     def prevent_rendering_while_active(self, conversion):
@@ -2279,7 +2300,7 @@ class BaseComp(BaseMethodConversion):
         for param in self.generator_item.custom_for_params:
             self.depends_on(param)
 
-        self.where = (
+        self.where: "t.Union[_None, BaseConversion]" = (
             _none
             if (where is None or where is _none)
             else self.ensure_conversion(where)
@@ -2314,7 +2335,7 @@ class GeneratorComp(BaseComp):
         item_code, param_code = self.get_item_n_param_codes(ctx)
         code_iterable = self.get_iterable_code(code_input, ctx)
 
-        if self.where is _none:
+        if isinstance(self.where, _None):
             return f"({item_code} for {param_code} in {code_iterable})"
 
         condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
@@ -2377,7 +2398,7 @@ class SetComp(BaseComp):
         item_code, param_code = self.get_item_n_param_codes(ctx)
         code_iterable = self.get_iterable_code(code_input, ctx)
 
-        if self.where is _none:
+        if isinstance(self.where, _None):
             return f"{{{item_code} for {param_code} in {code_iterable}}}"
 
         condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
@@ -2398,7 +2419,7 @@ class ListComp(BaseComp):
         item_code, param_code = self.get_item_n_param_codes(ctx)
         code_iterable = self.get_iterable_code(code_input, ctx)
 
-        if self.where is _none:
+        if isinstance(self.where, _None):
             return f"[{item_code} for {param_code} in {code_iterable}]"
 
         condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
@@ -2428,7 +2449,7 @@ class TupleComp(BaseComp):
         item_code, param_code = self.get_item_n_param_codes(ctx)
         code_iterable = self.get_iterable_code(code_input, ctx)
 
-        if self.where is _none:
+        if isinstance(self.where, _None):
             return f"tuple({item_code} for {param_code} in {code_iterable})"
 
         condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
@@ -2463,19 +2484,23 @@ class DictComp(BaseMethodConversion):
         super().__init__(self_conv)
         self.key = self.ensure_conversion(key)
         self.value = self.ensure_conversion(value)
-        self.where = (
+        self.where: "t.Union[_None, BaseConversion]" = (
             _none
             if (where is None or where is _none)
             else self.ensure_conversion(where)
         )
         self.number_of_input_uses = 1
 
+    def get_iterable_code(self, code_input, ctx):
+        code_self, _ = self.get_self_and_input_code(code_input, ctx)
+        return code_self
+
     def _gen_code_and_update_ctx(self, code_input, ctx):
         param_code = self.gen_random_name("i", ctx)
         key_code = self.key.gen_code_and_update_ctx(param_code, ctx)
         value_code = self.value.gen_code_and_update_ctx(param_code, ctx)
-        code_iterable = BaseComp.get_iterable_code(self, code_input, ctx)
-        if self.where is _none:
+        code_iterable = self.get_iterable_code(code_input, ctx)
+        if isinstance(self.where, _None):
             return f"{{{key_code}: {value_code} for {param_code} in {code_iterable}}}"
 
         condition_code = self.where.gen_code_and_update_ctx(param_code, ctx)
@@ -2497,6 +2522,9 @@ class BaseCollectionConversion(BaseConversion):
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     )
+    conversions: t.Optional[t.List[BaseConversion]] = None
+    pairs: t.Optional[t.List[t.Tuple[BaseConversion, BaseConversion]]] = None
+    conditions: t.Optional[t.Mapping[int, BaseConversion]] = None
 
     def __init__(self, *items):
         """
@@ -2505,29 +2533,25 @@ class BaseCollectionConversion(BaseConversion):
             every item gets wrapped with :py:obj:`ensure_conversion`
         """
         super().__init__()
-        resulting_items = []
-        condition_to_item_pairs = None
+        self._init_from_items(items)
+
+    def _init_from_items(self, items):
+        conversions: "t.List[BaseConversion]" = []
+        conditions = None
+
         for item in items:
-            item = self.ensure_conversion(item)
-            if condition_to_item_pairs is None:
-                if isinstance(item, OptionalCollectionItem):
-                    condition_to_item_pairs = [
-                        (None, item_) for item_ in resulting_items
-                    ]
-                    condition_to_item_pairs.append(
-                        (item.condition, item.conversion)
-                    )
-                    resulting_items = None
-                else:
-                    resulting_items.append(item)
+            conv = self.ensure_conversion(item)
+            if isinstance(conv, OptionalCollectionItem):
+                if conditions is None:
+                    conditions = {}
+
+                conditions[len(conversions)] = conv.condition
+                conversions.append(conv.conversion)
             else:
-                condition_to_item_pairs.append(
-                    (item.condition, item.conversion)
-                    if isinstance(item, OptionalCollectionItem)
-                    else (None, item)
-                )
-        self.items = resulting_items
-        self.condition_to_item_pairs = condition_to_item_pairs
+                conversions.append(conv)
+
+        self.conversions = conversions
+        self.conditions = conditions
 
     def gen_optional_items_generator_code(self, code_input, ctx):
         inner_code_input = "data_"
@@ -2538,18 +2562,48 @@ class BaseCollectionConversion(BaseConversion):
         with function_ctx:
             code.add_line("def placeholder", 1)
 
-            for condition, item in self.condition_to_item_pairs:
-                value_code = ensure_conversion(item).gen_code_and_update_ctx(
-                    inner_code_input, ctx
-                )
-                if condition is not None:
-                    condition_code = condition.gen_code_and_update_ctx(
-                        inner_code_input, ctx
+            if self.conversions is not None:
+                conv_code_to_condition_code = [
+                    (
+                        conv.gen_code_and_update_ctx(inner_code_input, ctx),
+                        (
+                            self.conditions[index].gen_code_and_update_ctx(
+                                inner_code_input, ctx
+                            )
+                            if self.conditions and index in self.conditions
+                            else None
+                        ),
                     )
+                    for index, conv in enumerate(self.conversions)
+                ]
+            elif self.pairs is not None:
+                conv_code_to_condition_code = [
+                    (
+                        (
+                            f"({key.gen_code_and_update_ctx(inner_code_input, ctx)}, "
+                            f"{value.gen_code_and_update_ctx(inner_code_input, ctx)})"
+                        ),
+                        (
+                            self.conditions[index].gen_code_and_update_ctx(
+                                inner_code_input, ctx
+                            )
+                            if self.conditions and index in self.conditions
+                            else None
+                        ),
+                    )
+                    for index, (key, value) in enumerate(self.pairs)
+                ]
+
+            else:
+                raise AssertionError
+
+            for conv_code, condition_code in conv_code_to_condition_code:
+                if condition_code:
                     code.add_line(f"if {condition_code}:", 1)
-                    code.add_line(f"yield {value_code}", -1)
+                    code.add_line(f"yield {conv_code}", -1)
+
                 else:
-                    code.add_line(f"yield {value_code}", 0)
+                    code.add_line(f"yield {conv_code}", 0)
 
             code.lines_info[0] = (
                 0,
@@ -2564,9 +2618,12 @@ class BaseCollectionConversion(BaseConversion):
         ).gen_code_and_update_ctx(code_input, ctx)
 
     def gen_joined_items_code(self, code_input, ctx):
-        return ("," if len(self.items) < 3 else ",\n").join(
+        if self.conversions is None:
+            raise AssertionError
+
+        return ("," if len(self.conversions) < 3 else ",\n").join(
             item.gen_code_and_update_ctx(code_input, ctx)
-            for item in self.items
+            for item in self.conversions
         )
 
     def gen_collection_from_items_code(
@@ -2578,7 +2635,7 @@ class BaseCollectionConversion(BaseConversion):
         raise NotImplementedError
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
-        if self.condition_to_item_pairs is not None:
+        if self.conditions is not None:
             return self.gen_collection_from_generator(
                 self.gen_optional_items_generator_code(code_input, ctx),
                 code_input,
@@ -2596,6 +2653,9 @@ class OptionalCollectionItem(BaseConversion):
     optional."""
 
     valid_pipe_output = False
+
+    condition: BaseConversion
+    conversion: BaseConversion
 
     def __init__(
         self,
@@ -2689,52 +2749,43 @@ class Dict(BaseCollectionConversion):
 
     weight = Weights.DICT_INIT
 
-    def __init__(self, *key_value_pairs):
-        """
-        Args:
-          key_value_pairs (:obj:`list` of :obj:`tuple`): each tuple is a
-            key-value pair to form a dict from.
-            Every key and value gets wrapped with ``ensure_conversion``
-        """
-        super().__init__()
-        pairs = []
-        condition_to_item_pairs = None
-        for pair in key_value_pairs:
-            pair = tuple(self.ensure_conversion(item_) for item_ in pair)
-            conditions = [
-                item_.condition
-                for item_ in pair
-                if isinstance(item_, OptionalCollectionItem)
-            ]
-            condition = And(*conditions) if conditions else None
-            if condition is not None:
-                pair = tuple(
-                    item_.conversion
-                    if isinstance(item_, OptionalCollectionItem)
-                    else item_
-                    for item_ in pair
-                )
+    def _init_from_items(self, items):
+        pairs: "t.List[t.Tuple[BaseConversion, BaseConversion]]" = []
+        conditions = None
 
-            if condition_to_item_pairs is None:
-                if condition:
-                    condition_to_item_pairs = [
-                        (None, pair_) for pair_ in pairs
-                    ]
-                    pairs = None
-                    condition_to_item_pairs.append((condition, pair))
+        for key, value in items:
+            key = self.ensure_conversion(key)
+            value = self.ensure_conversion(value)
+            condition = None
+
+            if isinstance(key, OptionalCollectionItem):
+                condition = key.condition
+                key = key.conversion
+
+            if isinstance(value, OptionalCollectionItem):
+                if condition is None:
+                    condition = value.condition
                 else:
-                    pairs.append(pair)
-            else:
-                condition_to_item_pairs.append((condition, pair))
+                    condition = condition.and_(value.condition)
+                value = value.conversion
 
-        self.key_value_pairs = pairs
-        self.condition_to_item_pairs = condition_to_item_pairs
+            if condition is not None:
+                if conditions is None:
+                    conditions = {}
+                conditions[len(pairs)] = condition
+
+            pairs.append((key, value))
+
+        self.pairs = pairs
+        self.conditions = conditions
 
     def gen_joined_items_code(self, code_input, ctx):
-        return ("," if len(self.key_value_pairs) < 3 else ",\n").join(
+        if self.pairs is None:
+            raise AssertionError
+        return ("," if len(self.pairs) < 3 else ",\n").join(
             f"{key.gen_code_and_update_ctx(code_input, ctx)}:"
             f"{value.gen_code_and_update_ctx(code_input, ctx)}"
-            for key, value in self.key_value_pairs
+            for key, value in self.pairs
         )
 
     def gen_collection_from_generator(self, generator_code, code_input, ctx):
@@ -2899,7 +2950,6 @@ class PipeConversion(BaseConversion):
     conversions before labeling)."""
 
     weight = 0
-    function_call_threshold = Weights.FUNCTION_CALL * 1.33
     self_content_type = (
         BaseConversion.self_content_type
     ) & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
@@ -2973,6 +3023,7 @@ class PipeConversion(BaseConversion):
             what.contents & 4 == 0  # self.ContentTypes.NEW_LABEL
             and self.label_input is None
         )
+
         self.to_be_inlined = (
             # can be inlined
             (
@@ -2981,8 +3032,7 @@ class PipeConversion(BaseConversion):
                     # wrapping it into a function and so the input is calculated
                     # only once (of course taking into account function call
                     # overhead)
-                    what.total_weight * (where.number_of_input_uses - 1)
-                    < self.function_call_threshold
+                    what.is_simple_for_n_uses(where.number_of_input_uses)
                 )
                 and self.label_output is None
                 and input_has_no_side_effects
@@ -3021,6 +3071,11 @@ class PipeConversion(BaseConversion):
 
     def __hash__(self):
         return id(self)
+
+    def has_hint(self, hint: int) -> int:
+        if self.where is This:
+            return self.what.has_hint(hint)
+        return self.where.has_hint(hint)
 
     __add__ = delegate_simple_1_arg("__add__")
     add = delegate_simple_1_arg("add")

@@ -74,7 +74,7 @@ class GroupBy1(BaseBenchmark):
             .aggregate(
                 {
                     "name": c.item("name"),
-                    "sum": c.ReduceFuncs.Sum(c.item("value")),
+                    "sum": c.ReduceFuncs.Sum(c.item("value") * 1),
                 }
             )
             .gen_converter()
@@ -110,7 +110,7 @@ class GroupBy2(GroupBy1):
                         c.ReduceFuncs.First(c.item("value")),
                         c.ReduceFuncs.Last(c.item("value")),
                     ),
-                    "count": c.ReduceFuncs.Count(c.item("count")),
+                    "count": c.ReduceFuncs.Count(),
                     "sum": c.ReduceFuncs.Sum(c.item("value")),
                     "avg": c.ReduceFuncs.Average(c.item("value")),
                 }

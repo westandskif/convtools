@@ -1,3 +1,27 @@
+## When v2 comes (if):
+
+- the following reducers now raise `ValueError` if `initial` is passed:
+```
+   * ArrayDistinct
+   * CountDistinct
+   * First
+   * Last
+   * MaxRow
+   * MinRow
+   * SortedArray
+   * Dict
+   * DictArray
+   * DictArrayDistinct
+   * DictCount
+   * DictCountDistinct
+   * DictFirst
+   * DictLast
+   * DictMax
+   * DictMin
+   * DictSum
+   * DictSumOrNone
+```
+
 ## 1.0.0 (2023-03-23)
 
 - renamed all non-public modules so the only supported way to import is

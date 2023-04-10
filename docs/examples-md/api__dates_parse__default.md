@@ -16,7 +16,7 @@
 
 === "debug stdout"
     ```python
-    def converter(data_, *, __v=__naive_values__["__v"], __v_i=__naive_values__["__v_i"], __date_parse=__naive_values__["__date_parse"]):
+    def converter(data_, *, __v=__naive_values__["__v"], __date_parse=__naive_values__["__date_parse"], __v_i=__naive_values__["__v_i"]):
         try:
             return __date_parse(data_, __v, __v_i, None)
         except __exceptions_to_dump_sources:
@@ -24,7 +24,7 @@
             raise
     
     def converter(
-        data_, *, __v=__naive_values__["__v"], __today=__naive_values__["__today"], __v_e=__naive_values__["__v_e"], __date_parse=__naive_values__["__date_parse"]
+        data_, *, __v=__naive_values__["__v"], __v_e=__naive_values__["__v_e"], __date_parse=__naive_values__["__date_parse"], __today=__naive_values__["__today"]
     ):
         try:
             return __date_parse(data_, __v, __v_e, None) or __today()

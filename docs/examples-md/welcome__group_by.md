@@ -42,15 +42,18 @@
     
         for row_ in data_:
             agg_data_ = signature_to_agg_data_[row_["b"]]
+            _r0_ = row_["a"]
             if row_["a"] > 5:
                 if agg_data_.v0 is _none:
                     agg_data_.v0 = row_["a"]
-            if row_["a"] is not None:
-                if agg_data_.v1 is _none:
-                    agg_data_.v1 = row_["a"]
                 else:
-                    if row_["a"] > agg_data_.v1:
-                        agg_data_.v1 = row_["a"]
+                    pass
+            if _r0_ is not None:
+                if agg_data_.v1 is _none:
+                    agg_data_.v1 = _r0_
+                else:
+                    if agg_data_.v1 < _r0_:
+                        agg_data_.v1 = _r0_
     
         return [
             {"b": signature_, "a_first": ((None if (agg_data_.v0 is _none) else agg_data_.v0)), "a_max": ((None if (agg_data_.v1 is _none) else agg_data_.v1))}

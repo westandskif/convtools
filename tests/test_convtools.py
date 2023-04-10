@@ -592,6 +592,7 @@ def test_list():
 
 
 def test_tuple():
+    assert c.tuple().execute(None) == ()
     assert c.tuple(c.item(1), c.item(0), 3).gen_converter()([2, 1]) == (
         1,
         2,
