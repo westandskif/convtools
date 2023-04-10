@@ -1,4 +1,4 @@
-.PHONY: docs build
+.PHONY: docs build benchmarks
 
 
 install:
@@ -29,3 +29,7 @@ checks:
 	isort src tests
 	pylint src
 	mypy --check-untyped-defs src
+
+benchmarks:
+	for i in $$(cat benchmarks/main_versions.txt); do pip install --force-reinstall convtools==$$i && python run_benchmarks.py ; done
+	pip install -e . && python run_benchmarks.py

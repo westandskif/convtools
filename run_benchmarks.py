@@ -58,8 +58,10 @@ BENCHMARKS = [
 ]
 
 
-def run(convtools_version):
-    storage = BenchmarkResultsStorageV1(version=convtools_version)
+def run():
+    from convtools import __version__
+
+    storage = BenchmarkResultsStorageV1(version=__version__)
     for benchmark in BENCHMARKS:
         # if benchmark.HAS_CODE_GEN_TEST:
         #     storage.add_item(benchmark.get_code_gen_result())
@@ -69,10 +71,4 @@ def run(convtools_version):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog="Convtools Benchmarks")
-    parser.add_argument(
-        "--convtools-version", dest="convtools_version", required=True
-    )
-
-    args = parser.parse_args()
-    run(args.convtools_version)
+    run()

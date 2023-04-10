@@ -90,7 +90,14 @@ class BenchmarkResultsStorageV1:
         self.new_results.append(result)
 
     def get_base_time(self):
-        return 1e-10
+        from .benchmarks import measure
+
+        def f():
+            for i in range(100000):
+                pass
+
+        data = measure(f)
+        return data["time_taken"] / data["number"] / 100000.0
 
     def save(self):
         if not self.new_results:
