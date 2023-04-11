@@ -27,11 +27,6 @@ It's possible to mark a particular item as optional, so it disappears from an
 {!examples-md/api__collections_optional.md!}
 
 
-## Operators and fundamental methods
-
-{!examples-md/api__operators.md!}
-
-
 ## Type casting
 
 To cast to a type use a naive conversion method `as_type`:

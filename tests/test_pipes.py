@@ -93,6 +93,8 @@ def test_pipes_base():
         (c.item(0).pipe(c.this).mod(2), (3,), 1),
         (c.item(0).pipe(c.this) * 2, (3,), 6),
         (c.item(0).pipe(c.this).mul(2), (3,), 6),
+        (c.item(0).pipe(c.this) ** 2, (3,), 9),
+        (c.item(0).pipe(c.this).pow(2), (3,), 9),
         (c.item(0).pipe(c.this) != 2, (3,), True),
         (c.item(0).pipe(c.this).not_eq(2), (3,), True),
         (c.item(0).pipe(c.this) | 2, (0,), 2),

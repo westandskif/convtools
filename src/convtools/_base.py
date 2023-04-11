@@ -43,6 +43,7 @@ convtools_cumulative = LazyModule("convtools._cumulative")
 convtools_debug = LazyModule("convtools._debug")
 convtools_mutations = LazyModule("convtools._mutations")
 convtools_unique = LazyModule("convtools._unique")
+convtools_expect = LazyModule("convtools._expect")
 
 
 black: "t.Optional[t.Any]" = None
@@ -847,6 +848,16 @@ class BaseConversion(t.Generic[CT]):
             .add_hint(self.OutputHints.NOT_NONE)
         )
 
+    def pow(self, b) -> "InlineExpr":
+        return self**b
+
+    def __pow__(self, b) -> "InlineExpr":
+        return (
+            InlineExpr("{0} ** {1}", Weights.MATH_SIMPLE)
+            .pass_args(self, b)
+            .add_hint(self.OutputHints.NOT_NONE)
+        )
+
     def sub(self, b) -> "InlineExpr":
         return self - b
 
@@ -1180,6 +1191,12 @@ class BaseConversion(t.Generic[CT]):
             0 if offset is None else offset.to_us(),
             mode,
         )
+
+    def expect(self, condition, error_msg=None):
+        """Checks condition and return the input as is. If condition is not
+        met, raises ExpectException with error_msg (can be conversion too) as
+        param"""
+        return convtools_expect.Expect(self, condition, error_msg)
 
 
 class BaseMutation(BaseConversion):
@@ -3094,6 +3111,8 @@ class PipeConversion(BaseConversion):
     __mod__ = delegate_simple_1_arg("__mod__")
     mod = delegate_simple_1_arg("mod")
     __mul__ = delegate_simple_1_arg("__mul__")
+    pow = delegate_simple_1_arg("pow")
+    __pow__ = delegate_simple_1_arg("__pow__")
     mul = delegate_simple_1_arg("mul")
     __ne__ = delegate_simple_1_arg("__ne__")
     not_eq = delegate_simple_1_arg("not_eq")

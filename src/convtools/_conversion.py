@@ -50,6 +50,7 @@ from ._base import (
 from ._chunks import ChunkBy, ChunkByCondition
 from ._columns import ColumnRef
 from ._cumulative import Cumulative
+from ._expect import ExpectException
 from ._joins import JoinConversion, _JoinConditions
 from ._mutations import Mutations
 
@@ -78,6 +79,7 @@ class Conversion:
     """
 
     ConversionException = ConversionException  # pylint: disable=invalid-name
+    ExpectException = ExpectException  # pylint: disable=invalid-name
     BaseConversion = BaseConversion  # pylint: disable=invalid-name
     OptionsCtx = ConverterOptionsCtx  # pylint: disable=invalid-name
     CodeGenerationOptionsCtx = (  # pylint: disable=invalid-name
@@ -151,6 +153,8 @@ class Conversion:
     breakpoint = This.breakpoint
     date_trunc = This.date_trunc
     datetime_trunc = This.datetime_trunc
+
+    expect = This.expect
 
     PREV = Cumulative.PREV
     cumulative = This.cumulative

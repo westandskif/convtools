@@ -292,6 +292,11 @@ def test_naive_conversion_item():
     assert (-c.this).execute(2) == -2
     assert (c.this + c.this).execute(2) == c.this.add(c.this).execute(2) == 4
     assert (c.this * c.this).execute(3) == c.this.mul(c.this).execute(3) == 9
+    assert (
+        (c.this ** (c.this + 1)).execute(2)
+        == c.this.pow(c.this + 1).execute(2)
+        == 8
+    )
     assert (c.this - c.this).execute(2) == c.this.sub(c.this).execute(2) == 0
     assert (
         (c.naive(5) / c.this).execute(2) == c(5).div(c.this).execute(2) == 2.5
