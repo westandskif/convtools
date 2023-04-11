@@ -89,22 +89,12 @@ class BenchmarkResultsStorageV1:
     def add_item(self, result: BenchmarkResult):
         self.new_results.append(result)
 
-    def get_base_time(self):
-        from .benchmarks import measure
-
-        def f():
-            for i in range(100000):
-                pass
-
-        data = measure(f)
-        return data["time_taken"] / data["number"] / 100000.0
-
     def save(self):
         if not self.new_results:
             print("NOTHING TO SAVE")
             return
 
-        base_time = self.get_base_time()
+        base_time = SimpleTimer.get_base_time()
         print(f"BASE_TIME: {base_time}")
 
         for result in self.new_results:

@@ -1,7 +1,7 @@
 import os
 import sys
 
-from .timer import SimpleTimer
+from timer import SimpleTimer
 
 
 def print_new_weights():  # pragma: no cover
@@ -17,10 +17,7 @@ def print_new_weights():  # pragma: no cover
         "DICT_INIT": SimpleTimer("{'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5}"),
     }
     print("# CALCULATING BASE TIME")
-    total_iterations, total_time = SimpleTimer("'abc'").auto_measure(
-        rel_precision=SimpleTimer.REL_PRECISION / 5
-    )
-    base_time = total_time / total_iterations / 100
+    base_time = SimpleTimer.get_base_time() / 100.0
 
     print(f"# {'.'.join(map(str, sys.version_info[:3]))}")
     print(

@@ -11,95 +11,111 @@ PY_VERSION = sys.version_info[0:2]
 if PY_VERSION <= (3, 6):
     # 3.6.15
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 4.0568550033715e-11
+        # base_time: 9.447378699587717e-11
         STEP = 100
-        LOGICAL = 251
-        DICT_LOOKUP = 327
-        MATH_SIMPLE = 377
-        ATTR_LOOKUP = 342
-        TUPLE_INIT = 538
-        LIST_INIT = 675
-        SET_INIT = 1711
-        DICT_INIT = 1667
+        LOGICAL = 107
+        DICT_LOOKUP = 139
+        MATH_SIMPLE = 161
+        ATTR_LOOKUP = 146
+        TUPLE_INIT = 231
+        LIST_INIT = 289
+        SET_INIT = 731
+        DICT_INIT = 724
         FUNCTION_CALL = DICT_LOOKUP * 4
-        UNPREDICTABLE = 171100
+        UNPREDICTABLE = 73100
 
 elif PY_VERSION <= (3, 7):  # pragma: no cover
     # 3.7.16
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 4.08321829275715e-11
+        # base_time: 9.359483375e-11
         STEP = 100
-        LOGICAL = 236
-        DICT_LOOKUP = 337
-        MATH_SIMPLE = 365
-        ATTR_LOOKUP = 319
-        TUPLE_INIT = 525
-        LIST_INIT = 655
-        SET_INIT = 1643
-        DICT_INIT = 1685
+        LOGICAL = 103
+        DICT_LOOKUP = 147
+        MATH_SIMPLE = 159
+        ATTR_LOOKUP = 139
+        TUPLE_INIT = 230
+        LIST_INIT = 286
+        SET_INIT = 730
+        DICT_INIT = 725
         FUNCTION_CALL = DICT_LOOKUP * 4
-        UNPREDICTABLE = 168500
+        UNPREDICTABLE = 73000
 
 elif PY_VERSION == (3, 8):  # pragma: no cover
     # 3.8.16
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 4.144752377655609e-11
+        # base_time: 9.942295274999998e-11
         STEP = 100
-        LOGICAL = 226
-        DICT_LOOKUP = 319
-        MATH_SIMPLE = 368
-        ATTR_LOOKUP = 309
-        TUPLE_INIT = 532
-        LIST_INIT = 675
-        SET_INIT = 1677
-        DICT_INIT = 1758
+        LOGICAL = 94
+        DICT_LOOKUP = 132
+        MATH_SIMPLE = 153
+        ATTR_LOOKUP = 129
+        TUPLE_INIT = 221
+        LIST_INIT = 281
+        SET_INIT = 692
+        DICT_INIT = 749
         FUNCTION_CALL = DICT_LOOKUP * 4
-        UNPREDICTABLE = 175800
+        UNPREDICTABLE = 74900
 
 elif PY_VERSION == (3, 9):  # pragma: no cover
     # 3.9.12
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 4.01792780282291e-11
+        # base_time: 1.0032663587500003e-10
         STEP = 100
-        LOGICAL = 241
-        DICT_LOOKUP = 345
-        MATH_SIMPLE = 409
-        ATTR_LOOKUP = 328
-        TUPLE_INIT = 610
-        LIST_INIT = 775
-        SET_INIT = 1422
-        DICT_INIT = 1912
+        LOGICAL = 96
+        DICT_LOOKUP = 138
+        MATH_SIMPLE = 164
+        ATTR_LOOKUP = 131
+        TUPLE_INIT = 244
+        LIST_INIT = 311
+        SET_INIT = 569
+        DICT_INIT = 767
         FUNCTION_CALL = DICT_LOOKUP * 4
-        UNPREDICTABLE = 191200
+        UNPREDICTABLE = 76700
 
 elif PY_VERSION == (3, 10):  # pragma: no cover
     # 3.10.9
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 4.1176799481692785e-11
+        # base_time: 9.785650500089106e-11
         STEP = 100
-        LOGICAL = 206
-        DICT_LOOKUP = 306
-        MATH_SIMPLE = 365
-        ATTR_LOOKUP = 301
-        TUPLE_INIT = 565
-        LIST_INIT = 668
-        SET_INIT = 1431
-        DICT_INIT = 1798
+        LOGICAL = 86
+        DICT_LOOKUP = 129
+        MATH_SIMPLE = 154
+        ATTR_LOOKUP = 126
+        TUPLE_INIT = 238
+        LIST_INIT = 283
+        SET_INIT = 602
+        DICT_INIT = 800
         FUNCTION_CALL = DICT_LOOKUP * 4
-        UNPREDICTABLE = 179800
+        UNPREDICTABLE = 80000
 
-else:
+elif PY_VERSION == (3, 11):  # pragma: no cover
     # 3.11.1
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
-        # base_time: 4.285590663856272e-11
+        # base_time: 9.514307286917756e-11
         STEP = 100
-        LOGICAL = 178
-        DICT_LOOKUP = 313
-        MATH_SIMPLE = 343
-        ATTR_LOOKUP = 282
-        TUPLE_INIT = 530
-        LIST_INIT = 647
-        SET_INIT = 1379
-        DICT_INIT = 1958
+        LOGICAL = 80
+        DICT_LOOKUP = 140
+        MATH_SIMPLE = 153
+        ATTR_LOOKUP = 128
+        TUPLE_INIT = 239
+        LIST_INIT = 293
+        SET_INIT = 623
+        DICT_INIT = 888
         FUNCTION_CALL = DICT_LOOKUP * 4
-        UNPREDICTABLE = 195800
+        UNPREDICTABLE = 88800
+
+else:
+    # 3.12.0a7
+    class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
+        # base_time: 9.114620300169917e-11
+        STEP = 100
+        LOGICAL = 109
+        DICT_LOOKUP = 148
+        MATH_SIMPLE = 173
+        ATTR_LOOKUP = 68
+        TUPLE_INIT = 232
+        LIST_INIT = 307
+        SET_INIT = 634
+        DICT_INIT = 997
+        FUNCTION_CALL = DICT_LOOKUP * 4
+        UNPREDICTABLE = 99700
