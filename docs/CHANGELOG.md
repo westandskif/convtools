@@ -1,3 +1,12 @@
+## 1.3.0 (2023-04-11)
+
+**Features**
+
+- added `__pow__` operator and corresponding `c.this.pow(...)` method
+- added `c.expect(condition, error_msg=None)` and `c.this.expect(...)` method
+  which check input for condition and raises `c.ExpectException` if condition
+  fails
+
 ## 1.2.0 (2023-04-10)
 
 **Deprecations**

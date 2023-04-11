@@ -73,3 +73,14 @@ class SimpleTimer(Timer):
 
             for i in range(ceil(checks / 4)):
                 times.append(self.timeit(number_of_iterations))
+
+    @classmethod
+    def get_base_time(cls):
+        N = 1000000
+
+        def f():
+            for i in range(N):
+                pass
+
+        number, time_taken = cls(f).auto_measure()
+        return time_taken / number / (N * 1.0)

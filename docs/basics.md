@@ -170,7 +170,11 @@ are:
 {!examples-md/getting_started__apply.md!}
 
 
-## Controlling converter function signature
+## Operators
+
+{!examples-md/api__operators.md!}
+
+## Converter signature
 
 Sometimes it's required to adjust automatically generated converter signature,
 there are three parameters of `gen_converter` to achieve that:
@@ -206,7 +210,7 @@ c({"a": c.item(0).breakpoint()}).gen_converter(debug=True)
 ```
 
 
-## Inline expressions and escaped strings
+## Inline expressions
 
 !!! warning
 	`convtools` cannot guard you here and doesn't infer any insights from the

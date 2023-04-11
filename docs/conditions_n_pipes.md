@@ -14,6 +14,16 @@ There are 2 conversions which allow to define conditions:
 {!examples-md/api__if.md!}
 
 
+## Check and raise
+
+There's a convenient helper, which checks whether a condition is met and
+returns input as is or raises `c.ExpectException` otherwise:
+
+1. `c.expect(condition, error_msg=None)`
+2. also as a method: `c.attr("amount").expect(c.this < 10, "too big")`
+
+{!examples-md/api__expect.md!}
+
 ## Pipes
 
 Pipe is the most important conversion which allows to pass results of one
