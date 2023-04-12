@@ -120,3 +120,11 @@ pip install convtools
 
 ### Is it debuggable?
 Despite being compiled at runtime, it is (_by both `pdb` and `pydevd`_).
+
+## Support
+
+* westandskif (Nikita Almakov) - [Link to support](https://boosty.to/westandskif)
+
+## Reporting a Security Vulnerability
+
+See the [security policy](https://github.com/westandskif/convtools/security/policy).
