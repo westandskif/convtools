@@ -121,6 +121,10 @@ assert conv(input_data) == {
 * convtools supports nested aggregations
 * convtools is a set of primitives for code generation, so it's just different.
 
+## Support
+
+* westandskif (Nikita Almakov) - [Link to support](https://boosty.to/westandskif)
+
 ## Reporting a Security Vulnerability
 
 See the [security policy](https://github.com/westandskif/convtools/security/policy).
