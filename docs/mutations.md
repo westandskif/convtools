@@ -10,7 +10,9 @@ supported mutations:
  * `c.Mut.set_item(name, value)` - `d[name] = value` but as conversions
  * `c.Mut.set_attr(name, value)` - `setattr(obj, name, value)`
  * `c.Mut.del_item(index)` - `d.pop(index)`
+ * `c.Mut.del_item(index, if_exists=True)` - `d.pop(index, None)`
  * `c.Mut.del_attr(index)` - `delattr(obj, index)`
+ * `c.Mut.del_attr(index, if_exists=True)` - same, but if the attr exists
  * `c.Mut.custom(any_conversion)`
 
 and they cannot be used outside of the below methods.

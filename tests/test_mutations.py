@@ -13,6 +13,7 @@ def test_mutation_item():
             "name": c.item("fullName"),
             "age": c.item("age").as_type(int),
             "to_del": 1,
+            "to_del_twice": 2,
         }
     ).pipe(
         c.list_comp(
@@ -29,6 +30,9 @@ def test_mutation_item():
                     c.item("age"), c.item("age") >= c.call_func(lambda: 18)
                 ),
                 c.Mut.del_item("to_del"),
+                c.Mut.del_item("to_del_twice", if_exists=True),
+                c.Mut.del_item("to_del_twice", if_exists=True),
+                c.Mut.del_item("missing", if_exists=True),
                 c.Mut.custom(c.this.call_method("update", {"to_add": 2})),
                 c.this.call_method("update", {"to_add2": 4}),
             )
@@ -57,6 +61,9 @@ def test_mutation_item():
             c.Mut.set_item("abc", "cde"), explicitly_allowed_cls=GetItem
         )
 
+    with pytest.raises(KeyError):
+        c.this.tap(c.Mut.del_item("a")).execute({})
+
 
 def test_mutation_attr():
     class A:
@@ -65,14 +72,23 @@ def test_mutation_attr():
     obj = A()
     obj.a = 1
     obj.b = 2
+    obj.to_del_twice = 3
 
     obj = (
         c.this.tap(
             c.Mut.del_attr("a"),
+            c.Mut.del_attr("to_del_twice", if_exists=True),
+            c.Mut.del_attr("to_del_twice", if_exists=True),
+            c.Mut.del_attr("missing", if_exists=True),
             c.Mut.set_attr("c", 3),
         )
     ).execute(obj, debug=False)
-    assert not hasattr(obj, "a") and obj.b == 2 and obj.c == 3
+    assert (
+        not hasattr(obj, "a")
+        and obj.b == 2
+        and obj.c == 3
+        and not hasattr(obj, "to_del_twice")
+    )
 
     obj = A()
     obj.a = 1
@@ -85,6 +101,9 @@ def test_mutation_attr():
         )
     ).execute(obj, debug=False)
     assert not hasattr(obj, "a") and obj.b == 2 and obj.c == 3
+
+    with pytest.raises(AttributeError):
+        c.this.tap(c.Mut.del_attr("a")).execute(object())
 
 
 def test_iter_mut_method():

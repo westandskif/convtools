@@ -1,3 +1,12 @@
+## 1.4.0 (2023-06-28)
+
+**Features**
+
+- added optional `if_exists=True` parameter to `c.Mut.del_item` and
+  `c.Mut.del_attr`
+
+    * `c.Mut.del_item("d", if_exists=True)` drops `"d"` key if it exists
+
 ## 1.3.0 (2023-04-11)
 
 **Features**

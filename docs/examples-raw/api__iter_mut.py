@@ -6,6 +6,7 @@ converter = (
     c.iter_mut(
         c.Mut.set_item("c", c.item("a") + c.item("b")),
         c.Mut.del_item("a"),
+        c.Mut.del_item("d", if_exists=True),
         c.Mut.custom(c.this.call_method("update", c.input_arg("extra"))),
     )
     .as_type(list)

@@ -20,12 +20,6 @@ class BaseNameValueMutation(BaseMutation):
         self.value = self.ensure_conversion(value)
 
 
-class BaseIndexMutation(BaseMutation):
-    def __init__(self, index):
-        super().__init__()
-        self.index = self.ensure_conversion(index)
-
-
 class SetItem(BaseNameValueMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         name_code = self.name.gen_code_and_update_ctx(code_input, ctx)
@@ -40,16 +34,28 @@ class SetAttr(BaseNameValueMutation):
         return f"setattr({code_input}, {name_code}, {value_code})"
 
 
+class BaseIndexMutation(BaseMutation):
+    def __init__(self, index, if_exists=False):
+        super().__init__()
+        self.index = self.ensure_conversion(index)
+        self.if_exists = if_exists
+
+
 class DelItem(BaseIndexMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
+        if self.if_exists:
+            return f"{code_input}.pop({index_code}, None)"
         return f"{code_input}.pop({index_code})"
 
 
 class DelAttr(BaseIndexMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
-        return f"delattr({code_input}, {index_code})"
+        code = f"delattr({code_input}, {index_code})"
+        if self.if_exists:
+            return f"hasattr({code_input}, {index_code}) and {code}"
+        return code
 
 
 class Custom(BaseMutation):
