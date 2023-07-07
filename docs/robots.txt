@@ -1,0 +1,3 @@
+User-agent: *
+Disallow:
+Sitemap: https://convtools.readthedocs.io/en/latest/sitemap.xml
