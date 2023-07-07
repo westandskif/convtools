@@ -4,6 +4,7 @@ theme:
         # highlightjs: true
         # hljs_languages:
         #     - python
+  custom_dir: docs/overrides
   features:
     - content.code.copy
 
