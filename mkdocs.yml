@@ -7,6 +7,11 @@ theme:
   features:
     - content.code.copy
 
+extra:
+  analytics:
+    provider: google
+    property: G-Q41F2W9QLY
+
 repo_name: westandskif/convtools
 repo_url: https://github.com/westandskif/convtools
 
