@@ -1,10 +1,11 @@
-"""
-Defines datetime utility functions
-"""
+"""Defines datetime utility functions."""
+import re
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from typing import Dict, Iterator, List, Type, Union
 
-from ._utils import _none
+from ._base import BaseConversion, CallFunc, NaiveConversion, This
+from ._utils import Code, CodeParams
 
 
 date_from_ordinal = date.fromordinal
@@ -17,9 +18,12 @@ __all__ = ["DateGrid", "DateTimeGrid"]
 
 
 class TruncModes:
-    """Defines truncate modes: START obviously means period start, END means
+    """Defines truncate modes.
+
+    START obviously means period start, END means
     the non-inclusive end of current interval (start of the next one),
-    END_INCLUSIVE means inclusive end of the current interval"""
+    END_INCLUSIVE means inclusive end of the current interval
+    """
 
     START = 1
     END = 2
@@ -42,7 +46,7 @@ class TruncModes:
 
 
 class BaseStep:
-    """Base definition of a time-related step"""
+    """Base definition of a time-related step."""
 
     types: "Dict[str, int]"
 
@@ -57,7 +61,7 @@ class BaseStep:
 
 
 class MonthStep(BaseStep):
-    """Defines steps as number of months"""
+    """Defines steps as number of months."""
 
     types = {"y": 12, "mo": 1}
 
@@ -73,7 +77,7 @@ class MonthStep(BaseStep):
 
 
 class DayOfWeekStep(BaseStep):
-    """Defines steps as weeks, starting on certain day of week"""
+    """Defines steps as weeks, starting on certain day of week."""
 
     types = {
         "sun": 0,
@@ -99,8 +103,11 @@ class DayOfWeekStep(BaseStep):
 
 
 class MicroSecondStep(BaseStep):
-    """Defines steps as deterministic time units (days, hours, minutes,
-    seconds, milliseconds, microseconds)"""
+    """Defines steps as deterministic time units.
+
+    Deterministic ones can be represented as days, hours, minutes, seconds,
+    milliseconds, microseconds.
+    """
 
     types = {
         "d": 86400000000,
@@ -251,10 +258,7 @@ def to_step(in_) -> "Union[MonthStep, DayOfWeekStep, MicroSecondStep]":
             while i < length and in_[i].isdigit():
                 i += 1
 
-            if first_digit == i:
-                number = 1
-            else:
-                number = int(in_[first_digit:i])
+            number = 1 if first_digit == i else int(in_[first_digit:i])
 
             first_symbol = i
             while i < length and not in_[i].isdigit():
@@ -452,8 +456,7 @@ def gen_datetimes__microsecond(dt_start, dt_end, to_us, offset_us, mode):
 
 
 class DateGrid:
-    """Defines a grid of dates with a particular step and offset (e.g. every
-    other Tuesday).
+    """Date grid with a particular step and offset (e.g. every other Tuesday).
 
     Iterator of month grid, which contains the defined period:
     >>> it = DateGrid("mo").around(date(2020, 12, 31), date(2021, 1, 15))
@@ -489,13 +492,15 @@ class DateGrid:
     so -2d8h10us means minus 2 days 8 hours and 10 microseconds.
 
 
-    WARNING:
+    Warning:
+    -------
      * y/mo support only y/mo as offsets
      * days of week don't support offsets
      * as this method truncates dates, not datetimes, it accepts only whole
        number of days as steps and offsets
 
     Args:
+    ----
       step: defines period length. If it's a year, month or a day of week,
         it defines beginnings of periods too.
       offset (optional): defines the shift of the expected date grid
@@ -544,8 +549,7 @@ class DateGrid:
 
 
 class DateTimeGrid:
-    """Defines a grid of dates with a particular step and offset (e.g. every
-    other Tuesday).
+    """Grid of datetimes with a particular step and offset.
 
     Iterator of month grid, which contains the defined period:
     >>> it = DateTimeGrid("mo").around(
@@ -585,13 +589,15 @@ class DateTimeGrid:
 
     so "-2d8h10us" means minus 2 days 8 hours and 10 microseconds.
 
-    WARNING:
+    Warning:
+    -------
      * y/mo support only y/mo as offsets
      * days of week don't support offsets
      * any steps defined as deterministic units (d, h, m, s, ms, us) can
        only be used with offsets defined by deterministic units too
 
     Args:
+    ----
       step: defines period length. If it's a year, month or a day of week,
         it defines beginnings of periods too.
       offset (optional): defines the shift of the expected date grid
@@ -643,51 +649,437 @@ class DateTimeGrid:
         return self.f(dt_start, dt_end, self.step, self.offset, self.mode)
 
 
-def date_parse(
-    s,
-    main_format,
-    other_formats,
-    default,
-    strptime__=datetime.strptime,
-    exc__=(ValueError, TypeError),
-):
-    try:
-        return strptime__(s, main_format).date()
-    except exc__:
-        pass
+class _LocaleBasedMaps:
+    def __init__(self):
+        self._weekday_to_pct_lower_a = None
+        self._weekday_to_pct_upper_a = None
+        self._month_to_pct_lower_b = None
+        self._month_to_pct_upper_b = None
+        self._hour_to_pct_lower_p = None
+        self._late_initialized = False
 
-    for fmt in other_formats:
+    def late_init(self):
+        if self._late_initialized:
+            return
+        self._late_initialized = True
+
+        self._weekday_to_pct_lower_a = [
+            (datetime(2019, 12, 30) + timedelta(days=i)).strftime("%a")
+            for i in range(7)
+        ]
+        self._weekday_to_pct_upper_a = [
+            (datetime(2019, 12, 30) + timedelta(days=i)).strftime("%A")
+            for i in range(7)
+        ]
+        self._month_to_pct_lower_b = [
+            datetime(2020, 1, 1).replace(month=i).strftime("%b")
+            for i in range(1, 13)
+        ]
+        self._month_to_pct_upper_b = [
+            datetime(2020, 1, 1).replace(month=i).strftime("%B")
+            for i in range(1, 13)
+        ]
+        self._hour_to_pct_lower_p = [
+            datetime(2020, 1, 1, i).strftime("%p") for i in (0, 12)
+        ]
+
+    @property
+    def weekday_to_pct_lower_a(self):
+        self.late_init()
+        return self._weekday_to_pct_lower_a
+
+    @property
+    def weekday_to_pct_upper_a(self):
+        self.late_init()
+        return self._weekday_to_pct_upper_a
+
+    @property
+    def month_to_pct_lower_b(self):
+        self.late_init()
+        return self._month_to_pct_lower_b
+
+    @property
+    def month_to_pct_upper_b(self):
+        self.late_init()
+        return self._month_to_pct_upper_b
+
+    @property
+    def hour_to_pct_lower_p(self):
+        self.late_init()
+        return self._hour_to_pct_lower_p
+
+
+LOCALE_BASED_MAPS = _LocaleBasedMaps()
+
+
+class UnsupportedFormatCode(Exception):
+    pass
+
+
+class DatetimeFormat(BaseConversion):
+    def __init__(self, fmt):
+        if not isinstance(fmt, str):
+            raise ValueError
+        super().__init__()
+        self.fmt = fmt
+
+    def _to_code(self, code_input, ctx):
+        result = []
+
+        code_params = CodeParams()
+        code_params.create(
+            f"isinstance({code_input}, {code_params.naive_code(datetime, ctx)})",
+            "is_datetime",
+        )
+        code_params.create(
+            f"({code_input}.hour if is_datetime else 0)",
+            "hour",
+            used_names=("is_datetime",),
+        )
+        code_params.create(
+            f"({code_input}.minute if is_datetime else 0)",
+            "minute",
+            used_names=("is_datetime",),
+        )
+        code_params.create(
+            f"({code_input}.second if is_datetime else 0)",
+            "second",
+            used_names=("is_datetime",),
+        )
+        code_params.create(
+            f"({code_input}.microsecond if is_datetime else 0)",
+            "microsecond",
+            used_names=("is_datetime",),
+        )
+        code_params.create(f"{code_input}.weekday()", "weekday")
+        code_params.create(f"{code_input}.year", "year")
+        code_params.create(f"{code_input}.month", "month")
+        code_params.create(f"{code_input}.day", "day")
+
+        match = False
+        for ch in self.fmt:
+            if match:
+                if ch == "%":
+                    result.append("%%")
+                elif ch == "a":
+                    result.append(
+                        "{%s[%%s]}"
+                        % code_params.naive_code(
+                            LOCALE_BASED_MAPS.weekday_to_pct_lower_a, ctx
+                        )
+                    )
+                    code_params.use_param("weekday")
+                elif ch == "A":
+                    result.append(
+                        "{%s[%%s]}"
+                        % code_params.naive_code(
+                            LOCALE_BASED_MAPS.weekday_to_pct_upper_a, ctx
+                        )
+                    )
+                    code_params.use_param("weekday")
+                elif ch == "b":
+                    result.append(
+                        "{%s[%%s - 1]}"
+                        % code_params.naive_code(
+                            LOCALE_BASED_MAPS.month_to_pct_lower_b, ctx
+                        )
+                    )
+                    code_params.use_param("month")
+                elif ch == "B":
+                    result.append(
+                        "{%s[%%s - 1]}"
+                        % code_params.naive_code(
+                            LOCALE_BASED_MAPS.month_to_pct_upper_b, ctx
+                        )
+                    )
+                    code_params.use_param("month")
+                elif ch == "p":
+                    result.append(
+                        "{%s[%%s // 12]}"
+                        % code_params.naive_code(
+                            LOCALE_BASED_MAPS.hour_to_pct_lower_p, ctx
+                        )
+                    )
+                    code_params.use_param("hour")
+                elif ch == "Y":
+                    result.append("{%s:04}")
+                    code_params.use_param("year")
+                elif ch == "m":
+                    result.append("{%s:02}")
+                    code_params.use_param("month")
+                elif ch == "d":
+                    result.append("{%s:02}")
+                    code_params.use_param("day")
+                elif ch == "u":
+                    result.append("{%s + 1}")
+                    code_params.use_param("weekday")
+                elif ch == "H":
+                    result.append("{%s:02}")
+                    code_params.use_param("hour")
+                elif ch == "I":
+                    result.append("{(%s - 1) %% 12 + 1:02}")
+                    code_params.use_param("hour")
+                elif ch == "M":
+                    result.append("{%s:02}")
+                    code_params.use_param("minute")
+                elif ch == "S":
+                    result.append("{%s:02}")
+                    code_params.use_param("second")
+                elif ch == "f":
+                    result.append("{%s:06}")
+                    code_params.use_param("microsecond")
+                elif ch == "w":
+                    result.append("{(%s + 1) %% 7}")
+                    code_params.use_param("weekday")
+                elif ch == "y":
+                    result.append("{%s %% 100:02}")
+                    code_params.use_param("year")
+                else:
+                    return None
+
+                match = False
+            elif ch == "%":
+                match = True
+            elif ch == "{":
+                result.append("{{")
+            elif ch == "}":
+                result.append("}}")
+            elif ch == '"':
+                result.append(r"\"")
+            else:
+                result.append(ch)
+
+        if match:
+            return None
+
+        code = Code()
+        for assignment_code in code_params.iter_assignments():
+            code.add_line(assignment_code, 0)
+
+        f_string_code = "".join(result) % code_params.get_format_args()
+        code.add_line(f'return f"{f_string_code}"', 0)
+        return code
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
         try:
-            return strptime__(s, fmt).date()
-        except exc__:
-            pass
+            converter_name = self.gen_random_name("datetime_format", ctx)
+            function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
+            function_ctx.add_arg("data_", This())
+            with function_ctx:
+                code = Code()
+                code.add_line("def placeholder", 1)
+                code_ = self._to_code("data_", ctx)
+                if code_ is None:
+                    raise UnsupportedFormatCode
+                code.add_code(code_)
+                code.lines_info[0] = (
+                    0,
+                    f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+                )
+                conversion = function_ctx.gen_conversion(
+                    converter_name, code.to_string(0)
+                )
 
-    if default is _none:
-        raise ValueError("string doesn't match any format", s)
+            return function_ctx.call_with_all_args(
+                conversion
+            ).gen_code_and_update_ctx(code_input, ctx)
 
-    return default
+        except UnsupportedFormatCode:
+            return CallFunc(
+                datetime.strftime, This, self.fmt
+            ).gen_code_and_update_ctx(code_input, ctx)
 
 
-def datetime_parse(
-    s,
-    main_format,
-    other_formats,
-    default,
-    strptime__=datetime.strptime,
-    exc__=(ValueError, TypeError),
-):
-    try:
-        return strptime__(s, main_format)
-    except exc__:
-        pass
-
-    for fmt in other_formats:
+class DatetimeParse(BaseConversion):
+    def __init__(self, fmt):
+        if not isinstance(fmt, str):
+            raise ValueError
+        super().__init__()
+        self.fmt = fmt
         try:
-            return strptime__(s, fmt)
-        except exc__:
-            pass
+            (
+                self.re_pattern,
+                self.assignment_code_lines,
+                self.format_args,
+            ) = self._parse_fmt(fmt)
+        except UnsupportedFormatCode:
+            self.re_pattern = (
+                self.assignment_code_lines
+            ) = self.format_args = None
 
-    if default is _none:
-        raise ValueError("data doesn't match any format", s)
+    @staticmethod
+    def _seq_to_re_group_str(seq):
+        return "(%s)" % "|".join(
+            [re.escape(x.lower()) for x in sorted(seq, key=len, reverse=True)]
+        )
 
-    return default
+    @staticmethod
+    @lru_cache(32)
+    def _parse_fmt(fmt):
+        re_pieces = []
+        code_params = CodeParams()
+        group_index = 0
+
+        code_params.create("1", "month")
+        code_params.create("1", "day")
+        code_params.create("0", "hour")
+        code_params.create("0", "minute")
+        code_params.create("0", "second")
+        code_params.create("0", "microsecond")
+
+        match = False
+        for ch in fmt:
+            if match:
+                if ch == "%":
+                    re_pieces.append("%")
+                elif ch == "Y":
+                    re_pieces.append(r"(\d{4})")
+                    code_params.create(f"int(groups_[{group_index}])", "year")
+                    group_index += 1
+                elif ch == "m":
+                    re_pieces.append(r"(1[0-2]|0[1-9]|[1-9])")
+                    code_params.create(f"int(groups_[{group_index}])", "month")
+                    group_index += 1
+                elif ch == "d":
+                    re_pieces.append(r"(3[0-1]|[1-2]\d|0[1-9]|[1-9]| [1-9])")
+                    code_params.create(f"int(groups_[{group_index}])", "day")
+                    group_index += 1
+                elif ch == "H":
+                    re_pieces.append(r"(2[0-3]|[0-1]\d|\d)")
+                    code_params.create(f"int(groups_[{group_index}])", "hour")
+                    group_index += 1
+                elif ch == "I":
+                    re_pieces.append(r"(1[0-2]|0[1-9]|[1-9])")
+                    code_params.create(
+                        f"int(groups_[{group_index}])", "i_hour"
+                    )
+                    group_index += 1
+                elif ch == "p":
+                    re_pieces.append(
+                        DatetimeParse._seq_to_re_group_str(
+                            LOCALE_BASED_MAPS.hour_to_pct_lower_p
+                        )
+                    )
+                    code_params.create(
+                        f"12 if groups_[{group_index}].lower() == '''{LOCALE_BASED_MAPS.hour_to_pct_lower_p[1].lower()}''' else 0",
+                        "ampm_h_delay",
+                    )
+                    group_index += 1
+                elif ch == "M":
+                    re_pieces.append(r"([0-5]\d|\d)")
+                    code_params.create(
+                        f"int(groups_[{group_index}])", "minute"
+                    )
+                    group_index += 1
+                elif ch == "S":
+                    re_pieces.append(r"(6[0-1]|[0-5]\d|\d)")
+                    code_params.create(
+                        f"int(groups_[{group_index}])", "second"
+                    )
+                    group_index += 1
+                elif ch == "f":
+                    re_pieces.append(r"([0-9]{1,6})")
+                    code_params.create(
+                        f"int(groups_[{group_index}] + '0' * (6 - len(groups_[{group_index}])))",
+                        "microsecond",
+                    )
+                    group_index += 1
+                else:
+                    raise UnsupportedFormatCode(ch)
+                match = False
+            elif ch == "%":
+                match = True
+            else:
+                re_pieces.append(re.escape(ch))
+
+        if match:
+            raise UnsupportedFormatCode("trailing %")
+
+        if "year" not in code_params.name_to_code:
+            raise UnsupportedFormatCode("year is missing")
+
+        if "i_hour" in code_params.name_to_code:
+            if "ampm_h_delay" in code_params.name_to_code:
+                code_params.create(
+                    "i_hour % 12 + ampm_h_delay",
+                    "hour",
+                    ("i_hour", "ampm_h_delay"),
+                )
+            else:
+                raise UnsupportedFormatCode("%p is missing, when %I is used")
+        elif "ampm_h_delay" in code_params.name_to_code:
+            raise UnsupportedFormatCode("%I is missing, when %p is used")
+
+        code_params.use_param("year")
+        code_params.use_param("month")
+        code_params.use_param("day")
+        code_params.use_param("hour")
+        code_params.use_param("minute")
+        code_params.use_param("second")
+        code_params.use_param("microsecond")
+        re_pattern = re.compile("".join(re_pieces), re.IGNORECASE)
+        assignment_code_lines = list(code_params.iter_assignments())
+        format_args = code_params.get_format_args()
+        return re_pattern, assignment_code_lines, format_args
+
+    def _to_code(self, code_input, ctx):
+        if self.re_pattern is None:
+            return None
+
+        code = Code()
+
+        pattern_code = NaiveConversion(
+            self.re_pattern
+        ).gen_code_and_update_ctx(None, ctx)
+        code.add_line(
+            f"match = {pattern_code}.match({code_input})",
+            0,
+        )
+        code.add_line("if not match:", 1)
+        code.add_line(
+            f"raise ValueError('time data %r does not match format %r' % ({code_input}, '''{self.fmt}'''))",
+            -1,
+        )
+        code.add_line(f"if len({code_input}) != match.end():", 1)
+        code.add_line(
+            "raise ValueError('unconverted data remains: %s' % data_string[match.end():])",
+            -1,
+        )
+        code.add_line("groups_ = match.groups()", 0)
+        for assignment_code in self.assignment_code_lines:
+            code.add_line(assignment_code, 0)
+
+        datetime_code = NaiveConversion(datetime).gen_code_and_update_ctx(
+            None, ctx
+        )
+        code.add_line(
+            f"return {datetime_code}(%s, %s, %s, %s, %s, %s, %s)"
+            % self.format_args,
+            0,
+        )
+        return code
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        if self.re_pattern is None:
+            return CallFunc(
+                datetime.strptime, This, self.fmt
+            ).gen_code_and_update_ctx(code_input, ctx)
+
+        converter_name = self.gen_random_name("datetime_parse", ctx)
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
+        function_ctx.add_arg("data_", This())
+        with function_ctx:
+            code = Code()
+            code.add_line("def placeholder", 1)
+            code.add_code(self._to_code("data_", ctx))
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
+            conversion = function_ctx.gen_conversion(
+                converter_name, code.to_string(0)
+            )
+
+        return function_ctx.call_with_all_args(
+            conversion
+        ).gen_code_and_update_ctx(code_input, ctx)

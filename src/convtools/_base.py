@@ -1,10 +1,9 @@
-"""
-Base and basic conversions are defined here.
-"""
+"""Base and basic conversions are defined here."""
 import re
 import string
 import sys
 import typing as t
+from typing import Any
 from collections import deque
 from datetime import datetime
 from decimal import Decimal
@@ -12,19 +11,6 @@ from itertools import chain
 from keyword import iskeyword
 from random import Random
 
-from ._dt import (
-    DayOfWeekStep,
-    MonthStep,
-    TruncModes,
-    date_parse,
-    date_trunc_to_day,
-    date_trunc_to_month,
-    datetime_parse,
-    datetime_trunc_to_day,
-    datetime_trunc_to_microsecond,
-    datetime_trunc_to_month,
-    to_step,
-)
 from ._heuristics import Weights
 from ._utils import (
     BaseCtx,
@@ -41,9 +27,11 @@ from ._utils import (
 
 convtools_cumulative = LazyModule("convtools._cumulative")
 convtools_debug = LazyModule("convtools._debug")
+convtools_dt = LazyModule("convtools._dt")
+convtools_expect = LazyModule("convtools._expect")
+convtools_exceptions = LazyModule("convtools._exceptions")
 convtools_mutations = LazyModule("convtools._mutations")
 convtools_unique = LazyModule("convtools._unique")
-convtools_expect = LazyModule("convtools._expect")
 
 
 black: "t.Optional[t.Any]" = None
@@ -94,7 +82,7 @@ def {converter_name}({code_signature}):
 
 
 def ensure_conversion(
-    conversion: t.Any, explicitly_allowed_cls=None
+    conversion: t.Any, explicitly_allowed_cls=None  # noqa: ANN401
 ) -> "BaseConversion":
     r"""Helps to define conversions based on its type:
         * any conversion is returned untouched
@@ -709,28 +697,24 @@ class BaseConversion(t.Generic[CT]):
         raise AssertionError("unexpected callable", self)
 
     def call(self, *args, **kwargs) -> "Call":
-        """Gets compiled into the code which calls the input with params.
-        Each ``*args`` and ``**kwargs`` are wrapped with ``ensure_conversion``.
-        """
+        """Call __call__ on input, taking args & kwargs as conversions."""
         return Call(*args, self_conv=self, **kwargs)
 
     def apply(self, args, kwargs):
-        """Gets compiled into the code which calls the input with params.
-        Both ``args`` and ``kwargs`` are wrapped with ``ensure_conversion``.
-        """
+        """Call __call__ on input, taking args & kwargs as conversions."""
         return ApplyFunc(self, args, kwargs)
 
     def call_method(self, method_name: str, *args, **kwargs) -> "Call":
-        """Gets compiled into the code which calls the ``method_name`` method
-        of input with params.
-        It's a shortcut to ``(...).attr(method_name).call(*args, **kwargs)``
+        """Call method with params.
+
+        It's a shortcut to ``(...).attr(method_name).call(*args, **kwargs)``.
         """
         return self.attr(method_name).call(*args, **kwargs)
 
     def apply_method(self, method_name: str, args, kwargs) -> "Call":
-        """Gets compiled into the code which calls the ``method_name`` method
-        of input with params.
-        It's a shortcut to ``(...).attr(method_name).apply(args, kwargs)``
+        """Call method with params.
+
+        It's a shortcut to ``(...).attr(method_name).apply(args, kwargs)``.
         """
         return self.attr(method_name).apply(args, kwargs)
 
@@ -993,22 +977,15 @@ class BaseConversion(t.Generic[CT]):
           - returns `default if provided
           - or raises ValueError
         """
-        if other_formats or default is not _none:
-            default = ensure_conversion(default)
-            default_is_complex = not isinstance(default, NaiveConversion)
-            conversion: "BaseConversion" = CallFunc(
-                date_parse,
-                self,
-                main_format,
-                NaiveConversion(other_formats),
-                None if default_is_complex else default,
-            )
-            if default_is_complex:
-                conversion = conversion.or_(default)
-            return conversion
+        parse_exc_pairs = []
+        for fmt in chain((main_format,), other_formats):
+            conversion = convtools_dt.DatetimeParse(fmt).call_method("date")
+            parse_exc_pairs.append((conversion, (ValueError, TypeError)))
 
-        return CallFunc(datetime.strptime, self, main_format).call_method(
-            "date"
+        return self.pipe(
+            convtools_exceptions.try_multiple(
+                *parse_exc_pairs, default=default
+            )
         )
 
     def datetime_parse(self, main_format, *other_formats, default=_none):
@@ -1017,21 +994,16 @@ class BaseConversion(t.Generic[CT]):
           - returns `default if provided
           - or raises ValueError
         """
-        if other_formats or default is not _none:
-            default = ensure_conversion(default)
-            default_is_complex = not isinstance(default, NaiveConversion)
-            conversion: "BaseConversion" = CallFunc(
-                datetime_parse,
-                self,
-                main_format,
-                NaiveConversion(other_formats),
-                None if default_is_complex else default,
-            )
-            if default_is_complex:
-                conversion = conversion.or_(default)
-            return conversion
+        parse_exc_pairs = []
+        for fmt in chain((main_format,), other_formats):
+            conversion = convtools_dt.DatetimeParse(fmt)
+            parse_exc_pairs.append((conversion, (ValueError, TypeError)))
 
-        return CallFunc(datetime.strptime, self, main_format)
+        return self.pipe(
+            convtools_exceptions.try_multiple(
+                *parse_exc_pairs, default=default
+            )
+        )
 
     def date_trunc(self, step, offset=None, mode="start"):
         """Truncates a date to periods of certain length, specified by step and
@@ -1074,32 +1046,32 @@ class BaseConversion(t.Generic[CT]):
             current interval
 
         """
-        step = to_step(step)
-        mode = TruncModes.to_internal(mode)
+        step = convtools_dt.to_step(step)
+        mode = convtools_dt.TruncModes.to_internal(mode)
         if offset is not None:
-            offset = to_step(offset)
-        if isinstance(step, MonthStep):
+            offset = convtools_dt.to_step(offset)
+        if isinstance(step, convtools_dt.MonthStep):
             return CallFunc(
-                date_trunc_to_month,
+                convtools_dt.date_trunc_to_month,
                 self,
                 step.to_months(),
                 0 if offset is None else offset.to_months(),
                 mode,
             )
-        elif isinstance(step, DayOfWeekStep):
+        elif isinstance(step, convtools_dt.DayOfWeekStep):
             if offset is not None:
                 raise ValueError(
                     "offsets are not applicable to day-of-week steps"
                 )
             return CallFunc(
-                date_trunc_to_day,
+                convtools_dt.date_trunc_to_day,
                 self,
                 step.to_days(),
                 step.day_of_week_offset,
                 mode,
             )
         return CallFunc(
-            date_trunc_to_day,
+            convtools_dt.date_trunc_to_day,
             self,
             step.to_days(),
             0 if offset is None else offset.to_days(),
@@ -1146,27 +1118,27 @@ class BaseConversion(t.Generic[CT]):
             is inclusive and end is not; "end_inclusive" returns the end of the
             current interval
         """
-        step = to_step(step)
-        mode = TruncModes.to_internal(mode)
+        step = convtools_dt.to_step(step)
+        mode = convtools_dt.TruncModes.to_internal(mode)
         if offset is not None:
-            offset = to_step(offset)
+            offset = convtools_dt.to_step(offset)
 
-        if isinstance(step, MonthStep):
+        if isinstance(step, convtools_dt.MonthStep):
             return CallFunc(
-                datetime_trunc_to_month,
+                convtools_dt.datetime_trunc_to_month,
                 self,
                 step.to_months(),
                 0 if offset is None else offset.to_months(),
                 mode,
             )
 
-        elif isinstance(step, DayOfWeekStep):
+        elif isinstance(step, convtools_dt.DayOfWeekStep):
             if offset is not None:
                 raise ValueError(
                     "offsets are not applicable to day-of-week steps"
                 )
             return CallFunc(
-                datetime_trunc_to_day,
+                convtools_dt.datetime_trunc_to_day,
                 self,
                 step.to_days(),
                 step.day_of_week_offset,
@@ -1177,7 +1149,7 @@ class BaseConversion(t.Generic[CT]):
             offset is None or offset.can_be_cast_to_days()
         ):
             return CallFunc(
-                datetime_trunc_to_day,
+                convtools_dt.datetime_trunc_to_day,
                 self,
                 step.to_days(),
                 0 if offset is None else offset.to_days(),
@@ -1185,12 +1157,22 @@ class BaseConversion(t.Generic[CT]):
             )
 
         return CallFunc(
-            datetime_trunc_to_microsecond,
+            convtools_dt.datetime_trunc_to_microsecond,
             self,
             step.to_us(),
             0 if offset is None else offset.to_us(),
             mode,
         )
+
+    def format_dt(self, fmt):
+        """datetime.strftime analogue with certain cases optimized for speed"""
+        if fmt == "%Y-%m-%d":
+            return If(
+                CallFunc(isinstance, self, datetime),
+                self.call_method("date").call_method("isoformat"),
+                self.call_method("isoformat"),
+            )
+        return self.pipe(convtools_dt.DatetimeFormat(fmt))
 
     def expect(self, condition, error_msg=None):
         """Checks condition and return the input as is. If condition is not
@@ -1370,6 +1352,33 @@ class ThisConversion(BaseConversion):
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         return code_input
+
+    def pipe(
+        self,
+        next_conversion,
+        *args,
+        label_input=None,
+        label_output=None,
+        **kwargs,
+    ) -> "BaseConversion":
+        """Shortcut for :py:obj:`PipeConversion`"""
+        next_conversion = ensure_conversion(next_conversion)
+        if (
+            label_input is None
+            and label_output is None
+            and not args
+            and not kwargs
+            and not next_conversion.is_itself_callable()
+        ):
+            return next_conversion
+
+        return super().pipe(
+            next_conversion,
+            *args,
+            label_input=label_input,
+            label_output=label_output,
+            **kwargs,
+        )
 
 
 This = ThisConversion()
@@ -2129,7 +2138,7 @@ class GetItem(BaseMethodConversion):
 
             else:
                 do_caching = False
-                for i, index in enumerate(self.indexes):
+                for _, index in enumerate(self.indexes):
                     code_output = self.wrap_path_item(
                         code_output,
                         index.gen_code_and_update_ctx("data_", ctx),
@@ -2703,13 +2712,12 @@ class OptionalCollectionItem(BaseConversion):
                 self.condition = Not(self.ensure_conversion(skip_if))
             if keep_if is not self._none:
                 self.condition = self.ensure_conversion(keep_if)
+        elif skip_value is None:
+            self.condition = self.conversion.is_not(None)
         else:
-            if skip_value is None:
-                self.condition = self.conversion.is_not(None)
-            else:
-                self.condition = self.conversion != self.ensure_conversion(
-                    skip_value
-                )
+            self.condition = self.conversion != self.ensure_conversion(
+                skip_value
+            )
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         raise AssertionError(
@@ -2770,9 +2778,9 @@ class Dict(BaseCollectionConversion):
         pairs: "t.List[t.Tuple[BaseConversion, BaseConversion]]" = []
         conditions = None
 
-        for key, value in items:
-            key = self.ensure_conversion(key)
-            value = self.ensure_conversion(value)
+        for raw_key, raw_value in items:
+            key = self.ensure_conversion(raw_key)
+            value = self.ensure_conversion(raw_value)
             condition = None
 
             if isinstance(key, OptionalCollectionItem):
@@ -2956,15 +2964,17 @@ def delegate_input_switching_method(name):
 
 
 class PipeConversion(BaseConversion):
-    """Passes the result of one conversion as an input to another.  If
-    `next_conversion` is callable, it gets called with the previous result
+    """Pass the result of one conversion as an input to another.
+
+    If `next_conversion` is callable, it gets called with the previous result
     passed as the first param.
 
     Supports predicate/sorting/type casting push down (each is directly applied
     to the ``where`` conversion.
 
     Supports labeling both pipe input and output data (allows to apply
-    conversions before labeling)."""
+    conversions before labeling).
+    """
 
     weight = 0
     self_content_type = (
@@ -2973,16 +2983,16 @@ class PipeConversion(BaseConversion):
 
     def __init__(
         self,
-        what,
-        where,
+        what: Any,
+        where: Any,
         *args,
         label_input=None,
         label_output=None,
         **kwargs,
     ):
         """
-
         Args:
+        ----
           next_conversion (object): to be wrapped with
             :py:obj:`ensure_conversion` and called if callable is passed
           args (tuple): to be wrapped with :py:obj:`ensure_conversion` and

@@ -16,6 +16,7 @@ extra:
 repo_name: westandskif/convtools
 repo_url: https://github.com/westandskif/convtools
 site_url: https://convtools.readthedocs.io/en/latest/
+use_directory_urls: true
 
 nav:
   - Welcome: README.md

@@ -50,6 +50,7 @@ from ._base import (
 from ._chunks import ChunkBy, ChunkByCondition
 from ._columns import ColumnRef
 from ._cumulative import Cumulative
+from ._exceptions import try_multiple
 from ._expect import ExpectException
 from ._joins import JoinConversion, _JoinConditions
 from ._mutations import Mutations
@@ -162,6 +163,10 @@ class Conversion:
 
     date_parse = This.date_parse
     datetime_parse = This.datetime_parse
+
+    format_dt = This.format_dt
+
+    try_multiple = staticmethod(try_multiple)
 
     def iter(self, item, *, where=None):
         return GeneratorComp(item, where, _none)

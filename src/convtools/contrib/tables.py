@@ -212,36 +212,33 @@ class Table:
             for name, index in header.items():
                 pending_changes |= columns.add(name, index, None)[1]
 
-        else:
-            # inferring a header
-            if isinstance(first_row, dict):
-                if header is False:
-                    for key in first_row:
-                        pending_changes |= columns.add(None, key, None)[1]
-                    pending_changes |= ColumnChanges.MUTATE
-                else:
-                    for key in first_row:
-                        pending_changes |= columns.add(key, key, None)[1]
+        # inferring a header
+        elif isinstance(first_row, dict):
+            if header is False:
+                for key in first_row:
+                    pending_changes |= columns.add(None, key, None)[1]
+                pending_changes |= ColumnChanges.MUTATE
+            else:
+                for key in first_row:
+                    pending_changes |= columns.add(key, key, None)[1]
 
-            elif isinstance(first_row, (tuple, list)):
-                if header is True:
-                    for index, column_name in enumerate(first_row):
-                        pending_changes |= columns.add(
-                            column_name, index, None
-                        )[1]
-                    first_row = None
-
-                else:
-                    for index in range(len(first_row)):
-                        pending_changes |= columns.add(None, index, None)[1]
+        elif isinstance(first_row, (tuple, list)):
+            if header is True:
+                for index, column_name in enumerate(first_row):
+                    pending_changes |= columns.add(column_name, index, None)[1]
+                first_row = None
 
             else:
-                if header is True:
-                    pending_changes |= columns.add(first_row, None, This())[1]
-                    first_row = None
-                else:
-                    pending_changes |= columns.add(None, None, This())[1]
-                pending_changes |= ColumnChanges.MUTATE
+                for index in range(len(first_row)):
+                    pending_changes |= columns.add(None, index, None)[1]
+
+        else:
+            if header is True:
+                pending_changes |= columns.add(first_row, None, This())[1]
+                first_row = None
+            else:
+                pending_changes |= columns.add(None, None, This())[1]
+            pending_changes |= ColumnChanges.MUTATE
 
         rows_objects: "t.List[t.Iterable]" = [rows]
         if first_row is not None:
@@ -316,7 +313,7 @@ class Table:
         if isinstance(filepath_or_buffer, str):
             buffer = (
                 file_to_close
-            ) = open(  # pylint: disable=consider-using-with
+            ) = open(  # pylint: disable=consider-using-with # noqa: SIM115
                 filepath_or_buffer,
                 "r",
                 encoding=encoding,
@@ -961,7 +958,9 @@ class Table:
         f_to_close = None
         f: "t.TextIO"
         if isinstance(filepath_or_buffer, str):
-            f = f_to_close = open(  # pylint:disable=consider-using-with
+            f = (
+                f_to_close
+            ) = open(  # pylint:disable=consider-using-with  # noqa: SIM115
                 filepath_or_buffer, "w", encoding=encoding
             )
         else:

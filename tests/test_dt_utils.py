@@ -1,85 +1,50 @@
+import string
 from datetime import date, datetime, timedelta, timezone
 from time import time
 
 import pytest
 
 from convtools import conversion as c
+from convtools._dt import DatetimeFormat, DatetimeParse, UnsupportedFormatCode
 
 
-def test_date_parse():
-    assert c.date_parse("%Y-%m-%d").execute("2020-01-31") == date(2020, 1, 31)
-    assert c.item(0).date_parse("%Y-%m-%d").execute(("2020-01-31",)) == date(
-        2020, 1, 31
-    )
-    assert c.date_parse("%Y-%m-%d", "%m/%d/%Y").execute("1/31/2020") == date(
-        2020, 1, 31
-    )
+SUPPORTED_FMT_TOKENS = "%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y"
 
-    assert c.datetime_parse("%Y-%m-%d %H:%M").execute(
-        "2020-01-31 15:40"
-    ) == datetime(2020, 1, 31, 15, 40)
-    assert c.item(0).datetime_parse("%Y-%m-%d %H:%M").execute(
-        ("2020-01-31 15:40",)
-    ) == datetime(2020, 1, 31, 15, 40)
-    assert c.datetime_parse("%Y-%m-%d %H:%M", "%m/%d/%Y %H:%M").execute(
-        "1/31/2020 15:40"
-    ) == datetime(2020, 1, 31, 15, 40)
-
-    with pytest.raises(ValueError):
-        assert c.date_parse("%Y-%m-%d", "%m/%d/%Y", "%Y_%m_%d").execute(
-            "2020__1__31"
-        )
-    with pytest.raises(ValueError):
-        assert c.datetime_parse("%Y-%m-%d", "%m/%d/%Y", "%Y_%m_%d").execute(
-            "2020__1__31"
-        )
-
-    t = [1]
-    result = c.date_parse("%Y-%m-%d", default=t).execute("1/1/2000")
-    assert result == t and result is not t
-    result = c.datetime_parse("%Y-%m-%d", default=t).execute("1/1/2000")
-    assert result == t and result is not t
-
-
-@pytest.mark.parametrize(
-    "method,result",
-    [
-        ("date_parse", date(2020, 1, 1)),
-        ("datetime_parse", datetime(2020, 1, 1)),
-    ],
+ALL_FMT_TOKENS = (
+    "%% %A %a %B %b %c %d %f %H %I %j %M %m %p %S %U %W %w %X %x %Y %y %Z %z"
 )
-def test_date_parse_default_once(method, result):
-    # testing that default is evaluated only when needed
-    flag = True
-
-    def f():
-        nonlocal flag
-        if flag:
-            flag = False
-        else:
-            raise ValueError
-        return 1
-
-    converter = getattr(c, method)(
-        "%Y-%m-%d", default=c.call_func(f)
-    ).gen_converter()
-    for i in range(2):
-        assert converter("2020-01-01") == result
-    assert converter("1/1/2020") == 1
-    with pytest.raises(ValueError):
-        assert converter("1/1/2020")
 
 
-@pytest.mark.parametrize("method", ["date_parse", "datetime_parse"])
-@pytest.mark.parametrize("main_format", ["%Y-%m-%d"])
-@pytest.mark.parametrize("other_formats", [(), ("%Y_%m_%d", "%Y__%m__%d")])
-@pytest.mark.parametrize(
-    "default", [None, c.naive(None), c.call_func(lambda: None)]
-)
-def test_date_parse_default(method, main_format, other_formats, default):
-    assert (
-        getattr(c, method)(
-            main_format, *other_formats, default=default
-        ).execute("1/1/2000")
-        is None
+@pytest.fixture
+def all_delimiters():
+    return [" ", ", ", "\t"] + list(
+        string.digits
+        + string.ascii_letters
+        + string.punctuation.replace("%", "")
+    )
+
+
+@pytest.fixture
+def all_dates():
+    return (
+        [date(i, 12, 31) for i in range(1, 3000, 50)]
+        + [date(i, 12, 31) for i in range(1900, 2100)]
+        + [date(1999, 12, 31) + timedelta(days=i) for i in range(365 * 5)]
+    )
+
+
+@pytest.fixture
+def all_datetimes():
+    return (
+        [datetime(i, 12, 31, 23, 59, 31, 987) for i in range(1, 3000, 50)]
+        + [datetime(i, 12, 31, 23, 59, 31, 987) for i in range(1900, 2100)]
+        + [
+            datetime(1999, 12, 31, 23, 59, 31, 987) + timedelta(days=i)
+            for i in range(365 * 5)
+        ]
+        + [datetime(1999, 12, 31, i, 59, 31, 987) for i in range(24)]
+        + [
+            datetime(1999, 12, 31, 23, 59, 31, i)
+            for i in (1, 12, 123, 1234, 12345, 123456)
+        ]
     )

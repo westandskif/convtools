@@ -64,9 +64,8 @@ class ChunkBy(BaseChunkBy):
           size: (optional) positive int to limit max size of a chunk
         """
         super().__init__()
-        if size is not None:
-            if not isinstance(size, int) or size <= 0:
-                raise ValueError("size has to be positive int or None")
+        if size is not None and (not isinstance(size, int) or size <= 0):
+            raise ValueError("size has to be positive int or None")
         if not by and not size:
             raise ValueError("pass at least one of by or size params")
 

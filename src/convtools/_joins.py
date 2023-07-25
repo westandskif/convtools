@@ -106,10 +106,9 @@ class _JoinConditions:
 
     @classmethod
     def from_condition(cls, condition, how="inner") -> "_JoinConditions":
-        if how == "right":
-            join_conditions = cls(how="left", swapped=True)
-        else:
-            join_conditions = cls(how)
+        join_conditions = (
+            cls(how="left", swapped=True) if how == "right" else cls(how)
+        )
 
         if isinstance(condition, Namespace):
             condition = condition.conversion

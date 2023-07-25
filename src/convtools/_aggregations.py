@@ -214,7 +214,7 @@ class ReduceManager:
             checksum += self.add_group_by_code(
                 code,
                 child,
-                delegated_conditions=delegated_conditions + (condition,),
+                delegated_conditions=(*delegated_conditions, condition),
                 var_init_checksum=var_init_checksum,
             )
 
@@ -251,7 +251,7 @@ class ReduceManager:
             checksum += self.add_aggregate_stage2_code(
                 code,
                 child,
-                delegated_conditions=delegated_conditions + (condition,),
+                delegated_conditions=(*delegated_conditions, condition),
             )
 
         if add_pass_if_line_number == len(code.lines_info):
@@ -317,6 +317,7 @@ class BaseReducer(BaseConversion):
                 "2.0 will raise ValueError if initial is "
                 f"passed to {self.__class__.__name__}",
                 DeprecationWarning,
+                stacklevel=1,
             )
 
     def prepare_default_n_initial(self, default, initial):
@@ -417,7 +418,8 @@ class BaseReducer(BaseConversion):
         if not isinstance(self.initial, _None) and self.internals_are_public:
             prepare_first_lines = (
                 f"%(result)s = {self.initial.gen_code_and_update_ctx(var_row, ctx)}",
-            ) + reduce_lines
+                *reduce_lines,
+            )
         else:
             prepare_first_lines = self.get_option("prepare_first_lines", ctx)
 
@@ -437,6 +439,7 @@ class OptionalExpressionReducer(BaseReducer):
                 "2.0 will raise TypeError if more than 1 expression is "
                 f"passed to {self.__class__.__name__}",
                 DeprecationWarning,
+                stacklevel=1,
             )
 
 
@@ -452,6 +455,7 @@ class SingleExpressionReducer(BaseReducer):
                 "2.0 will raise TypeError if more than 1 expression is "
                 f"passed to {self.__class__.__name__}",
                 DeprecationWarning,
+                stacklevel=1,
             )
 
 
@@ -489,7 +493,7 @@ class SumReducer(SingleExpressionReducer):
 
     default = NaiveConversion(0)
     internals_are_public = True
-    values_use_times = (1,)  # TODO set to 1 once debugged
+    values_use_times = (1,)
     works_with_not_none_only = (False,)
 
     def prepare_first_lines(self, ctx):  # pylint: disable=unused-argument
@@ -635,6 +639,7 @@ class MinRowReducer(SingleExpressionReducer):
                 "2.0 will raise ValueError if initial is "
                 f"passed to {self.__class__.__name__}",
                 DeprecationWarning,
+                stacklevel=1,
             )
 
 
@@ -1019,7 +1024,7 @@ class PercentileReducer(SortedArrayReducer):
       * "nearest"
     """
 
-    interpolation_to_method: "t.Dict[str, t.Callable]" = {}
+    interpolation_to_method: t.ClassVar[t.Dict[str, t.Callable]] = {}
 
     def __init__(
         self, percentile: float, conv, *args, interpolation="linear", **kwargs
@@ -1478,7 +1483,9 @@ class Reduce(BaseReducer):
         self.to_call_with_2_args = self.ensure_conversion(to_call_with_2_args)
         if unconditional_init:
             warnings.warn(
-                "unconditional_init is no longer needed", DeprecationWarning
+                "unconditional_init is no longer needed",
+                DeprecationWarning,
+                stacklevel=1,
             )
 
     def values_use_times(self, ctx):  # pylint: disable=unused-argument

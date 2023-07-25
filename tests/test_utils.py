@@ -7,7 +7,7 @@ from convtools._base import (
     ConverterOptionsCtx,
     This,
 )
-from convtools._utils import Code
+from convtools._utils import Code, CodeParams
 
 
 def test_code_generation_ctx():
@@ -101,9 +101,27 @@ def test_ignores_input():
     assert not c(int).call(c.item(0)).ignores_input()
 
 
-def test_code():
-    code = Code()
-    code.add_line("a = 1", 0, "1")
-    assert code.as_expression() == "1"
-    code.add_line("b = 2", 0, "2")
-    assert code.as_expression() is None
+def test_code_params():
+    params = CodeParams()
+
+    params.create("0", "z")
+    params.create("1", "a")
+    params.create("2", "b", used_names="a")
+    params.create("3", "c", used_names="z")
+    params.create("4", "d")
+
+    params.use_param("b")
+    params.use_param("d")
+    params.create_and_use_param("5", "e")
+    params.use_param("e")
+    assert params.get_format_args() == ("2", "4", "e", "e")
+    assert list(params.iter_assignments()) == [
+        "a = 1",
+        "e = 5",
+    ]
+
+    params = CodeParams()
+    params.create("0", "z", used_names="a")
+    params.create("1", "a", used_names="z")
+    with pytest.raises(ValueError):
+        params.use_param("z")
