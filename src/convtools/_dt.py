@@ -691,6 +691,7 @@ class _LocaleBasedMaps:
     @property
     def year_zero_padding_enabled(self):
         self.late_init()
+        # https://github.com/python/cpython/issues/57514
         return self._year_zero_padding_enabled
 
     @property

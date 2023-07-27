@@ -38,9 +38,18 @@ def test_datetime_format__ensure_supported():
     ],
 )
 def test_datetime_format__unsupported(dt, fmt):
-    result = c.item(0).format_dt(fmt).execute([dt])
-    expected = dt.strftime(fmt)
-    assert result == expected
+    try:
+        result = c.item(0).format_dt(fmt).execute([dt])
+    except Exception as exc_1:
+        exc_2 = None
+        try:
+            dt.strftime(fmt)
+        except Exception as e:
+            exc_2 = e
+        assert exc_1.__class__ is exc_2.__class__
+    else:
+        expected = dt.strftime(fmt)
+        assert result == expected
 
 
 def test_datetime_format_dt_wide(all_datetimes):
