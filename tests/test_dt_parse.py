@@ -53,9 +53,20 @@ def test_datetime_parse_dt_wide(fmt_pieces, all_datetimes):
     fmt = " ".join(fmt_pieces)
     for dt in all_datetimes:
         dt_str = dt.strftime(fmt)
-        result = c.item(0).datetime_parse(fmt).execute((dt_str,))
-        result = c.datetime_parse(fmt).execute(dt_str)
-        assert result == dt
+        try:
+            result_1 = c.item(0).datetime_parse(fmt).execute((dt_str,))
+            result_2 = c.datetime_parse(fmt).execute(dt_str)
+        except Exception as exc_1:
+            exc_2 = None
+            try:
+                datetime.strptime(dt_str, fmt)
+            except Exception as e:
+                exc_2 = e
+            assert exc_1.__class__ is exc_2.__class__
+
+        else:
+            assert result_1 == dt
+            assert result_2 == dt
 
 
 @pytest.mark.parametrize(
@@ -65,9 +76,19 @@ def test_datetime_parse_dt_wide(fmt_pieces, all_datetimes):
 def test_date_parse_dt_wide(fmt, all_dates):
     for dt in all_dates:
         dt_str = dt.strftime(fmt)
-        result = c.item(0).date_parse(fmt).execute((dt_str,))
-        result = c.date_parse(fmt).execute(dt_str)
-        assert result == dt
+        try:
+            result_1 = c.item(0).date_parse(fmt).execute((dt_str,))
+            result_2 = c.date_parse(fmt).execute(dt_str)
+        except Exception as exc_1:
+            exc_2 = None
+            try:
+                datetime.strptime(fmt, dt_str)
+            except Exception as e:
+                exc_2 = e
+            assert exc_1.__class__ is exc_2.__class__
+        else:
+            assert result_1 == dt
+            assert result_2 == dt
 
 
 def test_datetime_parse_defaults():
