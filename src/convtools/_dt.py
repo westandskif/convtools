@@ -652,72 +652,66 @@ class DateTimeGrid:
 class _LocaleBasedMaps:
     """Lazily initialized locale-based date names."""
 
-    def __init__(self):
-        self._weekday_to_pct_lower_a = None
-        self._weekday_to_pct_upper_a = None
-        self._month_to_pct_lower_b = None
-        self._month_to_pct_upper_b = None
-        self._hour_to_pct_lower_p = None
-        self._late_initialized = False
+    weekday_to_pct_lower_a: List[str]
+    weekday_to_pct_upper_a: List[str]
+    month_to_pct_lower_b: List[str]
+    month_to_pct_upper_b: List[str]
+    hour_to_pct_lower_p: List[str]
+    upper_y_strftime_fix_needed: bool
+    upper_y_format_is_supported: bool
+    late_initialized: bool
 
     def late_init(self):
-        if self._late_initialized:
-            return
-        self._late_initialized = True
+        try:
+            return object.__getattribute__(self, "late_initialized")
+        except AttributeError:
+            pass
+        self.late_initialized = True
 
-        self._weekday_to_pct_lower_a = [
+        self.weekday_to_pct_lower_a = [
             (datetime(2019, 12, 30) + timedelta(days=i)).strftime("%a")
             for i in range(7)
         ]
-        self._weekday_to_pct_upper_a = [
+        self.weekday_to_pct_upper_a = [
             (datetime(2019, 12, 30) + timedelta(days=i)).strftime("%A")
             for i in range(7)
         ]
-        self._month_to_pct_lower_b = [
+        self.month_to_pct_lower_b = [
             datetime(2020, 1, 1).replace(month=i).strftime("%b")
             for i in range(1, 13)
         ]
-        self._month_to_pct_upper_b = [
+        self.month_to_pct_upper_b = [
             datetime(2020, 1, 1).replace(month=i).strftime("%B")
             for i in range(1, 13)
         ]
-        self._hour_to_pct_lower_p = [
+        self.hour_to_pct_lower_p = [
             datetime(2020, 1, 1, i).strftime("%p") for i in (0, 12)
         ]
-        self._year_zero_padding_enabled = (
-            date(1, 1, 1).strftime("%Y") == "0001"
+
+        # https://github.com/python/cpython/issues/57514
+        dt = date(1, 1, 1)
+        self.upper_y_strftime_fix_needed = False
+        try:
+            if (
+                dt.strftime("%Y") == "1" and dt.strftime("%4Y") == "0001"
+            ):  # pragma: no cover
+                self.upper_y_strftime_fix_needed = True
+        except (  # pragma: no cover # pylint: disable=broad-exception-caught
+            Exception
+        ):
+            pass  # pragma: no cover
+        self.upper_y_format_is_supported = (
+            dt.strftime("%Y") == "0001" or self.upper_y_strftime_fix_needed
         )
 
-    @property
-    def year_zero_padding_enabled(self):
-        self.late_init()
-        # https://github.com/python/cpython/issues/57514
-        return self._year_zero_padding_enabled
+    def __getattribute__(self, attr):
+        object.__getattribute__(self, "late_init")()
+        return object.__getattribute__(self, attr)
 
-    @property
-    def weekday_to_pct_lower_a(self):
-        self.late_init()
-        return self._weekday_to_pct_lower_a
-
-    @property
-    def weekday_to_pct_upper_a(self):
-        self.late_init()
-        return self._weekday_to_pct_upper_a
-
-    @property
-    def month_to_pct_lower_b(self):
-        self.late_init()
-        return self._month_to_pct_lower_b
-
-    @property
-    def month_to_pct_upper_b(self):
-        self.late_init()
-        return self._month_to_pct_upper_b
-
-    @property
-    def hour_to_pct_lower_p(self):
-        self.late_init()
-        return self._hour_to_pct_lower_p
+    def fix_strftime_format(self, fmt):
+        if self.upper_y_strftime_fix_needed:
+            fmt = fmt.replace("%Y", "%4Y")  # pragma: no cover
+        return fmt  # pragma: no cover
 
 
 LOCALE_BASED_MAPS = _LocaleBasedMaps()
@@ -815,10 +809,9 @@ class DatetimeFormat(BaseConversion):
                     )
                     code_params.use_param("hour")
                 elif ch == "Y":
-                    if LOCALE_BASED_MAPS.year_zero_padding_enabled:
-                        result.append("{%s:04}")  # pragma: no cover
-                    else:
-                        result.append("{%s}")  # pragma: no cover
+                    if not LOCALE_BASED_MAPS.upper_y_format_is_supported:
+                        return None  # pragma: no cover
+                    result.append("{%s:04}")
                     code_params.use_param("year")
                 elif ch == "m":
                     result.append("{%s:02}")
@@ -902,7 +895,9 @@ class DatetimeFormat(BaseConversion):
 
         except UnsupportedFormatCode:
             return CallFunc(
-                datetime.strftime, This, self.fmt
+                datetime.strftime,
+                This,
+                LOCALE_BASED_MAPS.fix_strftime_format(self.fmt),
             ).gen_code_and_update_ctx(code_input, ctx)
 
 

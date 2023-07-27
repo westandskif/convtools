@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 python:3.6-slim
+FROM --platform=linux/amd64 python:3.7-alpine
 
 RUN mkdir -p /mnt/convtools
 COPY requirements.txt /mnt/convtools/requirements.txt

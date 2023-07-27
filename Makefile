@@ -35,6 +35,11 @@ benchmarks:
 	for i in $$(cat benchmarks/main_versions.txt); do pip install --force-reinstall convtools==$$i && python run_benchmarks.py ; done
 	pip install -e . && python run_benchmarks.py
 
+
 linux_bash_3_6:
 	docker build -t convtools_linux:3.6 ci-requirements/py3.6
-	docker run --rm -it -v $$PWD:/mnt/convtools convtools_linux:latest bash
+	docker run --rm -it -v $$PWD:/mnt/convtools convtools_linux:3.6 bash
+
+linux_bash_3_7_alpine:
+	docker build -t convtools_linux:3.7-alpine ci-requirements/py3.7
+	docker run --rm -it -v $$PWD:/mnt/convtools convtools_linux:3.7-alpine sh

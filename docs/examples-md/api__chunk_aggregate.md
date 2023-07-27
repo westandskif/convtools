@@ -38,6 +38,7 @@
                 agg_data__v1 = row_
                 agg_data__v2 += row_ or 0
             if checksum_ == 1:
+                globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
                 break
         for row_ in it_:
             agg_data__v1 = row_

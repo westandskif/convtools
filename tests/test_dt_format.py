@@ -3,7 +3,7 @@ from datetime import date, datetime
 import pytest
 
 from convtools import conversion as c
-from convtools._dt import DatetimeFormat
+from convtools._dt import LOCALE_BASED_MAPS, DatetimeFormat
 
 from .test_dt_utils import (
     ALL_FMT_TOKENS,
@@ -54,6 +54,7 @@ def test_datetime_format__unsupported(dt, fmt):
 
 def test_datetime_format_dt_wide(all_datetimes):
     fmt = SUPPORTED_FMT_TOKENS + r"""dea!"$%%&'#()*+,-./:;<=>?@[\]^_`{|}~"""
+    fmt = LOCALE_BASED_MAPS.fix_strftime_format(fmt)
     f1 = c.item(0).format_dt(fmt).gen_converter()
     f2 = c.format_dt(fmt).gen_converter()
     for dt in all_datetimes:

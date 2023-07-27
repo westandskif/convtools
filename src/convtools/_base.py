@@ -469,6 +469,7 @@ class BaseConversion(t.Generic[CT]):
         signature=None,
         debug=None,
         converter_name="converter",
+        _inner=False,
     ):
         """Compile a function which implements the conversion.
 
@@ -487,13 +488,23 @@ class BaseConversion(t.Generic[CT]):
         Returns:
           The compiled function
         """
+        if (
+            (debug or (self.contents & self.ContentTypes.BREAKPOINT))
+            and not _inner
+            and not ConverterOptionsCtx.get_option_value("debug")
+        ):
+            with ConverterOptionsCtx() as options:
+                options.debug = True
+                return self.gen_converter(
+                    method=method,
+                    class_method=class_method,
+                    signature=signature,
+                    debug=True,
+                    converter_name=converter_name,
+                    _inner=True,
+                )
         # signature should contain "data_" argument
         initial_code_input = "data_"
-        debug = (
-            debug
-            or (self.contents & self.ContentTypes.BREAKPOINT)
-            or ConverterOptionsCtx.get_option_value("debug")
-        )
         # self.ContentTypes.NEW_LABEL | self.ContentTypes.LABEL_USAGE
         has_labels = self.contents & 20
         has_none = self.contents & 128  # self.ContentTypes.NONE_USAGE

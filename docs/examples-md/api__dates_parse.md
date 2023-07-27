@@ -22,30 +22,73 @@
     converter = (
         c.item("dt").datetime_parse("%m/%d/%Y %H:%M").gen_converter(debug=True)
     )
-    assert converter({"dt": "12/31/2020 15:40"}) == datetime(2020, 12, 31, 15, 40)
+    assert converter({"dt": "12/31/2020 15:40"}) == datetime(
+        2020, 12, 31, 15, 40
+    )
     ```
 
 === "debug stdout"
     ```python
-    def converter(data_, *, __v=__naive_values__["__v"], __strptime=__naive_values__["__strptime"]):
+    def datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+        match = __v.match(data_)
+        if not match:
+            raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
+        if len(data_) != match.end():
+            raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        groups_ = match.groups()
+        return __datetime(int(groups_[2]), int(groups_[0]), int(groups_[1]), 0, 0, 0, 0)
+    
+    def converter(data_):
         try:
-            return __strptime(data_, __v).date()
+            return datetime_parse(data_).date()
         except __exceptions_to_dump_sources:
             __convtools__code_storage.dump_sources()
             raise
     
-    def converter(
-        data_, *, __date_parse=__naive_values__["__date_parse"], __v=__naive_values__["__v"], __v_e=__naive_values__["__v_e"], __v_i=__naive_values__["__v_i"]
-    ):
+    def datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+        match = __v.match(data_)
+        if not match:
+            raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
+        if len(data_) != match.end():
+            raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        groups_ = match.groups()
+        return __datetime(int(groups_[2]), int(groups_[0]), int(groups_[1]), 0, 0, 0, 0)
+    
+    def datetime_parse_e(data_, *, __datetime=__naive_values__["__datetime"], __v_q=__naive_values__["__v_q"]):
+        match = __v_q.match(data_)
+        if not match:
+            raise ValueError("time data %r does not match format %r" % (data_, """%Y-%m-%d"""))
+        if len(data_) != match.end():
+            raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        groups_ = match.groups()
+        return __datetime(int(groups_[0]), int(groups_[1]), int(groups_[2]), 0, 0, 0, 0)
+    
+    def try_multiple(data_, *, __v_i=__naive_values__["__v_i"]):
         try:
-            return [__date_parse(i, __v, __v_i, __v_e) for i in data_]
+            return datetime_parse(data_).date()
+        except __v_i:
+            pass
+        return datetime_parse_e(data_).date()
+    
+    def converter(data_):
+        try:
+            return [try_multiple(i) for i in data_]
         except __exceptions_to_dump_sources:
             __convtools__code_storage.dump_sources()
             raise
     
-    def converter(data_, *, __v=__naive_values__["__v"], __strptime=__naive_values__["__strptime"]):
+    def datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+        match = __v.match(data_)
+        if not match:
+            raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y %H:%M"""))
+        if len(data_) != match.end():
+            raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        groups_ = match.groups()
+        return __datetime(int(groups_[2]), int(groups_[0]), int(groups_[1]), int(groups_[3]), int(groups_[4]), 0, 0)
+    
+    def converter(data_):
         try:
-            return __strptime(data_["dt"], __v)
+            return datetime_parse(data_["dt"])
         except __exceptions_to_dump_sources:
             __convtools__code_storage.dump_sources()
             raise
