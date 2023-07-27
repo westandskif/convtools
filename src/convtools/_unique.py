@@ -1,13 +1,10 @@
-"""Provides conversions for working with unique values"""
+"""Conversions for working with unique values."""
 from ._base import BaseConversion, EscapedString
 from ._utils import Code
 
 
 class IterUnique(BaseConversion):
-    """
-    Defines a conversion which iterates over the input and yields unique ones
-    (supports custom uniqueness conditions)
-    """
+    """Iterate unique elements of self conversion."""
 
     def __init__(self, self_conv, element, by_):
         super().__init__()

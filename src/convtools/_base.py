@@ -3,13 +3,13 @@ import re
 import string
 import sys
 import typing as t
-from typing import Any
 from collections import deque
 from datetime import datetime
 from decimal import Decimal
 from itertools import chain
 from keyword import iskeyword
 from random import Random
+from typing import Any
 
 from ._heuristics import Weights
 from ._utils import (
@@ -25,12 +25,6 @@ from ._utils import (
 )
 
 
-convtools_cumulative = LazyModule("convtools._cumulative")
-convtools_debug = LazyModule("convtools._debug")
-convtools_dt = LazyModule("convtools._dt")
-convtools_expect = LazyModule("convtools._expect")
-convtools_exceptions = LazyModule("convtools._exceptions")
-convtools_mutations = LazyModule("convtools._mutations")
 convtools_unique = LazyModule("convtools._unique")
 
 
@@ -52,7 +46,7 @@ class CodeGenerationOptionsCtx(BaseCtx):
 
 
 class ConverterOptions(BaseOptions):
-    """Converter options (+ see default values below):
+    """Converter options (+ see default values below).
 
     * ``debug = False`` - same as ``.gen_converter(debug=...)``
 
@@ -65,7 +59,6 @@ class ConverterOptionsCtx(BaseCtx):
     """Thread-safe context to manage options.
 
     Example:
-
     >>> with ConverterOptionsCtx() as options:
     >>>     options.debug = True
     >>>     # ...
@@ -84,7 +77,9 @@ def {converter_name}({code_signature}):
 def ensure_conversion(
     conversion: t.Any, explicitly_allowed_cls=None  # noqa: ANN401
 ) -> "BaseConversion":
-    r"""Helps to define conversions based on its type:
+    """Transforms anything to conversion.
+
+    Helps to define conversions based on its type:
         * any conversion is returned untouched
         * list/dict/set/tuple collections are wrapped with ``c.list``,
           ``c.dict``, ``c.set``, ``c.tuple`` (see below).
@@ -96,16 +91,18 @@ def ensure_conversion(
 
     Args:
       conversion (object): any object
+      explicitly_allowed_cls: defines which conversions with
+        `explicitly_allowed_cls` flag set can be used
 
     Returns:
       BaseConversion: a conversion based on ``conversion`` type:
        * BaseConversion -> :py:class:`BaseConversion`
-       * {} -> :py:class:`Dict` (\*conversion.items())
-       * [] -> :py:class:`List` (\*conversion)
-       * () -> :py:class:`Tuple` (\*conversion)
-       * set() -> :py:class:`Set` (\*conversion)
-       * slice -> :py:obj:`InlineExpr`
-       * object -> :py:class:`NaiveConversion` (conversion)
+       * {} -> `Dict` conversion
+       * [] -> `List` conversion
+       * () -> `Tuple` conversion
+       * set() -> `Set` conversion
+       * slice -> `InlineExpr` conversion
+       * object -> `NaiveConversion` otherwise
     """
     if isinstance(conversion, BaseConversion):
         if conversion.used_in_narrow_context and (
@@ -144,14 +141,13 @@ choice = _random.choice
 
 
 class BaseConversion(t.Generic[CT]):
-    """This is the base class  of every conversion (so you are not going to use
-    this directly).
+    """Base class of every conversion.
 
-    A conversion is a definition of some actions to be done to the input passed
-    as `data_` argument.
+    A conversion defines a transform of an input into an output before you have
+    any data at hand. You are not going to use this directly.
 
-    Conversions are nestable (iteration, calling functions) and chainable
-    (method calling or piping).
+    Conversions can be nested (iteration, calling functions) and chained via
+    piping.
 
     Every conversion has many important methods like:
       * `gen_converter`
@@ -159,7 +155,8 @@ class BaseConversion(t.Generic[CT]):
       * `and_`, `or_`, `not_`, `is_`, `is not`, `in_`, `not_in`
       * `filter`
       * `pipe`
-      * overloaded operators"""
+      * overloaded operators
+    """
 
     _none = _none
     valid_pipe_output = True
@@ -167,7 +164,7 @@ class BaseConversion(t.Generic[CT]):
     trackable_dependency = False
 
     class ContentTypes:
-        """Defines types of conversion content for bitmask calculations"""
+        """Defines types of conversion content for bitmask calculations."""
 
         REDUCER = 1
         AGGREGATION = 2
@@ -237,17 +234,19 @@ class BaseConversion(t.Generic[CT]):
         return deps
 
     def ensure_conversion(self, conversion, **kwargs) -> "BaseConversion":
-        """Runs ensure_conversion on the input object and adds the resulting
-        conversion to the list of dependencies"""
+        """Transform an object into conversion and track its dependencies."""
         conversion = ensure_conversion(conversion, **kwargs)
         self.depends_on(conversion)
         return conversion
 
     def gen_code_and_update_ctx(self, code_input, ctx) -> str:
-        """The main method which generates the code and stores necessary info
-        in the context (which will be passed as locals() and globals() on to
-        the exec function).  However you should not override this method
-        directly, please implement the `_gen_code_and_update_ctx` one.
+        """The main code generation method.
+
+        It generates code of a conversion as an expression, stores required
+        data in the context (which is passed as `locals()` and `globals()` to
+        `compile`.
+        However you should not override this method
+        directly, please implement the `_gen_code_and_update_ctx` one
         """
         return self._gen_code_and_update_ctx(code_input, ctx)
 
@@ -284,8 +283,10 @@ class BaseConversion(t.Generic[CT]):
         raise AssertionError("failed to generate unique filename", name)
 
     def gen_name(self, prefix, ctx, item_to_hash) -> str:
-        """Generates name of variable to be used in the generated code. This
-        also ensures that same items_to_hash will yield same names."""
+        """Generates name of variable to be used in the generated code.
+
+        This also ensures that items with same items_to_hash get same names.
+        """
         prefixed_hash_to_name = ctx[self.PREFIXED_HASH_TO_NAME]
         prefixed_hash = (prefix, item_to_hash)
         try:
@@ -469,8 +470,7 @@ class BaseConversion(t.Generic[CT]):
         debug=None,
         converter_name="converter",
     ):
-        """Compiles a function which act according to the conversion
-        definition.
+        """Compile a function which implements the conversion.
 
         Args:
           debug (bool): If `True`, prints the generated code (formats with
@@ -587,7 +587,7 @@ class BaseConversion(t.Generic[CT]):
         return converter
 
     def execute(self, *args, debug=None, **kwargs) -> t.Any:
-        """Shortcut for generating converter and running it"""
+        """Shortcut for `gen_converter()` and running it."""
         return self.gen_converter(
             debug=debug or ConverterOptionsCtx.get_option_value("debug")
         )(*args, **kwargs)
@@ -596,7 +596,9 @@ class BaseConversion(t.Generic[CT]):
         return GeneratorComp(This, _none, self)
 
     def iter(self, element_conv, *, where=None) -> "BaseConversion":
-        """Shortcut for
+        """Iterate elements of self conversion.
+
+        Shortcut for
         ``self.pipe(c.generator_comp(element_conv, where=condition))``
 
         Args:
@@ -607,9 +609,7 @@ class BaseConversion(t.Generic[CT]):
         return GeneratorComp(element_conv, where=where, self_conv=self)
 
     def iter_unique(self, element_conv=None, by_=None) -> "BaseConversion":
-        """
-        Creates a conversion which iterates over the input and yields unique
-        ones (supports custom uniqueness conditions)
+        """Iterate unique elements of self conversion.
 
         Args:
           element_conv: defines a conversion to be applied to each element to
@@ -618,14 +618,15 @@ class BaseConversion(t.Generic[CT]):
             uniqueness; if it is None, it means to use `element_conv` for
             uniqueness
         """
+        from convtools import _unique
+
         element_conv = This if element_conv is None else element_conv
-        return convtools_unique.IterUnique(
+        return _unique.IterUnique(
             self, element_conv, element_conv if by_ is None else by_
         )
 
     def filter(self, condition_conv, cast=None) -> "BaseConversion":
-        """Generates the code to iterate the input, taking items for which the
-        provided conversion resolves to a truth value.
+        """Filter elements of self conversion based on predicate conversion.
 
         Args:
           condition_conv (object): to be wrapped with
@@ -648,23 +649,30 @@ class BaseConversion(t.Generic[CT]):
         return result
 
     def iter_mut(self, *mutations: "BaseMutation") -> "BaseConversion":
-        """Conversion which results in a generator of mutated elements
+        """Mutates elements of self conversion.
 
         Args:
           mutations (BaseMutation): conversion to be run on each element
 
         """
-        return convtools_mutations.IterMutConversion(self, *mutations)
+        from convtools import _mutations
+
+        return _mutations.IterMutConversion(self, *mutations)
 
     def iter_windows(self, width, step=1):
-        """Iterates through an iterable and yields tuples, which are obtained
-        by sliding a windows of a given width, moving it by specified step
-        size"""
+        """Iterate elements of self conversion with a window of defined length.
+
+        Returns:
+          Generator[Tuple, None, None]
+        """
         return CallFunc(iter_windows, self, width, step)
 
     def flatten(self) -> "Call":
-        """Conversion which calls :py:obj:`itertools.chain.from_iterable` on
-        self. Returns iterable"""
+        """Pass self to `itertools.chain.from_iterable` to flatten it.
+
+        Returns:
+          iterable of elements.
+        """
         return CallFunc(chain.from_iterable, self)
 
     def take_while(self, condition) -> "BaseConversion":
@@ -883,16 +891,15 @@ class BaseConversion(t.Generic[CT]):
         )
 
     def len(self) -> "BaseConversion":
-        """Shortcut for CallFunc(len, self)"""
+        """Shortcut for CallFunc(len, self)."""
         return CallFunc(len, self)
 
     def sort(self, key=None, reverse=False) -> "BaseConversion":
-        """Shortcut for calling :py:obj:`convtools.base.SortConversion` on
-        self"""
+        """Shortcut for CallFunc(sorted, self, key=key, reverse=reverse)."""
         return self.pipe(SortConversion(key=key, reverse=reverse))
 
     def add_label(self, label_name: t.Union[str, dict]) -> "BaseConversion":
-        """Labels data so it can be reused further:
+        """Labels input data so it can be reused in further conversions.
 
         Basic:
         >>> c.item("objects", 0).add_label("first")
@@ -915,14 +922,15 @@ class BaseConversion(t.Generic[CT]):
         return self.pipe(This, label_input=label_name)
 
     def tap(self, *mutations: "BaseMutation") -> "BaseConversion":
-        """Allows to tap into the processing of a conversion and mutate it
-        in place. Accepts multiple mutations, order matters.
+        """Apply mutation to result of self conversion. Order matters.
 
         Args:
           mutations (iterable of BaseMutation): mutations to process the
             conversion
         """
-        return convtools_mutations.TapConversion(self, *mutations)
+        from convtools import _mutations
+
+        return _mutations.TapConversion(self, *mutations)
 
     def pipe(
         self,
@@ -932,7 +940,17 @@ class BaseConversion(t.Generic[CT]):
         label_output=None,
         **kwargs,
     ) -> "BaseConversion":
-        """Shortcut for :py:obj:`PipeConversion`"""
+        """Pass the result of one conversion as an input to another.
+
+        If `next_conversion` is callable, it gets called with the previous result
+        passed as the first param.
+
+        Supports predicate/sorting/type casting push down (each is directly applied
+        to the ``where`` conversion.
+
+        Supports labeling both pipe input and output data (allows to apply
+        conversions before labeling).
+        """
         return PipeConversion(
             self,
             next_conversion,
@@ -943,12 +961,13 @@ class BaseConversion(t.Generic[CT]):
         )
 
     def breakpoint(self):
-        """Shortcut to Breakpoint(self)"""
-        return convtools_debug.Breakpoint(self)
+        """Wrap conversion with function and add breakpoint right after."""
+        from convtools import _debug
+
+        return _debug.Breakpoint(self)
 
     def and_then(self, conversion, condition=bool) -> "BaseConversion":
-        """Applies conversion if condition is true, otherwise leaves untouched.
-        Condition is :py:obj:`bool` by default"""
+        """Apply conversion if condition is true, otherwise leave it untouched."""
         if condition is bool:
             return self.pipe(And(This(), conversion))
 
@@ -962,53 +981,100 @@ class BaseConversion(t.Generic[CT]):
         )
 
     def cumulative(self, prepare_first, reduce_two, label_name=None):
-        """Shortcut for :py:obj:`Cumulative`"""
-        return convtools_cumulative.Cumulative(
+        """Calculate cumulative values within iterables.
+
+        Example:
+        >>> assert (
+        >>>     c.iter(c.cumulative(c.this, c.this + c.PREV))
+        >>>     .as_type(list)
+        >>>     .execute([0, 1, 2, 3, 4])
+        >>> ) == [0, 1, 3, 6, 10]
+
+        Args:
+          prepare_first: conversion to apply to the first element
+          reduce_two: conversion to reduce two values to one
+          label_name: custom name of cumulative to be used. It is needed when
+            `c.cumulative_reset(label_name)`
+        """
+        from convtools import _cumulative
+
+        return _cumulative.Cumulative(
             self, prepare_first, reduce_two, label_name
         )
 
     def cumulative_reset(self, label_name):
-        """Shortcut for :py:obj:`CumulativeReset`"""
-        return convtools_cumulative.CumulativeReset(self, label_name)
+        """Reset cumulative value to its initial state.
+
+        >>> assert (
+        >>>     c.iter(
+        >>>         c.cumulative_reset("abc")
+        >>>         .iter(c.cumulative(c.this, c.this + c.PREV, label_name="abc"))
+        >>>         .as_type(list)
+        >>>     )
+        >>>     .as_type(list)
+        >>>     .execute([[0, 1, 2], [3, 4]])
+        >>> ) == [[0, 1, 3], [3, 7]]
+        """
+        from convtools import _cumulative
+
+        return _cumulative.CumulativeReset(self, label_name)
 
     def date_parse(self, main_format, *other_formats, default=_none):
-        """Parses str to date using `main_format` first, then tries
+        """datetime.strptime with multi-format and default support.
+
+        Parses str to date using `main_format` first, then tries
         `other_formats`, otherwise:
           - returns `default if provided
           - or raises ValueError
         """
+        from convtools import _dt, _exceptions
+
         parse_exc_pairs = []
         for fmt in chain((main_format,), other_formats):
-            conversion = convtools_dt.DatetimeParse(fmt).call_method("date")
+            conversion = _dt.DatetimeParse(fmt).call_method("date")
             parse_exc_pairs.append((conversion, (ValueError, TypeError)))
 
         return self.pipe(
-            convtools_exceptions.try_multiple(
-                *parse_exc_pairs, default=default
-            )
+            _exceptions.try_multiple(*parse_exc_pairs, default=default)
         )
 
     def datetime_parse(self, main_format, *other_formats, default=_none):
-        """Parses str to datetime using `main_format` first, then tries
+        """datetime.strptime with multi-format and default support.
+
+        Parses str to datetime using `main_format` first, then tries
         `other_formats`, otherwise:
           - returns `default if provided
           - or raises ValueError
         """
+        from convtools import _dt, _exceptions
+
         parse_exc_pairs = []
         for fmt in chain((main_format,), other_formats):
-            conversion = convtools_dt.DatetimeParse(fmt)
+            conversion = _dt.DatetimeParse(fmt)
             parse_exc_pairs.append((conversion, (ValueError, TypeError)))
 
         return self.pipe(
-            convtools_exceptions.try_multiple(
-                *parse_exc_pairs, default=default
-            )
+            _exceptions.try_multiple(*parse_exc_pairs, default=default)
         )
 
     def date_trunc(self, step, offset=None, mode="start"):
-        """Truncates a date to periods of certain length, specified by step and
-        offset, passed as either a STEP-STRING (see below) or a
-        `datetime.timedelta`.
+        """Truncate date.
+
+        Args:
+          step: defines period length as STEP-STRING or a timedelta. If it's a
+            year, month or a day of week, it defines beginnings of periods too.
+          offset (optional): defines the shift of the expected date grid
+            relative to 0-point as STEP-STRING or a timedelta. Positive offset
+            shifts a grid to the right.
+          mode (Literal["start", "end", "end_inclusive"]): defines truncating
+            mode:
+             * "start" returns period start;
+             * "end" returns a start of the next period, complies with default
+               interval definition where start is inclusive and end is not;
+             * "end_inclusive" returns the end of the current interval
+
+        Desired datetime grid is defined by step and offset, passed as either a
+        STEP-STRING (see below) or a `datetime.timedelta`.
         It also supports multiple modes of truncating dates.
 
         >>> conversion.date_trunc("1mo")
@@ -1028,50 +1094,42 @@ class BaseConversion(t.Generic[CT]):
 
         so -2d8h10us means minus 2 days 8 hours and 10 microseconds.
 
-        WARNING:
+        Warning:
          * y/mo support only y/mo as offsets
          * days of week don't support offsets
          * as this method truncates dates, not datetimes, it accepts only whole
            number of days as steps and offsets
 
-        Args:
-          step: defines period length. If it's a year, month or a day of week,
-            it defines beginnings of periods too.
-          offset (optional): defines the shift of the expected date grid
-            relative to 0-point. Positive offset shifts a grid to the right.
-          mode (Literal["start", "end", "end_inclusive"]): defines truncating
-            mode: "start" returns period start; "end" returns a start of the
-            next period, complies with default interval definition where start
-            is inclusive and end is not; "end_inclusive" returns the end of the
-            current interval
 
         """
-        step = convtools_dt.to_step(step)
-        mode = convtools_dt.TruncModes.to_internal(mode)
+        from convtools import _dt
+
+        step = _dt.to_step(step)
+        mode = _dt.TruncModes.to_internal(mode)
         if offset is not None:
-            offset = convtools_dt.to_step(offset)
-        if isinstance(step, convtools_dt.MonthStep):
+            offset = _dt.to_step(offset)
+        if isinstance(step, _dt.MonthStep):
             return CallFunc(
-                convtools_dt.date_trunc_to_month,
+                _dt.date_trunc_to_month,
                 self,
                 step.to_months(),
                 0 if offset is None else offset.to_months(),
                 mode,
             )
-        elif isinstance(step, convtools_dt.DayOfWeekStep):
+        elif isinstance(step, _dt.DayOfWeekStep):
             if offset is not None:
                 raise ValueError(
                     "offsets are not applicable to day-of-week steps"
                 )
             return CallFunc(
-                convtools_dt.date_trunc_to_day,
+                _dt.date_trunc_to_day,
                 self,
                 step.to_days(),
                 step.day_of_week_offset,
                 mode,
             )
         return CallFunc(
-            convtools_dt.date_trunc_to_day,
+            _dt.date_trunc_to_day,
             self,
             step.to_days(),
             0 if offset is None else offset.to_days(),
@@ -1079,9 +1137,23 @@ class BaseConversion(t.Generic[CT]):
         )
 
     def datetime_trunc(self, step, offset=None, mode="start"):
-        """Truncates a date to periods of certain length, specified by step and
-        offset, passed as either a STEP-STRING (see below) or a
-        :py:obj:`datetime.timedelta`.
+        """Truncate datetime.
+
+        Args:
+          step: defines period length as STEP-STRING or a timedelta. If it's a
+            year, month or a day of week, it defines beginnings of periods too.
+          offset (optional): defines the shift of the expected date grid
+            relative to 0-point as STEP-STRING or a timedelta. Positive offset
+            shifts a grid to the right.
+          mode (Literal["start", "end", "end_inclusive"]): defines truncating
+            mode:
+             * "start" returns period start;
+             * "end" returns a start of the next period, complies with default
+               interval definition where start is inclusive and end is not;
+             * "end_inclusive" returns the end of the current interval
+
+        Desired datetime grid is defined by step and offset, passed as either a
+        STEP-STRING (see below) or a `datetime.timedelta`.
         It also supports multiple modes of truncating dates.
 
         >>> conversion.datetime_trunc("1mo")
@@ -1101,44 +1173,37 @@ class BaseConversion(t.Generic[CT]):
 
         so "-2d8h10us" means minus 2 days 8 hours and 10 microseconds.
 
-        WARNING:
+        Warning:
+        -------
          * y/mo support only y/mo as offsets
          * days of week don't support offsets
          * any steps defined as deterministic units (d, h, m, s, ms, us) can
            only be used with offsets defined by deterministic units too
 
-        Args:
-          step: defines period length. If it's a year, month or a day of week,
-            it defines beginnings of periods too.
-          offset (optional): defines the shift of the expected date grid
-            relative to 0-point. Positive offset shifts a grid to the right.
-          mode (Literal["start", "end", "end_inclusive"]): defines truncating
-            mode: "start" returns period start; "end" returns a start of the
-            next period, complies with default interval definition where start
-            is inclusive and end is not; "end_inclusive" returns the end of the
-            current interval
         """
-        step = convtools_dt.to_step(step)
-        mode = convtools_dt.TruncModes.to_internal(mode)
-        if offset is not None:
-            offset = convtools_dt.to_step(offset)
+        from convtools import _dt
 
-        if isinstance(step, convtools_dt.MonthStep):
+        step = _dt.to_step(step)
+        mode = _dt.TruncModes.to_internal(mode)
+        if offset is not None:
+            offset = _dt.to_step(offset)
+
+        if isinstance(step, _dt.MonthStep):
             return CallFunc(
-                convtools_dt.datetime_trunc_to_month,
+                _dt.datetime_trunc_to_month,
                 self,
                 step.to_months(),
                 0 if offset is None else offset.to_months(),
                 mode,
             )
 
-        elif isinstance(step, convtools_dt.DayOfWeekStep):
+        elif isinstance(step, _dt.DayOfWeekStep):
             if offset is not None:
                 raise ValueError(
                     "offsets are not applicable to day-of-week steps"
                 )
             return CallFunc(
-                convtools_dt.datetime_trunc_to_day,
+                _dt.datetime_trunc_to_day,
                 self,
                 step.to_days(),
                 step.day_of_week_offset,
@@ -1149,7 +1214,7 @@ class BaseConversion(t.Generic[CT]):
             offset is None or offset.can_be_cast_to_days()
         ):
             return CallFunc(
-                convtools_dt.datetime_trunc_to_day,
+                _dt.datetime_trunc_to_day,
                 self,
                 step.to_days(),
                 0 if offset is None else offset.to_days(),
@@ -1157,28 +1222,35 @@ class BaseConversion(t.Generic[CT]):
             )
 
         return CallFunc(
-            convtools_dt.datetime_trunc_to_microsecond,
+            _dt.datetime_trunc_to_microsecond,
             self,
             step.to_us(),
             0 if offset is None else offset.to_us(),
             mode,
         )
 
-    def format_dt(self, fmt):
-        """datetime.strftime analogue with certain cases optimized for speed"""
+    def format_dt(self, fmt: str):
+        """datetime.strftime with certain cases optimized for speed."""
         if fmt == "%Y-%m-%d":
             return If(
                 CallFunc(isinstance, self, datetime),
                 self.call_method("date").call_method("isoformat"),
                 self.call_method("isoformat"),
             )
-        return self.pipe(convtools_dt.DatetimeFormat(fmt))
+        from convtools import _dt
+
+        return self.pipe(_dt.DatetimeFormat(fmt))
 
     def expect(self, condition, error_msg=None):
-        """Checks condition and return the input as is. If condition is not
-        met, raises ExpectException with error_msg (can be conversion too) as
-        param"""
-        return convtools_expect.Expect(self, condition, error_msg)
+        """Check condition and return the input as is or raise ExpectException.
+
+        Args:
+          condition: conversion to evaluate as condition
+          error_msg: error message to pass to ExpectException
+        """
+        from convtools import _expect
+
+        return _expect.Expect(self, condition, error_msg)
 
 
 class BaseMutation(BaseConversion):
@@ -1187,10 +1259,11 @@ class BaseMutation(BaseConversion):
 
 
 class BaseMethodConversion(BaseConversion):
-    """This conversion is required to take into account method calls.  We need
-    to preserve the instance we are calling a method on.
+    """Base conversion to method calls / attr / dict lookups.
 
-    e.g. like obj['key'] OR obj.func() OR obj.attr1"""
+    We need to preserve the instance we are calling a method on.
+    e.g. like obj['key'] OR obj.func() OR obj.attr1
+    """
 
     def __init__(self, self_conv):
         super().__init__()
@@ -1228,9 +1301,10 @@ NOT_NONE_FUNCS = {sum, min, max, len, int, float, Decimal}
 
 
 class NaiveConversion(BaseConversion):
-    """Naive conversion gets compiled into the code, which just returns the
-    `value` it's been initialized with.  Allows to make any object available
-    inside other conversions.
+    """Make outer variable available to code, to be generated.
+
+    During code generation phase, it names a value and passes it to
+    globals/locals of the generated code. Any object is passed as is.
     """
 
     _builtin_dict = get_builtins_dict()
@@ -1243,9 +1317,11 @@ class NaiveConversion(BaseConversion):
     weight = Weights.STEP
 
     def __init__(self, value: t.Any, name_prefix="v"):
-        """
+        """Initialize instance.
+
         Args:
-          value (object): any object
+          value: any object to be exposed to generated code
+          name_prefix (str): prefix to be used
 
         """
         super().__init__()
@@ -1321,8 +1397,7 @@ class NaiveConversion(BaseConversion):
 
 
 class EscapedString(BaseConversion):
-    """Defines the conversion which returns the result of running the
-    python code, passed to init"""
+    """Pass code as is to the resulting generated code."""
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -1339,15 +1414,16 @@ class EscapedString(BaseConversion):
 
 
 class ThisConversion(BaseConversion):
-    """Defines the conversion which just returns the input.
+    """Identity conversion (just returns the input).
 
     Also, provided that you use this inside comprehension conversions,
-    it references an item from an iterator."""
+    it references an item from an iterator.
+    """
 
     weight = 0
 
     def __call__(self) -> "ThisConversion":
-        """To allow using it as singleton"""
+        """To allow using it as singleton."""
         return self
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
@@ -1361,7 +1437,17 @@ class ThisConversion(BaseConversion):
         label_output=None,
         **kwargs,
     ) -> "BaseConversion":
-        """Shortcut for :py:obj:`PipeConversion`"""
+        """Pass the result of one conversion as an input to another.
+
+        If `next_conversion` is callable, it gets called with the previous result
+        passed as the first param.
+
+        Supports predicate/sorting/type casting push down (each is directly applied
+        to the ``where`` conversion.
+
+        Supports labeling both pipe input and output data (allows to apply
+        conversions before labeling).
+        """
         next_conversion = ensure_conversion(next_conversion)
         if (
             label_input is None
@@ -1385,11 +1471,12 @@ This = ThisConversion()
 
 
 class InputArg(BaseConversion):
-    """Allows to use arguments passed into the compiled converter.
+    """Use argument, passed into the compiled converter.
 
     Unless the `signature` argument is passed to `gen_converter` function, all
     input arguments used in the conversion definition will be expected as
-    keyword-only arguments (affecting the resulting converter signature)."""
+    keyword-only arguments (affecting the resulting converter signature).
+    """
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -1399,10 +1486,6 @@ class InputArg(BaseConversion):
     weight = Weights.STEP
 
     def __init__(self, name: str):
-        """
-        Args:
-          name (string): argument name of the converter to be used
-        """
         super().__init__()
         self.name = name
 
@@ -1411,8 +1494,7 @@ class InputArg(BaseConversion):
 
 
 class LabelConversion(BaseConversion):
-    """Allows to reference a conversion result by label, after it was cached by
-    :py:obj:`PipeConversion` or :py:obj:`BaseConversion.add_label`."""
+    """Use data, previously labeled by `add_label` or `pipe`."""
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -1423,10 +1505,6 @@ class LabelConversion(BaseConversion):
     labels_code_name = "_labels"
 
     def __init__(self, label_name: str):
-        """
-        Args:
-          label_name (string): label name to be referenced
-        """
         super().__init__()
         if not isinstance(label_name, str):
             raise ValueError("invalid label_name type")
@@ -1437,9 +1515,7 @@ class LabelConversion(BaseConversion):
 
 
 class Namespace(BaseConversion):
-    """Wrapping conversion which isolates :py:obj:`LazyEscapedString` (parent
-    conversions won't detect them as dependencies) and defines code inputs for
-    them"""
+    """Wrap conversion to hide `LazyEscapedString` from parents."""
 
     weight = 0
     self_content_type = (
@@ -1470,16 +1546,15 @@ class Namespace(BaseConversion):
 
 
 class FunctionCtx:
-    """Defines a code generation context for a conversion, which is to help
-    with wrapping a conversion code in a function so that all required
-    arguments are both defines as parameters and passed properly. It also helps
-    with adding additional parameters.
+    """Helper context to wrap generated code with a function.
 
-    Another important thing is that some parameters like LazyEscapedString are
-    renamed and replaced with arguments of the new function. So it ensures (see
-    prevent_rendering_while_active) that those lazy strings are not generating
-    code while we are building inner function code (they just won't be
-    available there).
+    It ensures required input args, label helpers and other variables are
+    correctly passed to the generated function.
+
+    It also replaces LazyEscapedString with new names (function parameters) and
+    ensures (see prevent_rendering_while_active) that those lazy strings are
+    not generating code while we are building inner function code (they are
+    just not available there).
     """
 
     def __init__(
@@ -1572,8 +1647,7 @@ class FunctionCtx:
 
 
 class NamespaceCtx:
-    """Context manager which defines code inputs for
-    :py:obj:`LazyEscapedString`"""
+    """Context manager which defines code inputs for `LazyEscapedString`."""
 
     _name_to_code = None
     ctx = None
@@ -1614,8 +1688,7 @@ class NamespaceCtx:
 
 
 class NamespaceControlledUnit(BaseConversion):
-    """Wrapping conversion which prevents the inner one from being rendered
-    while it is inside the parent NamespaceCtx"""
+    """Wrapper which conditionally prevents inner conversion from rendering."""
 
     __slots__ = ["conversion", "namespace_ctx"]
     weight = 0
@@ -1635,9 +1708,13 @@ class NamespaceControlledUnit(BaseConversion):
 
 
 class LazyEscapedString(BaseConversion):
-    """A lazy named conversion which allows to build a conversion on the
-    outside to then generate some code around it (properly passing required
-    args, etc.)"""
+    """Lazily defined named conversion.
+
+    It allows to expose conversion primitives to the user, so the one can use
+    them define a custom conversion, which will be embedded into different
+    conversions (properly passing required args, etc.; e.g. see joins /
+    cumulative).
+    """
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -1664,7 +1741,7 @@ class LazyEscapedString(BaseConversion):
 
 
 class OrAndEqBaseConversion(BaseConversion):
-    """Base class of Or/And/Eq operator conversions"""
+    """Base class of Or/And/Eq operator conversions."""
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -1675,7 +1752,8 @@ class OrAndEqBaseConversion(BaseConversion):
     weight = Weights.LOGICAL
 
     def __init__(self, *args, default=None):
-        """
+        """Initialize operator.
+
         Args:
             args: conditions
             default: defines behavior when args is empty
@@ -1702,9 +1780,7 @@ class OrAndEqBaseConversion(BaseConversion):
 
 
 class Or(OrAndEqBaseConversion):
-    """Takes any number of objects, each is to be wrapped with
-    :py:obj:`ensure_conversion` and generates the code
-    joining every argument with python ``or`` expression
+    """Join params with `or` expression; supports default.
 
     ``default`` defines behavior when args is empty
       * if None is empty will raise ValueError
@@ -1717,9 +1793,7 @@ class Or(OrAndEqBaseConversion):
 
 
 class And(OrAndEqBaseConversion):
-    """Takes any number of objects, each is to be wrapped with
-    :py:obj:`ensure_conversion` and generates the code
-    joining every argument with python ``and`` expression.
+    """Join params with `and` expression; supports default.
 
     ``default`` defines behavior when args is empty
       * if None is empty will raise ValueError
@@ -1732,9 +1806,7 @@ class And(OrAndEqBaseConversion):
 
 
 class Eq(OrAndEqBaseConversion):
-    """Takes any number of objects, each is to be wrapped with
-    :py:obj:`ensure_conversion` and generates the code
-    joining every argument with python `` == `` operator
+    """Join params with `==` expression; supports default.
 
     ``default`` defines behavior when args is empty
       * if None is empty will raise ValueError
@@ -1747,13 +1819,7 @@ class Eq(OrAndEqBaseConversion):
 
 
 class If(BaseConversion):
-    """Generates the if expression code.
-
-    Checks the code of the input, if it
-    doesn't seem to be complex, then just proceeds with it as is.
-    If it's not simple (some index/attribute lookups or function calls are
-    in there), then it caches the input for further reuse in if_true and
-    if_false clauses."""
+    """Define conditional expression."""
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -1768,7 +1834,8 @@ class If(BaseConversion):
         if_false=BaseConversion._none,
         no_input_caching=False,
     ):
-        """
+        """Initialize conditional expression.
+
         Args:
           condition (object): condition for the IF expression. If it is left as
             True, then the input is used as the condition.
@@ -1812,8 +1879,7 @@ class If(BaseConversion):
 
 
 class IfMultiple(BaseConversion):
-    """Builds a short-circuit conversion, which evaluates multiple conversions
-    and stops at first true one:
+    """Build a short-circuit conversion, which stops at first true value.
 
     >>> converter = c.if_multiple(
     >>>     (c.this < 10, c.this / 2),
@@ -1837,6 +1903,13 @@ class IfMultiple(BaseConversion):
     )
 
     def __init__(self, *condition_to_value_pairs, else_):
+        """Initialize IfMultiple.
+
+        Args:
+          condition_to_value_pairs: sequence of tuples ({condition},
+            {result-to-return})
+          else_: default to return if no conditions evaluated to true.
+        """
         super().__init__()
         self.condition_to_value_pairs = [
             (self.ensure_conversion(condition), self.ensure_conversion(value))
@@ -1875,7 +1948,7 @@ class IfMultiple(BaseConversion):
 
 
 class Not(BaseConversion):
-    """Conversion which applies not operator to its input"""
+    """Apply `not` operator."""
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -1893,8 +1966,14 @@ class Not(BaseConversion):
 
 
 class InlineExpr(BaseConversion):
-    """This conversion allows to avoid function call overhead.  It inlines a
-    raw python code expression into the code of resulting conversion."""
+    """str-format for code generation.
+
+    The main use case is to avoid function call overhead. It inlines a raw
+    python code expression into the code of resulting conversion.
+
+    Example:
+    c.inline_expr("[j for i in {} for j in i]").pass_args(c.this)
+    """
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -1904,11 +1983,16 @@ class InlineExpr(BaseConversion):
     def __init__(
         self, code_str, weight=Weights.UNPREDICTABLE, args=None, kwargs=None
     ):
-        """
+        """Initialize InlineExpr.
+
         Args:
-          code_str (str): python code string. Supports `{}` expressions of
-            :py:obj:`str.format`, both positional and names ones.
-            To pass arguments, use :py:obj:`InlineExpr.pass_args`
+          code_str (str): python code string. Uses `str.format` syntax - `{}`,
+            both positional and names ones. To pass arguments, use
+            `InlineExpr.pass_args` method.
+          weight: do not use it
+          args: args to pass right away, without deferring to pass_args
+          kwargs: kwargs to pass right away, without deferring to pass_args
+
         """
         self.weight = weight
         super().__init__()
@@ -1996,13 +2080,12 @@ def {converter_name}({code_args}):
 
 
 class GetItem(BaseMethodConversion):
-    """``GetItem`` gets compiled into the code which does
-    dictionary/index lookups.
+    """Any number of dict/index lookups.
 
-    If called without params, just returns the input.
-
+    If called without params, it just returns the input.
     If an index is a conversion itself, then it is being calculated
-    against an input."""
+    against an input.
+    """
 
     prefix = "item_or_default"
     weight = Weights.DICT_LOOKUP
@@ -2022,11 +2105,13 @@ class GetItem(BaseMethodConversion):
         default=BaseConversion._none,
         self_conv=BaseConversion._none,
     ):
-        """
+        """Initialize self.
+
         Args:
-          indexes (:obj:`list` of :obj:`object`): to do lookups with
-          default (:obj:`object`, optional): to be returned on fail,
-           like ``{}.get`` method, but now applicable to arrays too
+          indexes: sequence of indexes/key
+          default (optional): obj/conversion to be returned on fail,
+            like ``{}.get`` method, but applicable to lists too.
+          self_conv: do not use it, it is populated automatically.
         """
         super().__init__(self_conv)
         self.indexes = [self.ensure_conversion(index) for index in indexes]
@@ -2176,11 +2261,12 @@ class GetItem(BaseMethodConversion):
 
 
 class GetAttr(GetItem):
-    """``GetAttr`` gets compiled into the code which runs getattr.
-    If called without params, just returns the input.
+    """Any number of attr lookups.
 
-    If an index is a conversion itself, then it is being calculated
-    against an input."""
+    If called without params, it just returns the input.
+    If an attr is a conversion itself, then it is being calculated
+    against an input.
+    """
 
     valid_attr = re.compile(r"^'[A-Za-z_][a-zA-Z0-9_]*'$")
     prefix = "attr_or_default"
@@ -2198,8 +2284,8 @@ class GetAttr(GetItem):
 
 
 class Call(BaseMethodConversion):
-    """This conversion writes the code which takes the input code and calls it
-    as a function.
+    """Call __call__ of the input.
+
     It takes both positional and keyword arguments to be passed.
     """
 
@@ -2234,7 +2320,7 @@ class Call(BaseMethodConversion):
 
 
 def CallFunc(func, *args, **kwargs) -> "Call":  # pylint:disable=invalid-name
-    """Shortcut to ``NaiveConversion(func).call(*args, **kwargs)``"""
+    """Shortcut to `c.naive(func).call(*args, **kwargs)`."""
     assert callable(func)
     return NaiveConversion(func).call(*args, **kwargs)
 
@@ -2242,7 +2328,7 @@ def CallFunc(func, *args, **kwargs) -> "Call":  # pylint:disable=invalid-name
 def ApplyFunc(  # pylint:disable=invalid-name
     func, args, kwargs
 ) -> "InlineExpr":
-    """Shortcut to ``NaiveConversion(func).apply(args, kwargs)``"""
+    """Shortcut to `c.naive(func).apply(args, kwargs)`."""
     if args:
         if kwargs:
             return InlineExpr("{}(*{}, **{})").pass_args(func, args, kwargs)
@@ -2255,10 +2341,11 @@ def ApplyFunc(  # pylint:disable=invalid-name
 
 
 class SortConversion(BaseConversion):
-    """Generates the code to sort the input."""
+    """Shortcut for CallFunc(sorted, self, key=key, reverse=reverse)."""
 
     def __init__(self, key=None, reverse=False):
-        """
+        """Initialize SortConversion.
+
         Args:
           key (callable): to be passed to :py:obj:`sorted`
           reverse (bool): to be passed to :py:obj:`sorted`
@@ -2279,8 +2366,7 @@ class SortConversion(BaseConversion):
 
 
 class GeneratorItem:
-    """Internal use only - defines a conversion of each element of a
-    comprehension"""
+    """Internal use only: element of generator comprehension."""
 
     __slots__ = ["item", "custom_for_params"]
 
@@ -2301,7 +2387,7 @@ class GeneratorItem:
 
 
 class BaseComp(BaseMethodConversion):
-    """Base conversion of non-dict comprehension"""
+    """Base non-dict comprehension."""
 
     def __init__(
         self,
@@ -2309,14 +2395,13 @@ class BaseComp(BaseMethodConversion):
         where,
         self_conv,
     ):
-        """
+        """Initialize self.
+
         Args:
-          item (object): to be wrapped with :py:obj:`ensure_conversion`
+          generator_item (object): to be wrapped with :py:obj:`ensure_conversion`
             and used as a conversion on each item of a collection.
           where: conversion to be used in ``if`` clause of a comprehension
-
-            e.g. for ``[i * 2 for i in l if i > 0]`` an item would be
-            ``c.generator_comp(c.this * 2, where=c.this > 0)``
+          self_conv: do not use. It is populated automatically.
         """
         super().__init__(self_conv)
 
@@ -2416,7 +2501,7 @@ class GeneratorComp(BaseComp):
 
 
 class SetComp(BaseComp):
-    """Generates python set comprehension code (obviously non-sortable)"""
+    """Set comprehension."""
 
     base_type_to_cast = set
 
@@ -2437,7 +2522,7 @@ class SetComp(BaseComp):
 
 
 class ListComp(BaseComp):
-    """Generates python list comprehension code."""
+    """List comprehension."""
 
     base_type_to_cast = list
 
@@ -2497,15 +2582,18 @@ class TupleComp(BaseComp):
 
 
 class DictComp(BaseMethodConversion):
-    """Generates python dict comprehension code."""
+    """Dict comprehension."""
 
     def __init__(self, key, value, where, self_conv):
-        """
+        """Initialize self.
+
         Args:
           key (object): to be wrapped with :py:obj:`ensure_conversion` and
             used on each item of a collection to form keys
           value (object): to be wrapped with :py:obj:`ensure_conversion` and
             used on each item of a collection to form values
+          where: conversion to be used in ``if`` clause of a comprehension
+          self_conv: do not use. It is populated automatically.
         """
         super().__init__(self_conv)
         self.key = self.ensure_conversion(key)
@@ -2542,7 +2630,7 @@ class DictComp(BaseMethodConversion):
 
 
 class BaseCollectionConversion(BaseConversion):
-    """This is a base conversion of every collection"""
+    """This is a base conversion of every collection."""
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -2553,7 +2641,8 @@ class BaseCollectionConversion(BaseConversion):
     conditions: t.Optional[t.Mapping[int, BaseConversion]] = None
 
     def __init__(self, *items):
-        """
+        """Initialize self.
+
         Args:
           items (objects): items to form a collection from.
             every item gets wrapped with :py:obj:`ensure_conversion`
@@ -2675,8 +2764,7 @@ class BaseCollectionConversion(BaseConversion):
 
 
 class OptionalCollectionItem(BaseConversion):
-    """Wrapping conversion which makes key/value/item of a collection
-    optional."""
+    """Make collection item optional, so it conditionally disappears."""
 
     valid_pipe_output = False
 
@@ -2690,7 +2778,8 @@ class OptionalCollectionItem(BaseConversion):
         skip_if=BaseConversion._none,
         keep_if=BaseConversion._none,
     ):
-        """
+        """Init self.
+
         Args:
           conversion (BaseConversion): conversion to be wrapped
           skip_value: value to compare with conversion result and to be
@@ -2726,7 +2815,7 @@ class OptionalCollectionItem(BaseConversion):
 
 
 class Tuple(BaseCollectionConversion):
-    """Gets compiled into the code which generates a tuple"""
+    """Define tuple."""
 
     weight = Weights.TUPLE_INIT
 
@@ -2742,7 +2831,7 @@ class Tuple(BaseCollectionConversion):
 
 
 class List(BaseCollectionConversion):
-    """Gets compiled into the code which generates a list"""
+    """Define list."""
 
     weight = Weights.LIST_INIT
 
@@ -2756,7 +2845,7 @@ class List(BaseCollectionConversion):
 
 
 class Set(BaseCollectionConversion):
-    """Gets compiled into the code which generates a set"""
+    """Define set."""
 
     weight = Weights.SET_INIT
 
@@ -2770,7 +2859,7 @@ class Set(BaseCollectionConversion):
 
 
 class Dict(BaseCollectionConversion):
-    """Gets compiled into the code which generates a dict"""
+    """Define dict."""
 
     weight = Weights.DICT_INIT
 
@@ -2823,7 +2912,7 @@ class Dict(BaseCollectionConversion):
 
 
 class TakeWhile(BaseConversion):
-    """convtools implementation of :py:obj:`itertools.takewhile`"""
+    """Faster `itertools.takewhile`."""
 
     def __init__(self, condition):
         super().__init__()
@@ -2886,7 +2975,7 @@ class TakeWhile(BaseConversion):
 
 
 class DropWhile(BaseConversion):
-    """convtools implementation of :py:obj:`itertools.dropwhile`"""
+    """Faster `itertools.dropwhile`."""
 
     def __init__(self, condition):
         super().__init__()
@@ -2990,11 +3079,12 @@ class PipeConversion(BaseConversion):
         label_output=None,
         **kwargs,
     ):
-        """
+        """Init self.
+
         Args:
-        ----
-          next_conversion (object): to be wrapped with
-            :py:obj:`ensure_conversion` and called if callable is passed
+          what: the 1st conversion, whose result is to be passed the `where`
+          where: the 2nd conversion, which accepts the output of `what`
+            conversion. If it is callable, it is called.
           args (tuple): to be wrapped with :py:obj:`ensure_conversion` and
             passed to `next_conversion` if it's callable
           kwargs (dict): to be wrapped with :py:obj:`ensure_conversion` and

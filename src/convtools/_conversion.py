@@ -1,6 +1,4 @@
-"""
-The main module exposing public API (via conversion object)
-"""
+"""The main module exposing public API."""
 from itertools import repeat
 
 from ._aggregations import (
@@ -62,7 +60,7 @@ _none = BaseConversion._none
 
 
 class Conversion:
-    """The object, which exposes public API
+    """Central object, which exposes public API.
 
     >>> from convtools import conversion as c
     >>> convert = c.aggregate(
@@ -212,16 +210,16 @@ class Conversion:
         )
 
     def repeat(self, obj, times=None):
-        """shortcut to call :py:obj:`itertools.repeat`"""
+        """Shortcut for call :py:obj:`itertools.repeat`."""
         args = () if times is None else (times,)
         return CallFunc(repeat, obj, *args)
 
     def min(self, arg, *args):
-        """c.call_func(min, ...) shortcut"""
+        """Shortcut for `c.call_func(min, ...)`."""
         return CallFunc(min, arg, *args)
 
     def max(self, arg, *args):
-        """c.call_func(max, ...) shortcut"""
+        """Shortcut for `c.call_func(max, ...)`."""
         return CallFunc(max, arg, *args)
 
 

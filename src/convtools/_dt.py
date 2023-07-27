@@ -650,6 +650,8 @@ class DateTimeGrid:
 
 
 class _LocaleBasedMaps:
+    """Lazily initialized locale-based date names."""
+
     def __init__(self):
         self._weekday_to_pct_lower_a = None
         self._weekday_to_pct_upper_a = None
@@ -682,6 +684,14 @@ class _LocaleBasedMaps:
         self._hour_to_pct_lower_p = [
             datetime(2020, 1, 1, i).strftime("%p") for i in (0, 12)
         ]
+        self._year_zero_padding_enabled = (
+            date(1, 1, 1).strftime("%Y") == "0001"
+        )
+
+    @property
+    def year_zero_padding_enabled(self):
+        self.late_init()
+        return self._year_zero_padding_enabled
 
     @property
     def weekday_to_pct_lower_a(self):
@@ -717,6 +727,8 @@ class UnsupportedFormatCode(Exception):
 
 
 class DatetimeFormat(BaseConversion):
+    """datetime.strftime with certain cases optimized for speed."""
+
     def __init__(self, fmt):
         if not isinstance(fmt, str):
             raise ValueError
@@ -802,7 +814,10 @@ class DatetimeFormat(BaseConversion):
                     )
                     code_params.use_param("hour")
                 elif ch == "Y":
-                    result.append("{%s:04}")
+                    if LOCALE_BASED_MAPS.year_zero_padding_enabled:
+                        result.append("{%s:04}")  # pragma: no cover
+                    else:
+                        result.append("{%s}")  # pragma: no cover
                     code_params.use_param("year")
                 elif ch == "m":
                     result.append("{%s:02}")
@@ -891,6 +906,8 @@ class DatetimeFormat(BaseConversion):
 
 
 class DatetimeParse(BaseConversion):
+    """Code generation based subset of datetime.strptime."""
+
     def __init__(self, fmt):
         if not isinstance(fmt, str):
             raise ValueError

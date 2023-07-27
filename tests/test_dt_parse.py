@@ -188,3 +188,18 @@ def test_datetime_parse_exceptions():
         f = c.datetime_parse(bad_fmt).gen_converter()
         with pytest.raises(ValueError):
             f("2000 %")
+
+    fmt = "%m/%d/%Y"
+    for bad_dt_str in (None, 123, "24f", date(2020, 12, 31)):
+        exc_1 = exc_2 = None
+        try:
+            c.datetime_parse(fmt).execute(bad_dt_str)
+        except Exception as e:
+            exc_1 = e
+
+        try:
+            datetime.strptime(bad_dt_str, fmt)
+        except Exception as e:
+            exc_2 = e
+
+        assert exc_1.__class__ is exc_2.__class__

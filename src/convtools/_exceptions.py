@@ -44,21 +44,24 @@ class _TryMultiple(BaseConversion):
                 self.conversion_exc_pairs
             ):
                 code_expr = conversion.gen_code_and_update_ctx("data_", ctx)
-                if index == last_index and self.default is None:
-                    code.add_line(f"return {code_expr}", -1)
-                else:
+
+                if index != last_index or self.default is not None:
                     code.add_line("try:", 1)
                     code.add_line(f"return {code_expr}", -1)
                     code.add_line(
                         f"except {exc.gen_code_and_update_ctx(None, ctx)}:", 1
                     )
-                    if index == last_index:
+                    code.add_line("pass", -1)
+
+                if index == last_index:
+                    if self.default is None:
+                        code.add_line(f"return {code_expr}", -1)
+                    else:
                         code.add_line(
                             f'return {self.default.gen_code_and_update_ctx("data_", ctx)}',
                             -1,
                         )
-                    else:
-                        code.add_line("pass", -1)
+
             code.lines_info[0] = (
                 0,
                 f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
@@ -72,14 +75,16 @@ class _TryMultiple(BaseConversion):
         ).gen_code_and_update_ctx(code_input, ctx)
 
 
-def try_multiple(*conversion_exc_pairs: Tuple[Any, OneOrManyExceptions], default: Any = _none) -> BaseConversion:
+def try_multiple(
+    *conversion_exc_pairs: Tuple[Any, OneOrManyExceptions],
+    default: Any = _none,
+) -> BaseConversion:
     """Multiple conversions are run until success, while catching exceptions.
 
     It runs multiple conversions, catches exceptions except for the last one.
     If default is provided, it catches the last one too.
 
     Args:
-    ----
       conversion_exc_pairs: sequence of tuples ({conversion or value},
         {exception type or types for isinstance check})
       default: value to return in case if every conversion failed

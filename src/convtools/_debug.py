@@ -1,4 +1,4 @@
-"""Provides conversions which simplify debug"""
+"""Provide conversions which simplify debugging."""
 import pdb
 import sys
 
@@ -27,8 +27,7 @@ else:  # pragma: no cover
 
 
 class Breakpoint(BaseConversion):
-    """Defines the conversion which wraps another one and puts a breakpoint
-    after it"""
+    """Wrap conversion with function and add breakpoint right after."""
 
     self_content_type = (
         BaseConversion.self_content_type

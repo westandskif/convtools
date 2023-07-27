@@ -1,4 +1,5 @@
-"""
+"""File system helpers.
+
 Python's native open() doesn't support custom newlines in the text mode and
 doesn't support "newlines" (delimiters) in binary mode. The following methods
 should close the gap.
@@ -46,8 +47,7 @@ def split_buffer(buffer, delimiter, chunk_size=32768):
 def split_buffer_n_decode(
     buffer, delimiter, chunk_size=32768, encoding="utf-8"
 ):
-    """Reads binary buffer, splits it by binary delimiter and yields decoded
-    chunks.
+    """Read binary buffer, yield decoded chunks, splitting by binary delimiter.
 
     Args:
       buffer: buffer to be read

@@ -1,4 +1,6 @@
-"""Helpers live here: like:
+"""Code generation helpers.
+
+e.g.
  - recently used cache
  - options ctx manager
 """
@@ -7,14 +9,10 @@ import sys
 import tempfile
 import threading
 import typing as t
-from collections import deque, defaultdict
+from collections import defaultdict, deque
 from importlib import import_module
-from typing import TYPE_CHECKING
 from weakref import finalize
 
-
-if TYPE_CHECKING:
-    from typing import Optional
 
 PY_VERSION = sys.version_info[:2]
 if PY_VERSION == (3, 6):
@@ -45,7 +43,7 @@ class BaseOptionsMeta(type):
 
 
 class BaseOptions(object, metaclass=BaseOptionsMeta):
-    """Container object, which carries current options"""
+    """Container object, which carries current code-gen options."""
 
     _option_attrs: dict
 
@@ -69,7 +67,7 @@ OT = t.TypeVar("OT", bound=BaseOptions)
 class BaseCtx(
     t.Generic[OT], metaclass=BaseCtxMeta
 ):  # pylint:disable=invalid-metaclass
-    """Context manager to manage option objects"""
+    """Context manager to manage option objects."""
 
     options_cls: t.Type[OT]
     _ctx: threading.local
@@ -95,8 +93,7 @@ class BaseCtx(
 
 
 class Code:
-    """A building block for generating code, which is composed of multiple
-    statements."""
+    """Code builder for multi-statement code pieces."""
 
     def __init__(self):
         self.lines_info = []
@@ -130,6 +127,8 @@ class Code:
 
 
 class CodeParams:
+    """Code-gen tree-like helper to generate assignments when needed."""
+
     def __init__(self):
         self.name_to_uses = defaultdict(int)
         self.name_to_code = {}
@@ -182,8 +181,7 @@ class CodeParams:
 
 
 class LazyDebugDir:
-    """Lazy instance to hold and initialize debug directory for generated code
-    sources"""
+    """Lazy debug directory to store generated code sources."""
 
     def __init__(self):
         self.debug_dir = None
@@ -206,7 +204,7 @@ debug_dir = LazyDebugDir()
 
 
 class CodePiece:
-    """Piece of source code (a function at the moment)"""
+    """Piece of generated code."""
 
     __slots__ = (
         "converter_name",
@@ -223,8 +221,10 @@ class CodePiece:
 
 
 class CodeStorage:
-    """Container which stores generated code pieces. It allows to dump code
-    sources on disk into a debug directory."""
+    """Container which stores generated code pieces.
+
+    It allows to dump code sources on disk into a debug directory.
+    """
 
     def __init__(self):
         self.key_to_code_piece: "t.Dict[str, CodePiece]" = {}
@@ -301,11 +301,12 @@ obj_getattribute = object.__getattribute__
 
 
 class LazyModule:
-    """Lazy import helper, which caches results of importlib.import_module"""
+    """Lazy import helper."""
 
     __slots__ = ["name", "package", "_module"]
 
     def __init__(self, name, package=None):
+        """Init self."""
         self.name = name
         self.package = package
         self._module = None
@@ -321,10 +322,11 @@ class LazyModule:
 
 
 class _None:
-    """Custom None type for the sake of typing AND ability to tell None passed
-    instead of default value to an optional parameter"""
+    """Custom None type.
 
-    pass
+    For the sake of typing AND ability to tell None from "undefined" optional
+    parameters.
+    """
 
 
 _none = _None()

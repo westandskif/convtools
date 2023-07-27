@@ -29,6 +29,7 @@ checks:
 	isort src tests
 	pylint src
 	mypy --check-untyped-defs src
+	ruff src
 
 benchmarks:
 	for i in $$(cat benchmarks/main_versions.txt); do pip install --force-reinstall convtools==$$i && python run_benchmarks.py ; done

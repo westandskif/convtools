@@ -1,6 +1,4 @@
-"""
-This module brings join functionality to the library
-"""
+"""Join conversions."""
 import typing as t
 from itertools import chain, repeat
 
@@ -49,7 +47,7 @@ class RightJoinCondition(JoinCondition):
 
 
 class _JoinConditions:
-    """A helper object to analyze join conditions"""
+    """A helper object to analyze join conditions."""
 
     LEFT = LeftJoinCondition()
     RIGHT = RightJoinCondition()
@@ -205,8 +203,7 @@ class _JoinConditions:
 
 
 class JoinConversion(BaseConversion):
-    """Generates conversion which joins left_conversion and right_conversion
-    using condition. The result is a generator of joined pairs
+    """Join results of two conversions as generated of joined pairs.
 
     Args:
       left_conversion (BaseConversion): left collection to join

@@ -1,14 +1,15 @@
-"""This module brings in-place mutations"""
+"""In-place mutations."""
 from ._base import BaseConversion, BaseMutation
 from ._heuristics import Weights
 from ._utils import Code
 
 
 class BaseNameValueMutation(BaseMutation):
-    """A base in-place mutation where name and value are needed to define it"""
+    """Base in-place mutation."""
 
     def __init__(self, name, value):
-        """
+        """Init self.
+
         Args:
           name: to be wrapped with :py:obj:`ensure_conversion` and used as
             a key/attr/index for a mutation
@@ -59,15 +60,13 @@ class DelAttr(BaseIndexMutation):
 
 
 class Custom(BaseMutation):
-    """Mutation to be used in conjunction with `tap` method.
-    Runs the code, defined by the conversion argument and returns the input
-    as is."""
+    """Run a conversion and return input as is."""
 
     def __init__(self, conversion):
-        """
+        """Init self.
+
         Arg:
-          conversion: to be wrapped with :py:obj:`ensure_conversion` and used
-            as a mutation code
+          conversion: conversion to be used as a mutation code
         """
         super().__init__()
         self.conversion = self.ensure_conversion(conversion)
@@ -93,8 +92,7 @@ class Mutations:
 
 
 class TapConversion(BaseConversion):
-    """This conversion generates the code which mutates the input data
-    in-place.  TapConversion takes any number of mutations"""
+    """Apply mutations to input and return it."""
 
     weight = Weights.FUNCTION_CALL
 
@@ -132,9 +130,10 @@ class TapConversion(BaseConversion):
 
 
 class IterMutConversion(TapConversion):
-    """This conversion generates the code which iterates and mutates the
-    elements in-place. The result is a generator.
-    IterMutConversion takes any number of mutations"""
+    """Iterate input and apply mutations element-wise.
+
+    Returns: generator of mutated elements.
+    """
 
     def _gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_random_name("", ctx)

@@ -1,7 +1,4 @@
-"""
-Implements base conversions to reference and define columns in table
-conversions
-"""
+"""Base conversions to reference/define columns for tables."""
 import typing as t
 from collections import defaultdict
 
@@ -9,8 +6,7 @@ from ._base import BaseConversion, ConversionException, GetItem
 
 
 class ColumnRef(BaseConversion):
-    """Helper conversion, which allows to reference a column of a table
-    conversion"""
+    """Table column reference."""
 
     trackable_dependency = True
 
@@ -40,14 +36,7 @@ class ColumnRef(BaseConversion):
 
 
 class ColumnDef:
-    """
-    Defines a column within a table conversion. It holds the following:
-
-     * name of the column in the output
-     * index of the column in the input in simple cases, otherwise None
-     * conversion to obtain the value from the input, None in simple cases
-
-    """
+    """Table column definition."""
 
     __slots__ = ["name", "index", "conversion"]
 
@@ -57,6 +46,13 @@ class ColumnDef:
         index: t.Optional[t.Any],
         conversion: t.Optional[BaseConversion],
     ):
+        """Init self.
+
+        Args:
+          name: of the column in the output
+          index: of the column in the input in simple cases, otherwise None
+          conversion: to obtain the value from the input, None in simple cases
+        """
         if not bool(index is not None) ^ bool(conversion is not None):
             raise ValueError("provide either index or conversion")
         self.name = name
@@ -82,7 +78,7 @@ class ColumnChanges:
 
 
 class MetaColumns:
-    """A helper container for naming & keeping column definitions"""
+    """Helper container many table columns."""
 
     def __init__(
         self,

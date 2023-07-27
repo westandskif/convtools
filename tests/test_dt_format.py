@@ -70,7 +70,21 @@ def test_datetime_format_delimiter_wide(all_delimiters):
 
 
 def test_datetime_format_exceptions():
-    dt = datetime(2020, 12, 31, 0, 59, 31, 987)
     for bad_fmt in (123,):
         with pytest.raises(ValueError):
             c.format_dt(bad_fmt)
+
+    fmt = "%m/%d/%Y %H"
+    for bad_dt in (None, 123, "24f", date(2020, 12, 31)):
+        exc_1 = exc_2 = None
+        try:
+            c.format_dt(fmt).execute(bad_dt)
+        except Exception as e:
+            exc_1 = e
+
+        try:
+            bad_dt.strftime(fmt)
+        except Exception as e:
+            exc_2 = e
+
+        assert exc_1.__class__ is exc_2.__class__

@@ -4,14 +4,30 @@
 	**Please, make sure you've covered [Reference / Basics](./basics.md)
 	first.**
 
+## Formatting dates
+
+!!! tip "Performance"
+
+    Many format codes are optimized for speed: `%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y`
+
+`c.format_dt(fmt)` accepts same format codes as
+[datetime.strftime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes) does.
+
+{!examples-md/api__dates_format.md!}
+
 ## Parsing dates
+
+!!! tip "Performance"
+
+    Many format codes are optimized for speed: `%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y`
 
 1. `c.date_parse(main_format, *other_formats, default=_none)` and `date_parse`
    method parse dates
 1. `c.datetime_parse(main_format, *other_formats, default=_none)` and
    `datetime_parse` method parse datetimes
 
-Both accept one or more formats, supported by `datetime.strptime`.
+
+Both accept one or more formats, supported by [datetime.strptime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes).
 
 {!examples-md/api__dates_parse.md!}
 

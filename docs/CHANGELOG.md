@@ -1,3 +1,12 @@
+## 1.5.0 (2023-07-27)
+
+**Features**
+
+- added `c.format_dt()` and `(...).format_dt()`: speed optimized implementation
+  of `datetime.strftime`
+
+
+
 ## 1.4.0 (2023-06-28)
 
 **Features**

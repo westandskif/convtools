@@ -7,7 +7,7 @@ from convtools._base import (
     ConverterOptionsCtx,
     This,
 )
-from convtools._utils import Code, CodeParams
+from convtools._utils import Code, CodeParams, CodeStorage
 
 
 def test_code_generation_ctx():
@@ -81,6 +81,12 @@ def test_add_sources():
     ctx = conversion._init_ctx()
     code_str = "def abc(): return 1"
     assert ctx[conversion.compile_converter("abc", code_str, ctx)]() == 1
+
+    code_storage = CodeStorage()
+    _, added = code_storage.add_sources("a", "tst")
+    assert added
+    _, added = code_storage.add_sources("a", "tst")
+    assert not added
 
 
 def test_ignores_input():
