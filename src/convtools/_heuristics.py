@@ -1,7 +1,4 @@
-"""
-This module is to contain helpers, which collect info about python code
-execution
-"""
+"""Helpers to collect info about environment."""
 import sys
 
 

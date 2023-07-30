@@ -1,4 +1,4 @@
-"""Provides cumulative conversions"""
+"""Cumulative conversions."""
 import typing as t
 from uuid import uuid4
 
@@ -15,8 +15,7 @@ from ._base import (
 
 
 class CumulativeReset(BaseConversion):
-    """A conversion which resets cumulative values to their initial states. The
-    main use case is within nested iterables:
+    """Reset cumulative value to its initial state.
 
     >>> assert (
     >>>     c.iter(
@@ -43,9 +42,9 @@ class CumulativeReset(BaseConversion):
 
 
 class Cumulative(BaseConversion):
-    """A conversion which calculates cumulative values. The main use case is
-    using it within iterables:
+    """Calculate cumulative values within iterables.
 
+    Example:
     >>> assert (
     >>>     c.iter(c.cumulative(c.this, c.this + c.PREV))
     >>>     .as_type(list)
@@ -62,14 +61,14 @@ class Cumulative(BaseConversion):
         reduce_two: "t.Any",
         label_name: "t.Optional[str]" = None,
     ):
-        """
+        """Initialize cumulative conversion.
+
         Args:
           parent: conversion which is used as an input
-          prepare_first: conversion which gets initial value from the first
-            element
-          reduce_two: conversion which reduces two values to one
+          prepare_first: conversion to apply to the first element
+          reduce_two: conversion to reduce two values to one
           label_name: custom name of cumulative to be used. It is needed when
-            :py:obj:`CumulativeReset`
+            `c.cumulative_reset(label_name)`
         """
         super().__init__()
         self.label_name = label_name or uuid4().hex

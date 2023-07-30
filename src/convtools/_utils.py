@@ -1,4 +1,6 @@
-"""Helpers live here: like:
+"""Code generation helpers.
+
+e.g.
  - recently used cache
  - options ctx manager
 """
@@ -7,14 +9,10 @@ import sys
 import tempfile
 import threading
 import typing as t
-from collections import deque
+from collections import defaultdict, deque
 from importlib import import_module
-from typing import TYPE_CHECKING
 from weakref import finalize
 
-
-if TYPE_CHECKING:
-    from typing import Optional
 
 PY_VERSION = sys.version_info[:2]
 if PY_VERSION == (3, 6):
@@ -45,13 +43,13 @@ class BaseOptionsMeta(type):
 
 
 class BaseOptions(object, metaclass=BaseOptionsMeta):
-    """Container object, which carries current options"""
+    """Container object, which carries current code-gen options."""
 
     _option_attrs: dict
 
     def clone(self):
         clone = self.__class__()
-        for option_attr in self._option_attrs.keys():
+        for option_attr in self._option_attrs:
             setattr(clone, option_attr, getattr(self, option_attr))
         return clone
 
@@ -69,7 +67,7 @@ OT = t.TypeVar("OT", bound=BaseOptions)
 class BaseCtx(
     t.Generic[OT], metaclass=BaseCtxMeta
 ):  # pylint:disable=invalid-metaclass
-    """Context manager to manage option objects"""
+    """Context manager to manage option objects."""
 
     options_cls: t.Type[OT]
     _ctx: threading.local
@@ -95,30 +93,17 @@ class BaseCtx(
 
 
 class Code:
-    """A building block for generating code, which is composed of multiple
-    statements."""
+    """Code builder for multi-statement code pieces."""
 
     def __init__(self):
         self.lines_info = []
         self.indent_level = 0
-        self.expression_line = None
 
-    def add_line(
-        self,
-        line: str,
-        next_line_indent_incr: int,
-        expression_line: "Optional[str]" = None,
-    ):
+    def add_line(self, line: str, next_line_indent_incr: int):
         self.lines_info.append((self.indent_level, line))
         self.indent_level += next_line_indent_incr
-        self.expression_line = expression_line
         if self.indent_level < 0:
             raise AssertionError("negative indentation level")
-
-    def as_expression(self) -> "Optional[str]":
-        if len(self.lines_info) == 1 and self.expression_line:
-            return self.expression_line
-        return None
 
     def add_code(self, code: "Code"):
         for indent_level, line in code.lines_info:
@@ -141,9 +126,62 @@ class Code:
         )
 
 
+class CodeParams:
+    """Code-gen tree-like helper to generate assignments when needed."""
+
+    def __init__(self):
+        self.name_to_uses = defaultdict(int)
+        self.name_to_code = {}
+        self.name_to_deps = defaultdict(list)
+        self.id_to_naive_code = {}
+        self.params = []
+
+    def naive_code(self, value, ctx):
+        key = id(value)
+        if key not in self.id_to_naive_code:
+            self.id_to_naive_code[key] = convtools_base.NaiveConversion(
+                value
+            ).gen_code_and_update_ctx(None, ctx)
+        return self.id_to_naive_code[key]
+
+    def create(self, code, name, used_names=()):
+        self.name_to_code[name] = code
+        for used_name in used_names:
+            self.name_to_deps[name].append(used_name)
+
+    def use_param(self, name):
+        self.name_to_uses[name] += 1
+        self.params.append(name)
+
+        names_to_check_deps = [name]
+        visited_deps = set()
+        while names_to_check_deps:
+            name_ = names_to_check_deps.pop()
+            visited_deps.add(name_)
+            for dep_ in self.name_to_deps[name_]:
+                self.name_to_uses[dep_] += 2
+                if dep_ in visited_deps:
+                    raise ValueError("cyclic dependency detected", name, dep_)
+                names_to_check_deps.insert(0, dep_)
+
+    def create_and_use_param(self, code, name):
+        self.create(code, name)
+        self.use_param(name)
+
+    def iter_assignments(self):
+        for name, code in self.name_to_code.items():
+            if self.name_to_uses[name] > 1:
+                yield f"{name} = {code}"
+
+    def get_format_args(self):
+        return tuple(
+            self.name_to_code[name] if self.name_to_uses[name] == 1 else name
+            for name in self.params
+        )
+
+
 class LazyDebugDir:
-    """Lazy instance to hold and initialize debug directory for generated code
-    sources"""
+    """Lazy debug directory to store generated code sources."""
 
     def __init__(self):
         self.debug_dir = None
@@ -166,7 +204,7 @@ debug_dir = LazyDebugDir()
 
 
 class CodePiece:
-    """Piece of source code (a function at the moment)"""
+    """Piece of generated code."""
 
     __slots__ = (
         "converter_name",
@@ -183,8 +221,10 @@ class CodePiece:
 
 
 class CodeStorage:
-    """Container which stores generated code pieces. It allows to dump code
-    sources on disk into a debug directory."""
+    """Container which stores generated code pieces.
+
+    It allows to dump code sources on disk into a debug directory.
+    """
 
     def __init__(self):
         self.key_to_code_piece: "t.Dict[str, CodePiece]" = {}
@@ -261,11 +301,12 @@ obj_getattribute = object.__getattribute__
 
 
 class LazyModule:
-    """Lazy import helper, which caches results of importlib.import_module"""
+    """Lazy import helper."""
 
     __slots__ = ["name", "package", "_module"]
 
     def __init__(self, name, package=None):
+        """Init self."""
         self.name = name
         self.package = package
         self._module = None
@@ -281,10 +322,11 @@ class LazyModule:
 
 
 class _None:
-    """Custom None type for the sake of typing AND ability to tell None passed
-    instead of default value to an optional parameter"""
+    """Custom None type.
 
-    pass
+    For the sake of typing AND ability to tell None from "undefined" optional
+    parameters.
+    """
 
 
 _none = _None()
@@ -298,3 +340,6 @@ def get_builtins_dict():
     return {
         name: getattr(builtins, name) for name in dir(builtins)
     }  # pragma: no cover
+
+
+convtools_base = LazyModule("convtools._base")

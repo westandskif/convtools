@@ -6,3 +6,5 @@ tmp/
 .git/
 .mypy_cache/
 ci-requirements/
+.pytest_cache/
+*.patch

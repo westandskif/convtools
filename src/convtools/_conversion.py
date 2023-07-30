@@ -1,6 +1,4 @@
-"""
-The main module exposing public API (via conversion object)
-"""
+"""The main module exposing public API."""
 from itertools import repeat
 
 from ._aggregations import (
@@ -50,6 +48,7 @@ from ._base import (
 from ._chunks import ChunkBy, ChunkByCondition
 from ._columns import ColumnRef
 from ._cumulative import Cumulative
+from ._exceptions import try_multiple
 from ._expect import ExpectException
 from ._joins import JoinConversion, _JoinConditions
 from ._mutations import Mutations
@@ -61,7 +60,7 @@ _none = BaseConversion._none
 
 
 class Conversion:
-    """The object, which exposes public API
+    """Central object, which exposes public API.
 
     >>> from convtools import conversion as c
     >>> convert = c.aggregate(
@@ -163,6 +162,10 @@ class Conversion:
     date_parse = This.date_parse
     datetime_parse = This.datetime_parse
 
+    format_dt = This.format_dt
+
+    try_multiple = staticmethod(try_multiple)
+
     def iter(self, item, *, where=None):
         return GeneratorComp(item, where, _none)
 
@@ -207,16 +210,16 @@ class Conversion:
         )
 
     def repeat(self, obj, times=None):
-        """shortcut to call :py:obj:`itertools.repeat`"""
+        """Shortcut for call :py:obj:`itertools.repeat`."""
         args = () if times is None else (times,)
         return CallFunc(repeat, obj, *args)
 
     def min(self, arg, *args):
-        """c.call_func(min, ...) shortcut"""
+        """Shortcut for `c.call_func(min, ...)`."""
         return CallFunc(min, arg, *args)
 
     def max(self, arg, *args):
-        """c.call_func(max, ...) shortcut"""
+        """Shortcut for `c.call_func(max, ...)`."""
         return CallFunc(max, arg, *args)
 
 

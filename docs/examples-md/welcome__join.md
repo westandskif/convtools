@@ -60,6 +60,7 @@
                 else:
                     agg_data_i_v0[int(row_i["ID"])].append(row_i)
             if checksum_ == 1:
+                globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
                 break
         for row_i in it_:
             if row_i["age"] >= 18:

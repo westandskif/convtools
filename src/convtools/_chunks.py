@@ -1,6 +1,4 @@
-"""
-Provides conversions for slicing iterables into chunks.
-"""
+"""Conversions for slicing iterables into chunks."""
 import typing as t
 
 from ._aggregations import Aggregate
@@ -16,7 +14,7 @@ class BaseChunkBy(BaseConversion):
 
 
 class ChunkBy(BaseChunkBy):
-    """Slices iterable into chunks by element values and/or size of chunks.
+    """Slice iterable into chunks by element values and/or size of chunks.
 
     >>> # simple #1
     >>> c.chunk_by(size=1000)
@@ -57,16 +55,16 @@ class ChunkBy(BaseChunkBy):
     """
 
     def __init__(self, *by, size: t.Optional[int] = None):
-        """
+        """Init self.
+
         Args:
           by: fields/conversions to use for slicing into chunks (elements with
             same values go to the same chunk)
           size: (optional) positive int to limit max size of a chunk
         """
         super().__init__()
-        if size is not None:
-            if not isinstance(size, int) or size <= 0:
-                raise ValueError("size has to be positive int or None")
+        if size is not None and (not isinstance(size, int) or size <= 0):
+            raise ValueError("size has to be positive int or None")
         if not by and not size:
             raise ValueError("pass at least one of by or size params")
 
@@ -184,8 +182,9 @@ def {converter_name}({code_args}):
 
 
 class ChunkByCondition(BaseChunkBy):
-    """Slices iterable into chunks based on condition, which is a function of a
-    current chunk and a current element.
+    """Slices iterable into chunks based on condition.
+
+    Condition is a conversion of a current chunk and a current element.
 
     >>> # example #1
     >>> c.chunk_by_condition(c.CHUNK.len() < 100)

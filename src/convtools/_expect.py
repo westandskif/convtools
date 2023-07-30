@@ -1,6 +1,4 @@
-"""
-Provides conversion to check expected conditions or raise exception.
-"""
+"""Conversions to check expected conditions or raise exception."""
 from ._base import BaseConversion, ConversionException
 
 
@@ -19,8 +17,12 @@ class ExpectException(ConversionException):
 
 
 class Expect(BaseConversion):
-    """Checks condition and return the input as is. If condition is not met,
-    raises ExpectException with error_msg (can be conversion too) as param"""
+    """Check condition and return the input as is or raise ExpectException.
+
+    Args:
+      condition: conversion to evaluate as condition
+      error_msg: error message to pass to ExpectException
+    """
 
     def __init__(self, conversion, condition, error_msg):
         super().__init__()

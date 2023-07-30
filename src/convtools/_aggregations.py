@@ -1,4 +1,4 @@
-"""This module brings aggregations with various reduce functions"""
+"""Define aggregations with various reduce functions."""
 import typing as t
 import warnings
 from collections import defaultdict
@@ -32,7 +32,7 @@ from ._utils import Code
 
 
 class ReduceCode:
-    """Merges and stores code of reducers"""
+    """Merge and store code of reducers."""
 
     def __init__(self):
         self.value_to_name: "t.Dict[str, str]" = {}
@@ -76,7 +76,7 @@ class ReduceCode:
 
 
 class ReduceManager:
-    """Builds group by / aggregate code"""
+    """Build group by / aggregate code."""
 
     __slots__ = [
         "var_row",
@@ -214,7 +214,7 @@ class ReduceManager:
             checksum += self.add_group_by_code(
                 code,
                 child,
-                delegated_conditions=delegated_conditions + (condition,),
+                delegated_conditions=(*delegated_conditions, condition),
                 var_init_checksum=var_init_checksum,
             )
 
@@ -251,7 +251,7 @@ class ReduceManager:
             checksum += self.add_aggregate_stage2_code(
                 code,
                 child,
-                delegated_conditions=delegated_conditions + (condition,),
+                delegated_conditions=(*delegated_conditions, condition),
             )
 
         if add_pass_if_line_number == len(code.lines_info):
@@ -262,7 +262,7 @@ class ReduceManager:
 
 
 class BaseReducer(BaseConversion):
-    """Base of a reduce operation to be used during the aggregation"""
+    """Base reduce operation to be used during the aggregation."""
 
     _expressions: t.Sequence[BaseConversion]
 
@@ -317,6 +317,7 @@ class BaseReducer(BaseConversion):
                 "2.0 will raise ValueError if initial is "
                 f"passed to {self.__class__.__name__}",
                 DeprecationWarning,
+                stacklevel=1,
             )
 
     def prepare_default_n_initial(self, default, initial):
@@ -417,7 +418,8 @@ class BaseReducer(BaseConversion):
         if not isinstance(self.initial, _None) and self.internals_are_public:
             prepare_first_lines = (
                 f"%(result)s = {self.initial.gen_code_and_update_ctx(var_row, ctx)}",
-            ) + reduce_lines
+                *reduce_lines,
+            )
         else:
             prepare_first_lines = self.get_option("prepare_first_lines", ctx)
 
@@ -437,6 +439,7 @@ class OptionalExpressionReducer(BaseReducer):
                 "2.0 will raise TypeError if more than 1 expression is "
                 f"passed to {self.__class__.__name__}",
                 DeprecationWarning,
+                stacklevel=1,
             )
 
 
@@ -452,11 +455,14 @@ class SingleExpressionReducer(BaseReducer):
                 "2.0 will raise TypeError if more than 1 expression is "
                 f"passed to {self.__class__.__name__}",
                 DeprecationWarning,
+                stacklevel=1,
             )
 
 
 class BaseDictReducer(BaseReducer):
-    """This reducer accepts 2 expressions:
+    """Base reducer of two expressions.
+
+    This reducer accepts 2 expressions:
 
     - the first one is used to calculate keys of the resulting dict
     - the second one is used to calculate values to be reduced and put as the
@@ -485,11 +491,11 @@ class BaseDictReducer(BaseReducer):
 
 
 class SumReducer(SingleExpressionReducer):
-    """Takes a sum, None is considered as 0"""
+    """Take a sum, None is considered as 0."""
 
     default = NaiveConversion(0)
     internals_are_public = True
-    values_use_times = (1,)  # TODO set to 1 once debugged
+    values_use_times = (1,)
     works_with_not_none_only = (False,)
 
     def prepare_first_lines(self, ctx):  # pylint: disable=unused-argument
@@ -504,7 +510,7 @@ class SumReducer(SingleExpressionReducer):
 
 
 class SumOrNoneReducer(SingleExpressionReducer):
-    """Takes a sum, if at least one None is met, the result is None"""
+    """Take a sum. If at least one None is met, the result is None."""
 
     default = NaiveConversion(None)
     internals_are_public = True
@@ -552,9 +558,11 @@ class MinReducer(SingleExpressionReducer):
 
 
 class CountReducer(OptionalExpressionReducer):
-    """Counts objects. It accepts either zero or one expression as an argument and:
-    - if zero expressions passed: counts number of rows
-    - one expression: counts not None values of the evaluated expression
+    """Counts objects.
+
+    It accepts either zero or one expression as an argument:
+      - if zero expressions passed: counts number of rows
+      - one expression: counts not None values of the evaluated expression
     """
 
     default = NaiveConversion(0)
@@ -600,7 +608,7 @@ class LastReducer(SingleExpressionReducer):
 
 
 class MaxRowReducer(SingleExpressionReducer):
-    """Returns a row with a max value of object, defined by the argument"""
+    """Return a row with a max value of an argument."""
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -615,7 +623,7 @@ class MaxRowReducer(SingleExpressionReducer):
 
 
 class MinRowReducer(SingleExpressionReducer):
-    """Returns a row with a min value of object, defined by the argument"""
+    """Return a row with a min value of an argument."""
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -635,6 +643,7 @@ class MinRowReducer(SingleExpressionReducer):
                 "2.0 will raise ValueError if initial is "
                 f"passed to {self.__class__.__name__}",
                 DeprecationWarning,
+                stacklevel=1,
             )
 
 
@@ -648,8 +657,7 @@ class ArrayReducer(SingleExpressionReducer):
 
 
 class ListSortedOnceWrapper:
-    """Wraps a list, exposes append method only. Once the list is filled up, it
-    is sorted (only once) in-place and is returned when get method called."""
+    """Wrap list, which is sorted only once."""
 
     __slots__ = ["list_", "append", "sorted", "key", "reverse"]
 
@@ -669,7 +677,7 @@ class ListSortedOnceWrapper:
 
 
 class SortedArrayReducer(SingleExpressionReducer):
-    """Array reducer which sorts the list just once in the end"""
+    """Reduce values to a sorted array."""
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -703,9 +711,11 @@ class ArrayDistinctReducer(SingleExpressionReducer):
 
 
 class DictReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with Last."""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument.
+    Values: defined by the second argument, reduced with Last.
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -721,9 +731,11 @@ lock_default_dict_conversion = InlineExpr(
 
 
 class DictArrayReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with Array."""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument.
+    Values: defined by the second argument, reduced with Array.
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -738,9 +750,11 @@ class DictArrayReducer(BaseDictReducer):
 
 
 class DictArrayDistinctReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with ArrayDistinct."""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with ArrayDistinct.
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -757,10 +771,12 @@ class DictArrayDistinctReducer(BaseDictReducer):
 
 
 class DictSumReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with Sum
-       * None is considered 0"""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with Sum
+       * None is considered 0
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -779,10 +795,12 @@ class DictSumReducer(BaseDictReducer):
 
 
 class DictSumOrNoneReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with SumOrNone
-       * if at least one None is met, the result is None"""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with SumOrNone
+       * if at least one None is met, the result is None
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -810,9 +828,11 @@ class DictSumOrNoneReducer(BaseDictReducer):
 
 
 class DictMaxReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with Max."""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with Max.
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -832,9 +852,11 @@ class DictMaxReducer(BaseDictReducer):
 
 
 class DictMinReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with Min."""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with Min.
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -854,11 +876,13 @@ class DictMinReducer(BaseDictReducer):
 
 
 class DictCountReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument (optional), reduced with Count.
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument (optional), reduced with Count.
        * counts rows if no 2nd arg is passed
-       * counts non None values if 2nd arg is passed"""
+       * counts non None values if 2nd arg is passed
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -897,9 +921,11 @@ class DictCountReducer(BaseDictReducer):
 
 
 class DictCountDistinctReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with CountDistinct."""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with CountDistinct.
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -918,9 +944,11 @@ class DictCountDistinctReducer(BaseDictReducer):
 
 
 class DictFirstReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with First."""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with First.
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -934,9 +962,11 @@ class DictFirstReducer(BaseDictReducer):
 
 
 class DictLastReducer(BaseDictReducer):
-    """Aggregates values to a dict:
-    - keys: defined by the first argument
-    - values: defined by the second argument, reduced with Last."""
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with Last.
+    """
 
     default = NaiveConversion(None)
     internals_are_public = False
@@ -952,7 +982,7 @@ class ReducerDispatcher:
 
 
 class AverageReducerDispatcher(ReducerDispatcher):
-    """Calculates weighted average (default weight is 0)"""
+    """Calculates weighted average (default weight is 0)."""
 
     def __call__(
         self, value, weight=1, default=None, where=None
@@ -974,9 +1004,9 @@ class AverageReducerDispatcher(ReducerDispatcher):
 
 
 class TopReducer(DictCountReducer):
-    """
-    Returns a list of the most frequent values.
-    The resulting list is sorted in descending order of values frequency.
+    """Return a list of the most frequent values.
+
+    The resulting list is sorted in descending order of value frequency.
     """
 
     def __init__(self, k: int, key_conv, *args, **kwargs):
@@ -1006,7 +1036,7 @@ class ModeReducer(DictCountReducer):
 
 
 class PercentileReducer(SortedArrayReducer):
-    """Calculates percentile (floats from 0 to 100 inclusive)
+    """Calculates percentile (float: from 0 to 100 inclusive).
 
     >>> c.ReduceFuncs.Percentile(95, c.item("amount"))
     >>> c.ReduceFuncs.Percentile(95, c.item("amount"), interpolation="lower")
@@ -1019,22 +1049,25 @@ class PercentileReducer(SortedArrayReducer):
       * "nearest"
     """
 
-    interpolation_to_method: "t.Dict[str, t.Callable]" = {}
+    interpolation_to_method: t.ClassVar[t.Dict[str, t.Callable]] = {}
 
     def __init__(
         self, percentile: float, conv, *args, interpolation="linear", **kwargs
     ):
-        """
+        """Init self.
 
         Args:
-         * interpolation: one of
-           #. "linear"
-           #. "lower"
-           #. "higher"
-           #. "midpoint"
-           #. "nearest"
+          percentile: 0.0-100.0 inclusive
+          conv: conversion to apply before reduce phase
+          args: unused
+          interpolation: one of:
+            * "linear"
+            * "lower"
+            * "higher"
+            * "midpoint"
+            * "nearest"
+          kwargs: can accept `where`=conversion to pre-filter reduced values
         """
-
         self.percentile = percentile
         try:
             self.method = self.interpolation_to_method[interpolation]
@@ -1111,7 +1144,7 @@ def MedianReducer(  # pylint:disable=invalid-name
 
 
 class ReduceFuncs:
-    """Exposes the list of reduce functions"""
+    """Expose the list of reduce functions."""
 
     # pylint: disable=invalid-name
 
@@ -1189,28 +1222,28 @@ class ReduceFuncs:
 
 
 class GroupBy:
-    """Generates the function which aggregates the data, grouping by
-    conversions, specified in `__init__` method and returns list of items in a
-    format defined by the parameter passed to ``aggregate`` method.
+    """Generates the function which implements aggregation.
 
-    If no group keys are passed, then it returns just a single value, defined
-    by the parameter passed to ``aggregate`` method.
+    Grouping is done by conversions passed to `__init__` method.
+     - if there are any, the result is a list of reduced values.
+     - if there is no keys to group by, the result is a single reduced value.
+
+    Reduced value/values is/are defined by the parameter passed to
+    ``aggregate`` method.
 
     Current optimizations:
      * piping like ``c.group_by(...).aggregate().pipe(...)`` won't run
-       the aggregation twice, this is handled as 2 statements
-     * using the same reduce clause twice (e.g. one used as an argument
-       for some function calls) won't result in calculating this reduce twice
+       the aggregation twice
+     * using the same reducer twicewon't result in double calculation
     """
 
     def __init__(self, *by):
-        """Takes any number of conversions to group by
+        """Accept keys of group by as conversions.
 
         Args:
-          by (tuple): each item is to be wrapped with
-            :py:obj:`ensure_conversion`.  Each is to resolve to a hashable
-            object to allow using such tuples as keys. If nothing is passed,
-            aggregate the input into a single object.
+          by (tuple): keys of group by as conversions. Each is to resolve to a
+            hashable object. If nothing is passed, the result is a single
+            object.
         """
         self.by = by
 
@@ -1253,8 +1286,10 @@ def {converter_name}({code_args}):
 
 
 class Grouper(BaseConversion):
-    """Fully initialized GroupBy conversion, which delegates some of methods
-    like iter to its internals"""
+    """Fully initialized GroupBy conversion.
+
+    Which delegates some of methods like iter to its internals.
+    """
 
     self_content_type = (
         BaseConversion.self_content_type
@@ -1434,13 +1469,12 @@ class Grouper(BaseConversion):
 def Aggregate(  # pylint:disable=invalid-name
     *args, **kwargs
 ) -> BaseConversion:
-    """Shortcut for ``GroupBy().aggregate(*args, **kwargs)``"""
+    """Shortcut for `GroupBy().aggregate(*args, **kwargs)`."""
     return GroupBy().aggregate(*args, **kwargs)
 
 
 class Reduce(BaseReducer):
-    """Defines the reduce operation, which is based on a callable / expression
-    to be used during the aggregation"""
+    """Reduce operation, which is based on a callable / expression."""
 
     internals_are_public = True
 
@@ -1453,7 +1487,8 @@ class Reduce(BaseReducer):
         unconditional_init: bool = False,
         where=None,
     ):
-        """
+        """Init self.
+
         Args:
           to_call_with_2_args: defines the reduce function/expression
           expressions: args to be passed to `to_call_with_2_args` after the
@@ -1470,6 +1505,7 @@ class Reduce(BaseReducer):
             it doesn't depend on input data.
           unconditional_init: tells whether the first call initializes the
             aggregation value OR there is a condition for that
+          where: condition conversion to pre-filter values to be reduced.
         """
         super().__init__(
             *expressions, initial=initial, default=default, where=where
@@ -1478,7 +1514,9 @@ class Reduce(BaseReducer):
         self.to_call_with_2_args = self.ensure_conversion(to_call_with_2_args)
         if unconditional_init:
             warnings.warn(
-                "unconditional_init is no longer needed", DeprecationWarning
+                "unconditional_init is no longer needed",
+                DeprecationWarning,
+                stacklevel=1,
             )
 
     def values_use_times(self, ctx):  # pylint: disable=unused-argument

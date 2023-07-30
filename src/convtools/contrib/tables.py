@@ -1,5 +1,4 @@
-"""
-Implements streaming operations on table-like data and csv files.
+"""Implements streaming operations on table-like data and csv files.
 
 Conversions are defined in realtime based on table headers and called methods:
  - update
@@ -36,29 +35,37 @@ _none = BaseConversion._none
 
 
 class CloseFileIterator:
-    """
-    Utility to close the corresponding file once the iterator is exhausted
-    """
+    """Iterator wrapper, which closes file in the end."""
 
     def __init__(self, file_to_close):
+        """Init instance.
+
+        Args:
+          file_to_close: file descriptor to be closed the first time __next__
+            is called on this wrapper
+        """
         self.file_to_close = file_to_close
 
     def __iter__(self):
+        """Returns empty iterator."""
         return self
 
     def __next__(self):
+        """Stops iteration and closes the underlying file descriptor."""
         self.file_to_close.close()
         self.file_to_close = None
         raise StopIteration
 
     def __del__(self):
+        """Closes the file descriptor on garbage collection."""
+        # Consider rewriting with: weakref.finalize
         if self.file_to_close:
             self.file_to_close.close()
             self.file_to_close = None
 
 
 class CustomCsvDialect(csv.Dialect):
-    """A helper to define custom csv dialects without defining classes"""
+    """Create custom csv dialects without defining classes."""
 
     def __init__(
         self,
@@ -70,6 +77,7 @@ class CustomCsvDialect(csv.Dialect):
         lineterminator=csv.excel.lineterminator,
         quoting=csv.excel.quoting,
     ):
+        """Init self."""
         self.delimiter = delimiter
         self.quotechar = quotechar
         self.escapechar = escapechar
@@ -81,8 +89,7 @@ class CustomCsvDialect(csv.Dialect):
 
 
 class Table:
-    """Table conversion exposes streaming operations on table-like data and csv
-    files
+    """Streaming operations on table-like data and csv files.
 
     >>> Table.from_csv("input.csv", header=True).update(
     >>>     c=c.item("a") + c.item("b")
@@ -113,7 +120,7 @@ class Table:
         pipeline: "t.Optional[BaseConversion]" = None,
         file_to_close=None,
     ):
-        """It is used internally only. Use from_rows and from_csv methods."""
+        """For internal use only. Use from_rows and from_csv methods."""
         self.row_type = row_type
         self.rows_objects: "t.Optional[t.List[t.Iterable]]" = rows_objects
         self.meta_columns = meta_columns
@@ -123,7 +130,7 @@ class Table:
         self.row_type = row_type
 
     def get_columns(self) -> "t.List[str]":
-        """Exposes list of column names"""
+        """Return list of column names."""
         return [column.name for column in self.meta_columns.columns]
 
     columns = property(get_columns)
@@ -142,8 +149,7 @@ class Table:
         skip_rows: int = 0,
         file_to_close=None,
     ) -> "Table":
-        """A method to initialize a table conversion from an iterable of
-        rows.
+        """Initialize a table from an iterable of rows.
 
         Args:
           rows: can be either an iterable of any objects if no header inference
@@ -175,6 +181,8 @@ class Table:
           skip_rows: number of rows to skip at the beginning. Useful when input
             data contains a header, but you provide your own - in this case
             it's convenient to skip the heading row from the input
+
+          file_to_close: for internal use
 
         """
         columns = MetaColumns(duplicate_columns=duplicate_columns)
@@ -212,36 +220,33 @@ class Table:
             for name, index in header.items():
                 pending_changes |= columns.add(name, index, None)[1]
 
-        else:
-            # inferring a header
-            if isinstance(first_row, dict):
-                if header is False:
-                    for key in first_row:
-                        pending_changes |= columns.add(None, key, None)[1]
-                    pending_changes |= ColumnChanges.MUTATE
-                else:
-                    for key in first_row:
-                        pending_changes |= columns.add(key, key, None)[1]
+        # inferring a header
+        elif isinstance(first_row, dict):
+            if header is False:
+                for key in first_row:
+                    pending_changes |= columns.add(None, key, None)[1]
+                pending_changes |= ColumnChanges.MUTATE
+            else:
+                for key in first_row:
+                    pending_changes |= columns.add(key, key, None)[1]
 
-            elif isinstance(first_row, (tuple, list)):
-                if header is True:
-                    for index, column_name in enumerate(first_row):
-                        pending_changes |= columns.add(
-                            column_name, index, None
-                        )[1]
-                    first_row = None
-
-                else:
-                    for index in range(len(first_row)):
-                        pending_changes |= columns.add(None, index, None)[1]
+        elif isinstance(first_row, (tuple, list)):
+            if header is True:
+                for index, column_name in enumerate(first_row):
+                    pending_changes |= columns.add(column_name, index, None)[1]
+                first_row = None
 
             else:
-                if header is True:
-                    pending_changes |= columns.add(first_row, None, This())[1]
-                    first_row = None
-                else:
-                    pending_changes |= columns.add(None, None, This())[1]
-                pending_changes |= ColumnChanges.MUTATE
+                for index in range(len(first_row)):
+                    pending_changes |= columns.add(None, index, None)[1]
+
+        else:
+            if header is True:
+                pending_changes |= columns.add(first_row, None, This())[1]
+                first_row = None
+            else:
+                pending_changes |= columns.add(None, None, This())[1]
+            pending_changes |= ColumnChanges.MUTATE
 
         rows_objects: "t.List[t.Iterable]" = [rows]
         if first_row is not None:
@@ -271,13 +276,13 @@ class Table:
         dialect: "t.Union[str, CustomCsvDialect]" = "excel",
         encoding: str = "utf-8",
     ) -> "Table":
-        """A method to initialize a table conversion from a csv-like file.
+        """Initialize a table conversion from a csv-like object.
 
         Args:
           filepath_or_buffer: a filepath or something :py:obj:`csv.reader` can
             read
-          header: specifies header inference mode:
 
+          header: specifies header inference mode:
              * True: takes either the first tuple/list or keys of the first
                dict as a header
              * False: there's no header in input data, use numbered columns
@@ -292,7 +297,6 @@ class Table:
                keys as a header
 
           duplicate_columns: either of following ("mangle" by default):
-
             * "raise": ValueError is raise if a duplicate column is detected
             * "keep": duplicate columns are left as is, but when referenced the
               first one is used
@@ -308,15 +312,15 @@ class Table:
             helper method:
             :py:obj:`convtools.contrib.tables.Table.csv_dialect` to create
             dialects without defining classes
+
           encoding: encoding to pass to :py:obj:`open`
         """
-
         file_to_close: "t.Optional[t.TextIO]"
         buffer: "t.TextIO"
         if isinstance(filepath_or_buffer, str):
             buffer = (
                 file_to_close
-            ) = open(  # pylint: disable=consider-using-with
+            ) = open(  # pylint: disable=consider-using-with # noqa: SIM115
                 filepath_or_buffer,
                 "r",
                 encoding=encoding,
@@ -339,7 +343,9 @@ class Table:
         )
 
     def embed_conversions(self) -> "Table":
-        """There's no need in calling this directly, it's done automatically
+        """For internal use only.
+
+        There's no need in calling this directly, it's done automatically
         when you use :py:obj:`convtools.contrib.tables.Table.update` or
         :py:obj:`convtools.contrib.tables.Table.join` See the explanation
         below:
@@ -378,8 +384,7 @@ class Table:
         return self
 
     def filter(self, condition: "BaseConversion") -> "Table":
-        """Filters table-like data, keeping rows where ``condition`` resolves
-        to ``True``"""
+        """Keep rows where ``condition`` resolves to `True`."""
         condition = ensure_conversion(condition)
         column_refs = list(condition.get_dependencies(types=ColumnRef))
         name_to_column = self.meta_columns.get_name_to_column()
@@ -456,13 +461,15 @@ class Table:
     def rename(
         self, columns: "t.Union[t.Tuple[str], t.List[str], t.Dict[str, str]]"
     ) -> "Table":
-        """Method to rename columns. The behavior depends on type of columns
-        argument.
+        """Rename columns.
+
+        The behavior depends on type of columns argument.
 
         Args:
-          columns: if tuple/list, then it defines new column names (length of
-            passed columns should match number of columns inside).  If dict,
-            then it defines a mapping from old column names to new ones.
+          columns:
+            * tuple/list: then it defines new column names (length of
+              passed columns should match number of columns inside).
+            * dict: defines a mapping from old column names to new ones.
         """
         renamed = False
         if isinstance(columns, dict):
@@ -489,8 +496,10 @@ class Table:
         return self
 
     def take(self, *column_names: "t.Union[str, t.Any]") -> "Table":
-        """Leaves only specified columns, omitting the rest. ``...`` references
-        non-mentioned columns, so it's easy to both take a few columns:
+        """Leave only specified columns, omitting the rest.
+
+        ``...`` references non-mentioned columns, so it's easy to both take a
+        few columns:
 
         >>> table.take("a", "b")
 
@@ -517,8 +526,10 @@ class Table:
         return self
 
     def zip(self, table: "Table", fill_value=None) -> "Table":
-        """Zip tables one to another. Before using this method, make sure you
-        are not looking for :py:obj:`convtools.contrib.tables.Table.join`
+        """Zip tables one to another.
+
+        Before using this method, make sure you are not looking for
+        `convtools.contrib.tables.Table.join`
 
         Let's assume fill_value is set to " ":
 
@@ -535,9 +546,8 @@ class Table:
         >>> |   |   | 5 | 6 |
 
         Args:
-         - table: table to be chained
-         - fill_value: value to use for filling gaps
-
+          table: table to be chained
+          fill_value: value to use for filling gaps
         """
         new_columns = MetaColumns(duplicate_columns="keep")
         left_columns = self.meta_columns.get_name_to_column()
@@ -587,9 +597,8 @@ class Table:
         >>> |   | 3 | 4 |
 
         Args:
-         - table: table to be chained
-         - fill_value: value to use for filling gaps
-
+          table: table to be chained
+          fill_value: value to use for filling gaps
         """
         if self.rows_objects is None:
             raise AssertionError("move_rows called the 2nd time")
@@ -659,7 +668,7 @@ class Table:
         how: str,
         suffixes=("_LEFT", "_RIGHT"),
     ) -> "Table":
-        """Joins the table conversion to another table conversion.
+        """Classic table join.
 
         Args:
           table: another table conversion to join to self
@@ -675,7 +684,6 @@ class Table:
             the second one is added to conflicting right ones. When ``on`` is
             an iterable of strings, these columns are excluded from suffixing.
         """
-
         how = JoinConversion.validate_how(how)
         left = self.embed_conversions()
         right = table.embed_conversions()
@@ -803,8 +811,7 @@ class Table:
         )
 
     def explode(self, column_name: str):
-        """Explodes a table to a long format by exploding a column with
-        iterables, e.g.:
+        """Explode a table by unnesting a column with iterables.
 
         >>> | a |   b    |
         >>> | 1 | [2, 3] |
@@ -819,8 +826,7 @@ class Table:
         >>> | 2 | 6 |
 
         Args:
-         - column_name: column with iterables to be exploded
-
+          column_name: column with iterables to be exploded
         """
         columns = self.columns
         try:
@@ -854,7 +860,10 @@ class Table:
         return Table.from_rows(new_rows, header=columns)
 
     def move_rows_objects(self) -> "t.List[t.Iterable]":
-        """Moves out rows objects including files to be closed later"""
+        """For internal use.
+
+        Moves out rows objects including files to be closed later.
+        """
         if self.rows_objects is None:
             raise AssertionError("move_rows called the 2nd time")
 
@@ -871,6 +880,7 @@ class Table:
     def into_list_of_iterables(
         self, type_=tuple, include_header=None
     ) -> "t.List[t.Iterable]":
+        """For internal use."""
         if type_ not in self.supported_types:
             raise TypeError("unsupported type_", type_)
 
@@ -920,7 +930,7 @@ class Table:
     def into_iter_rows(
         self, type_=tuple, include_header=None
     ) -> "t.Iterable[t.Any]":
-        """Consumes inner rows Iterable and returns Iterable of processed rows.
+        """Return iterable of processed rows.
 
         Args:
           type_: casts output rows to the type. Accepts the following values:
@@ -928,6 +938,7 @@ class Table:
             * :py:obj:`dict`
             * :py:obj:`tuple`
             * :py:obj:`list`
+          include_header: whether to include header row in the result or not
 
         """
         return chain.from_iterable(
@@ -943,8 +954,7 @@ class Table:
         dialect: "t.Union[str, CustomCsvDialect]" = "excel",
         encoding="utf-8",
     ):
-        """Consumes inner rows Iterable and writes processed rows as a csv-like
-        file.
+        """Writes rows to a file.
 
         Args:
           filepath_or_buffer: a filepath or something :py:obj:`csv.writer` can
@@ -961,7 +971,9 @@ class Table:
         f_to_close = None
         f: "t.TextIO"
         if isinstance(filepath_or_buffer, str):
-            f = f_to_close = open(  # pylint:disable=consider-using-with
+            f = (
+                f_to_close
+            ) = open(  # pylint:disable=consider-using-with  # noqa: SIM115
                 filepath_or_buffer, "w", encoding=encoding
             )
         else:

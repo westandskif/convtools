@@ -20,4 +20,6 @@ assert converter(["12/31/2020", "2021-01-01"]) == [
 converter = (
     c.item("dt").datetime_parse("%m/%d/%Y %H:%M").gen_converter(debug=True)
 )
-assert converter({"dt": "12/31/2020 15:40"}) == datetime(2020, 12, 31, 15, 40)
+assert converter({"dt": "12/31/2020 15:40"}) == datetime(
+    2020, 12, 31, 15, 40
+)

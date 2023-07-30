@@ -1,129 +1,147 @@
+import abc
 import csv
 import os
+import platform
 import sys
 from collections import defaultdict
+from itertools import chain
 from time import time
+
+from pydantic import BaseModel
+
+import convtools
+from convtools import conversion as c
+from convtools.contrib.tables import Table
 
 from .timer import SimpleTimer
 
-PY_VERSION = tuple(sys.version_info[0:3])
+
+class Environment(BaseModel):
+    system: str
+    arch: str
+    py_version: str
+    py_version_exact: str
+    py_implementation: str
+    py_compiler: str
+    convtools_version: str
 
 
-class BenchmarkResult:
-    def __init__(self, name, time_taken, number):
-        self.name = name
-        self.time_taken = time_taken
-        self.number = number
-        self.ts = time()
+class BenchmarkResult(Environment):
+    name: str
+    diff: float
 
 
-class BenchmarkStorageItemV1:
-    def __init__(
-        self, py_version, version, ts, name, number, ticks_taken, rel_speed
-    ):
-        self.py_version = (
-            py_version
-            if isinstance(py_version, tuple)
-            else tuple(map(int, py_version.split(".")))
+ENVIRONMENT = Environment(
+    system=platform.system(),
+    arch=platform.machine(),
+    py_version=".".join(map(str, sys.version_info[0:2])),
+    py_version_exact=platform.python_version(),
+    py_implementation=platform.python_implementation(),
+    py_compiler=platform.python_compiler(),
+    convtools_version=convtools.__version__,
+)
+
+
+class BaseBenchmark(abc.ABC):
+    HAS_CODE_GEN_TEST = True
+    HAS_EXECUTION_TEST = True
+
+    def get_name(self):
+        return f"{self.__class__.__name__}"
+
+    def _measure(self, f, data):
+        number_of_iterations, mean = SimpleTimer(
+            "f(data)", "f = _f; data = _data", globals={"_f": f, "_data": data}
+        ).auto_measure()
+        return mean / number_of_iterations
+
+    def compare_results(self, data1, data2) -> bool:
+        return data1 == data2
+
+    def get_execution_result(self) -> BenchmarkResult:
+        name = self.get_name()
+        print(f"TESTING: {name}")
+        data = self.gen_data()
+
+        convtools_converter = self.gen_converter()
+        naive_implementations = list(self.gen_naive_implementations())
+
+        # make sure the results are the same
+        expected = convtools_converter(data)
+        for naive_f in naive_implementations:
+            result = naive_f(data)
+            assert self.compare_results(result, expected)
+
+        best_naive = min(
+            self._measure(naive_f, data) for naive_f in naive_implementations
         )
-        self.version = version
-        self.ts = ts
-        self.name = name
-        self.number = int(number)
-        self.ticks_taken = int(ticks_taken)
-        self.rel_speed = float(rel_speed)
-
-    def get_key(self):
-        return (self.py_version[0:2], self.version, self.name)
-
-    def get_key_to_compare_speed(self):
-        return (self.name,)
-
-    @staticmethod
-    def get_field_names():
-        return (
-            "py_version",
-            "version",
-            "ts",
-            "name",
-            "number",
-            "ticks_taken",
-            "rel_speed",
+        convtools_time = self._measure(convtools_converter, data)
+        return BenchmarkResult(
+            name=name,
+            diff=best_naive / convtools_time,
+            **ENVIRONMENT.model_dump(),
         )
 
-    def as_tuple(self):
-        return (
-            ".".join(map(str, self.py_version)),
-            self.version,
-            self.ts,
-            self.name,
-            self.number,
-            self.ticks_taken,
-            self.rel_speed,
-        )
+    @abc.abstractmethod
+    def gen_converter(self):
+        pass
+
+    @abc.abstractmethod
+    def gen_naive_implementations(self):
+        pass
+
+    @abc.abstractmethod
+    def gen_data(self):
+        pass
 
 
-class BenchmarkResultsStorageV1:
+class BenchmarkResultsStorage:
     FILENAME = os.path.join(
         os.path.dirname(__file__), "benchmark_results_V1.csv"
     )
 
-    def __init__(self, version):
-        items = []
-        if os.path.exists(self.FILENAME):
-            with open(self.FILENAME, "r") as f:
-                rows = iter(csv.reader(f))
-                header = tuple(next(rows))
-                if header != BenchmarkStorageItemV1.get_field_names():
-                    raise AssertionError
-
-                for row in rows:
-                    items.append(
-                        BenchmarkStorageItemV1(**dict(zip(header, row)))
-                    )
-
-        self.key_to_item = {item.get_key(): item for item in items}
+    def __init__(self):
         self.new_results = []
-        self.version = version
+
+    def load_results(self):
+        if os.path.exists(self.FILENAME):
+            return list(
+                map(
+                    BenchmarkResult.model_validate,
+                    Table.from_csv(self.FILENAME, header=True).into_iter_rows(
+                        dict
+                    ),
+                )
+            )
+        return []
 
     def add_item(self, result: BenchmarkResult):
         self.new_results.append(result)
 
+    _key_fields = (
+        "system",
+        "arch",
+        "py_version",
+        "py_implementation",
+        "py_compiler",
+        "convtools_version",
+        "name",
+    )
+    _sort_fields = ("py_version", "diff")
+
     def save(self):
-        if not self.new_results:
-            print("NOTHING TO SAVE")
-            return
-
-        base_time = SimpleTimer.get_base_time()
-        print(f"BASE_TIME: {base_time}")
-
-        for result in self.new_results:
-            item = BenchmarkStorageItemV1(
-                py_version=PY_VERSION,
-                version=self.version,
-                ts=result.ts,
-                name=result.name,
-                number=result.number,
-                ticks_taken=int(result.time_taken / result.number / base_time),
-                rel_speed=0,
-            )
-            self.key_to_item[item.get_key()] = item
-
-        key_to_items = defaultdict(list)
-        for item in self.key_to_item.values():
-            key_to_items[item.get_key_to_compare_speed()].append(item)
-
-        for items in key_to_items.values():
-            max_ticks = max(item.ticks_taken for item in items)
-            for item in items:
-                item.rel_speed = round(max_ticks * 100.0 / item.ticks_taken, 1)
-
+        merged_results = (
+            c.group_by(*(c.attr(key_) for key_ in self._key_fields))
+            .aggregate(c.ReduceFuncs.Last(c.this))
+            .iter(c.this.call_method("model_dump"))
+            .execute(chain(self.load_results(), self.new_results))
+        )
+        resulting_rows = sorted(
+            merged_results,
+            key=c.tuple(
+                *(c.item(key_) for key_ in self._sort_fields)
+            ).gen_converter(),
+        )
         new_filename = f"{self.FILENAME}_"
-        with open(new_filename, "w") as f:
-            writer = csv.writer(f)
-            writer.writerow(BenchmarkStorageItemV1.get_field_names())
-            for items in key_to_items.values():
-                for item in items:
-                    writer.writerow(item.as_tuple())
-
+        Table.from_rows(resulting_rows).into_csv(new_filename)
         os.replace(new_filename, self.FILENAME)
