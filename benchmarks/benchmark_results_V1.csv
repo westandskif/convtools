@@ -1,27 +1,79 @@
 system,arch,py_version,py_version_exact,py_implementation,py_compiler,convtools_version,name,diff
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,GroupBy1 - MANY_GROUPS,1.2542465126518094
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeFormat2,1.3082477386874696
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,Aggregate1,1.3452577123757279
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,GroupBy1 - FEW_GROUPS,1.444103058047858
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeFormat1,1.5431166253114574
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,IterOfIter1,2.177193179368522
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateFormat2,2.335397552954595
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,TableDictReader,2.6408746670618126
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeParse2,3.159366316330834
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeParse1,3.4494004618216554
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateParse2,3.658227584767227
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateParse1,3.668351105230607
-Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateFormat1,6.060525954351775
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - FEW_GROUPS,0.8595452924194269
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - MANY_GROUPS,1.0322188835762671
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,Aggregate1,1.298298814403734
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat2,1.3733377094307218
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat1,1.574623979706159
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,IterOfIter1,1.8109175567224236
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat2,2.4953252486250004
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,TableDictReader,2.702914093050499
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse2,3.222294494226754
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse1,3.600679065062578
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse1,3.630609058665223
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse2,3.660055403580704
-Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat1,5.7771197508997645
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - FEW_GROUPS,0.9333232419334005
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - MANY_GROUPS,0.944842675212749
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,Aggregate1,1.275670737228574
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat2,1.384244545416736
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat1,1.563485977949039
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,IterOfIter1,1.9784229104298519
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat2,2.4857102895297283
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,TableDictReader,2.648612201665222
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse2,3.1014797033834314
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse1,3.5290177348090914
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse1,3.6199648147122168
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse2,3.637901388647322
+Darwin,arm64,3.10,3.10.9,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat1,5.900623431731855
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,Aggregate1,1.304136594230012
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeFormat2,1.3352037974418336
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,GroupBy1 - MANY_GROUPS,1.3534988732037592
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeFormat1,1.554577347073113
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,GroupBy1 - FEW_GROUPS,1.5793929570870437
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,IterOfIter1,2.171040611873997
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateFormat2,2.3978751310243416
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,TableDictReader,2.613231834836861
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeParse2,3.106492966996272
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeParse1,3.45907332726145
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateParse1,3.5413213419123815
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateParse2,3.622774755235592
+Darwin,arm64,3.11,3.11.4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateFormat1,6.163392245468712
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,Aggregate1,1.2628520476954768
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,GroupBy1 - MANY_GROUPS,1.273527617461449
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeFormat2,1.5078575995261694
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,GroupBy1 - FEW_GROUPS,1.6708896619242506
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeFormat1,1.7515628766198459
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,IterOfIter1,1.8942235777192022
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,TableDictReader,2.2355405278273506
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateFormat2,2.788719173472278
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeParse2,3.0591646220216715
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DatetimeParse1,3.463201132827948
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateParse2,3.6126931012114447
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateParse1,3.6584026462064103
+Darwin,arm64,3.12,3.12.0b4,CPython,Clang 14.0.3 (clang-1403.0.22.14.1),1.5.0,DateFormat1,6.9341278026109014
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - MANY_GROUPS,1.015852147636002
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - FEW_GROUPS,1.0361202860024654
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,Aggregate1,1.3521038968251573
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat2,1.4711459769995965
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat1,1.6703155955247124
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,IterOfIter1,1.8447680130793573
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat2,2.8207892638975873
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse2,3.241882077138353
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse1,3.6516505293777675
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse1,3.6604044155221884
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse2,3.759473840125136
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,TableDictReader,3.7662261627839952
+Darwin,arm64,3.7,3.7.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat1,5.784563052504696
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - MANY_GROUPS,0.9648384766826057
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - FEW_GROUPS,0.9719104786000048
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,Aggregate1,1.3932749351072555
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat2,1.4752085878767012
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat1,1.6945335763421143
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,IterOfIter1,1.8580984682142905
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,TableDictReader,2.6714351837374672
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat2,2.7021296362518807
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse2,3.2393403983598037
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse1,3.6303385902222685
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse2,3.6517660072203633
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse1,3.7009341902897446
+Darwin,arm64,3.8,3.8.16,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat1,5.8906565589647695
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - FEW_GROUPS,0.9958327752979583
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,GroupBy1 - MANY_GROUPS,1.0021883811145638
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,Aggregate1,1.2873152079796712
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat2,1.3772082865247641
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeFormat1,1.5669401878584799
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,IterOfIter1,1.804206884418304
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat2,2.4434592354272127
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,TableDictReader,2.6741579062354903
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse2,3.168056163554451
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse1,3.5727205499148655
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DatetimeParse1,3.5862309538002286
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateParse2,3.6231297876006296
+Darwin,arm64,3.9,3.9.12,CPython,Clang 14.0.0 (clang-1400.0.29.201),1.5.0,DateFormat1,5.718742699219423

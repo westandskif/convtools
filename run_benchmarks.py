@@ -16,6 +16,7 @@ from benchmarks.storage import BenchmarkResultsStorage
 
 BENCHMARKS = [
     # fmt: off
+
     Aggregate1(),
     GroupBy1(GroupBy1.Modes.FEW_GROUPS),
     GroupBy1(GroupBy1.Modes.MANY_GROUPS),
@@ -29,6 +30,7 @@ BENCHMARKS = [
     type("DateFormat2", (DateFormat,), {"FMT": "%m/%d/%Y"})(),
     type("DatetimeFormat1", (DatetimeFormat,), {"FMT": "%m/%d/%Y %I:%M %p"})(),
     type("DatetimeFormat2", (DatetimeFormat,), {"FMT": "%Y-%m-%dT%H:%M:%S.%f"})(),
+
     # fmt: on
 ]
 

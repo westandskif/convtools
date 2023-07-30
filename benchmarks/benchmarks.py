@@ -72,6 +72,8 @@ class GroupBy1(BaseBenchmark):
                 {
                     "name": c.item("name"),
                     "avg": c.ReduceFuncs.Average(c.item("value")),
+                    "min": c.ReduceFuncs.Min(c.item("value")),
+                    "max": c.ReduceFuncs.Max(c.item("value")),
                 }
             )
             .gen_converter()
@@ -79,17 +81,25 @@ class GroupBy1(BaseBenchmark):
 
     def gen_naive_implementations(self):
         def f(data):
-            agg = defaultdict(lambda: {"count": 0, "sum": 0})
+            agg = defaultdict(
+                lambda: {"count": 0, "sum": 0, "min": None, "max": None}
+            )
             for i in data:
                 v = agg[i["name"]]
                 v["count"] += 1
                 v["sum"] += i["value"] or 0
+                if v["min"] is None or v["min"] > i["value"]:
+                    v["min"] = i["value"]
+                if v["max"] is None or v["max"] < i["value"]:
+                    v["max"] = i["value"]
             return [
                 {
                     "name": name,
                     "avg": value["sum"] / value["count"]
                     if value["count"]
                     else 0,
+                    "min": value["min"],
+                    "max": value["max"],
                 }
                 for name, value in agg.items()
             ]

@@ -33,9 +33,12 @@ checks:
 	ruff src
 
 benchmarks:
-	for i in $$(cat benchmarks/main_versions.txt); do pip install --force-reinstall convtools==$$i && python run_benchmarks.py ; done
-	pip install -e . && python run_benchmarks.py
-
+	${CONVTOOLS_PYTHON_37} run_benchmarks.py
+	${CONVTOOLS_PYTHON_38} run_benchmarks.py
+	${CONVTOOLS_PYTHON_39} run_benchmarks.py
+	${CONVTOOLS_PYTHON_310} run_benchmarks.py
+	${CONVTOOLS_PYTHON_311} run_benchmarks.py
+	${CONVTOOLS_PYTHON_312} run_benchmarks.py
 
 linux_bash_3_6:
 	docker build -t convtools_linux:3.6 ci-requirements/py3.6

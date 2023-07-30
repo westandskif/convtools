@@ -45,13 +45,30 @@ other parts of your code. The below table provides the speed-up of
 convtools-based solutions over the naive ones. 
 
 
+=== "py3.12.0b4"
+
+    {! performance-md/perf-3.12.md !}
+
 === "py3.11"
 
     {! performance-md/perf-3.11.md !}
 
+=== "py3.10"
+
+    {! performance-md/perf-3.10.md !}
+
 === "py3.9"
 
     {! performance-md/perf-3.9.md !}
+
+=== "py3.8"
+
+    {! performance-md/perf-3.8.md !}
+
+=== "py3.7"
+
+    {! performance-md/perf-3.7.md !}
+
 
 In cases where there are multiple speed test results, the worst is
 taken. See [benchmarks on Github](https://github.com/westandskif/convtools/tree/master/benchmarks) for source code.
