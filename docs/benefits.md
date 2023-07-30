@@ -1,7 +1,7 @@
 # Benefits of convtools
 
 
-## 1. Fewer bugs & readability
+## Fewer bugs & readability
 
 * it forces you to split the definition of data conversion from the data
   itself
@@ -12,7 +12,7 @@
   whenever a bug is found, we'll do our best to make sure it never occurs
   again.
 
-## 2. DRY
+## DRY
 
 In some cases, to keep the code DRY (_complying with "Don't Repeat Yourself"
 principle_) or just readable you need to pay with code performance:
@@ -26,13 +26,13 @@ Of course, there's also a cost, but it is completely under your control where
 and when to run `gen_converter` to spend a fraction of a second to generate
 an ad-hoc converter.
 
-## 3. Functionality
+## Functionality
 
 Since `convtools` is a code-generating layer, it provides you with an extra
 functionality like group_by, joins, pipes, etc.
 
 
-## 4. Performance
+## Performance
 
 !!! note "'The Art of Computer Programming' book by Donald Knuth:"
 
