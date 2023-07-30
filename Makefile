@@ -6,6 +6,7 @@ install:
 
 docs:
 	python build-docs-examples.py
+	python build-docs-performance.py
 
 docs_drop:
 	rm docs/examples-md/.last_build.csv || true

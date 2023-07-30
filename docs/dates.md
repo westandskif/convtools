@@ -8,7 +8,8 @@
 
 !!! tip "Performance"
 
-    Many format codes are optimized for speed: `%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y`
+    Many format codes are optimized for speed: `%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y`.
+    If any other are passed, the implementation falls back to `datetime.strftime`.
 
 `c.format_dt(fmt)` accepts same format codes as
 [datetime.strftime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes) does.
@@ -19,7 +20,8 @@
 
 !!! tip "Performance"
 
-    Many format codes are optimized for speed: `%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y`
+    Many format codes are optimized for speed: `%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y`.
+    If any other are passed, the implementation falls back to `datetime.strptime`.
 
 1. `c.date_parse(main_format, *other_formats, default=_none)` and `date_parse`
    method parse dates

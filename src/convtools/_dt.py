@@ -659,13 +659,9 @@ class _LocaleBasedMaps:
     hour_to_pct_lower_p: List[str]
     upper_y_strftime_fix_needed: bool
     upper_y_format_is_supported: bool
-    late_initialized: bool
+    late_initialized = False
 
     def late_init(self):
-        try:
-            return object.__getattribute__(self, "late_initialized")
-        except AttributeError:
-            pass
         self.late_initialized = True
 
         self.weekday_to_pct_lower_a = [
@@ -704,8 +700,9 @@ class _LocaleBasedMaps:
             dt.strftime("%Y") == "0001" or self.upper_y_strftime_fix_needed
         )
 
-    def __getattribute__(self, attr):
-        object.__getattribute__(self, "late_init")()
+    def __getattr__(self, attr):
+        if not self.late_initialized:
+            self.late_init()
         return object.__getattribute__(self, attr)
 
     def fix_strftime_format(self, fmt):

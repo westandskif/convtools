@@ -30,6 +30,7 @@ nav:
      - Mutations: mutations.md
      - Contrib / Tables: contrib_tables.md
      - Contrib / Fs: contrib_fs.md
+  - Benefits: benefits.md
   - Changelog: CHANGELOG.md
   - Breaking changes: BREAKING_CHANGES.md
   - Contributors: contributors.md

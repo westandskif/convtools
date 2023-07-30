@@ -3,70 +3,40 @@ from time import time
 
 from benchmarks.benchmarks import (
     Aggregate1,
-    Aggregate2,
-    GetItem1,
-    GetItem2,
+    DateFormat,
+    DateParse,
+    DatetimeFormat,
+    DatetimeParse,
     GroupBy1,
-    GroupBy2,
-    IterOfGroupBy1,
     IterOfIter1,
-    JoinInner1,
-    JoinLeft1,
-    JoinOuter1,
-    JoinRight1,
-    Pipe1,
-    Pipe2,
-    Table1,
-    Table2,
-    TableJoin1,
-    FilterOfIter1,
-    IterMut1,
-    Or1,
-    Table1CodeGen,
-    Table2CodeGen,
-    TableJoin1CodeGen,
+    TableDictReader,
 )
-from benchmarks.storage import BenchmarkResultsStorageV1
+from benchmarks.storage import BenchmarkResultsStorage
 
 
 BENCHMARKS = [
+    # fmt: off
     Aggregate1(),
-    Aggregate2(),
-    FilterOfIter1(),
-    GetItem1(),
-    GetItem2(),
     GroupBy1(GroupBy1.Modes.FEW_GROUPS),
     GroupBy1(GroupBy1.Modes.MANY_GROUPS),
-    GroupBy2(GroupBy2.Modes.FEW_GROUPS),
-    GroupBy2(GroupBy2.Modes.MANY_GROUPS),
-    IterOfGroupBy1(),
     IterOfIter1(),
-    JoinInner1(),
-    JoinLeft1(),
-    JoinOuter1(),
-    JoinRight1(),
-    Pipe1(),
-    Pipe2(),
-    Table1(),
-    Table2(),
-    TableJoin1(),
-    IterMut1(),
-    Or1(),
-    Table1CodeGen(),
-    Table2CodeGen(),
-    TableJoin1CodeGen(),
+    TableDictReader(),
+    type("DateParse1", (DateParse,), {"FMT": "%m/%d/%Y"})(),
+    type("DateParse2", (DateParse,), {"FMT": "%Y-%m-%d"})(),
+    type("DatetimeParse1", (DatetimeParse,), {"FMT": "%m/%d/%Y %I:%M %p"})(),
+    type("DatetimeParse2", (DatetimeParse,), {"FMT": "%Y-%m-%dt%H:%M:%S.%f"})(),
+    type("DateFormat1", (DateFormat,), {"FMT": "%Y-%m-%d"})(),
+    type("DateFormat2", (DateFormat,), {"FMT": "%m/%d/%Y"})(),
+    type("DatetimeFormat1", (DatetimeFormat,), {"FMT": "%m/%d/%Y %I:%M %p"})(),
+    type("DatetimeFormat2", (DatetimeFormat,), {"FMT": "%Y-%m-%dT%H:%M:%S.%f"})(),
+    # fmt: on
 ]
 
 
 def run():
-    from convtools import __version__
-
-    storage = BenchmarkResultsStorageV1(version=__version__)
+    storage = BenchmarkResultsStorage()
     for benchmark in BENCHMARKS:
-        # if benchmark.HAS_CODE_GEN_TEST:
-        #     storage.add_item(benchmark.get_code_gen_result())
-        if benchmark.HAS_EXECUTION_TEST:
-            storage.add_item(benchmark.get_execution_result())
+        storage.add_item(benchmark.get_execution_result())
     storage.save()
 
 
