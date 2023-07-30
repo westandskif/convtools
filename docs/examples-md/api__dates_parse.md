@@ -29,7 +29,7 @@
 
 === "debug stdout"
     ```python
-    def datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+    def datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
         match = __v.match(data_)
         if not match:
             raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
@@ -45,7 +45,7 @@
             __convtools__code_storage.dump_sources()
             raise
     
-    def datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+    def datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
         match = __v.match(data_)
         if not match:
             raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
@@ -77,7 +77,7 @@
             __convtools__code_storage.dump_sources()
             raise
     
-    def datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+    def datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
         match = __v.match(data_)
         if not match:
             raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y %H:%M"""))

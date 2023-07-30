@@ -452,7 +452,7 @@ claims to be), but not today while all python `typing` internals are unstable.
 
 ## 0.22.0 (2022-01-02)
 
-[#16](<https://github.com/westandskif/convtools/pull/16)
+[#16](https://github.com/westandskif/convtools/pull/16)
 
 **Features**
 
