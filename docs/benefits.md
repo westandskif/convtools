@@ -71,4 +71,4 @@ convtools-based solutions over the naive ones.
 
 
 In cases where there are multiple speed test results, the worst is
-taken. See [benchmarks on Github](https://github.com/westandskif/convtools/tree/master/benchmarks) for source code.
+taken. See [benchmarks on Github](https://github.com/westandskif/convtools/blob/master/run_benchmarks.py) for source code.
