@@ -10,10 +10,9 @@ from convtools._dt import DatetimeFormat, DatetimeParse, UnsupportedFormatCode
 
 SUPPORTED_FMT_TOKENS = "%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y"
 
-ALL_FMT_TOKENS = (
-    "%% %A %a %B %b %c %d %f %G %H %I %j %M %m %p %S %U %u %V %W %w %X %x %Y %y %Z %z"
-)
+ALL_FMT_TOKENS = "%% %A %a %B %b %c %d %f %G %H %I %j %M %m %p %S %U %u %V %W %w %X %x %Y %y %Z %z"
 # UNSUPPORTED = "%U %W %X %Z %c %j %x %z %G %V"
+
 
 @pytest.fixture
 def all_delimiters():
