@@ -21,9 +21,10 @@
 
 !!! tip "Performance"
 
-    Many format codes are optimized for speed: `%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y`.
+    Many format codes are optimized for speed: `%% %Y %m %d %H %I %p %M %S %f`.
     If any other are passed, the implementation falls back to `datetime.strptime`.
     See [performance section of Benefits page](benefits.md) for details.
+
 
 1. `c.date_parse(main_format, *other_formats, default=_none)` and `date_parse`
    method parse dates
