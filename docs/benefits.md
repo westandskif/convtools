@@ -45,7 +45,7 @@ other parts of your code. The below table provides the speed-up of
 convtools-based solutions over the naive ones. 
 
 
-=== "py3.12.0b4"
+=== "py3.12"
 
     {! performance-md/perf-3.12.md !}
 

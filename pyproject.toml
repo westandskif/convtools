@@ -37,6 +37,7 @@ classifiers = [
 	"Programming Language :: Python :: 3.9",
 	"Programming Language :: Python :: 3.10",
 	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
 	"Topic :: Software Development :: Code Generators",
 	"Topic :: Software Development :: Libraries",
 	"Topic :: Software Development :: Libraries :: Python Modules",
@@ -75,7 +76,7 @@ changelog = "https://github.com/westandskif/convtools/blob/master/docs/CHANGELOG
 
 [tool.black]
 line-length = 79
-target-version = ['py37']
+target-version = ['py39']
 
 [tool.isort]
 atomic = true
