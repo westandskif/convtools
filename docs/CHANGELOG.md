@@ -1,3 +1,8 @@
+## 1.5.1 (2023-10-08)
+
+- added python 3.12 benchmark results
+- added python 3.12 heuristics
+
 ## 1.5.0 (2023-07-30)
 
 **Features**
