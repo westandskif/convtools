@@ -1,4 +1,5 @@
 """Conversions to check expected conditions or raise exception."""
+
 from ._base import BaseConversion, ConversionException
 
 

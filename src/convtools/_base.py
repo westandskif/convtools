@@ -1,4 +1,5 @@
 """Base and basic conversions are defined here."""
+
 import re
 import string
 import sys
@@ -984,10 +985,40 @@ class BaseConversion(t.Generic[CT]):
 
         return self.pipe(
             If(
-                CallFunc(condition, This())
-                if callable(condition)
-                else condition,
+                (
+                    CallFunc(condition, This())
+                    if callable(condition)
+                    else condition
+                ),
                 conversion,
+            )
+        )
+
+    def dispatch(
+        self,
+        key: "t.Any",
+        key_to_conv: dict,
+        default=_none,
+    ):
+        """Applies one of conversions of the dict, based on the key.
+
+        Takes a conversion to be used as a key and applies corresponding
+        conversion from dict. The key conversion should return hashable object.
+
+        >>> c.this.dispatch(
+        >>>     c.item("version"),
+        >>>     {
+        >>>         "v1": c.item("field_a"),
+        >>>         "v2": c.item("field_b"),
+        >>>     },
+        >>>     c.item("field")
+        >>> ).gen_converter()
+        """
+        return self.pipe(
+            Dispatcher(
+                key,
+                key_to_conv,
+                default=None if default is _none else default,
             )
         )
 
@@ -3027,6 +3058,83 @@ class DropWhile(BaseConversion):
             conversion = function_ctx.gen_conversion(
                 converter_name, code.to_string(0)
             )
+
+        return function_ctx.call_with_all_args(
+            conversion
+        ).gen_code_and_update_ctx(code_input, ctx)
+
+
+class Dispatcher(BaseConversion):
+    """Applies one of conversions of the dict, based on the key."""
+
+    self_content_type = (
+        BaseConversion.self_content_type
+        & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
+    weight = Weights.FUNCTION_CALL
+
+    def __init__(
+        self,
+        key: "t.Any",
+        key_to_conv: dict,
+        default: "t.Optional[t.Any]" = None,
+    ):
+        super().__init__()
+        self.key_getter = self.ensure_conversion(key)
+        self.key_to_conversion = {
+            k: self.ensure_conversion(v) for k, v in key_to_conv.items()
+        }
+        self.default_conversion = (
+            None if default is None else self.ensure_conversion(default)
+        )
+        self.number_of_input_uses = 2
+
+    def _gen_code_and_update_ctx(self, code_input, ctx):
+        converter_name = self.gen_random_name("dispatch", ctx)
+        var_input = "data_"
+
+        function_ctx = self.as_function_ctx(ctx)
+        function_ctx.add_arg(var_input, This())
+        with function_ctx:
+            key_to_func = {}
+            for key, then_conversion in self.key_to_conversion.items():
+                converter_name = self.gen_random_name("branch", ctx)
+                code = Code()
+                code.add_line(
+                    f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+                    1,
+                )
+
+                code.add_line(
+                    f"return {then_conversion.gen_code_and_update_ctx(var_input, ctx)}",
+                    -1,
+                )
+                key_to_func[key] = function_ctx.gen_function(
+                    converter_name, code.to_string(0)
+                )
+
+            conversion: "BaseConversion"
+            if self.default_conversion is None:
+                conversion = NaiveConversion(key_to_func).item(self.key_getter)
+
+            else:
+                converter_name = self.gen_random_name("branch_else", ctx)
+                code = Code()
+                code.add_line(
+                    f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+                    1,
+                )
+                code.add_line(
+                    f"return {self.default_conversion.gen_code_and_update_ctx(var_input, ctx)}",
+                    -1,
+                )
+                else_func = function_ctx.gen_function(
+                    converter_name, code.to_string(0)
+                )
+
+                conversion = NaiveConversion(key_to_func).call_method(
+                    "get", self.key_getter, else_func
+                )
 
         return function_ctx.call_with_all_args(
             conversion

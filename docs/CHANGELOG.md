@@ -1,3 +1,9 @@
+## 1.6.0 (2024-02-07)
+
+- added experimental `c.this.dispatch(key, key_to_conv, default)` to switch
+  between conversions based on dict lookups
+
+
 ## 1.5.1 (2023-10-08)
 
 - added python 3.12 benchmark results

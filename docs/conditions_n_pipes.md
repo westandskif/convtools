@@ -66,3 +66,22 @@ There are two ways to label data for further use:
 To reference previously labeled data use `c.label("label_name")`.
 
 {!examples-md/api__pipe_labels.md!}
+
+## Dispatch
+
+!!! warning ""
+    Experimental feature added on Feb 7, 2024. It will be stabilized in ~ half
+    a year.
+
+There are performance critical cases where it's desired to replace `c.if_` and
+`c.if_multiple` with dict lookups. However it limits what can be used as keys
+as these need to be hashable.
+
+Interface: `c.this.dispatch(key, key_to_conv, default)`
+
+1. `key` defines a conversion, which gets a key
+1. `key_to_conv` is a dict which maps keys to conversions
+1. `default` is an optional default conversion, when the dict doesn't contain
+   the key
+
+{!examples-md/api__dispatch.md!}

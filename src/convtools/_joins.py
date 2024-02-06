@@ -1,4 +1,5 @@
 """Join conversions."""
+
 import typing as t
 from itertools import chain, repeat
 
@@ -295,15 +296,19 @@ class JoinConversion(BaseConversion):
 
             if join_conditions.right_row_hashers:
                 c_left_key_to_hash = join_conditions.wrap_with_namespace(
-                    Tuple(*join_conditions.left_row_hashers)
-                    if len(join_conditions.left_row_hashers) > 1
-                    else join_conditions.left_row_hashers[0],
+                    (
+                        Tuple(*join_conditions.left_row_hashers)
+                        if len(join_conditions.left_row_hashers) > 1
+                        else join_conditions.left_row_hashers[0]
+                    ),
                     left=True,
                 )
                 c_right_key_to_hash = join_conditions.wrap_with_namespace(
-                    Tuple(*join_conditions.right_row_hashers)
-                    if len(join_conditions.right_row_hashers) > 1
-                    else join_conditions.right_row_hashers[0],
+                    (
+                        Tuple(*join_conditions.right_row_hashers)
+                        if len(join_conditions.right_row_hashers) > 1
+                        else join_conditions.right_row_hashers[0]
+                    ),
                     right=True,
                 )
                 code.add_line(
@@ -315,14 +320,16 @@ class JoinConversion(BaseConversion):
                                 c_right_key_to_hash,
                                 This,
                                 default=NaiveConversion({}),
-                                where=join_conditions.wrap_with_namespace(
-                                    And(
-                                        *join_conditions.right_collection_filters
-                                    ),
-                                    right=True,
-                                )
-                                if join_conditions.right_collection_filters
-                                else None,
+                                where=(
+                                    join_conditions.wrap_with_namespace(
+                                        And(
+                                            *join_conditions.right_collection_filters
+                                        ),
+                                        right=True,
+                                    )
+                                    if join_conditions.right_collection_filters
+                                    else None
+                                ),
                             )
                         )
                     )
@@ -419,17 +426,21 @@ class JoinConversion(BaseConversion):
                 code.add_line("right_item = next(right_items, _none)", 0)
                 code.add_line("if right_item is _none:", 1)
                 code.add_line(
-                    "yield None, left_item"
-                    if join_conditions.swapped
-                    else "yield left_item, None",
+                    (
+                        "yield None, left_item"
+                        if join_conditions.swapped
+                        else "yield left_item, None"
+                    ),
                     -1,
                 )
                 code.add_line("else:", 1)
                 track_id()
                 code.add_line(
-                    "yield right_item, left_item"
-                    if join_conditions.swapped
-                    else "yield left_item, right_item",
+                    (
+                        "yield right_item, left_item"
+                        if join_conditions.swapped
+                        else "yield left_item, right_item"
+                    ),
                     0,
                 )
                 code.add_line(
@@ -438,9 +449,11 @@ class JoinConversion(BaseConversion):
                 )
                 track_id()
                 code.add_line(
-                    "yield right_item, left_item"
-                    if join_conditions.swapped
-                    else "yield left_item, right_item",
+                    (
+                        "yield right_item, left_item"
+                        if join_conditions.swapped
+                        else "yield left_item, right_item"
+                    ),
                     -3,
                 )
 
@@ -448,9 +461,11 @@ class JoinConversion(BaseConversion):
                 code.add_line("for right_item in right_items:", 1)
                 track_id()
                 code.add_line(
-                    "yield right_item, left_item"
-                    if join_conditions.swapped
-                    else "yield left_item, right_item",
+                    (
+                        "yield right_item, left_item"
+                        if join_conditions.swapped
+                        else "yield left_item, right_item"
+                    ),
                     -2,
                 )
 
@@ -493,9 +508,11 @@ class JoinConversion(BaseConversion):
                 c_result = If(
                     And(*join_conditions.pre_filter),
                     c_result,
-                    CallFunc(zip, repeat(None), self.right_conversion)
-                    if join_conditions.swapped
-                    else CallFunc(zip, self.left_conversion, repeat(None)),
+                    (
+                        CallFunc(zip, repeat(None), self.right_conversion)
+                        if join_conditions.swapped
+                        else CallFunc(zip, self.left_conversion, repeat(None))
+                    ),
                 )
 
         return c_result.gen_code_and_update_ctx(code_input, ctx)

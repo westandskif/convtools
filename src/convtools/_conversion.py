@@ -1,4 +1,5 @@
 """The main module exposing public API."""
+
 from itertools import repeat
 
 from ._aggregations import (

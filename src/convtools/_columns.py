@@ -1,4 +1,5 @@
 """Base conversions to reference/define columns for tables."""
+
 import typing as t
 from collections import defaultdict
 

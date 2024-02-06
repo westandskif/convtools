@@ -1,4 +1,5 @@
 """Conversions for working with unique values."""
+
 from ._base import BaseConversion, EscapedString
 from ._utils import Code
 

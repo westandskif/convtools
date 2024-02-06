@@ -7,6 +7,7 @@ Conversions are defined in realtime based on table headers and called methods:
  - join
 
 """
+
 import csv
 import typing as t  # pylint: disable=unused-import
 from collections.abc import Sized
@@ -318,12 +319,12 @@ class Table:
         file_to_close: "t.Optional[t.TextIO]"
         buffer: "t.TextIO"
         if isinstance(filepath_or_buffer, str):
-            buffer = (
-                file_to_close
-            ) = open(  # pylint: disable=consider-using-with # noqa: SIM115
-                filepath_or_buffer,
-                "r",
-                encoding=encoding,
+            buffer = file_to_close = (
+                open(  # pylint: disable=consider-using-with # noqa: SIM115
+                    filepath_or_buffer,
+                    "r",
+                    encoding=encoding,
+                )
             )
         else:
             buffer = filepath_or_buffer
@@ -562,9 +563,11 @@ class Table:
             new_columns.add(name, None, GetItem(1, index))
 
         new_rows = (
-            (left_fill_value, t[1])
-            if t[0] is None
-            else ((t[0], right_fill_value) if t[1] is None else t)
+            (
+                (left_fill_value, t[1])
+                if t[0] is None
+                else ((t[0], right_fill_value) if t[1] is None else t)
+            )
             for t in zip_longest(
                 self.into_iter_rows(tuple), table.into_iter_rows(tuple)
             )
@@ -971,10 +974,10 @@ class Table:
         f_to_close = None
         f: "t.TextIO"
         if isinstance(filepath_or_buffer, str):
-            f = (
-                f_to_close
-            ) = open(  # pylint:disable=consider-using-with  # noqa: SIM115
-                filepath_or_buffer, "w", encoding=encoding
+            f = f_to_close = (
+                open(  # pylint:disable=consider-using-with  # noqa: SIM115
+                    filepath_or_buffer, "w", encoding=encoding
+                )
             )
         else:
             f = filepath_or_buffer

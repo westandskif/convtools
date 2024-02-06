@@ -1,4 +1,5 @@
 """Run multiple conversions until success, while catching exceptions."""
+
 from typing import Any, Sequence, Tuple, Type, Union
 
 from ._base import BaseConversion, NaiveConversion, This, ensure_conversion

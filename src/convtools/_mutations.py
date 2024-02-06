@@ -1,4 +1,5 @@
 """In-place mutations."""
+
 from ._base import BaseConversion, BaseMutation
 from ._heuristics import Weights
 from ._utils import Code

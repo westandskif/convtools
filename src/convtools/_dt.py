@@ -1,4 +1,5 @@
 """Defines datetime utility functions."""
+
 import re
 from datetime import date, datetime, timedelta
 from functools import lru_cache
@@ -229,7 +230,9 @@ def datetime_trunc_to_microsecond(dt, to_us, offset_us, mode):
     )
 
 
-STEP_CLASSES: "List[Union[Type[MonthStep], Type[DayOfWeekStep], Type[MicroSecondStep]]]" = [
+STEP_CLASSES: (
+    "List[Union[Type[MonthStep], Type[DayOfWeekStep], Type[MicroSecondStep]]]"
+) = [
     MonthStep,
     DayOfWeekStep,
     MicroSecondStep,
@@ -913,9 +916,9 @@ class DatetimeParse(BaseConversion):
                 self.format_args,
             ) = self._parse_fmt(fmt)
         except UnsupportedFormatCode:
-            self.re_pattern = (
-                self.assignment_code_lines
-            ) = self.format_args = None
+            self.re_pattern = self.assignment_code_lines = self.format_args = (
+                None
+            )
 
     @staticmethod
     def _seq_to_re_group_str(seq):

@@ -156,6 +156,7 @@ disable=abstract-method,
         consider-using-f-string,
         not-callable,
         import-outside-toplevel,
+        cyclic-import,
 
 
 [REPORTS]

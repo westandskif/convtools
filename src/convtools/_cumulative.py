@@ -1,4 +1,5 @@
 """Cumulative conversions."""
+
 import typing as t
 from uuid import uuid4
 

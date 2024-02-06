@@ -1,4 +1,5 @@
 """Conversions for slicing iterables into chunks."""
+
 import typing as t
 
 from ._aggregations import Aggregate
