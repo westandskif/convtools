@@ -916,9 +916,9 @@ class DatetimeParse(BaseConversion):
                 self.format_args,
             ) = self._parse_fmt(fmt)
         except UnsupportedFormatCode:
-            self.re_pattern = self.assignment_code_lines = self.format_args = (
-                None
-            )
+            self.re_pattern = (
+                self.assignment_code_lines
+            ) = self.format_args = None
 
     @staticmethod
     def _seq_to_re_group_str(seq):

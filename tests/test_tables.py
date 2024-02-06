@@ -448,10 +448,9 @@ def test_table_csv():
         (2, 3, 4),
     ]
 
-    with (
-        open("tests/csvs/ab.csv", "r") as f_in,
-        open("tests/csvs/out.csv", "w") as f_out,
-    ):
+    with open("tests/csvs/ab.csv", "r") as f_in, open(
+        "tests/csvs/out.csv", "w"
+    ) as f_out:
         result = Table.from_csv(
             f_in, header=["A", "B"], skip_rows=True
         ).into_csv(f_out)
