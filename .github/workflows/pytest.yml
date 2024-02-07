@@ -21,7 +21,7 @@ jobs:
       - name: main python version - 3.9
         if: ${{ matrix.python-version == '3.9' }}
         run: |
-          pip install -r ci-requirements/py3.9-lint-doc-build/requirements.txt
+          pip install -r ci-requirements/requirements3.9.out
           pip install -e .
           # stop the build if there are Python syntax errors or undefined names
           flake8 src tests --count --select=E9,F63,F7,F82 --show-source --statistics
@@ -29,12 +29,13 @@ jobs:
           black src tests --check
           isort src tests --check
           mypy --check-untyped-defs src
+          ruff src
           pytest --benchmark-skip
           bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV_TOKEN }}
 
       - name: other python versions
         if: ${{ matrix.python-version != '3.9' }}
         run: |
-          pip install -r ci-requirements/py${{ matrix.python-version }}/requirements.txt
+          pip install -r ci-requirements/requirements${{ matrix.python-version }}.out
           pip install -e .
           pytest --benchmark-skip

@@ -76,7 +76,7 @@ changelog = "https://github.com/westandskif/convtools/blob/master/docs/CHANGELOG
 
 [tool.black]
 line-length = 79
-target-version = ['py39']
+target-version = ['py37']
 
 [tool.isort]
 atomic = true

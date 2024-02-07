@@ -1,3 +1,4 @@
+[lint]
 # Enable flake8-bugbear (`B`) rules.
 select = [
   "A001",
@@ -30,9 +31,9 @@ ignore = [
 unfixable = ["B"]
 
 # Ignore `E402` (import violations) in all `__init__.py` files, and in `path/to/file.py`.
-[per-file-ignores]
+[lint.per-file-ignores]
 "__init__.py" = ["F401", "E402"]
 "benchmarks/**" = ["D"]
 
-[pydocstyle]
+[lint.pydocstyle]
 convention = "google"

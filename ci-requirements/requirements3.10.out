@@ -1,0 +1,10 @@
+coverage==7.4.1
+exceptiongroup==1.2.0
+iniconfig==2.0.0
+packaging==23.2
+pluggy==1.4.0
+py-cpuinfo==9.0.0
+pytest==8.0.0
+pytest-benchmark==4.0.0
+pytest-cov==4.1.0
+tomli==2.0.1

@@ -32,18 +32,19 @@ checks:
 	mypy --check-untyped-defs src
 	ruff src
 
-benchmarks:
-	${CONVTOOLS_PYTHON_37} run_benchmarks.py
-	${CONVTOOLS_PYTHON_38} run_benchmarks.py
-	${CONVTOOLS_PYTHON_39} run_benchmarks.py
-	${CONVTOOLS_PYTHON_310} run_benchmarks.py
-	${CONVTOOLS_PYTHON_311} run_benchmarks.py
-	${CONVTOOLS_PYTHON_312} run_benchmarks.py
+bash-py%:
+	docker run --rm -it -v $$PWD:/mnt/convtools -w /mnt/convtools python:$* bash
 
-linux_bash_3_6:
-	docker build -t convtools_linux:3.6 ci-requirements/py3.6
-	docker run --rm -it -v $$PWD:/mnt/convtools convtools_linux:3.6 bash
+lock-py%:
+	docker run --rm -it \
+		-v $$PWD:/mnt/convtools \
+		-w /mnt/convtools/ci-requirements \
+		python:$* bash -c \
+		"rm -f requirements$*.out && pip install -r requirements$*.in && pip freeze > requirements$*.out"
 
-linux_bash_3_7_alpine:
-	docker build -t convtools_linux:3.7-alpine ci-requirements/py3.7
-	docker run --rm -it -v $$PWD:/mnt/convtools convtools_linux:3.7-alpine sh
+test-py%:
+	docker build --build-arg="PY_VERSION=$*" -t convtools_$*:latest ci-requirements
+	docker run --rm -it -v $$PWD:/mnt/convtools convtools_$*:latest bash -c \
+		"pip install -e . && pytest"
+
+test: test-py3.6 test-py3.7 test-py3.8 test-py3.9 test-py3.10 test-py3.11 test-py3.12

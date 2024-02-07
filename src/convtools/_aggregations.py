@@ -1441,10 +1441,10 @@ class Grouper(BaseConversion):
                 )
             else:
                 converter_name = f"group_by{suffix}"
-                ctx[
-                    var_agg_data_cls
-                ] = reduce_manager.gen_group_by_data_container(
-                    self, var_agg_data_cls, ctx
+                ctx[var_agg_data_cls] = (
+                    reduce_manager.gen_group_by_data_container(
+                        self, var_agg_data_cls, ctx
+                    )
                 )
                 grouper_code = GROUPER_TEMPLATE.format(
                     converter_name=converter_name,

@@ -1,0 +1,10 @@
+coverage==7.4.1
+iniconfig==2.0.0
+packaging==23.2
+pluggy==1.4.0
+py-cpuinfo==9.0.0
+pytest==8.0.0
+pytest-benchmark==4.0.0
+pytest-cov==4.1.0
+setuptools==69.0.3
+wheel==0.42.0
