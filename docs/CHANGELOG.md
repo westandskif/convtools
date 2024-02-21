@@ -1,3 +1,8 @@
+## 1.7.0 (2024-02-21)
+
+- added experimental `c.try_(conv).except_(exc_def, value, re_raise_if=None)`
+  conversion to handle exceptions
+
 ## 1.6.0 (2024-02-07)
 
 - added experimental `c.this.dispatch(key, key_to_conv, default)` to switch

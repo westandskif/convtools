@@ -1002,6 +1002,8 @@ class BaseConversion(t.Generic[CT]):
     ):
         """Applies one of conversions of the dict, based on the key.
 
+        It was added on Feb 7, 2024 and may be stabilized ~ in half a year.
+
         Takes a conversion to be used as a key and applies corresponding
         conversion from dict. The key conversion should return hashable object.
 

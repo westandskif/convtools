@@ -69,9 +69,8 @@ To reference previously labeled data use `c.label("label_name")`.
 
 ## Dispatch
 
-!!! warning ""
-    Experimental feature added on Feb 7, 2024. It will be stabilized in ~ half
-    a year.
+!!! warning "Experimental feature"
+    It was added on Feb 7, 2024 and may be stabilized ~ in half a year.
 
 There are performance critical cases where it's desired to replace `c.if_` and
 `c.if_multiple` with dict lookups. However it limits what can be used as keys

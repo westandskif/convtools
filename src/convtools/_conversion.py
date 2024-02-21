@@ -53,6 +53,7 @@ from ._exceptions import try_multiple
 from ._expect import ExpectException
 from ._joins import JoinConversion, _JoinConditions
 from ._mutations import Mutations
+from ._try import Try
 
 
 __all__ = ["conversion", "Conversion"]
@@ -222,6 +223,9 @@ class Conversion:
     def max(self, arg, *args):
         """Shortcut for `c.call_func(max, ...)`."""
         return CallFunc(max, arg, *args)
+
+    EXCEPTION = Try.EXCEPTION
+    try_ = Try
 
 
 conversion = Conversion()
