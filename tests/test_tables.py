@@ -667,3 +667,55 @@ def test_table_explode():
             .explode("c")
             .into_iter_rows(dict)
         )
+
+
+def test_table_wide_to_long():
+    result = list(
+        Table.from_rows([("a", "b", "c"), (1, 2, 3), (4, 5, 6)], header=True)
+        .wide_to_long(
+            col_for_names="metric",
+            col_for_values="value",
+            keep_cols=["a"],
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"a": 1, "metric": "b", "value": 2},
+        {"a": 1, "metric": "c", "value": 3},
+        {"a": 4, "metric": "b", "value": 5},
+        {"a": 4, "metric": "c", "value": 6},
+    ]
+
+    result = list(
+        Table.from_rows([("a", "b", "c"), (1, 2, 3), (4, 5, 6)], header=True)
+        .wide_to_long(
+            col_for_names="metric",
+            col_for_values="value",
+            prepare_name=lambda name: f"n_{name}",
+            prepare_value=c("v_{}").call_method("format", c.this),
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"metric": "n_a", "value": "v_1"},
+        {"metric": "n_b", "value": "v_2"},
+        {"metric": "n_c", "value": "v_3"},
+        {"metric": "n_a", "value": "v_4"},
+        {"metric": "n_b", "value": "v_5"},
+        {"metric": "n_c", "value": "v_6"},
+    ]
+
+    assert list(
+        Table.from_rows(
+            [
+                {"name": "John", "height": 200, "age": 30},
+            ]
+        )
+        .wide_to_long(
+            col_for_names="metric", col_for_values="value", keep_cols=("name",)
+        )
+        .into_iter_rows(dict)
+    ) == [
+        {"name": "John", "metric": "height", "value": 200},
+        {"name": "John", "metric": "age", "value": 30},
+    ]

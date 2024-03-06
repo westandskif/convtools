@@ -172,6 +172,17 @@ only parameter is `column_name` to explode.
 {!examples-md/contrib_tables_explode.md!}
 
 
+## Wide to long
+
+!!! warning "Experimental feature"
+    It was added on Mar 6, 2024 and may be stabilized ~ in half a year.
+
+`wide_to_long` method turns a table from wide to long view, turning a single
+row into multiple rows, which have fewer columns:
+
+{!examples-md/contrib_tables_wide_to_long.md!}
+
+
 ## Using tables inside conversions
 
 It's impossible to make `Table` work directly inside other conversions, because

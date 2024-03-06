@@ -862,6 +862,87 @@ class Table:
 
         return Table.from_rows(new_rows, header=columns)
 
+    def wide_to_long(
+        self,
+        col_for_names="name",
+        col_for_values="value",
+        prepare_name=None,
+        prepare_value=None,
+        keep_cols=(),
+    ):
+        """Turn wide table into a long form.
+
+        It was added on Mar 6, 2024 and may be stabilized ~ in half a year.
+        This an operation, which is opposite to pivot operation:
+        >>> assert list(
+        >>>     Table.from_rows(
+        >>>         [{"name": "John", "height": 200, "age": 30, "mood": "good"}]
+        >>>     )
+        >>>     .wide_to_long(
+        >>>         col_for_names="metric",
+        >>>         col_for_values="value",
+        >>>         keep_cols=("name",)
+        >>>     )
+        >>>     .into_iter_rows(dict)
+        >>> ) == [
+        >>>     {"name": "John", "metric": "height", "value": 200},
+        >>>     {"name": "John", "metric": "age", "value": 30},
+        >>>     {"name": "John", "metric": "mood", "value": "good"},
+        >>> ]
+
+        Args:
+          col_for_names: name of the column with names of processed columns
+          col_for_values: name of the column with values of processed columns
+          prepare_name (optional): callable or conversion to prepare a name
+          prepare_value (optional): callable or conversion to prepare a value
+          keep_cols: column names to keep as is
+        Returns: a new Table.
+        """
+        columns = self.columns
+        keep_cols_set = set(keep_cols)
+        collapse_cols = tuple(
+            col for col in columns if col not in keep_cols_set
+        )
+        resulting_cols = tuple(keep_cols) + (col_for_names, col_for_values)
+
+        new_rows = (
+            InlineExpr(
+                """(new_row for row_ in {rows} for new_row in {new_rows})"""
+            )
+            .pass_args(
+                rows=This,
+                new_rows=Tuple(
+                    *(
+                        (
+                            *(
+                                EscapedString("row_").item(
+                                    columns.index(keep_col)
+                                )
+                                for keep_col in keep_cols
+                            ),
+                            (
+                                collapse_col
+                                if prepare_name is None
+                                else This.pipe(prepare_name).execute(
+                                    collapse_col
+                                )
+                            ),
+                            EscapedString("row_")
+                            .item(columns.index(collapse_col))
+                            .pipe(
+                                This
+                                if prepare_value is None
+                                else prepare_value
+                            ),
+                        )
+                        for collapse_col in collapse_cols
+                    )
+                ),
+            )
+            .execute(self.into_iter_rows(tuple, include_header=False))
+        )
+        return Table.from_rows(new_rows, header=resulting_cols)
+
     def move_rows_objects(self) -> "t.List[t.Iterable]":
         """For internal use.
 

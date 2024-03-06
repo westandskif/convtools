@@ -1,3 +1,7 @@
+## 1.8.0 (2024-03-06)
+
+- added experimental `Table.wide_to_long` method
+
 ## 1.7.0 (2024-02-21)
 
 - added experimental `c.try_(conv).except_(exc_def, value, re_raise_if=None)`

@@ -11,7 +11,7 @@ include = ["/src"]
 
 [project]
 name = "convtools"
-version = "1.7.0"
+version = "1.8.0"
 description = "dynamic, declarative data transformations with automatic code generation"
 
 readme = "README.md"
