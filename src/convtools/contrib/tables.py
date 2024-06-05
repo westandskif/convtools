@@ -10,12 +10,15 @@ Conversions are defined in realtime based on table headers and called methods:
 
 import csv
 import typing as t  # pylint: disable=unused-import
-from collections.abc import Sized
+from collections.abc import Callable, Sized
 from itertools import chain, zip_longest
+from typing import Mapping, Optional, Sequence
 
+from .._aggregations import Aggregate, GroupBy, ReduceFuncs
 from .._base import (
     And,
     BaseConversion,
+    CallFunc,
     ConverterOptionsCtx,
     EscapedString,
     GeneratorComp,
@@ -142,7 +145,7 @@ class Table:
         rows: "t.Iterable[t.Union[dict, tuple, list, t.Any]]",
         header: """t.Optional[
             t.Union[
-                bool, t.List[str], t.Tuple[str], t.Dict[str, t.Union[str, int]]
+                bool, t.List[str], t.Tuple[str, ...], t.Dict[str, t.Union[str, int]]
             ]
         ]""" = None,
         # t.Literal["raise", "keep", "drop", "mangle"]
@@ -384,23 +387,22 @@ class Table:
 
         return self
 
-    def filter(self, condition: "BaseConversion") -> "Table":
-        """Keep rows where ``condition`` resolves to `True`."""
-        condition = ensure_conversion(condition)
-        column_refs = list(condition.get_dependencies(types=ColumnRef))
-        name_to_column = self.meta_columns.get_name_to_column()
+    def _set_col_indexes(self, name_to_column, conversion):
+        conversion = ensure_conversion(conversion)
 
-        depends_on_complex_columns = any(
-            name_to_column[ref.name].conversion is not None
-            for ref in column_refs
-        )
-        if depends_on_complex_columns:
-            return self.embed_conversions().filter(condition)
-
-        for ref in condition.get_dependencies(types=ColumnRef):
+        for ref in conversion.get_dependencies(types=ColumnRef):
             column = name_to_column[ref.name]
+            if column.conversion is not None:
+                self.embed_conversions()
             ref.set_index(column.index)
 
+        return conversion
+
+    def filter(self, condition: "BaseConversion") -> "Table":
+        """Keep rows where ``condition`` resolves to `True`."""
+        condition = self._set_col_indexes(
+            self.meta_columns.get_name_to_column(), condition
+        )
         self.pipeline = (self.pipeline or This()).filter(condition)
         return self
 
@@ -414,20 +416,9 @@ class Table:
         column_name_to_column = self.meta_columns.get_name_to_column()
 
         for column_name in list(column_to_conversion):
-            conversion = ensure_conversion(column_to_conversion[column_name])
-            column_refs = list(conversion.get_dependencies(types=ColumnRef))
-
-            depends_on_complex_columns = any(
-                column_name_to_column[ref.name].conversion is not None
-                for ref in column_refs
+            conversion = self._set_col_indexes(
+                column_name_to_column, column_to_conversion[column_name]
             )
-            if depends_on_complex_columns:
-                return self.embed_conversions().update(**column_to_conversion)
-
-            del column_to_conversion[column_name]
-
-            for ref in column_refs:
-                ref.set_index(column_name_to_column[ref.name].index)
 
             if column_name in column_name_to_column:
                 column = column_name_to_column[column_name]
@@ -864,16 +855,16 @@ class Table:
 
     def wide_to_long(
         self,
-        col_for_names="name",
-        col_for_values="value",
-        prepare_name=None,
-        prepare_value=None,
-        keep_cols=(),
+        col_for_names: str = "name",
+        col_for_values: str = "value",
+        prepare_name: "Optional[Callable[[str], str]]" = None,
+        prepare_value: "Optional[Callable[[str], str]]" = None,
+        keep_cols: "Sequence[str]" = (),
     ):
         """Turn wide table into a long form.
 
         It was added on Mar 6, 2024 and may be stabilized ~ in half a year.
-        This an operation, which is opposite to pivot operation:
+        This is an operation, which is opposite to pivot operation:
         >>> assert list(
         >>>     Table.from_rows(
         >>>         [{"name": "John", "height": 200, "age": 30, "mood": "good"}]
@@ -942,6 +933,112 @@ class Table:
             .execute(self.into_iter_rows(tuple, include_header=False))
         )
         return Table.from_rows(new_rows, header=resulting_cols)
+
+    def pivot(
+        self,
+        rows: "Sequence[str]",
+        columns: "Sequence[str]",
+        values: "Mapping[str, BaseConversion]",
+        prepare_column_names: "Callable[[Sequence[str]], str]" = " - ".join,
+    ) -> "Table":
+        """Create a pivot table.
+
+        It was added on Jun 5, 2024 and may be stabilized ~ in half a year.
+        >>> assert list(
+        >>>     Table.from_rows([
+        >>>        {"dept": 1, "year": 2023, "currency": "USD", "revenue": 100},
+        >>>        {"dept": 1, "year": 2024, "currency": "USD", "revenue": 300},
+        >>>        {"dept": 1, "year": 2024, "currency": "CNY", "revenue": 200},
+        >>>        {"dept": 1, "year": 2024, "currency": "CNY", "revenue": 111},
+        >>>     ])
+        >>>     .pivot(
+        >>>         rows=["year", "dept"],
+        >>>         columns=["currency"],
+        >>>         values={
+        >>>             "sum": c.ReduceFuncs.Sum(c.col("revenue")),
+        >>>             "min": c.ReduceFuncs.Min(c.col("revenue")),
+        >>>         },
+        >>>     )
+        >>>     .into_iter_rows(dict)
+        >>> ) == [
+        >>>     {
+        >>>         "CNY - min": None,
+        >>>         "CNY - sum": None,
+        >>>         "USD - min": 100,
+        >>>         "USD - sum": 100,
+        >>>         "dept": 1,
+        >>>         "year": 2023,
+        >>>     },
+        >>>     {
+        >>>         "CNY - min": 111,
+        >>>         "CNY - sum": 311,
+        >>>         "USD - min": 300,
+        >>>         "USD - sum": 300,
+        >>>         "dept": 1,
+        >>>         "year": 2024,
+        >>>     },
+        >>> ]
+
+        Args:
+          rows: columns to group by
+          columns: columns to take names of new columns from
+          values: mapping of name to reducer of column value/values
+          prepare_column_names: callable to create column names from column
+            names and reducer name
+
+        """
+        name_to_column = self.meta_columns.get_name_to_column()
+        name_to_index_cols = {
+            col_name: self._set_col_indexes(
+                name_to_column, ColumnRef(col_name)
+            )
+            for col_name in rows
+        }
+        columns = [
+            self._set_col_indexes(name_to_column, ColumnRef(col_name))
+            for col_name in columns
+        ]
+        value_name_to_aggregator = {
+            key: Aggregate(
+                self._set_col_indexes(name_to_column, value)
+            ).gen_converter()
+            for key, value in values.items()
+        }
+
+        aggregated_data = (
+            GroupBy(*name_to_index_cols.values())
+            .aggregate(
+                (
+                    *name_to_index_cols.values(),
+                    ReduceFuncs.DictArray(tuple(columns), This()),
+                )
+            )
+            .execute(self.into_iter_rows(self.row_type))
+        )
+        index_ = len(name_to_index_cols)
+        new_col_keys = list(
+            {key: 0 for row in aggregated_data for key in row[index_]}
+        )
+
+        agg_data_col = "7b51817c-c2d2-4f9c-a708-65d776ed2ddd"
+        return (
+            Table.from_rows(
+                aggregated_data,
+                header=tuple(name_to_index_cols) + (agg_data_col,),
+            )
+            .update(
+                **{
+                    prepare_column_names(
+                        new_col_key + (value_name,)
+                    ): ColumnRef(agg_data_col)
+                    .call_method("get", NaiveConversion(new_col_key))
+                    .and_then(CallFunc(aggregator, This()))
+                    for new_col_key in new_col_keys
+                    for value_name, aggregator in value_name_to_aggregator.items()
+                }
+            )
+            .drop(agg_data_col)
+        )
 
     def move_rows_objects(self) -> "t.List[t.Iterable]":
         """For internal use.

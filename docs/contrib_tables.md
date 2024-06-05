@@ -180,7 +180,32 @@ only parameter is `column_name` to explode.
 `wide_to_long` method turns a table from wide to long view, turning a single
 row into multiple rows, which have fewer columns:
 
+Args:
+
+* `col_for_names: str` - name of the column with names of processed columns
+* `col_for_values: str` - name of the column with values of processed columns
+* `prepare_name: Optional[Callable[[str], str]]` - callable or conversion to prepare a name
+* `prepare_value: Optional[Callable[[str], str]]` - callable or conversion to prepare a value
+* `keep_cols: Sequence[str]` - column names to keep as is
+
 {!examples-md/contrib_tables_wide_to_long.md!}
+
+
+## Pivot
+
+!!! warning "Experimental feature"
+    It was added on Jun 5, 2024 and may be stabilized ~ in half a year.
+
+`pivot` method aggregates data and creates a pivot table.
+
+Args:
+
+* `rows: Sequence[str]` - columns to group by
+* `columns: Sequence[str]` - columns to take names of new columns from
+* `values: Mapping[str, str]` - mapping of name to reducer of column value/values
+* `prepare_column_names: Callable[[Sequence[str]], str]` - callable to create column names from column names and reducer name
+
+{!examples-md/contrib_tables_pivot.md!}
 
 
 ## Using tables inside conversions

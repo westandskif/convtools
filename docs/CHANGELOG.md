@@ -1,3 +1,7 @@
+## 1.9.0 (2024-06-05)
+
+- added experimental `Table.pivot` method
+
 ## 1.8.0 (2024-03-06)
 
 - added experimental `Table.wide_to_long` method

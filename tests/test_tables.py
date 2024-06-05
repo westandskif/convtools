@@ -719,3 +719,96 @@ def test_table_wide_to_long():
         {"name": "John", "metric": "height", "value": 200},
         {"name": "John", "metric": "age", "value": 30},
     ]
+
+
+def test_table_pivot():
+    data = [
+        ("a", 1, "temp", 20),
+        ("a", 1, "vel", 2.0),
+        ("a", 1, "vel", 10.0),
+        ("b", 1, "vel", 3.0),
+        ("c", 1, "height", 7.0),
+    ]
+    result = list(
+        Table.from_rows(data, header=("dim", "dim2", "param", "value"))
+        .update(dim2=c.col("dim2") + 1)
+        .pivot(
+            rows=["dim", "dim2"],
+            columns=["param"],
+            values={
+                "sum": c.ReduceFuncs.Sum(c.col("value")),
+                "median": c.ReduceFuncs.Median(c.col("value")),
+            },
+            prepare_column_names="_".join,
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {
+            "dim": "a",
+            "dim2": 2,
+            "height_median": None,
+            "height_sum": None,
+            "temp_median": 20,
+            "temp_sum": 20,
+            "vel_median": 6.0,
+            "vel_sum": 12.0,
+        },
+        {
+            "dim": "b",
+            "dim2": 2,
+            "height_median": None,
+            "height_sum": None,
+            "temp_median": None,
+            "temp_sum": None,
+            "vel_median": 3.0,
+            "vel_sum": 3.0,
+        },
+        {
+            "dim": "c",
+            "dim2": 2,
+            "height_median": 7.0,
+            "height_sum": 7.0,
+            "temp_median": None,
+            "temp_sum": None,
+            "vel_median": None,
+            "vel_sum": None,
+        },
+    ]
+    result = list(
+        Table.from_rows(
+            [
+                {"dept": 1, "year": 2023, "currency": "USD", "revenue": 100},
+                {"dept": 1, "year": 2024, "currency": "USD", "revenue": 300},
+                {"dept": 1, "year": 2024, "currency": "CNY", "revenue": 200},
+                {"dept": 1, "year": 2024, "currency": "CNY", "revenue": 111},
+            ]
+        )
+        .pivot(
+            rows=["year", "dept"],
+            columns=["currency"],
+            values={
+                "sum": c.ReduceFuncs.Sum(c.col("revenue")),
+                "min": c.ReduceFuncs.Min(c.col("revenue")),
+            },
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {
+            "CNY - min": None,
+            "CNY - sum": None,
+            "USD - min": 100,
+            "USD - sum": 100,
+            "dept": 1,
+            "year": 2023,
+        },
+        {
+            "CNY - min": 111,
+            "CNY - sum": 311,
+            "USD - min": 300,
+            "USD - sum": 300,
+            "dept": 1,
+            "year": 2024,
+        },
+    ]
