@@ -64,6 +64,19 @@ def test_mutation_item():
     with pytest.raises(KeyError):
         c.this.tap(c.Mut.del_item("a")).execute({})
 
+    result = (
+        c.item(0)
+        .tap(
+            c.Mut.set_item("a", {}),
+            c.Mut.set_item("b", 1, of_=c.item("a")),
+            c.Mut.del_item("d", of_=c.item("c")),
+            c.Mut.set_item("e", {}, of_=c.item("c")),
+            c.Mut.set_item("f", 2, of_=c.item("c", "e")),
+        )
+        .execute([{"c": {"d": 2}}], debug=False)
+    )
+    assert result == {"a": {"b": 1}, "c": {"e": {"f": 2}}}
+
 
 def test_mutation_attr():
     class A:
@@ -105,6 +118,15 @@ def test_mutation_attr():
     with pytest.raises(AttributeError):
         c.this.tap(c.Mut.del_attr("a")).execute(object())
 
+    obj = A()
+    obj.c = 2
+    c.item(0).tap(
+        c.Mut.set_attr("a", A()),
+        c.Mut.set_attr("b", 1, of_=c.attr("a")),
+        c.Mut.del_attr("c"),
+    ).execute([obj])
+    assert obj.a.b == 1 and not hasattr(obj, "c")
+
 
 def test_iter_mut_method():
     assert c.iter(c.item(0)).as_type(list).execute([[1], [2]]) == [1, 2]
@@ -116,17 +138,23 @@ def test_iter_mut_method():
         .iter_mut(
             c.Mut.set_item("b", c.item("a") + 1),
             c.Mut.set_item("c", c.item("a") + c.call_func(lambda: 2)),
+            c.Mut.set_item("obj", {"value": 10}),
+            c.Mut.set_item(
+                "value",
+                c.item("obj", "value") + c.item("c"),
+                of_=c.item("obj"),
+            ),
         )
         .iter_mut(
             c.Mut.set_item("d", c.item("a") + 3),
         )
         .as_type(list)
-        .execute([1, 2, 3], debug=False)
+        .execute([1, 2, 3])
     )
     assert result == [
-        {"a": 1, "b": 2, "c": 3, "d": 4},
-        {"a": 2, "b": 3, "c": 4, "d": 5},
-        {"a": 3, "b": 4, "c": 5, "d": 6},
+        {"a": 1, "b": 2, "c": 3, "d": 4, "obj": {"value": 13}},
+        {"a": 2, "b": 3, "c": 4, "d": 5, "obj": {"value": 14}},
+        {"a": 3, "b": 4, "c": 5, "d": 6, "obj": {"value": 15}},
     ]
 
     result = (

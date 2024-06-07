@@ -1,8 +1,6 @@
 # Conditions and Pipes
 
-!!! warning
-	**Please, make sure you've covered [Reference / Basics](./basics.md)
-	first.**
+**Please, make sure you've covered [Reference / Basics](./basics.md) first.**
 
 ## Conditions
 

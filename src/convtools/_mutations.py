@@ -1,6 +1,6 @@
 """In-place mutations."""
 
-from ._base import BaseConversion, BaseMutation
+from ._base import BaseConversion, BaseMutation, This
 from ._heuristics import Weights
 from ._utils import Code
 
@@ -8,7 +8,7 @@ from ._utils import Code
 class BaseNameValueMutation(BaseMutation):
     """Base in-place mutation."""
 
-    def __init__(self, name, value):
+    def __init__(self, name, value, of_=This):
         """Init self.
 
         Args:
@@ -16,47 +16,66 @@ class BaseNameValueMutation(BaseMutation):
             a key/attr/index for a mutation
           value: to be wrapped with :py:obj:`ensure_conversion` and used as
             a value for a mutation
+          of_: [EXPERIMENTAL] conversion which points at what to mutate. It was
+            added on Jun 7, 2024 and may be stabilized ~ in half a year.
         """
         super().__init__()
         self.name = self.ensure_conversion(name)
         self.value = self.ensure_conversion(value)
+        self.of_ = self.ensure_conversion(of_)
 
 
 class SetItem(BaseNameValueMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         name_code = self.name.gen_code_and_update_ctx(code_input, ctx)
         value_code = self.value.gen_code_and_update_ctx(code_input, ctx)
-        return f"{code_input}[{name_code}] = {value_code}"
+        of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
+        return f"{of_code}[{name_code}] = {value_code}"
 
 
 class SetAttr(BaseNameValueMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         name_code = self.name.gen_code_and_update_ctx(code_input, ctx)
         value_code = self.value.gen_code_and_update_ctx(code_input, ctx)
-        return f"setattr({code_input}, {name_code}, {value_code})"
+        of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
+        return f"setattr({of_code}, {name_code}, {value_code})"
 
 
 class BaseIndexMutation(BaseMutation):
-    def __init__(self, index, if_exists=False):
+    """Base in-place by index mutation."""
+
+    def __init__(self, index, if_exists=False, of_=This):
+        """Init self.
+
+        Args:
+          index: to be wrapped with :py:obj:`ensure_conversion` and used as
+            an index/key/attr for a mutation
+          if_exists: mutates if the index/key/attr exists
+          of_: [EXPERIMENTAL] conversion which points at what to mutate. It was
+            added on Jun 7, 2024 and may be stabilized ~ in half a year.
+        """
         super().__init__()
         self.index = self.ensure_conversion(index)
         self.if_exists = if_exists
+        self.of_ = self.ensure_conversion(of_)
 
 
 class DelItem(BaseIndexMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
+        of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
         if self.if_exists:
-            return f"{code_input}.pop({index_code}, None)"
-        return f"{code_input}.pop({index_code})"
+            return f"{of_code}.pop({index_code}, None)"
+        return f"{of_code}.pop({index_code})"
 
 
 class DelAttr(BaseIndexMutation):
     def _gen_code_and_update_ctx(self, code_input, ctx):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
-        code = f"delattr({code_input}, {index_code})"
+        of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
+        code = f"delattr({of_code}, {index_code})"
         if self.if_exists:
-            return f"hasattr({code_input}, {index_code}) and {code}"
+            return f"hasattr({of_code}, {index_code}) and {code}"
         return code
 
 

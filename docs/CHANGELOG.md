@@ -1,3 +1,8 @@
+## 1.10.0 (2024-06-07)
+
+- added experimental `of_` parameter to `c.Mut.set_item`, `c.Mut.set_attr`,
+`c.Mut.del_item`, `c.Mut.del_attr` to mutate non-root objects
+
 ## 1.9.0 (2024-06-05)
 
 - added experimental `Table.pivot` method

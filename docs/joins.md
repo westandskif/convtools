@@ -1,8 +1,6 @@
 # Joins
 
-!!! warning
-	**Please, make sure you've covered [Reference / Basics](./basics.md)
-	first.**
+**Please, make sure you've covered [Reference / Basics](./basics.md) first.**
 
 `c.join(left_conversion, right_conversion, condition, how="inner")` defines
 join conversion, which returns an iterator of `(left_element, right_element)`

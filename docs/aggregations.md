@@ -1,8 +1,6 @@
 # Group By and Aggregate
 
-!!! warning
-	**Please, make sure you've covered [Reference / Basics](./basics.md)
-	first.**
+**Please, make sure you've covered [Reference / Basics](./basics.md) first.**
 
 The syntax to define aggregations is as follows:
 
