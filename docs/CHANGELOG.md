@@ -1,3 +1,8 @@
+## 1.10.1 (2024-06-11)
+
+- fixed `Table.join` for dict-based rows after `rename` usage (_no breaking
+changes as it used to break completely_)
+
 ## 1.10.0 (2024-06-07)
 
 - added experimental `of_` parameter to `c.Mut.set_item`, `c.Mut.set_attr`,

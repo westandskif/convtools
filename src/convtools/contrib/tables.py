@@ -681,6 +681,15 @@ class Table:
         how = JoinConversion.validate_how(how)
         left = self.embed_conversions()
         right = table.embed_conversions()
+
+        for table_ in (left, right):
+            # after embedding there are no conversions, only indexes.
+            # indexes can be used as is except for dict-based data after
+            # renamings, but if we skip rebuilding it from scratch by
+            # into_list_of_iterables we can continue using indexes
+            if table_.row_type is dict and table_.pending_changes:
+                table_.pending_changes = 0
+
         left_join_conversion = LeftJoinCondition()
         right_join_conversion = RightJoinCondition()
         left_column_name_to_column = left.meta_columns.get_name_to_column()

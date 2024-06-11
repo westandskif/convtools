@@ -274,7 +274,9 @@ def test_table_inner_join():
     result = list(
         Table.from_rows([(1, 2), (2, 3)], ["a", "b"])
         .join(
-            Table.from_rows([(1, 3), (2, 4)], ["a", "c"]),
+            Table.from_rows([{"aa": 1, "cc": 3}, {"aa": 2, "cc": 4}]).rename(
+                {"cc": "c", "aa": "a"}
+            ),
             how="inner",
             on=["a"],
         )
@@ -319,10 +321,11 @@ def test_table_inner_join():
     result = list(
         Table.from_rows(
             [
-                {"a": 1, "b": 2},
-                {"a": 2, "b": 3},
+                {"aa": 1, "b": 2},
+                {"aa": 2, "b": 3},
             ]
         )
+        .rename({"aa": "a"})
         .join(
             Table.from_rows(
                 [
