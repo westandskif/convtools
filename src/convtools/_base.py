@@ -3,14 +3,28 @@
 import re
 import string
 import sys
-import typing as t
 from collections import deque
 from datetime import datetime
 from decimal import Decimal
 from itertools import chain
 from keyword import iskeyword
 from random import Random
-from typing import Any
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generic,
+    Iterator,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 from ._heuristics import Weights
 from ._utils import (
@@ -27,9 +41,10 @@ from ._utils import (
 
 
 convtools_unique = LazyModule("convtools._unique")
+convtools_ordering = LazyModule("convtools._ordering")
 
 
-black: "t.Optional[t.Any]" = None
+black: "Optional[Any]" = None
 try:
     import black as black_  # pragma: no cover
 
@@ -76,7 +91,7 @@ def {converter_name}({code_signature}):
 
 
 def ensure_conversion(
-    conversion: t.Any, explicitly_allowed_cls=None  # noqa: ANN401
+    conversion: Any, explicitly_allowed_cls=None  # noqa: ANN401
 ) -> "BaseConversion":
     """Transforms anything to conversion.
 
@@ -116,13 +131,13 @@ def ensure_conversion(
             )
         return conversion
     if isinstance(conversion, dict):
-        return Dict(*conversion.items())
+        return Dict_(*conversion.items())
     if isinstance(conversion, list):
-        return List(*conversion)
+        return List_(*conversion)
     if isinstance(conversion, tuple):
-        return Tuple(*conversion)
+        return Tuple_(*conversion)
     if isinstance(conversion, set):
-        return Set(*conversion)
+        return Set_(*conversion)
     if isinstance(conversion, slice):
         return InlineExpr("slice({}, {}, {})").pass_args(
             conversion.start, conversion.stop, conversion.step
@@ -134,14 +149,14 @@ class ConversionException(Exception):
     pass
 
 
-CT = t.TypeVar("CT", bound="BaseConversion")
+CT = TypeVar("CT", bound="BaseConversion")
 
 
 _random = Random(1)
 choice = _random.choice
 
 
-class BaseConversion(t.Generic[CT]):
+class BaseConversion(Generic[CT]):
     """Base class of every conversion.
 
     A conversion defines a transform of an input into an output before you have
@@ -180,12 +195,15 @@ class BaseConversion(t.Generic[CT]):
 
     class OutputHints:
         NOT_NONE = 1
+        ORDERING_DESC = 2
+        ORDERING_NONE_LAST = 4
+        ORDERING_NONE_FIRST = 8
 
     output_hints = 0
     weight = Weights.UNPREDICTABLE
     function_call_threshold = Weights.FUNCTION_CALL * 1.33
 
-    base_type_to_cast: "t.Union[_None, t.Type]" = _none
+    base_type_to_cast: "Union[_None, Type]" = _none
 
     def __init__(self):
         self._depends_on = {}
@@ -195,6 +213,9 @@ class BaseConversion(t.Generic[CT]):
 
     def __hash__(self):
         return id(self)
+
+    def __iter__(self):
+        raise TypeError("'BaseConversion' is not iterable")
 
     def add_hint(self, hint: int):
         self.output_hints |= hint
@@ -229,7 +250,7 @@ class BaseConversion(t.Generic[CT]):
         return self
 
     def get_dependencies(self, types=None):
-        deps: "t.Iterator[t.Any]" = chain(self._depends_on.values(), (self,))
+        deps: "Iterator[Any]" = chain(self._depends_on.values(), (self,))
         if types:
             deps = (dep for dep in deps if isinstance(dep, types))
         return deps
@@ -254,12 +275,12 @@ class BaseConversion(t.Generic[CT]):
     def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         raise NotImplementedError
 
-    def to_code(self, code_input, ctx) -> "t.Optional[Code]":
+    def to_code(self, code_input, ctx) -> "Optional[Code]":
         return self._to_code(code_input, ctx)
 
     def _to_code(
         self, code_input, ctx  # pylint: disable=unused-argument
-    ) -> "t.Optional[Code]":
+    ) -> "Optional[Code]":
         return None
 
     allowed_symbols = string.ascii_lowercase + string.digits
@@ -269,7 +290,7 @@ class BaseConversion(t.Generic[CT]):
 
     def gen_random_name(self, prefix, ctx) -> str:
         generated_names = ctx[self.GENERATED_NAMES]
-        name = prefix or "_"
+        name = prefix if prefix.startswith("_") else f"_{prefix}"
         for _ in range(10):
             if _ or iskeyword(name):
                 if name == "_":
@@ -344,7 +365,7 @@ class BaseConversion(t.Generic[CT]):
         if len({dep_name for dep_name, _ in args}) != len(args):
             raise ValueError("duplicate args found", args)
 
-        name_to_code: "t.Dict[str, str]" = {}
+        name_to_code: "Dict[str, str]" = {}
 
         positional_args_as_def_names = []
         positional_args_as_conversions = []
@@ -598,7 +619,7 @@ class BaseConversion(t.Generic[CT]):
 
         return converter
 
-    def execute(self, *args, debug=None, **kwargs) -> t.Any:
+    def execute(self, *args, debug=None, **kwargs) -> Any:
         """Shortcut for `gen_converter()` and running it."""
         return self.gen_converter(
             debug=debug or ConverterOptionsCtx.get_option_value("debug")
@@ -702,13 +723,13 @@ class BaseConversion(t.Generic[CT]):
     def attr(self, *attrs, **kwargs) -> "GetAttr":
         return GetAttr(*attrs, self_conv=self, **kwargs)
 
-    def is_itself_callable_like(self) -> t.Optional[bool]:
+    def is_itself_callable_like(self) -> Optional[bool]:
         pass
 
-    def is_itself_callable(self) -> t.Optional[bool]:
+    def is_itself_callable(self) -> Optional[bool]:
         pass
 
-    def ignores_input(self) -> t.Optional[bool]:
+    def ignores_input(self) -> Optional[bool]:
         return self.contents & 64 == 0  # self.ContentTypes.FUNCTION_OF_INPUT
 
     def call_like(self, *args, **kwargs):
@@ -908,9 +929,13 @@ class BaseConversion(t.Generic[CT]):
 
     def sort(self, key=None, reverse=False) -> "BaseConversion":
         """Shortcut for CallFunc(sorted, self, key=key, reverse=reverse)."""
-        return self.pipe(SortConversion(key=key, reverse=reverse))
+        return self.pipe(
+            convtools_ordering.SortConversion(key=key, reverse=reverse)
+        )
 
-    def add_label(self, label_name: t.Union[str, dict]) -> "BaseConversion":
+    def add_label(
+        self, label_name: Union[str, Mapping[str, Any]]
+    ) -> "BaseConversion":
         """Labels input data so it can be reused in further conversions.
 
         Basic:
@@ -996,7 +1021,7 @@ class BaseConversion(t.Generic[CT]):
 
     def dispatch(
         self,
-        key: "t.Any",
+        key: "Any",
         key_to_conv: dict,
         default=_none,
     ):
@@ -1296,6 +1321,49 @@ class BaseConversion(t.Generic[CT]):
 
         return _expect.Expect(self, condition, error_msg)
 
+    def window(self, *args, **kwargs):
+        # It was added on Jul 1, 2024 and may be stabilized ~ in a year.
+        from convtools import _window
+
+        return _window.Window(self, *args, **kwargs)
+
+    def asc(self, *, none_last=None, none_first=None):
+        """Sets ascending ordering hint, to be used by conversion sort method.
+
+        It was added on Jul 1, 2024 and may be stabilized ~ in half a year.
+        # --8<-- [start:asc_args_docs]
+
+        Args:
+          none_last: if True, None values go last
+          none_first: if True, None values go first
+        # --8<-- [end:asc_args_docs]
+        """
+        if none_last and none_first:
+            raise ValueError("pass either none_last or none_first")
+        if none_last:
+            self.add_hint(self.OutputHints.ORDERING_NONE_LAST)
+        if none_first:
+            self.add_hint(self.OutputHints.ORDERING_NONE_FIRST)
+        return self
+
+    def desc(self, none_last=None, none_first=None):
+        """Sets descending ordering hint, to be used by conversion sort method.
+
+        It was added on Jul 1, 2024 and may be stabilized ~ in half a year.
+
+        Args:
+          none_last: if True, None values go last
+          none_first: if True, None values go first
+        """
+        if none_last and none_first:
+            raise ValueError("pass either none_last or none_first")
+        if none_last:
+            self.add_hint(self.OutputHints.ORDERING_NONE_LAST)
+        if none_first:
+            self.add_hint(self.OutputHints.ORDERING_NONE_FIRST)
+        self.add_hint(self.OutputHints.ORDERING_DESC)
+        return self
+
 
 class BaseMutation(BaseConversion):
     used_in_narrow_context = True
@@ -1319,7 +1387,7 @@ class BaseMethodConversion(BaseConversion):
 
     def get_self_and_input_code(
         self, code_input: str, ctx: dict
-    ) -> t.Tuple[str, str]:
+    ) -> Tuple[str, str]:
         if self.self_conv is self._none:
             return (code_input, code_input)
         return (
@@ -1360,7 +1428,7 @@ class NaiveConversion(BaseConversion):
     types_to_repr = {type(None), bool, int}
     weight = Weights.STEP
 
-    def __init__(self, value: t.Any, name_prefix="v"):
+    def __init__(self, value: Any, name_prefix="v"):
         """Initialize instance.
 
         Args:
@@ -1416,10 +1484,10 @@ class NaiveConversion(BaseConversion):
         ctx["__naive_values__"][value_name] = self.value
         return f'__naive_values__["{value_name}"]'
 
-    def is_itself_callable_like(self) -> t.Optional[bool]:
+    def is_itself_callable_like(self) -> Optional[bool]:
         return callable(self.value)
 
-    def is_itself_callable(self) -> t.Optional[bool]:
+    def is_itself_callable(self) -> Optional[bool]:
         return callable(self.value)
 
     def call(self, *args, **kwargs) -> "Call":
@@ -1569,8 +1637,8 @@ class Namespace(BaseConversion):
 
     def __init__(
         self,
-        conversion: "t.Any",
-        name_to_code: "t.Dict[str, t.Union[bool, str, None]]",
+        conversion: "Any",
+        name_to_code: "Dict[str, Union[bool, str, None]]",
     ):
         super().__init__()
         self.name_to_code = name_to_code
@@ -1700,7 +1768,7 @@ class NamespaceCtx:
     NAMESPACES = BaseConversion.NAMESPACES
 
     def __init__(
-        self, name_to_code: "t.Mapping[str, t.Union[bool, str, None]]", ctx
+        self, name_to_code: "Mapping[str, Union[bool, str, None]]", ctx
     ):
         name_to_code = {
             name: code for name, code in name_to_code.items() if code
@@ -1711,7 +1779,7 @@ class NamespaceCtx:
 
     def __enter__(self):
         if self._name_to_code:
-            new_value: "t.MutableMapping[str, t.Union[bool, str, None]]" = {}
+            new_value: "MutableMapping[str, Union[bool, str, None]]" = {}
             new_value.update(self.name_to_code(self._ctx))
             new_value.update(self._name_to_code)
             self._ctx[self.NAMESPACES].append(new_value)
@@ -1724,7 +1792,7 @@ class NamespaceCtx:
         self.active = False
 
     @classmethod
-    def name_to_code(cls, ctx) -> "t.Mapping[str, str]":
+    def name_to_code(cls, ctx) -> "Mapping[str, str]":
         return ctx[cls.NAMESPACES][-1]
 
     def prevent_rendering_while_active(self, conversion):
@@ -2076,7 +2144,7 @@ class InlineExpr(BaseConversion):
         )
         return f"({code})"
 
-    def is_itself_callable_like(self) -> t.Optional[bool]:
+    def is_itself_callable_like(self) -> Optional[bool]:
         return True
 
     def call_like(self, *args, **kwargs):
@@ -2384,31 +2452,6 @@ def ApplyFunc(  # pylint:disable=invalid-name
     return InlineExpr("{}()").pass_args(func)
 
 
-class SortConversion(BaseConversion):
-    """Shortcut for CallFunc(sorted, self, key=key, reverse=reverse)."""
-
-    def __init__(self, key=None, reverse=False):
-        """Initialize SortConversion.
-
-        Args:
-          key (callable): to be passed to :py:obj:`sorted`
-          reverse (bool): to be passed to :py:obj:`sorted`
-        """
-        super().__init__()
-        self.sorted_kwargs = {}
-        if key is not None:
-            self.sorted_kwargs["key"] = self.ensure_conversion(key)
-        if reverse:
-            self.sorted_kwargs["reverse"] = self.ensure_conversion(reverse)
-
-    def _gen_code_and_update_ctx(self, code_input, ctx):
-        return (
-            EscapedString("sorted")
-            .call(EscapedString(code_input), **self.sorted_kwargs)
-            .gen_code_and_update_ctx("NOT_NEEDED_OR_BUG", ctx)
-        )
-
-
 class GeneratorItem:
     """Internal use only: element of generator comprehension."""
 
@@ -2455,7 +2498,7 @@ class BaseComp(BaseMethodConversion):
         for param in self.generator_item.custom_for_params:
             self.depends_on(param)
 
-        self.where: "t.Union[_None, BaseConversion]" = (
+        self.where: "Union[_None, BaseConversion]" = (
             _none
             if (where is None or where is _none)
             else self.ensure_conversion(where)
@@ -2642,7 +2685,7 @@ class DictComp(BaseMethodConversion):
         super().__init__(self_conv)
         self.key = self.ensure_conversion(key)
         self.value = self.ensure_conversion(value)
-        self.where: "t.Union[_None, BaseConversion]" = (
+        self.where: "Union[_None, BaseConversion]" = (
             _none
             if (where is None or where is _none)
             else self.ensure_conversion(where)
@@ -2680,9 +2723,9 @@ class BaseCollectionConversion(BaseConversion):
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     )
-    conversions: t.Optional[t.List[BaseConversion]] = None
-    pairs: t.Optional[t.List[t.Tuple[BaseConversion, BaseConversion]]] = None
-    conditions: t.Optional[t.Mapping[int, BaseConversion]] = None
+    conversions: Optional[List[BaseConversion]] = None
+    pairs: Optional[List[Tuple[BaseConversion, BaseConversion]]] = None
+    conditions: Optional[Mapping[int, BaseConversion]] = None
 
     def __init__(self, *items):
         """Initialize self.
@@ -2695,7 +2738,7 @@ class BaseCollectionConversion(BaseConversion):
         self._init_from_items(items)
 
     def _init_from_items(self, items):
-        conversions: "t.List[BaseConversion]" = []
+        conversions: "List[BaseConversion]" = []
         conditions = None
 
         for item in items:
@@ -2858,7 +2901,7 @@ class OptionalCollectionItem(BaseConversion):
         )
 
 
-class Tuple(BaseCollectionConversion):
+class Tuple_(BaseCollectionConversion):
     """Define tuple."""
 
     weight = Weights.TUPLE_INIT
@@ -2874,7 +2917,7 @@ class Tuple(BaseCollectionConversion):
         return f"tuple({generator_code})"
 
 
-class List(BaseCollectionConversion):
+class List_(BaseCollectionConversion):
     """Define list."""
 
     weight = Weights.LIST_INIT
@@ -2888,7 +2931,7 @@ class List(BaseCollectionConversion):
         return f"list({generator_code})"
 
 
-class Set(BaseCollectionConversion):
+class Set_(BaseCollectionConversion):
     """Define set."""
 
     weight = Weights.SET_INIT
@@ -2902,13 +2945,13 @@ class Set(BaseCollectionConversion):
         return f"set({generator_code})"
 
 
-class Dict(BaseCollectionConversion):
+class Dict_(BaseCollectionConversion):
     """Define dict."""
 
     weight = Weights.DICT_INIT
 
     def _init_from_items(self, items):
-        pairs: "t.List[t.Tuple[BaseConversion, BaseConversion]]" = []
+        pairs: "List[Tuple[BaseConversion, BaseConversion]]" = []
         conditions = None
 
         for raw_key, raw_value in items:
@@ -3077,9 +3120,9 @@ class Dispatcher(BaseConversion):
 
     def __init__(
         self,
-        key: "t.Any",
+        key: "Any",
         key_to_conv: dict,
-        default: "t.Optional[t.Any]" = None,
+        default: "Optional[Any]" = None,
     ):
         super().__init__()
         self.key_getter = self.ensure_conversion(key)
@@ -3367,7 +3410,7 @@ class PipeConversion(BaseConversion):
     @staticmethod
     def _prepare_labels(
         conversion: "BaseConversion",
-        label_arg: "t.Union[str, dict]",
+        label_arg: "Union[str, dict]",
     ):
         if isinstance(label_arg, str):
             return {label_arg: This()}
@@ -3435,3 +3478,10 @@ class PipeConversion(BaseConversion):
         return function_ctx.call_with_all_args(
             conversion
         ).gen_code_and_update_ctx(None, ctx)
+
+
+if not TYPE_CHECKING:  # pragma: no cover
+    del Dict
+    del List
+    del Set
+    del Tuple

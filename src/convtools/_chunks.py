@@ -1,6 +1,6 @@
 """Conversions for slicing iterables into chunks."""
 
-import typing as t
+from typing import Optional
 
 from ._aggregations import Aggregate
 from ._base import BaseConversion, Code, LazyEscapedString, Namespace, This
@@ -55,7 +55,7 @@ class ChunkBy(BaseChunkBy):
     :py:obj:`convtools.aggregations.Aggregate` on chunks.
     """
 
-    def __init__(self, *by, size: t.Optional[int] = None):
+    def __init__(self, *by, size: Optional[int] = None):
         """Init self.
 
         Args:

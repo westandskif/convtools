@@ -1,6 +1,6 @@
 """Cumulative conversions."""
 
-import typing as t
+from typing import Any, Optional
 from uuid import uuid4
 
 from ._base import (
@@ -29,7 +29,7 @@ class CumulativeReset(BaseConversion):
     >>> ) == [[0, 1, 3], [3, 7]]
     """
 
-    def __init__(self, parent: "t.Any", label_name: str):
+    def __init__(self, parent: "Any", label_name: str):
         super().__init__()
         self.label_name = label_name
         self.parent = self.ensure_conversion(parent)
@@ -57,10 +57,10 @@ class Cumulative(BaseConversion):
 
     def __init__(
         self,
-        parent: "t.Any",
-        prepare_first: "t.Any",
-        reduce_two: "t.Any",
-        label_name: "t.Optional[str]" = None,
+        parent: "Any",
+        prepare_first: "Any",
+        reduce_two: "Any",
+        label_name: "Optional[str]" = None,
     ):
         """Initialize cumulative conversion.
 

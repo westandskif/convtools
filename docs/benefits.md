@@ -34,40 +34,42 @@ functionality like group_by, joins, pipes, etc.
 
 ## Performance
 
-!!! note "'The Art of Computer Programming' book by Donald Knuth:"
+/// admonition | 'The Art of Computer Programming' book by Donald Knuth:
+    type: note
 
-    “The real problem is that programmers have spent far too much time worrying
-    about efficiency in the wrong places and at the wrong times; premature
-    optimization is the root of all evil (or at least most of it) in programming.”
+_The real problem is that programmers have spent far too much time worrying
+about efficiency in the wrong places and at the wrong times; premature
+optimization is the root of all evil (or at least most of it) in programming._
+///
 
 `convtools` worries about code efficiency, so you can put more effort into
 other parts of your code. The below table provides the speed-up of
 convtools-based solutions over the naive ones. 
 
 
-=== "py3.12"
+/// tab | py3.12
+{! performance-md/perf-3.12.md !}
+///
 
-    {! performance-md/perf-3.12.md !}
+/// tab | py3.11
+{! performance-md/perf-3.11.md !}
+///
 
-=== "py3.11"
+/// tab | py3.10
+{! performance-md/perf-3.10.md !}
+///
 
-    {! performance-md/perf-3.11.md !}
+/// tab | py3.9
+{! performance-md/perf-3.9.md !}
+///
 
-=== "py3.10"
+/// tab | py3.8
+{! performance-md/perf-3.8.md !}
+///
 
-    {! performance-md/perf-3.10.md !}
-
-=== "py3.9"
-
-    {! performance-md/perf-3.9.md !}
-
-=== "py3.8"
-
-    {! performance-md/perf-3.8.md !}
-
-=== "py3.7"
-
-    {! performance-md/perf-3.7.md !}
+/// tab | py3.7
+{! performance-md/perf-3.7.md !}
+///
 
 
 In cases where there are multiple speed test results, the worst is

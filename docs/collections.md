@@ -31,11 +31,14 @@ To cast to a type use a naive conversion method `as_type`:
 
 {!examples-md/api__as_type.md!}
 
-!!! note
-	It may seem useless as it can be replaced with piping the result to `list`
-	function or just to calling `list` function directly, but in fact some
-	conversions override this method to achieve predicate-pushdown-like
-	optimizations.
+/// admonition
+    type: note
+
+It may seem useless as it can be replaced with piping the result to `list`
+function or just to calling `list` function directly, but in fact some
+conversions override this method to achieve predicate-pushdown-like
+optimizations.
+///
 
 
 ## Iterators & Comprehensions
@@ -56,11 +59,13 @@ Each of them accepts `where` argument to support conditions like:
 A few examples:
 {!examples-md/api__comp.md!}
 
-!!! note
-	It's important to note that a conversion passed into `iter`, `list_comp`
-	and other iteration methods defines the conversions of each element of
-	the input collection. This is one of the input-switching conversions.
+/// admonition
+    type: note
 
+It's important to note that a conversion passed into `iter`, `list_comp` and
+other iteration methods defines the conversions of each element of the input
+collection. This is one of the input-switching conversions.
+///
 
 #### filter
 
@@ -71,9 +76,30 @@ To filter an input use `c.filter` or `filter` conversion method:
 
 #### sort
 
-`sort` method is a shortcut to `c.call_func(sorted, c.this, ...)`
+/// admonition | Experimental feature
+    type: warning
+Key as conversion or tuple of conversions support was added on Jul 1, 2024 and
+may be stabilized ~ in half a year.
+///
+
+`sort` conversion extends usual python's `sorted` with per-item asc/desc +
+none_first/none_last configuration:
+
+`c.sort(key=None, reverse=False)` or `c.this.sort(key=None, reverse=False)`
+
+    --8<-- "src/convtools/_ordering.py:sort_args_docs"
+
+`c.this.asc(none_last=None, none_first=None)`
+
+`c.this.desc(none_last=None, none_first=None)`
 
 {!examples-md/api__sort.md!}
+
+##### sorting_key
+
+`c.sorting_key(*keys)`returns a callable, which can be passed to `sorted` as:
+
+{!examples-md/api__sorting_key.md!}
 
 
 #### zip, repeat, flatten

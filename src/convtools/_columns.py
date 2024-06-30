@@ -1,7 +1,7 @@
 """Base conversions to reference/define columns for tables."""
 
-import typing as t
 from collections import defaultdict
+from typing import Any, Dict, List, Optional, Union
 
 from ._base import BaseConversion, ConversionException, GetItem
 
@@ -16,10 +16,10 @@ class ColumnRef(BaseConversion):
             raise ValueError("name should be str")
         super().__init__()
         self.name = name
-        self.index: "t.Optional[t.Union[str, int]]" = None
+        self.index: "Optional[Union[str, int]]" = None
         self.id_ = id_
 
-    def set_index(self, index: t.Union[str, int]):
+    def set_index(self, index: Union[str, int]):
         if not isinstance(index, (str, int)):
             raise AssertionError("bad index")
         self.index = index
@@ -44,8 +44,8 @@ class ColumnDef:
     def __init__(
         self,
         name: str,
-        index: t.Optional[t.Any],
-        conversion: t.Optional[BaseConversion],
+        index: Optional[Any],
+        conversion: Optional[BaseConversion],
     ):
         """Init self.
 
@@ -83,10 +83,10 @@ class MetaColumns:
 
     def __init__(
         self,
-        # t.Literal["raise", "keep", "drop", "mangle"]
+        # Literal["raise", "keep", "drop", "mangle"]
         duplicate_columns="raise",
     ):
-        self.columns: "t.List[ColumnDef]" = []
+        self.columns: "List[ColumnDef]" = []
         self.column_to_number = defaultdict(int)
         if duplicate_columns not in ("raise", "keep", "drop", "mangle"):
             raise ValueError("invalid duplicate_columns value")
@@ -169,5 +169,5 @@ class MetaColumns:
 
         return new_columns
 
-    def get_name_to_column(self) -> "t.Dict[str, ColumnDef]":
+    def get_name_to_column(self) -> "Dict[str, ColumnDef]":
         return {column.name: column for column in self.columns}

@@ -127,10 +127,24 @@ def test_table_base_init():
         {"a": 1},
         {"a": 2},
     ]
+    table = Table.from_rows((), header=("a", "b"))
+    assert list(table.into_iter_rows(dict)) == [] and table.columns == [
+        "a",
+        "b",
+    ]
+    table = Table.from_rows((), header={"a": 1, "b": 2})
+    assert list(table.into_iter_rows(dict)) == [] and table.columns == [
+        "a",
+        "b",
+    ]
+
     with pytest.raises(ValueError):
         Table.from_rows([0, 1, 2], header=["a", "b"]).into_iter_rows(dict)
     with pytest.raises(ValueError):
         Table.from_rows([0, 1, 2], header={"a": 1}).into_iter_rows(dict)
+
+    with pytest.raises(ValueError):
+        Table.from_rows((), header=True)
 
 
 def test_table_take():
@@ -289,6 +303,17 @@ def test_table_inner_join():
 
     result = list(
         Table.from_rows([(1, 2), (2, 3)], ["a", "b"])
+        .join(
+            Table.from_rows([], ["a", "c"]),
+            how="inner",
+            on=["a"],
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == []
+
+    result = list(
+        Table.from_rows([(1, 2), (2, 3)], ["a", "b"])
         .embed_conversions()
         .update()
         .drop()
@@ -302,7 +327,7 @@ def test_table_inner_join():
     assert result == [("a", "b", "c"), (1, 2, 3), (2, 3, 4)]
 
     with c.OptionsCtx() as o:
-        o.debug = True
+        o.debug = False
         result = list(
             Table.from_rows([(1, 2), (2, 3)], ["a", "b"])
             .join(
@@ -361,6 +386,21 @@ def test_table_left_simple():
         (2, 3, 4),
     ]
 
+    result = list(
+        Table.from_rows([(1, 2), (2, 3)], ["a", "b"])
+        .join(
+            Table.from_rows([], ["a", "c"]),
+            how="left",
+            on=["a"],
+        )
+        .into_iter_rows(include_header=True)
+    )
+    assert result == [
+        ("a", "b", "c"),
+        (1, 2, None),
+        (2, 3, None),
+    ]
+
 
 def test_table_left_join():
     with c.OptionsCtx() as options:
@@ -406,6 +446,16 @@ def test_table_right_join():
         (4, None, 3),
         (2, 3, 4),
     ]
+    result = list(
+        Table.from_rows([(1, 2), (2, 3)], ["a", "b"])
+        .join(
+            Table.from_rows([], ["a", "c"]),
+            how="right",
+            on=["a"],
+        )
+        .into_iter_rows(include_header=True)
+    )
+    assert result == [("a", "b", "c")]
 
 
 def test_table_outer_join():
@@ -423,6 +473,21 @@ def test_table_outer_join():
         (1, 2, 10, None, None),
         (2, 3, 11, 4, 21),
         (4, None, None, 3, 20),
+    ]
+
+    result = list(
+        Table.from_rows([(1, 2, 10), (2, 3, 11)], ["a", "b", "d"])
+        .join(
+            Table.from_rows([], ["a", "c", "d"]),
+            how="outer",
+            on=["a"],
+        )
+        .into_iter_rows(include_header=True)
+    )
+    assert result == [
+        ("a", "b", "d_LEFT", "c", "d_RIGHT"),
+        (1, 2, 10, None, None),
+        (2, 3, 11, None, None),
     ]
 
 

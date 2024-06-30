@@ -46,10 +46,12 @@ condition is true (by default condition is standard python's truth check).
 
 #### Labels
 
-!!! warning
-	Despite the fact that `convtools` encourages a functional approach and
-	working with immutable data, sometimes it's inevitable to use global
-	variables. Anyway avoid using labels if possible.
+/// admonition
+    type: warning
+Despite the fact that `convtools` encourages a functional approach and
+working with immutable data, sometimes it's inevitable to use global
+variables. Anyway avoid using labels if possible.
+///
 
 There are two ways to label data for further use:
 
@@ -67,8 +69,10 @@ To reference previously labeled data use `c.label("label_name")`.
 
 ## Dispatch
 
-!!! warning "Experimental feature"
-    It was added on Feb 7, 2024 and may be stabilized ~ in half a year.
+/// admonition | Experimental feature
+    type: warning
+It was added on Feb 7, 2024 and may be stabilized ~ in half a year.
+///
 
 There are performance critical cases where it's desired to replace `c.if_` and
 `c.if_multiple` with dict lookups. However it limits what can be used as keys

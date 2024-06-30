@@ -238,6 +238,8 @@ def test_naive_conversion_item():
         c.naive([]).item(11).gen_converter()(100)
     with pytest.raises(TypeError):
         c.naive(None).item(11).gen_converter()(100)
+    with pytest.raises(TypeError):
+        iter(c.naive(None))
 
     assert (
         c.naive(d).item(100).item("test2").gen_converter(debug=False)(100)

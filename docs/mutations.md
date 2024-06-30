@@ -6,9 +6,10 @@
 Mutations are conversions which update the data in-place. Here is the list of
 supported mutations:
 
-!!! warning "Experimental feature"
-    `of_` parameter was added on Jun 7, 2024 and may be stabilized ~ in half a
-    year.
+/// admonition | Experimental feature
+    type: warning
+`of_` parameter was added on Jun 7, 2024 and may be stabilized ~ in half a year.
+///
 
 | expected code | mutation |
 |:--------------|:---------|

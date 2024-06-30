@@ -18,7 +18,7 @@ from ._base import (
     CodeGenerationOptionsCtx,
     ConversionException,
     ConverterOptionsCtx,
-    Dict,
+    Dict_,
     DictComp,
     DropWhile,
     Eq,
@@ -31,18 +31,17 @@ from ._base import (
     InlineExpr,
     InputArg,
     LabelConversion,
-    List,
+    List_,
     ListComp,
     NaiveConversion,
     Not,
     OptionalCollectionItem,
     Or,
-    Set,
+    Set_,
     SetComp,
-    SortConversion,
     TakeWhile,
     This,
-    Tuple,
+    Tuple_,
     TupleComp,
     ensure_conversion,
 )
@@ -53,7 +52,9 @@ from ._exceptions import try_multiple
 from ._expect import ExpectException
 from ._joins import JoinConversion, _JoinConditions
 from ._mutations import Mutations
+from ._ordering import SortConversion, SortingKeyConversion
 from ._try import Try
+from ._window import WindowFuncs
 
 
 __all__ = ["conversion", "Conversion"]
@@ -88,6 +89,7 @@ class Conversion:
     )
 
     ReduceFuncs = ReduceFuncs  # pylint: disable=invalid-name
+    WindowFuncs = WindowFuncs  # pylint: disable=invalid-name
     #: Shortcut to `Mutations`
     Mut = Mutations  # pylint: disable=invalid-name
 
@@ -129,10 +131,10 @@ class Conversion:
     escaped_string = EscapedString
 
     #: Shortcut to ``List``
-    list = List
-    tuple = Tuple
-    set = Set
-    dict = Dict
+    list = List_
+    tuple = Tuple_
+    set = Set_
+    dict = Dict_
     optional = OptionalCollectionItem
 
     group_by = GroupBy
@@ -223,6 +225,23 @@ class Conversion:
     def max(self, arg, *args):
         """Shortcut for `c.call_func(max, ...)`."""
         return CallFunc(max, arg, *args)
+
+    def sorting_key(self, *keys):
+        """Generates lambda function, to be used as sorting key.
+
+        Args:
+          keys: accepts multiple conversions, which form a sorting key
+
+        >>> sorted(
+        >>>     data,
+        >>>     key=c.sorting_key(
+        >>>         c.item("a"),
+        >>>         c.item("b").desc(none_last=True),
+        >>>         c.item("c").asc(none_first=True)
+        >>>     ),
+        >>> )
+        """
+        return SortingKeyConversion(keys).execute(None)
 
     EXCEPTION = Try.EXCEPTION
     try_ = Try

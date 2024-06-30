@@ -29,6 +29,7 @@ nav:
      - Dates: dates.md
      - Mutations: mutations.md
      - Exceptions: exceptions.md
+     - Window functions: window_funcs.md
      - Contrib / Tables: contrib_tables.md
      - Contrib / Fs: contrib_fs.md
   - Benefits: benefits.md
@@ -40,13 +41,16 @@ nav:
 markdown_extensions:
   - toc:
       permalink: true
-  - admonition
   - tables
   - markdown_include.include:
       base_path: docs
-  - pymdownx.tabbed:
-      alternate_style: true 
+  - pymdownx.blocks.tab:
+      alternate_style: true
+  - pymdownx.blocks.admonition:
   - pymdownx.highlight:
       use_pygments: true
   - pymdownx.inlinehilite:
   - pymdownx.superfences:
+  - pymdownx.snippets:
+      base_path: .
+      dedent_subsections: true

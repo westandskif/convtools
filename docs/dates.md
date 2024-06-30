@@ -4,11 +4,13 @@
 
 ## Formatting dates
 
-!!! tip "Performance"
+/// admonition | Performance
+    type: tip
 
-    Many format codes are optimized for speed: `%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y`.
-    If any other are passed, the implementation falls back to `datetime.strftime`.
-    See [performance section of Benefits page](benefits.md) for details.
+Many format codes are optimized for speed: `%% %A %a %B %H %I %M %S %Y %b %d %f %m %p %u %w %y`.
+If any other are passed, the implementation falls back to `datetime.strftime`.
+See [performance section of Benefits page](benefits.md) for details.
+///
 
 `c.format_dt(fmt)` accepts same format codes as
 [datetime.strftime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes) does.
@@ -17,11 +19,13 @@
 
 ## Parsing dates
 
-!!! tip "Performance"
+/// admonition | Performance
+    type: tip
 
-    Many format codes are optimized for speed: `%% %Y %m %d %H %I %p %M %S %f`.
-    If any other are passed, the implementation falls back to `datetime.strptime`.
-    See [performance section of Benefits page](benefits.md) for details.
+Many format codes are optimized for speed: `%% %Y %m %d %H %I %p %M %S %f`.
+If any other are passed, the implementation falls back to `datetime.strptime`.
+See [performance section of Benefits page](benefits.md) for details.
+///
 
 
 1. `c.date_parse(main_format, *other_formats, default=_none)` and `date_parse`
@@ -89,14 +93,16 @@ The methods above have the parameters:
 	* `"end"` return the exclusive end of a grid period (_e.g. for a monthly
 	  grid for Jan: it's Feb 1st_)
 
-!!! warning
-      * y/mo steps support only y/mo offsets
-	  * days of week don't support offsets (_otherwise we would get undesired
-	    days of week_)
-	  * when truncating dates, not datetimes, it is possible for whole number
-	    of days only
-      * any steps defined as deterministic units (d, h, m, s, ms, us) can
-        only be used with offsets defined by deterministic units too
+/// admonition
+    type: warning
+* y/mo steps support only y/mo offsets
+* days of week don't support offsets (_otherwise we would get undesired
+  days of week_)
+* when truncating dates, not datetimes, it is possible for whole number
+  of days only
+* any steps defined as deterministic units (d, h, m, s, ms, us) can
+  only be used with offsets defined by deterministic units too
+///
 
 {!examples-md/api__dates_trunc.md!}
 
@@ -109,11 +115,14 @@ gap free series of dates/datetimes.
 e.g. `DateGrid("mo").around(dt_start, dt_end)` returns an iterator of dates of
 the monthly grid, which contains the provided period.
 
-!!! note
-	It is intentionally different from Postgres' `generate_series(start, end,
-	interval)` because it is not convenient in some cases, where you need to
-	truncate `start` and `end` to a required precision first, otherwise you
-	risk missing the very first period.
+/// admonition
+    type: note
+
+It is intentionally different from Postgres' `generate_series(start, end,
+interval)` because it is not convenient in some cases, where you need to
+truncate `start` and `end` to a required precision first, otherwise you
+risk missing the very first period.
+///
 
 1. `DateGrid` generates `date` grids
 1. `DateTimeGrid` generates `datetime` grids

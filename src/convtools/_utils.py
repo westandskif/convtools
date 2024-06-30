@@ -9,7 +9,6 @@ import os
 import sys
 import tempfile
 import threading
-import typing as t
 from collections import defaultdict, deque
 from importlib import import_module
 from weakref import finalize
@@ -18,7 +17,18 @@ from weakref import finalize
 PY_VERSION = sys.version_info[:2]
 if PY_VERSION == (3, 6):
 
-    class BaseCtxMeta(t.GenericMeta):  # type: ignore
+    from typing import (  # type: ignore
+        Dict,
+        Generator,
+        Generic,
+        GenericMeta,
+        Iterator,
+        Tuple,
+        Type,
+        TypeVar,
+    )
+
+    class BaseCtxMeta(GenericMeta):
         def __init__(
             cls, name, bases, kwargs
         ):  # pylint: disable=no-self-argument
@@ -26,6 +36,7 @@ if PY_VERSION == (3, 6):
             cls._ctx = threading.local()
 
 else:
+    from typing import Dict, Generator, Generic, Iterator, Tuple, Type, TypeVar
 
     class BaseCtxMeta(type):  # type: ignore
         def __init__(cls, name, bases, kwargs):
@@ -62,15 +73,15 @@ class BaseOptions(object, metaclass=BaseOptionsMeta):
                 setattr(self, option_attr, value)
 
 
-OT = t.TypeVar("OT", bound=BaseOptions)
+OT = TypeVar("OT", bound=BaseOptions)
 
 
 class BaseCtx(
-    t.Generic[OT], metaclass=BaseCtxMeta
+    Generic[OT], metaclass=BaseCtxMeta
 ):  # pylint:disable=invalid-metaclass
     """Context manager to manage option objects."""
 
-    options_cls: t.Type[OT]
+    options_cls: Type[OT]
     _ctx: threading.local
 
     def __enter__(self) -> OT:
@@ -228,7 +239,7 @@ class CodeStorage:
     """
 
     def __init__(self):
-        self.key_to_code_piece: "t.Dict[str, CodePiece]" = {}
+        self.key_to_code_piece: "Dict[str, CodePiece]" = {}
         self.converter_names = set()
         finalize(self, drop_dumped_code, self.key_to_code_piece)
 
@@ -273,12 +284,12 @@ def drop_dumped_code(key_to_code_piece):
                 pass
 
 
-T = t.TypeVar("T")
+T = TypeVar("T")
 
 
 def iter_windows(
-    collection: t.Iterator[T], width, step
-) -> t.Generator[t.Tuple[T, ...], None, None]:
+    collection: Iterator[T], width, step
+) -> Generator[Tuple[T, ...], None, None]:
     window: "deque[T]" = deque(maxlen=width)
     window_append = window.append
 

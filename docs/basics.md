@@ -150,12 +150,15 @@ We can either:
 
 {!examples-md/getting_started__call.md!}
 
-!!! tip
-	If we think about which one is faster, have a look at the generated code.
-	That extra `.strptime` attribute lookup in the 2nd variant makes it slower,
-	while both other variants perform this lookup only once at conversion
-	building stage and wouldn't perform it if we stored the converter for
-	further reuse.
+/// admonition
+    type: tip
+
+If we think about which one is faster, have a look at the generated code.
+That extra `.strptime` attribute lookup in the 2nd variant makes it slower,
+while both other variants perform this lookup only once at conversion
+building stage and wouldn't perform it if we stored the converter for
+further reuse.
+///
 
 #### calling with `*args`, `**kwargs`
 
@@ -212,9 +215,11 @@ c({"a": c.item(0).breakpoint()}).gen_converter(debug=True)
 
 ## Inline expressions
 
-!!! warning
-	`convtools` cannot guard you here and doesn't infer any insights from the
-	attributes of unknown pieces of code. Avoid using if possible.
+/// admonition
+    type: warning
+`convtools` cannot guard you here and doesn't infer any insights from the
+attributes of unknown pieces of code. Avoid using if possible.
+///
 
 There are two ways to pass custom code expression as a string:
 

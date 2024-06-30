@@ -1,3 +1,16 @@
+## 1.11.0 (2024-07-01)
+
+- added experimental `c.this.window(...).over(...)` and `c.WindowFuncs`
+- added experimental support of `key` as conversion or tuple of conversions to
+`c.sort` and `c.this.sort`
+    * `c.this.asc(none_last=None, none_first=None)`
+    * `c.this.desc(none_last=None, none_first=None)`
+    * `c.sorting_key(*keys)` standalone helper to generate callables for
+      `sorted`'s `key` parameter
+- improved `Table.from_rows` not to raise StopIteration on empty sequences when
+no header inference is required
+
+
 ## 1.10.1 (2024-06-11)
 
 - fixed `Table.join` for dict-based rows after `rename` usage (_no breaking

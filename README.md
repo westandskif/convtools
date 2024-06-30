@@ -1,8 +1,8 @@
 # convtools
 
-**convtools** is a specialized Python library designed for defining data
-transformations dynamically using a declarative approach. It automatically
-generates custom Python code for the user in the background.
+**convtools** is a Python library that simplifies data transformation by
+allowing you to define them in a declarative way. It then generates the
+necessary Python code in the background, saving you time and effort.
 
 [![License](https://img.shields.io/github/license/westandskif/convtools.svg)](https://github.com/westandskif/convtools/blob/master/LICENSE.txt)
 [![codecov](https://codecov.io/gh/westandskif/convtools/branch/master/graph/badge.svg)]( https://codecov.io/gh/westandskif/convtools)
@@ -111,9 +111,6 @@ assert conv(input_data) == {
 * convtools supports nested aggregations
 * convtools is a set of primitives for code generation, so it's just different.
 
-## Support
-
-* westandskif (Nikita Almakov) - [Link to support](https://boosty.to/westandskif)
 
 ## Reporting a Security Vulnerability
 

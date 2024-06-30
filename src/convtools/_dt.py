@@ -3,7 +3,7 @@
 import re
 from datetime import date, datetime, timedelta
 from functools import lru_cache
-from typing import Dict, Iterator, List, Type, Union
+from typing import Iterator, List, Mapping, Type, Union
 
 from ._base import BaseConversion, CallFunc, NaiveConversion, This
 from ._utils import Code, CodeParams
@@ -49,7 +49,7 @@ class TruncModes:
 class BaseStep:
     """Base definition of a time-related step."""
 
-    types: "Dict[str, int]"
+    types: "Mapping[str, int]"
 
     def to_months(self):
         raise TypeError("cannot be interpreted as months")

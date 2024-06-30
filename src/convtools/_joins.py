@@ -1,7 +1,8 @@
 """Join conversions."""
 
-import typing as t
+from collections.abc import Sized
 from itertools import chain, repeat
+from typing import Set
 
 from ._aggregations import Aggregate, ReduceFuncs
 from ._base import (
@@ -16,7 +17,7 @@ from ._base import (
     NaiveConversion,
     Namespace,
     This,
-    Tuple,
+    Tuple_,
 )
 from ._columns import ColumnRef
 from ._utils import Code
@@ -125,7 +126,7 @@ class _JoinConditions:
         return join_conditions
 
     @classmethod
-    def _get_join_deps(cls, conv: "BaseConversion") -> t.Set[str]:
+    def _get_join_deps(cls, conv: "BaseConversion") -> Set[str]:
         return {
             dep.name
             for dep in conv.get_dependencies(types=LazyEscapedString)
@@ -297,7 +298,7 @@ class JoinConversion(BaseConversion):
             if join_conditions.right_row_hashers:
                 c_left_key_to_hash = join_conditions.wrap_with_namespace(
                     (
-                        Tuple(*join_conditions.left_row_hashers)
+                        Tuple_(*join_conditions.left_row_hashers)
                         if len(join_conditions.left_row_hashers) > 1
                         else join_conditions.left_row_hashers[0]
                     ),
@@ -305,7 +306,7 @@ class JoinConversion(BaseConversion):
                 )
                 c_right_key_to_hash = join_conditions.wrap_with_namespace(
                     (
-                        Tuple(*join_conditions.right_row_hashers)
+                        Tuple_(*join_conditions.right_row_hashers)
                         if len(join_conditions.right_row_hashers) > 1
                         else join_conditions.right_row_hashers[0]
                     ),
@@ -368,7 +369,7 @@ class JoinConversion(BaseConversion):
                             if join_conditions.inner_loop_conditions
                             else This
                         ),
-                        Tuple(),
+                        Tuple_(),
                     )
                     .pipe(iter if join_conditions.left_join else This)
                     .gen_code_and_update_ctx(None, ctx),
@@ -393,7 +394,7 @@ class JoinConversion(BaseConversion):
                     code.add_line(
                         "right_ = %s"
                         % If(
-                            CallFunc(isinstance, This, t.Sized),
+                            CallFunc(isinstance, This, Sized),
                             This,
                             This.pipe(list),
                         ).gen_code_and_update_ctx("right_", ctx),
@@ -492,7 +493,7 @@ class JoinConversion(BaseConversion):
                 c_result = If(
                     And(*join_conditions.pre_filter),
                     c_result,
-                    Tuple().pipe(iter),
+                    Tuple_().pipe(iter),
                 )
             elif join_conditions.outer_join:
                 c_result = If(

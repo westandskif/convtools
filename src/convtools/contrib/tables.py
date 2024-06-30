@@ -9,10 +9,20 @@ Conversions are defined in realtime based on table headers and called methods:
 """
 
 import csv
-import typing as t  # pylint: disable=unused-import
 from collections.abc import Callable, Sized
 from itertools import chain, zip_longest
-from typing import Mapping, Optional, Sequence
+from typing import (
+    Any,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    TextIO,
+    Tuple,
+    Union,
+    cast,
+)
 
 from .._aggregations import Aggregate, GroupBy, ReduceFuncs
 from .._base import (
@@ -28,7 +38,7 @@ from .._base import (
     InputArg,
     NaiveConversion,
     This,
-    Tuple,
+    Tuple_,
     ensure_conversion,
 )
 from .._columns import ColumnChanges, ColumnRef, MetaColumns
@@ -117,23 +127,23 @@ class Table:
 
     def __init__(
         self,
-        row_type: "t.Optional[type]",
-        rows_objects: "t.List[t.Iterable]",
+        row_type: "Optional[type]",
+        rows_objects: "List[Iterable]",
         meta_columns: "MetaColumns",
         pending_changes: int,
-        pipeline: "t.Optional[BaseConversion]" = None,
+        pipeline: "Optional[BaseConversion]" = None,
         file_to_close=None,
     ):
         """For internal use only. Use from_rows and from_csv methods."""
         self.row_type = row_type
-        self.rows_objects: "t.Optional[t.List[t.Iterable]]" = rows_objects
+        self.rows_objects: "Optional[List[Iterable]]" = rows_objects
         self.meta_columns = meta_columns
         self.pending_changes = pending_changes
         self.pipeline = pipeline
         self.file_to_close = file_to_close
         self.row_type = row_type
 
-    def get_columns(self) -> "t.List[str]":
+    def get_columns(self) -> "List[str]":
         """Return list of column names."""
         return [column.name for column in self.meta_columns.columns]
 
@@ -142,13 +152,13 @@ class Table:
     @classmethod
     def from_rows(
         cls,
-        rows: "t.Iterable[t.Union[dict, tuple, list, t.Any]]",
-        header: """t.Optional[
-            t.Union[
-                bool, t.List[str], t.Tuple[str, ...], t.Dict[str, t.Union[str, int]]
+        rows: "Iterable[Union[dict, tuple, list, Any]]",
+        header: """Optional[
+            Union[
+                bool, List[str], Tuple[str, ...], Mapping[str, Union[str, int]]
             ]
         ]""" = None,
-        # t.Literal["raise", "keep", "drop", "mangle"]
+        # Literal["raise", "keep", "drop", "mangle"]
         duplicate_columns: str = "raise",
         skip_rows: int = 0,
         file_to_close=None,
@@ -197,14 +207,19 @@ class Table:
             for _ in range(skip_rows):
                 next(rows)
 
-        first_row = next(rows)
+        first_row = next(rows, _none)
         first_row_is_sized = isinstance(first_row, Sized)
-        row_type = type(first_row)
+        row_type = tuple if first_row is _none else type(first_row)
         pending_changes = 0
 
-        index: "t.Union[str, int]"
+        index: "Union[str, int]"
         if isinstance(header, (tuple, list)):
-            if first_row_is_sized:
+            if first_row is _none:
+                for index, name in enumerate(header):
+                    pending_changes |= columns.add(name, index, None)[1]
+
+            elif first_row_is_sized:
+                first_row = cast(Sized, first_row)
                 if len(header) != len(first_row):
                     raise ValueError("non-matching number of columns")
                 for index, column in enumerate(header):
@@ -215,14 +230,20 @@ class Table:
                 pending_changes |= columns.add(header[0], None, This())[1]
 
         elif isinstance(header, dict):
-            if not first_row_is_sized:
+            if first_row is _none:
+                for name, index in header.items():
+                    pending_changes |= columns.add(name, index, None)[1]
+
+            elif first_row_is_sized:
+                first_row = cast(Sized, first_row)
+                if len(header) != len(first_row):
+                    raise ValueError("non-matching number of columns")
+                for name, index in header.items():
+                    pending_changes |= columns.add(name, index, None)[1]
+            else:
                 raise ValueError(
                     "first row is not sized to apply header as dict"
                 )
-            if len(header) != len(first_row):
-                raise ValueError("non-matching number of columns")
-            for name, index in header.items():
-                pending_changes |= columns.add(name, index, None)[1]
 
         # inferring a header
         elif isinstance(first_row, dict):
@@ -246,14 +267,20 @@ class Table:
 
         else:
             if header is True:
-                pending_changes |= columns.add(first_row, None, This())[1]
-                first_row = None
+                if first_row is _none:
+                    raise ValueError(
+                        "impossible to infer header of an empty sequence"
+                    )
+                else:
+                    pending_changes |= columns.add(first_row, None, This())[1]
+                    first_row = None
             else:
                 pending_changes |= columns.add(None, None, This())[1]
+
             pending_changes |= ColumnChanges.MUTATE
 
-        rows_objects: "t.List[t.Iterable]" = [rows]
-        if first_row is not None:
+        rows_objects: "List[Iterable]" = [rows]
+        if first_row is not None and first_row is not _none:
             rows_objects.insert(0, (first_row,))
 
         return cls(
@@ -269,15 +296,15 @@ class Table:
     @classmethod
     def from_csv(
         cls,
-        filepath_or_buffer: "t.Union[str, t.TextIO]",
-        header: """t.Optional[
-            t.Union[
-                bool, t.List[str], t.Tuple[str], t.Dict[str, t.Union[str, int]]
+        filepath_or_buffer: "Union[str, TextIO]",
+        header: """Optional[
+            Union[
+                bool, List[str], Tuple[str], Mapping[str, Union[str, int]]
             ]
         ]""" = None,
         duplicate_columns: str = "mangle",
         skip_rows: int = 0,
-        dialect: "t.Union[str, CustomCsvDialect]" = "excel",
+        dialect: "Union[str, CustomCsvDialect]" = "excel",
         encoding: str = "utf-8",
     ) -> "Table":
         """Initialize a table conversion from a csv-like object.
@@ -319,8 +346,8 @@ class Table:
 
           encoding: encoding to pass to :py:obj:`open`
         """
-        file_to_close: "t.Optional[t.TextIO]"
-        buffer: "t.TextIO"
+        file_to_close: "Optional[TextIO]"
+        buffer: "TextIO"
         if isinstance(filepath_or_buffer, str):
             buffer = file_to_close = (
                 open(  # pylint: disable=consider-using-with # noqa: SIM115
@@ -451,7 +478,7 @@ class Table:
         return self.update(**column_to_conversion)
 
     def rename(
-        self, columns: "t.Union[t.Tuple[str], t.List[str], t.Dict[str, str]]"
+        self, columns: "Union[Tuple[str], List[str], Mapping[str, str]]"
     ) -> "Table":
         """Rename columns.
 
@@ -487,7 +514,7 @@ class Table:
 
         return self
 
-    def take(self, *column_names: "t.Union[str, t.Any]") -> "Table":
+    def take(self, *column_names: "Union[str, Any]") -> "Table":
         """Leave only specified columns, omitting the rest.
 
         ``...`` references non-mentioned columns, so it's easy to both take a
@@ -658,7 +685,7 @@ class Table:
     def join(
         self,
         table: "Table",
-        on: "t.Union[BaseConversion, str, t.Iterable[str]]",
+        on: "Union[BaseConversion, str, Iterable[str]]",
         how: str,
         suffixes=("_LEFT", "_RIGHT"),
     ) -> "Table":
@@ -695,8 +722,8 @@ class Table:
         left_column_name_to_column = left.meta_columns.get_name_to_column()
         right_column_name_to_column = right.meta_columns.get_name_to_column()
 
-        after_join_conversions: "t.List[BaseConversion]" = []
-        after_join_column_names: "t.List[str]" = []
+        after_join_conversions: "List[BaseConversion]" = []
+        after_join_column_names: "List[str]" = []
 
         if isinstance(on, BaseConversion):
             # intentionally left blank to force suffixing
@@ -846,7 +873,7 @@ class Table:
                 """({new_row} for {row} in {rows} for {value} in {values})"""
             )
             .pass_args(
-                new_row=Tuple(
+                new_row=Tuple_(
                     *(
                         c_value if i == index else c_row.item(i)
                         for i in range(len(columns))
@@ -911,7 +938,7 @@ class Table:
             )
             .pass_args(
                 rows=This,
-                new_rows=Tuple(
+                new_rows=Tuple_(
                     *(
                         (
                             *(
@@ -1049,7 +1076,7 @@ class Table:
             .drop(agg_data_col)
         )
 
-    def move_rows_objects(self) -> "t.List[t.Iterable]":
+    def move_rows_objects(self) -> "List[Iterable]":
         """For internal use.
 
         Moves out rows objects including files to be closed later.
@@ -1069,7 +1096,7 @@ class Table:
 
     def into_list_of_iterables(
         self, type_=tuple, include_header=None
-    ) -> "t.List[t.Iterable]":
+    ) -> "List[Iterable]":
         """For internal use."""
         if type_ not in self.supported_types:
             raise TypeError("unsupported type_", type_)
@@ -1081,7 +1108,7 @@ class Table:
         if no_pending_changes:
             conversion = None if self.pipeline is None else self.pipeline
         else:
-            row_conversion: "t.Union[dict, tuple, list]"
+            row_conversion: "Union[dict, tuple, list]"
             if type_ is dict:
                 row_conversion = {
                     column.name: (
@@ -1119,7 +1146,7 @@ class Table:
 
     def into_iter_rows(
         self, type_=tuple, include_header=None
-    ) -> "t.Iterable[t.Any]":
+    ) -> "Iterable[Any]":
         """Return iterable of processed rows.
 
         Args:
@@ -1139,9 +1166,9 @@ class Table:
 
     def into_csv(
         self,
-        filepath_or_buffer: "t.Union[str, t.TextIO]",
+        filepath_or_buffer: "Union[str, TextIO]",
         include_header: bool = True,
-        dialect: "t.Union[str, CustomCsvDialect]" = "excel",
+        dialect: "Union[str, CustomCsvDialect]" = "excel",
         encoding="utf-8",
     ):
         """Writes rows to a file.
@@ -1159,7 +1186,7 @@ class Table:
         row_type = list if self.row_type is list else tuple
 
         f_to_close = None
-        f: "t.TextIO"
+        f: "TextIO"
         if isinstance(filepath_or_buffer, str):
             f = f_to_close = (
                 open(  # pylint:disable=consider-using-with  # noqa: SIM115

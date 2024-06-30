@@ -152,13 +152,15 @@ To join two tables, use `join` method, which accepts the following arguments:
 * `table` to zip
 * `fill_value` is used to fill gaps; default is `None`
 
-!!! warning
-	* Before using this method, please make sure you are not looking for
-	  `Table.join`.
-	* Be cautious with using `.into_iter_rows(dict)` here, because by default
-	  `zip` uses `"keep"` `duplicate_columns` strategy, so you'll lose
-	  duplicate columns in case of collision because `dict` will take care of
-	  it
+/// admonition
+    type: warning
+* Before using this method, please make sure you are not looking for
+  `Table.join`.
+* Be cautious with using `.into_iter_rows(dict)` here, because by default
+  `zip` uses `"keep"` `duplicate_columns` strategy, so you'll lose
+  duplicate columns in case of collision because `dict` will take care of
+  it
+///
 
 {!examples-md/contrib_tables_zip.md!}
 
@@ -174,8 +176,10 @@ only parameter is `column_name` to explode.
 
 ## Wide to long
 
-!!! warning "Experimental feature"
-    It was added on Mar 6, 2024 and may be stabilized ~ in half a year.
+/// admonition | Experimental feature
+    type: warning
+It was added on Mar 6, 2024 and may be stabilized ~ in half a year.
+///
 
 `wide_to_long` method turns a table from wide to long view, turning a single
 row into multiple rows, which have fewer columns:
@@ -193,8 +197,10 @@ Args:
 
 ## Pivot
 
-!!! warning "Experimental feature"
-    It was added on Jun 5, 2024 and may be stabilized ~ in half a year.
+/// admonition | Experimental feature
+    type: warning
+It was added on Jun 5, 2024 and may be stabilized ~ in half a year.
+///
 
 `pivot` method aggregates data and creates a pivot table.
 
@@ -217,7 +223,10 @@ But you most definitely can leverage piping to callables:
 
 {!examples-md/contrib_tables_pipe.md!}
 
-!!! note
-	Keep in mind, that unlike conversions, `Table` doesn't have `gen_converter`
-	method, so the code cannot be generated once during a warm-up and used
-	multiple times. Tables generate their code at each run.
+/// admonition
+    type: note
+
+Keep in mind, that unlike conversions, `Table` doesn't have `gen_converter`
+method, so the code cannot be generated once during a warm-up and used
+multiple times. Tables generate their code at each run.
+///

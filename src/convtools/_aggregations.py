@@ -1,11 +1,11 @@
 """Define aggregations with various reduce functions."""
 
-import typing as t
 import warnings
 from collections import defaultdict
 from decimal import Decimal
 from itertools import chain
 from math import ceil
+from typing import Any, Callable, ClassVar, Dict, Sequence, Tuple, Union
 
 from ._base import (
     BaseConversion,
@@ -18,13 +18,13 @@ from ._base import (
     If,
     InlineExpr,
     LazyEscapedString,
-    List,
+    List_,
     ListComp,
     NaiveConversion,
     Namespace,
     NamespaceCtx,
     This,
-    Tuple,
+    Tuple_,
     _None,
     _none,
 )
@@ -36,8 +36,8 @@ class ReduceCode:
     """Merge and store code of reducers."""
 
     def __init__(self):
-        self.value_to_name: "t.Dict[str, str]" = {}
-        self.condition_to_child: "t.Dict[str, ReduceCode]" = {}
+        self.value_to_name: "Dict[str, str]" = {}
+        self.condition_to_child: "Dict[str, ReduceCode]" = {}
         self.key_to_reduce_lines = {}
 
     def add_assignment(self, value):
@@ -159,6 +159,8 @@ class ReduceManager:
         ]
 
     def gen_init_aggregate_vars(self):
+        if not self.used_indexes:
+            return ""
         vars_code = " = ".join(
             [self.fmt_agg_data_value(index) for index in self.used_indexes]
         )
@@ -265,18 +267,16 @@ class ReduceManager:
 class BaseReducer(BaseConversion):
     """Base reduce operation to be used during the aggregation."""
 
-    _expressions: t.Sequence[BaseConversion]
+    _expressions: Sequence[BaseConversion]
 
-    default: t.Union[_None, BaseConversion] = _none
-    initial: t.Union[_None, BaseConversion] = _none
+    default: Union[_None, BaseConversion] = _none
+    initial: Union[_None, BaseConversion] = _none
     internals_are_public: bool
-    values_use_times: t.Tuple[int, ...]
-    works_with_not_none_only: t.Tuple[int, ...]
-    prepare_first_lines: t.Union[
-        t.Tuple[str, ...], t.Callable[[], t.Tuple[str, ...]]
-    ]
-    reduce_lines: t.Union[t.Tuple[str, ...], t.Callable[[], t.Tuple[str, ...]]]
-    where: t.Union[_None, BaseConversion]
+    values_use_times: Tuple[int, ...]
+    works_with_not_none_only: Tuple[int, ...]
+    prepare_first_lines: Union[Tuple[str, ...], Callable[[], Tuple[str, ...]]]
+    reduce_lines: Union[Tuple[str, ...], Callable[[], Tuple[str, ...]]]
+    where: Union[_None, BaseConversion]
 
     self_content_type = (
         (
@@ -482,7 +482,7 @@ class BaseDictReducer(BaseReducer):
         if expressions_len == 1:
             expr = self.expressions[0]
             if (
-                isinstance(expr, (Tuple, List))
+                isinstance(expr, (Tuple_, List_))
                 and expr.conversions is not None
                 and len(expr.conversions) == 2
             ):
@@ -905,7 +905,7 @@ class DictCountReducer(BaseDictReducer):
         if expressions_len == 1:
             expr = self.expressions[0]
             if (
-                isinstance(expr, (Tuple, List))
+                isinstance(expr, (Tuple_, List_))
                 and expr.conversions is not None
                 and len(expr.conversions) == 2
             ):
@@ -1050,7 +1050,7 @@ class PercentileReducer(SortedArrayReducer):
       * "nearest"
     """
 
-    interpolation_to_method: t.ClassVar[t.Dict[str, t.Callable]] = {}
+    interpolation_to_method: ClassVar[Dict[str, Callable]] = {}
 
     def __init__(
         self, percentile: float, conv, *args, interpolation="linear", **kwargs
@@ -1249,7 +1249,7 @@ class GroupBy:
         self.by = by
 
     def aggregate(
-        self, reducer: t.Union[dict, list, set, tuple, BaseConversion]
+        self, reducer: Union[dict, list, set, tuple, BaseConversion]
     ) -> "Grouper":
         return Grouper(self.by, reducer)
 
@@ -1481,10 +1481,10 @@ class Reduce(BaseReducer):
 
     def __init__(
         self,
-        to_call_with_2_args: t.Union[t.Callable, InlineExpr],
-        *expressions: t.Tuple[t.Any, ...],
-        initial: t.Union[_None, t.Callable, InlineExpr, t.Any],
-        default: t.Union[_None, t.Callable, t.Any] = _none,
+        to_call_with_2_args: Union[Callable, InlineExpr],
+        *expressions: Tuple[Any, ...],
+        initial: Union[_None, Callable, InlineExpr, Any],
+        default: Union[_None, Callable, Any] = _none,
         unconditional_init: bool = False,
         where=None,
     ):

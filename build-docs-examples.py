@@ -46,15 +46,19 @@ def write_md_example(raw_example_path, output):
     )
     with open(raw_example_path, "r") as f_in:
         if output:
-            new_content = f"""===! "convtools"
-    ```python
-{indent_lines(f_in.read(), '    ')}
-    ```
+            new_content = f"""/// tab | convtools
+    new: true
 
-=== "debug stdout"
-    ```python
-{indent_lines(output, '    ')}
-    ```
+```python
+{f_in.read()}
+```
+///
+
+/// tab | debug stdout
+```python
+{output}
+```
+///
 
 """
         else:
