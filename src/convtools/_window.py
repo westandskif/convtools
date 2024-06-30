@@ -279,39 +279,49 @@ class AppliedWindow(BaseConversion):
         if self.order_by is None:
             if self.partition_by is None:
                 ordering_preservation_needed = False
-                c_reduce_clause = (
-                    ReduceFuncs.Array(This, default=NaiveConversion(()))
+                c_agg = (
+                    If(
+                        CallFunc(isinstance, This, list),
+                        This,
+                        CallFunc(list, This),
+                    )
                     .pipe(frames_finder)
                     .iter(c_frame_data_handler)
                 )
             else:
                 ordering_preservation_needed = True
-                c_reduce_clause = CallFunc(
-                    zip,
-                    ReduceFuncs.Array(
-                        LabelConversion(self._label_next).call(),
-                        default=NaiveConversion(()),
-                    ),
-                    ReduceFuncs.Array(This, default=NaiveConversion(()))
-                    .pipe(frames_finder)
-                    .iter(c_frame_data_handler),
+                c_agg = (
+                    GroupBy(self.partition_by)
+                    .aggregate(
+                        CallFunc(
+                            zip,
+                            ReduceFuncs.Array(
+                                LabelConversion(self._label_next).call(),
+                                default=NaiveConversion(()),
+                            ),
+                            ReduceFuncs.Array(
+                                This, default=NaiveConversion(())
+                            )
+                            .pipe(frames_finder)
+                            .iter(c_frame_data_handler),
+                        )
+                    )
+                    .flatten()
                 )
-        else:
+        elif self.partition_by is None:
             ordering_preservation_needed = True
             label_sorting_key = self.gen_random_name("sorting_key", ctx)
             labels[label_sorting_key] = SortingKeyConversion(
                 self.order_by, common_conv=GetItem(1)
             )
-            c_reduce_clause = (
-                ReduceFuncs.Array(
-                    (LabelConversion(self._label_next).call(), This),
-                    default=list,
+            c_agg = (
+                CallFunc(
+                    zip,
+                    CallFunc(count),
+                    This,
                 )
-                .pipe(
-                    This.call_method(
-                        "sort", key=LabelConversion(label_sorting_key)
-                    ).or_(This)
-                )
+                .as_type(list)
+                .sort(key=LabelConversion(label_sorting_key))
                 .pipe(
                     CallFunc(
                         zip,
@@ -323,12 +333,36 @@ class AppliedWindow(BaseConversion):
                     )
                 )
             )
-
-        if self.partition_by is None:
-            c_agg = Aggregate(c_reduce_clause)
         else:
+            ordering_preservation_needed = True
+            label_sorting_key = self.gen_random_name("sorting_key", ctx)
+            labels[label_sorting_key] = SortingKeyConversion(
+                self.order_by, common_conv=GetItem(1)
+            )
             c_agg = (
-                GroupBy(self.partition_by).aggregate(c_reduce_clause).flatten()
+                GroupBy(self.partition_by)
+                .aggregate(
+                    ReduceFuncs.Array(
+                        (LabelConversion(self._label_next).call(), This),
+                        default=list,
+                    )
+                    .pipe(
+                        This.call_method(
+                            "sort", key=LabelConversion(label_sorting_key)
+                        ).or_(This)
+                    )
+                    .pipe(
+                        CallFunc(
+                            zip,
+                            This.iter(GetItem(0)),
+                            This.iter(GetItem(1))
+                            .as_type(list)
+                            .pipe(frames_finder)
+                            .iter(c_frame_data_handler),
+                        )
+                    )
+                )
+                .flatten()
             )
 
         conv = self.conv.add_label(labels)
@@ -757,6 +791,7 @@ FRAME_DATA_NAMES = {
 
 
 def row_index():
+    """Row index within the partition."""
     return FrameData.ROW_INDEX
 
 

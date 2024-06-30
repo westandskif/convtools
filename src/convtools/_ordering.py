@@ -9,6 +9,7 @@ from ._base import (
     GetAttr,
     GetItem,
     InputArg,
+    LabelConversion,
     NaiveConversion,
 )
 from ._utils import Code
@@ -43,12 +44,16 @@ class SortingKeyConversion(BaseConversion):
 
     def __init__(self, keys, common_conv=None):
         super().__init__()
-        self.common_conv = (
-            None
-            if common_conv is None
-            else self.ensure_conversion(common_conv)
-        )
-        self.keys = [self.ensure_conversion(key) for key in keys]
+        if common_conv is not None and len(keys) == 1:
+            self.keys = [self.ensure_conversion(common_conv).pipe(keys[0])]
+            self.common_conv = None
+        else:
+            self.keys = [self.ensure_conversion(key) for key in keys]
+            self.common_conv = (
+                None
+                if common_conv is None
+                else self.ensure_conversion(common_conv)
+            )
 
     _any_ordering_hints = (
         BaseConversion.OutputHints.ORDERING_NONE_FIRST
@@ -197,7 +202,7 @@ class SortConversion(BaseConversion):
         super().__init__()
         self.sorted_kwargs = {}
         if key is not None:
-            if callable(key):
+            if callable(key) or isinstance(key, LabelConversion):
                 self.sorted_kwargs["key"] = self.ensure_conversion(key)
             else:
                 self.sorted_kwargs["key"] = self.ensure_conversion(
