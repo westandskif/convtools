@@ -47,29 +47,3 @@ test-py%:
 		"pip install -e . && pytest"
 
 test: test-py3.6 test-py3.7 test-py3.8 test-py3.9 test-py3.10 test-py3.11 test-py3.12
-
-# find src/convtools -name "*.so" -delete && CONVTOOLS_CEXT_DISABLED=1 python setup.py build_ext --build-lib src
-# find src/convtools -name "*.so" -delete && CONVTOOLS_CEXT_DISABLED=0 python setup.py build_ext --build-lib src
-# pytest --pdb -k test_cext
-# python -m build --sdist
-# python -m build --wheel
-# pytest -k 'not test_window' -k 'not test_date and not test_window'
-#
-#
-#
-# docker run --rm -it -v ./:/mnt/convtools quay.io/pypa/manylinux2014_x86_64 bash
-# cd /mnt/convtools
-# /opt/python/cp310-cp310/bin/pip install -U pip setuptools pytest pytest-cov
-# /opt/python/cp310-cp310/bin/pip install -e .
-# /opt/python/cp310-cp310/bin/pip install --force-reinstall dist/convtools-1.11.0-cp310-abi3-linux_x86_64.whl
-# /opt/python/cp310-cp310/bin/pytest
-#
-#
-# /opt/python/cp310-cp310/bin/pip install pytest pytest-cov convtools
-# /opt/python/cp310-cp310/bin/pytest
-#
-# /opt/python/cp313-cp313/bin/pip install pytest pytest-cov convtools
-# /opt/python/cp313-cp313/bin/pytest
-#
-# /opt/python/cp36-cp36m/bin/pip install pytest pytest-cov convtools
-# /opt/python/cp36-cp36m/bin/pytest
