@@ -11,7 +11,7 @@ exclude = ["tests*"]
 
 [project]
 name = "convtools"
-version = "1.12.0"
+dynamic = ["version"]
 description = "dynamic, declarative data transformations with automatic code generation"
 
 readme = "README.md"

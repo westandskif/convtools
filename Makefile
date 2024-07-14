@@ -63,3 +63,13 @@ test: test-py3.6 test-py3.7 test-py3.8 test-py3.9 test-py3.10 test-py3.11 test-p
 # /opt/python/cp310-cp310/bin/pip install -e .
 # /opt/python/cp310-cp310/bin/pip install --force-reinstall dist/convtools-1.11.0-cp310-abi3-linux_x86_64.whl
 # /opt/python/cp310-cp310/bin/pytest
+#
+#
+# /opt/python/cp310-cp310/bin/pip install pytest pytest-cov convtools
+# /opt/python/cp310-cp310/bin/pytest
+#
+# /opt/python/cp313-cp313/bin/pip install pytest pytest-cov convtools
+# /opt/python/cp313-cp313/bin/pytest
+#
+# /opt/python/cp36-cp36m/bin/pip install pytest pytest-cov convtools
+# /opt/python/cp36-cp36m/bin/pytest
