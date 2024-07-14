@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}
-  cancel-in-progress: ${{ github.ref == 'master' }}
+  cancel-in-progress: ${{ !contains(github.ref, 'refs/tags/') }}
 
 jobs:
   run_tests:
@@ -111,8 +111,6 @@ jobs:
         uses: pypa/cibuildwheel@v2.19.2
         env:
           CIBW_BUILD: cp310-${{ matrix.buildplat[1] }}
-          CIBW_BEFORE_TEST: pip install -r ci-requirements/requirements3.10.out
-          CIBW_TEST_COMMAND: pytest --benchmark-skip --no-cov
 
       - uses: actions/upload-artifact@v4
         with:
