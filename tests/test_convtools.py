@@ -193,6 +193,16 @@ def test_custom_converter_generation():
     assert CustomConversion().execute(7, debug=True) == 117
 
 
+def test_tmp():
+    d = {1: 2, 10: {"test": 15, 2: 777}, 100: {"test2": 200}}
+    assert (
+        c.item(10)
+        .item("testt", default=c.call_func(lambda x: x, 0))
+        .gen_converter(debug=True)(d)
+        == 0
+    )
+
+
 def test_naive_conversion_item():
     d = {1: 2, 10: {"test": 15, 2: 777}, 100: {"test2": 200}}
     assert c.naive(d).item(1).execute(100) == 2
@@ -222,8 +232,28 @@ def test_naive_conversion_item():
         == 77
     )
     assert c.item(10, "testt", default=77).gen_converter()(d) == 77
+    assert c.item(10).item("testt", default=77).gen_converter()(d) == 77
 
     assert c.item(10, "testt", default=c.this).gen_converter()(d) == d
+    assert (
+        c.item(10, "testt", default=c.call_func(int)).gen_converter()(d) == 0
+    )
+    assert (
+        c.item(
+            10, "testt", default=c.call_func(lambda x: x, 0)
+        ).gen_converter()(d)
+        == 0
+    )
+    assert (
+        c.item(10)
+        .item("testt", default=c.call_func(lambda x: x, 0))
+        .gen_converter(debug=True)(d)
+        == 0
+    )
+    assert (
+        c.item(10, "testt", default=c.input_arg("a")).gen_converter()(d, a=-1)
+        == -1
+    )
 
     assert c.item(10, c.item(1)).gen_converter()(d) == 777
     assert c.item(10).item(2).gen_converter()(d) == 777
@@ -341,6 +371,18 @@ def test_naive_conversion_attr():
     obj = TestType(1, 2)
 
     assert c.naive(obj).attr("field_b").gen_converter()(100) == 2
+    assert (
+        c.naive(obj)
+        .attr("field_b", default=c.call_func(int))
+        .gen_converter()(100)
+        == 2
+    )
+    assert (
+        c.naive(obj)
+        .attr("field_a", "field_b", default=c.call_func(int))
+        .gen_converter()(100)
+        == 0
+    )
     assert c.naive(obj).attr("field_b", "real").gen_converter()(100) == 2
     with pytest.raises(AttributeError):
         c.naive(obj).attr("field_c").gen_converter()(100)
@@ -387,9 +429,11 @@ def test_item_attr_caching():
         ]
     ).execute([-1]) == [0, 0]
 
+    data = {1: {2: {3: {4: 7}}}}
     for default in (
-        c.escaped_string("arg"),
-        c.inline_expr("arg"),
+        c.input_arg("arg"),
+        c.call_func(lambda: 10),
+        c.call_func(lambda x: x + 10, 0),
         c.naive(10),
     ):
         converter = (
@@ -397,7 +441,6 @@ def test_item_attr_caching():
             .or_(c.input_arg("arg"))
             .gen_converter()
         )
-        data = {1: {2: {3: {4: 7}}}}
         assert converter(data, arg=10) == 7
         assert converter(None, arg=10) == 10
 

@@ -30,7 +30,7 @@ checks:
 	isort src tests
 	pylint src
 	mypy --check-untyped-defs src
-	ruff src
+	ruff check src
 
 bash-py%:
 	docker run --rm -it -v $$PWD:/mnt/convtools -w /mnt/convtools python:$* bash
@@ -48,3 +48,10 @@ test-py%:
 		"pip install -e . && pytest"
 
 test: test-py3.6 test-py3.7 test-py3.8 test-py3.9 test-py3.10 test-py3.11 test-py3.12
+
+# find src/convtools -name "*.so" -delete && CONVTOOLS_CEXT_DISABLED=1 python setup.py build_ext --build-lib src
+# find src/convtools -name "*.so" -delete && CONVTOOLS_CEXT_DISABLED=0 python setup.py build_ext --build-lib src
+# pytest --pdb -k test_cext
+# python -m build --sdist
+# python -m build --wheel
+# pytest -k 'not test_window' -k 'not test_date and not test_window'

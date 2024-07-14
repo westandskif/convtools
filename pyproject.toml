@@ -1,17 +1,17 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+# requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.sources]
-"src/convtools" = "convtools"
 
-[tool.hatch.build.targets.sdist]
-include = ["/src"]
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["tests*"]
 
 
 [project]
 name = "convtools"
-version = "1.11.0"
+version = "1.12.0"
 description = "dynamic, declarative data transformations with automatic code generation"
 
 readme = "README.md"

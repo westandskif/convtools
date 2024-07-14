@@ -1,3 +1,7 @@
+## 1.12.0 (2024-07-14)
+
+- sped up `c.item(..., default=...)` for python 3.10+ by a c-extension
+
 ## 1.11.0 (2024-07-01)
 
 - added experimental `c.this.window(...).over(...)` and `c.WindowFuncs`

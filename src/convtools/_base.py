@@ -40,6 +40,19 @@ from ._utils import (
 )
 
 
+try:
+    from ._cext import (  # type: ignore
+        get_attr_deep_default_callable,
+        get_attr_deep_default_simple,
+        get_item_deep_default_callable,
+        get_item_deep_default_simple,
+    )
+except ImportError:
+    get_item_deep_default_simple = get_item_deep_default_callable = (
+        get_attr_deep_default_simple
+    ) = get_attr_deep_default_callable = None
+
+
 convtools_unique = LazyModule("convtools._unique")
 convtools_ordering = LazyModule("convtools._ordering")
 
@@ -460,7 +473,6 @@ class BaseConversion(Generic[CT]):
             return code_piece.converter_name
 
     NAMESPACES = "_name_to_code_input"
-    CONVERTERS_CACHE = "_converters_cache"
     NAIVE_TO_WARM_UP = "_naive_to_warm_up"
 
     exceptions_to_dump_sources = (Exception, KeyboardInterrupt)
@@ -473,7 +485,6 @@ class BaseConversion(Generic[CT]):
             "__name__": "_convtools",
             "__naive_values__": {},
             "__none__": cls._none,
-            cls.CONVERTERS_CACHE: {},
             cls.GENERATED_NAMES: set(),
             cls.NAMESPACES: [{}],
             cls.PREFIXED_HASH_TO_NAME: {},
@@ -572,17 +583,7 @@ class BaseConversion(Generic[CT]):
             code = Code()
             converter_name = self.gen_random_name(converter_name, ctx)
 
-            code_ = self.to_code(initial_code_input, ctx)
-            if code_ is None:
-                code_str = f"return {self.gen_code_and_update_ctx(initial_code_input, ctx)}"
-
-            signature = (
-                function_ctx.get_def_all_args_code()
-                if signature is None
-                else signature
-            )
-
-            code.add_line(f"def {converter_name}({signature}):", 1)
+            code.add_line("def placeholder", 1)
             if has_none:
                 code.add_line("global __none__", 0)
                 code.add_line("_none = __none__", 0)
@@ -591,21 +592,31 @@ class BaseConversion(Generic[CT]):
 
             code.add_line("try:", 1)
 
-            if code_ is not None:
-                code.add_code(code_)
+            code_ = self.to_code(initial_code_input, ctx)
+            if code_ is None:
+                code.add_line(
+                    f"return {self.gen_code_and_update_ctx(initial_code_input, ctx)}",
+                    0,
+                )
             else:
-                code.add_line(code_str, 0)
+                code.add_code(code_)
 
             code.incr_indent_level(-1)
             code.add_line("except __exceptions_to_dump_sources:", 1)
             code.add_line("__convtools__code_storage.dump_sources()", 0)
             code.add_line("raise", -1)
 
+            signature = (
+                function_ctx.get_def_all_args_code()
+                if signature is None
+                else signature
+            )
+            code.lines_info[0] = (0, f"def {converter_name}({signature}):")
+
             converter = function_ctx.gen_function(
                 converter_name, code.to_string(base_indent_level=0)
             )
 
-        del ctx[self.CONVERTERS_CACHE]
         del ctx[self.GENERATED_NAMES]
         del ctx[self.NAMESPACES]
         del ctx[self.PREFIXED_HASH_TO_NAME]
@@ -2151,30 +2162,6 @@ class InlineExpr(BaseConversion):
         return self.pass_args(*args, **kwargs)
 
 
-get_exceptions = (TypeError, KeyError, IndexError)
-
-
-def get_1_or_default(data_, key_, default_):
-    try:
-        return data_[key_]
-    except get_exceptions:
-        return default_
-
-
-def get_2_or_default(data_, key_1, key_2, default_):
-    try:
-        return data_[key_1][key_2]
-    except get_exceptions:
-        return default_
-
-
-def get_3_or_default(data_, key_1, key_2, key_3, default_):
-    try:
-        return data_[key_1][key_2][key_3]
-    except get_exceptions:
-        return default_
-
-
 GET_ITEM_OR_DEFAULT_TEMPLATE = """
 def {converter_name}({code_args}):
     try:
@@ -2204,12 +2191,8 @@ class GetItem(BaseMethodConversion):
     caching_is_possible = True
     template = GET_ITEM_OR_DEFAULT_TEMPLATE
 
-    get_or_default_functions = [
-        get_1_or_default,
-        get_2_or_default,
-        get_3_or_default,
-    ]
-    naive_or_unsafe_conversions = (NaiveConversion, EscapedString, InlineExpr)
+    getter_default_simple = get_item_deep_default_simple
+    getter_default_callable = get_item_deep_default_callable
 
     def __init__(
         self,
@@ -2245,10 +2228,6 @@ class GetItem(BaseMethodConversion):
         self.default_is_simple = (
             self.default is None or self.default.contents & 64 == 0
         )
-        self.default_is_naive_or_unsafe = isinstance(
-            self.default, self.naive_or_unsafe_conversions
-        )
-
         self.hardcoded_version = self.get_hardcoded_version()
         if self.hardcoded_version:
             self.total_weight = self.hardcoded_version.total_weight
@@ -2257,22 +2236,43 @@ class GetItem(BaseMethodConversion):
     def get_hardcoded_version(self):
         indexes_length = len(self.indexes)
         if indexes_length == 0:
-            return This()
-
-        if self.default is None:
-            return
+            return This
 
         if (
-            indexes_length < 4
-            and self.indexes_are_simple
-            and self.default_is_naive_or_unsafe
+            self.default is None
+            or self.getter_default_simple is None
+            or self.getter_default_callable is None
         ):
-            return CallFunc(
-                self.get_or_default_functions[indexes_length - 1],
-                (This() if self.self_conv is self._none else self.self_conv),
-                *self.indexes,
-                self.default,
-            )
+            return
+
+        if self.indexes_are_simple and self.default_is_simple:
+
+            if not isinstance(self.default, Call):
+                return CallFunc(
+                    self.getter_default_simple,
+                    (
+                        This()
+                        if self.self_conv is self._none
+                        else self.self_conv
+                    ),
+                    *self.indexes,
+                    self.default,
+                )
+            elif (
+                isinstance(self.default.self_conv, NaiveConversion)
+                and not self.default.args
+                and not self.default.kwargs
+            ):
+                return CallFunc(
+                    self.getter_default_callable,
+                    (
+                        This()
+                        if self.self_conv is self._none
+                        else self.self_conv
+                    ),
+                    *self.indexes,
+                    self.default.self_conv.value,
+                )
 
     def wrap_path_item(self, code_input, path_item):
         return f"{code_input}[{path_item}]"
@@ -2293,23 +2293,8 @@ class GetItem(BaseMethodConversion):
 
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         with function_ctx:
-            do_caching = self.caching_is_possible
-
             # default
-            if self.default_is_simple:
-                if self.default_is_naive_or_unsafe:
-                    default_code = "default_"
-                    function_ctx.add_arg(default_code, self.default)
-                else:
-                    default_code = self.default.gen_code_and_update_ctx(
-                        "not needed", ctx
-                    )
-
-            else:
-                do_caching = False
-                default_code = self.default.gen_code_and_update_ctx(
-                    "data_", ctx
-                )
+            default_code = self.default.gen_code_and_update_ctx("data_", ctx)
 
             # data_
             if (
@@ -2334,38 +2319,22 @@ class GetItem(BaseMethodConversion):
                     code_output = self.wrap_path_item(code_output, var_index)
 
             else:
-                do_caching = False
                 for _, index in enumerate(self.indexes):
                     code_output = self.wrap_path_item(
                         code_output,
                         index.gen_code_and_update_ctx("data_", ctx),
                     )
 
-            key = (
-                (
-                    self.prefix,
-                    tuple(function_ctx.args_as_def_names),
-                    default_code,
-                )
-                if do_caching
-                else None
+            converter_name = self.gen_random_name(self.prefix, ctx)
+            converter_code = self.template.format(
+                code_args=function_ctx.get_def_all_args_code(),
+                converter_name=converter_name,
+                get_or_default_code=code_output,
+                default_code=default_code,
             )
-
-            if do_caching and key in ctx[self.CONVERTERS_CACHE]:
-                converter_name = ctx[self.CONVERTERS_CACHE][key]
-            else:
-                converter_name = self.gen_random_name(self.prefix, ctx)
-                converter_code = self.template.format(
-                    code_args=function_ctx.get_def_all_args_code(),
-                    converter_name=converter_name,
-                    get_or_default_code=code_output,
-                    default_code=default_code,
-                )
-                converter_name = function_ctx.compile_n_return_name(
-                    converter_name, converter_code
-                )
-                if do_caching:
-                    ctx[self.CONVERTERS_CACHE][key] = converter_name
+            converter_name = function_ctx.compile_n_return_name(
+                converter_name, converter_code
+            )
 
         return function_ctx.call_with_all_args(
             EscapedString(converter_name)
@@ -2386,13 +2355,13 @@ class GetAttr(GetItem):
     caching_is_possible = False
     template = GET_ATTR_OR_DEFAULT_TEMPLATE
 
+    getter_default_simple = get_attr_deep_default_simple
+    getter_default_callable = get_attr_deep_default_callable
+
     def wrap_path_item(self, code_input, path_item):
         if self.valid_attr.match(path_item):
             return f"{code_input}.{path_item[1:-1]}"
         return f"getattr({code_input}, {path_item})"
-
-    def get_hardcoded_version(self):
-        return
 
 
 class Call(BaseMethodConversion):

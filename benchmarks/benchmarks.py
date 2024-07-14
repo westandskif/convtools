@@ -95,9 +95,9 @@ class GroupBy1(BaseBenchmark):
             return [
                 {
                     "name": name,
-                    "avg": value["sum"] / value["count"]
-                    if value["count"]
-                    else 0,
+                    "avg": (
+                        value["sum"] / value["count"] if value["count"] else 0
+                    ),
                     "min": value["min"],
                     "max": value["max"],
                 }
@@ -247,3 +247,25 @@ class DateParse(BaseBenchmark):
         return [
             (dt + timedelta(days=i)).strftime(self.FMT) for i in range(1000)
         ]
+
+
+class GetDefault(BaseBenchmark):
+    POSITIVE = True
+
+    def gen_converter(self):
+        return c.item(0, default=-1).gen_converter()
+
+    def gen_naive_implementations(self):
+        def f(data):
+            try:
+                return data[0]
+            except (TypeError, KeyError, IndexError):
+                return -1
+
+        yield c.call_func(f, c.this).gen_converter()
+
+    def gen_data(self):
+        if self.POSITIVE:
+            return {0: 1}
+        else:
+            return {10: 1}

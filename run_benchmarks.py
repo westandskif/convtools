@@ -7,6 +7,7 @@ from benchmarks.benchmarks import (
     DateParse,
     DatetimeFormat,
     DatetimeParse,
+    GetDefault,
     GroupBy1,
     IterOfIter1,
     TableDictReader,
@@ -16,7 +17,8 @@ from benchmarks.storage import BenchmarkResultsStorage
 
 BENCHMARKS = [
     # fmt: off
-
+    type("GetDefaultPositive", (GetDefault,), {"POSITIVE": True})(),
+    type("GetDefaultNegative", (GetDefault,), {"POSITIVE": False})(),
     Aggregate1(),
     GroupBy1(GroupBy1.Modes.FEW_GROUPS),
     GroupBy1(GroupBy1.Modes.MANY_GROUPS),
@@ -30,7 +32,6 @@ BENCHMARKS = [
     type("DateFormat2", (DateFormat,), {"FMT": "%m/%d/%Y"})(),
     type("DatetimeFormat1", (DatetimeFormat,), {"FMT": "%m/%d/%Y %I:%M %p"})(),
     type("DatetimeFormat2", (DatetimeFormat,), {"FMT": "%Y-%m-%dT%H:%M:%S.%f"})(),
-
     # fmt: on
 ]
 
