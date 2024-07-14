@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}
-  cancel-in-progress: ${{ !contains(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ contains(github.ref, 'refs/tags/') }}
 
 jobs:
   run_tests:
