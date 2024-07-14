@@ -62,7 +62,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.10
+          python-version: "3.10"
 
       - name: upload coverage
         run: |
@@ -98,26 +98,25 @@ jobs:
           - [macos-14, macosx_arm64]
           - [windows-2019, win_amd64]
           - [windows-2019, win_arm64]
-        python: ["cp310"]
     runs-on: ${{ matrix.buildplat[0] }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.10
+          python-version: "3.10"
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2
         env:
-          CIBW_BUILD: ${{ matrix.python }}-${{ matrix.buildplat[1] }}
+          CIBW_BUILD: cp310-${{ matrix.buildplat[1] }}
           CIBW_BEFORE_TEST: pip install -r ci-requirements/requirements3.10.out
           CIBW_TEST_COMMAND: pytest --benchmark-skip --no-cov
 
       - uses: actions/upload-artifact@v4
         with:
-          name: artifact-${{ matrix.python }}-${{ matrix.buildplat[1] }}
+          name: artifact-cp310-${{ matrix.buildplat[1] }}
           path: ./wheelhouse/*.whl
 
   pypi-publish:
