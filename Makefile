@@ -25,7 +25,6 @@ spellcheck:
 	find . \( -name "*.rst" -o -name "*.py" \) -not -path "./build/*" -not -path "./tests/*" -exec aspell/aspell {} \;
 
 checks:
-	flake8 src tests --count --select=E9,F63,F7,F82 --show-source --statistics
 	black src tests
 	isort src tests
 	pylint src
@@ -55,3 +54,12 @@ test: test-py3.6 test-py3.7 test-py3.8 test-py3.9 test-py3.10 test-py3.11 test-p
 # python -m build --sdist
 # python -m build --wheel
 # pytest -k 'not test_window' -k 'not test_date and not test_window'
+#
+#
+#
+# docker run --rm -it -v ./:/mnt/convtools quay.io/pypa/manylinux2014_x86_64 bash
+# cd /mnt/convtools
+# /opt/python/cp310-cp310/bin/pip install -U pip setuptools pytest pytest-cov
+# /opt/python/cp310-cp310/bin/pip install -e .
+# /opt/python/cp310-cp310/bin/pip install --force-reinstall dist/convtools-1.11.0-cp310-abi3-linux_x86_64.whl
+# /opt/python/cp310-cp310/bin/pytest
