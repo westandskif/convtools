@@ -1,4 +1,4 @@
-## 1.12.0 (2024-07-14)
+## 1.12.1 (2024-07-14)
 
 - sped up `c.item(..., default=...)` for python 3.10+ by a c-extension
 
