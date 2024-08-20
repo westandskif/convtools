@@ -17,7 +17,7 @@ assert converter(2) == "INACTIVE"
 
 /// tab | debug stdout
 ```python
-def converter(data_, *, __v=__naive_values__["__v"]):
+def _converter(data_, *, __v=__naive_values__["__v"]):
     try:
         return __v[data_]
     except __exceptions_to_dump_sources:

@@ -89,7 +89,7 @@ class Window(BaseConversion):
     def over(self, **kwargs):
         return AppliedWindow(self.conv, self.reducer, **kwargs)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         raise ValueError("window is not initialized, call over")
 
 
@@ -232,7 +232,7 @@ class AppliedWindow(BaseConversion):
         ):
             raise ValueError("RANGE mode offsets require 'order_by' to be set")
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         labels: "MutableMapping[str, BaseConversion]" = {}
         if self.order_by is not None:
             self._label_sorting_key = self.gen_random_name("sorting_key", ctx)

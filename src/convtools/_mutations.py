@@ -26,7 +26,7 @@ class BaseNameValueMutation(BaseMutation):
 
 
 class SetItem(BaseNameValueMutation):
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         name_code = self.name.gen_code_and_update_ctx(code_input, ctx)
         value_code = self.value.gen_code_and_update_ctx(code_input, ctx)
         of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
@@ -34,7 +34,7 @@ class SetItem(BaseNameValueMutation):
 
 
 class SetAttr(BaseNameValueMutation):
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         name_code = self.name.gen_code_and_update_ctx(code_input, ctx)
         value_code = self.value.gen_code_and_update_ctx(code_input, ctx)
         of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
@@ -61,7 +61,7 @@ class BaseIndexMutation(BaseMutation):
 
 
 class DelItem(BaseIndexMutation):
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
         of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
         if self.if_exists:
@@ -70,7 +70,7 @@ class DelItem(BaseIndexMutation):
 
 
 class DelAttr(BaseIndexMutation):
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
         of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
         code = f"delattr({of_code}, {index_code})"
@@ -91,7 +91,7 @@ class Custom(BaseMutation):
         super().__init__()
         self.conversion = self.ensure_conversion(conversion)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return self.conversion.gen_code_and_update_ctx(code_input, ctx)
 
 
@@ -125,7 +125,7 @@ class TapConversion(BaseConversion):
         ]
         self.number_of_input_uses = 1
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_random_name("", ctx)
         converter_name = f"tap_{suffix}"
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
@@ -155,7 +155,7 @@ class IterMutConversion(TapConversion):
     Returns: generator of mutated elements.
     """
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_random_name("", ctx)
         converter_name = f"iter_mut_{suffix}"
         code_item = f"item_{suffix}"

@@ -20,7 +20,7 @@ assert converter((1, 2)) == {"a": 1, "c": 3}
 
 /// tab | debug stdout
 ```python
-def optional_items_generator(data_):
+def _optional_items_generator(data_):
     yield ("a", data_[0])
     if not (data_[1] < 10):
         yield ("b", data_[1])
@@ -29,9 +29,9 @@ def optional_items_generator(data_):
     if data_[0] != 1:
         yield ("d", data_[0])
 
-def converter(data_):
+def _converter(data_):
     try:
-        return dict(optional_items_generator(data_))
+        return dict(_optional_items_generator(data_))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

@@ -45,26 +45,27 @@ def group_by_(_none, data_):
     signature_to_agg_data_ = defaultdict(AggData_)
 
     for row_ in data_:
-        agg_data_ = signature_to_agg_data_[row_["b"]]
         _r0_ = row_["a"]
-        if row_["a"] > 5:
-            if agg_data_.v0 is _none:
-                agg_data_.v0 = row_["a"]
-            else:
-                pass
+        agg_data_ = signature_to_agg_data_[row_["b"]]
         if _r0_ is not None:
             if agg_data_.v1 is _none:
                 agg_data_.v1 = _r0_
-            else:
-                if agg_data_.v1 < _r0_:
-                    agg_data_.v1 = _r0_
+            elif agg_data_.v1 < _r0_:
+                agg_data_.v1 = _r0_
+        if _r0_ > 5:
+            if agg_data_.v0 is _none:
+                agg_data_.v0 = _r0_
 
     return [
-        {"b": signature_, "a_first": ((None if (agg_data_.v0 is _none) else agg_data_.v0)), "a_max": ((None if (agg_data_.v1 is _none) else agg_data_.v1))}
+        {
+            "b": signature_,
+            "a_first": ((None if (agg_data_.v0 is _none) else agg_data_.v0)),
+            "a_max": ((None if (agg_data_.v1 is _none) else agg_data_.v1)),
+        }
         for signature_, agg_data_ in signature_to_agg_data_.items()
     ]
 
-def converter(data_):
+def _converter(data_):
     global __none__
     _none = __none__
     try:

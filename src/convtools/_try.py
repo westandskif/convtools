@@ -72,7 +72,7 @@ class Try(BaseConversion):
         )  # pylint: disable=protected-access
         return new_self
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         if not self._exc_def:
             return self._conv.gen_code_and_update_ctx(code_input, ctx)
 

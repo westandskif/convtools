@@ -22,16 +22,16 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
         return (
             (
-                i[0][0],
-                i[0][1],
-                i[1][0],
-                i[1][1],
+                _i[0][0],
+                _i[0][1],
+                _i[1][0],
+                _i[1][1],
             )
-            for i in data_
+            for _i in data_
         )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()

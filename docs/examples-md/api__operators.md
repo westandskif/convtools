@@ -40,7 +40,7 @@ c(
 
 /// tab | debug stdout
 ```python
-def converter(data_, *, __v=__naive_values__["__v"]):
+def _converter(data_, *, __v=__naive_values__["__v"]):
     try:
         return {
             "-a": (-data_[0]),

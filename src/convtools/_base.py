@@ -6,6 +6,7 @@ import sys
 from collections import deque
 from datetime import datetime
 from decimal import Decimal
+from io import StringIO
 from itertools import chain
 from keyword import iskeyword
 from random import Random
@@ -35,6 +36,7 @@ from ._utils import (
     LazyModule,
     _None,
     _none,
+    format_code,
     get_builtins_dict,
     iter_windows,
 )
@@ -55,15 +57,6 @@ except ImportError:
 
 convtools_unique = LazyModule("convtools._unique")
 convtools_ordering = LazyModule("convtools._ordering")
-
-
-black: "Optional[Any]" = None
-try:
-    import black as black_  # pragma: no cover
-
-    black = black_  # pragma: no cover
-except ImportError:
-    pass
 
 
 class CodeGenerationOptions(BaseOptions):
@@ -283,15 +276,9 @@ class BaseConversion(Generic[CT]):
         However you should not override this method
         directly, please implement the `_gen_code_and_update_ctx` one
         """
-        return self._gen_code_and_update_ctx(code_input, ctx)
-
-    def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
         raise NotImplementedError
 
-    def to_code(self, code_input, ctx) -> "Optional[Code]":
-        return self._to_code(code_input, ctx)
-
-    def _to_code(
+    def to_code(
         self, code_input, ctx  # pylint: disable=unused-argument
     ) -> "Optional[Code]":
         return None
@@ -449,13 +436,8 @@ class BaseConversion(Generic[CT]):
         is_debug = ctx.get(
             "__debug", False
         ) or ConverterOptionsCtx.get_option_value("debug")
-        if is_debug and black:
-            try:
-                code = black.format_str(
-                    code, mode=black.FileMode(line_length=160)  # type: ignore
-                )
-            except black.InvalidInput:
-                pass
+        if is_debug:
+            code = format_code(code)
 
         code_piece, added = ctx["__convtools__code_storage"].add_sources(
             converter_name, code
@@ -592,7 +574,9 @@ class BaseConversion(Generic[CT]):
 
             code.add_line("try:", 1)
 
-            code_ = self.to_code(initial_code_input, ctx)
+            code_ = self.to_code(  # pylint: disable=assignment-from-none
+                initial_code_input, ctx
+            )
             if code_ is None:
                 code.add_line(
                     f"return {self.gen_code_and_update_ctx(initial_code_input, ctx)}",
@@ -1478,7 +1462,7 @@ class NaiveConversion(BaseConversion):
         if not self.code_str:
             self.total_weight = Weights.DICT_LOOKUP
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         if self.code_str:
             return self.code_str
 
@@ -1532,7 +1516,7 @@ class EscapedString(BaseConversion):
         super().__init__()
         self.s = s
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return self.s
 
 
@@ -1549,7 +1533,7 @@ class ThisConversion(BaseConversion):
         """To allow using it as singleton."""
         return self
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return code_input
 
     def pipe(
@@ -1612,7 +1596,7 @@ class InputArg(BaseConversion):
         super().__init__()
         self.name = name
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return self.name
 
 
@@ -1633,7 +1617,7 @@ class LabelConversion(BaseConversion):
             raise ValueError("invalid label_name type")
         self.label_name = label_name
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return f"{self.labels_code_name}[{repr(self.label_name)}]"
 
 
@@ -1655,7 +1639,7 @@ class Namespace(BaseConversion):
         self.name_to_code = name_to_code
         self.conversion = self.ensure_conversion(conversion)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         with NamespaceCtx(self.name_to_code, ctx):
             return self.conversion.gen_code_and_update_ctx(code_input, ctx)
 
@@ -1821,7 +1805,7 @@ class NamespaceControlledUnit(BaseConversion):
         self.namespace_ctx = namespace_ctx
         self.conversion = self.ensure_conversion(conversion)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         if self.namespace_ctx.active:
             raise AssertionError(
                 "rendering prevented by parent NamespaceCtx, "
@@ -1850,7 +1834,7 @@ class LazyEscapedString(BaseConversion):
         super().__init__()
         self.name = name
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         name_to_code = NamespaceCtx.name_to_code(ctx)
         if self.name in name_to_code:
             code = name_to_code[self.name]
@@ -1892,7 +1876,7 @@ class OrAndEqBaseConversion(BaseConversion):
         self.args = [self.ensure_conversion(arg) for arg in args]
         self.default = default
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         if not self.args:
             return repr(bool(self.default))
 
@@ -1997,7 +1981,7 @@ class If(BaseConversion):
 
         self.conversion = self.ensure_conversion(conversion)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return self.conversion.gen_code_and_update_ctx(code_input, ctx)
 
 
@@ -2040,7 +2024,7 @@ class IfMultiple(BaseConversion):
         ]
         self.else_ = self.ensure_conversion(else_)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         code = Code()
         suffix = self.gen_random_name("_", ctx)
         converter_name = f"if_multiple{suffix}"
@@ -2083,7 +2067,7 @@ class Not(BaseConversion):
         super().__init__()
         self.arg = self.ensure_conversion(arg)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         code = self.arg.gen_code_and_update_ctx(code_input, ctx)
         return f"(not {code})"
 
@@ -2142,7 +2126,7 @@ class InlineExpr(BaseConversion):
         """
         return InlineExpr(self.code_str, self.weight, args, kwargs)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         code = self.code_str.format(
             *(
                 arg.gen_code_and_update_ctx(code_input, ctx)
@@ -2277,7 +2261,7 @@ class GetItem(BaseMethodConversion):
     def wrap_path_item(self, code_input, path_item):
         return f"{code_input}[{path_item}]"
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         code_self, code_input = self.get_self_and_input_code(code_input, ctx)
         if self.default is None:
             code_output = code_self
@@ -2384,7 +2368,7 @@ class Call(BaseMethodConversion):
             else {}
         )
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         code_self, code_input = self.get_self_and_input_code(code_input, ctx)
 
         params = chain(
@@ -2498,7 +2482,7 @@ class BaseComp(BaseMethodConversion):
 class GeneratorComp(BaseComp):
     """Generates python generator comprehension code."""
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         item_code, param_code = self.get_item_n_param_codes(ctx)
         code_iterable = self.get_iterable_code(code_input, ctx)
 
@@ -2561,7 +2545,7 @@ class SetComp(BaseComp):
 
     base_type_to_cast = set
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         item_code, param_code = self.get_item_n_param_codes(ctx)
         code_iterable = self.get_iterable_code(code_input, ctx)
 
@@ -2582,7 +2566,7 @@ class ListComp(BaseComp):
 
     base_type_to_cast = list
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         item_code, param_code = self.get_item_n_param_codes(ctx)
         code_iterable = self.get_iterable_code(code_input, ctx)
 
@@ -2612,7 +2596,7 @@ class TupleComp(BaseComp):
 
     base_type_to_cast = tuple
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         item_code, param_code = self.get_item_n_param_codes(ctx)
         code_iterable = self.get_iterable_code(code_input, ctx)
 
@@ -2665,7 +2649,7 @@ class DictComp(BaseMethodConversion):
         code_self, _ = self.get_self_and_input_code(code_input, ctx)
         return code_self
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         param_code = self.gen_random_name("i", ctx)
         key_code = self.key.gen_code_and_update_ctx(param_code, ctx)
         value_code = self.value.gen_code_and_update_ctx(param_code, ctx)
@@ -2695,6 +2679,10 @@ class BaseCollectionConversion(BaseConversion):
     conversions: Optional[List[BaseConversion]] = None
     pairs: Optional[List[Tuple[BaseConversion, BaseConversion]]] = None
     conditions: Optional[Mapping[int, BaseConversion]] = None
+
+    JOINED_ITEMS_PREFIX: str
+    JOINED_ITEMS_SUFFIX: str
+    EMPTY_JOINED_ITEMS_CODE: str
 
     def __init__(self, *items):
         """Initialize self.
@@ -2788,24 +2776,19 @@ class BaseCollectionConversion(BaseConversion):
             conversion
         ).gen_code_and_update_ctx(code_input, ctx)
 
-    def gen_joined_items_code(self, code_input, ctx):
+    def gen_joined_items_code(self, code_input, ctx, stream):
         if self.conversions is None:
             raise AssertionError
-
-        return ("," if len(self.conversions) < 3 else ",\n").join(
-            item.gen_code_and_update_ctx(code_input, ctx)
-            for item in self.conversions
-        )
-
-    def gen_collection_from_items_code(
-        self, joined_items_code, code_input, ctx
-    ):
-        raise NotImplementedError
+        write_ = stream.write
+        sep = "," if len(self.conversions) < 3 else ",\n"
+        for item in self.conversions:
+            write_(item.gen_code_and_update_ctx(code_input, ctx))
+            write_(sep)
 
     def gen_collection_from_generator(self, generator_code, code_input, ctx):
         raise NotImplementedError
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         if self.conditions is not None:
             return self.gen_collection_from_generator(
                 self.gen_optional_items_generator_code(code_input, ctx),
@@ -2813,10 +2796,15 @@ class BaseCollectionConversion(BaseConversion):
                 ctx,
             )
 
-        joined_items_code = self.gen_joined_items_code(code_input, ctx)
-        return self.gen_collection_from_items_code(
-            joined_items_code, code_input, ctx
-        )
+        stream = StringIO()
+        write_ = stream.write
+        if self.conversions or self.pairs:
+            write_(self.JOINED_ITEMS_PREFIX)
+            self.gen_joined_items_code(code_input, ctx, stream)
+            write_(self.JOINED_ITEMS_SUFFIX)
+        else:
+            write_(self.EMPTY_JOINED_ITEMS_CODE)
+        return stream.getvalue()
 
 
 class OptionalCollectionItem(BaseConversion):
@@ -2864,7 +2852,7 @@ class OptionalCollectionItem(BaseConversion):
                 skip_value
             )
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         raise AssertionError(
             "OptionalCollectionItem cannot be used outside of collections"
         )
@@ -2874,13 +2862,9 @@ class Tuple_(BaseCollectionConversion):
     """Define tuple."""
 
     weight = Weights.TUPLE_INIT
-
-    def gen_collection_from_items_code(
-        self, joined_items_code, code_input, ctx
-    ):
-        if not joined_items_code:
-            return "()"
-        return f"({joined_items_code},)"
+    JOINED_ITEMS_PREFIX = "("
+    JOINED_ITEMS_SUFFIX = ")"
+    EMPTY_JOINED_ITEMS_CODE = "()"
 
     def gen_collection_from_generator(self, generator_code, code_input, ctx):
         return f"tuple({generator_code})"
@@ -2890,11 +2874,9 @@ class List_(BaseCollectionConversion):
     """Define list."""
 
     weight = Weights.LIST_INIT
-
-    def gen_collection_from_items_code(
-        self, joined_items_code, code_input, ctx
-    ):
-        return f"[{joined_items_code}]"
+    JOINED_ITEMS_PREFIX = "["
+    JOINED_ITEMS_SUFFIX = "]"
+    EMPTY_JOINED_ITEMS_CODE = "[]"
 
     def gen_collection_from_generator(self, generator_code, code_input, ctx):
         return f"list({generator_code})"
@@ -2904,11 +2886,9 @@ class Set_(BaseCollectionConversion):
     """Define set."""
 
     weight = Weights.SET_INIT
-
-    def gen_collection_from_items_code(
-        self, joined_items_code, code_input, ctx
-    ):
-        return f"{{{joined_items_code}}}"
+    JOINED_ITEMS_PREFIX = "{"
+    JOINED_ITEMS_SUFFIX = "}"
+    EMPTY_JOINED_ITEMS_CODE = "set()"
 
     def gen_collection_from_generator(self, generator_code, code_input, ctx):
         return f"set({generator_code})"
@@ -2918,6 +2898,9 @@ class Dict_(BaseCollectionConversion):
     """Define dict."""
 
     weight = Weights.DICT_INIT
+    JOINED_ITEMS_PREFIX = "{"
+    JOINED_ITEMS_SUFFIX = "}"
+    EMPTY_JOINED_ITEMS_CODE = "{}"
 
     def _init_from_items(self, items):
         pairs: "List[Tuple[BaseConversion, BaseConversion]]" = []
@@ -2949,22 +2932,19 @@ class Dict_(BaseCollectionConversion):
         self.pairs = pairs
         self.conditions = conditions
 
-    def gen_joined_items_code(self, code_input, ctx):
+    def gen_joined_items_code(self, code_input, ctx, stream):
         if self.pairs is None:
             raise AssertionError
-        return ("," if len(self.pairs) < 3 else ",\n").join(
-            f"{key.gen_code_and_update_ctx(code_input, ctx)}:"
-            f"{value.gen_code_and_update_ctx(code_input, ctx)}"
-            for key, value in self.pairs
-        )
+        write_ = stream.write
+        sep = "," if len(self.pairs) < 3 else ",\n"
+        for key, value in self.pairs:
+            write_(key.gen_code_and_update_ctx(code_input, ctx))
+            write_(":")
+            write_(value.gen_code_and_update_ctx(code_input, ctx))
+            write_(sep)
 
     def gen_collection_from_generator(self, generator_code, code_input, ctx):
         return f"dict({generator_code})"
-
-    def gen_collection_from_items_code(
-        self, joined_items_code, code_input, ctx
-    ):
-        return f"{{{joined_items_code}}}"
 
 
 class TakeWhile(BaseConversion):
@@ -2987,7 +2967,7 @@ class TakeWhile(BaseConversion):
         self.cast = cast
         return self
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_random_name("_", ctx)
         converter_name = f"take_while{suffix}"
         var_it = f"it{suffix}"
@@ -3039,7 +3019,7 @@ class DropWhile(BaseConversion):
         self.filter_results_conditions = None
         self.cast = self._none
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_random_name("_", ctx)
         converter_name = f"drop_while{suffix}"
         var_it = f"it{suffix}"
@@ -3103,7 +3083,7 @@ class Dispatcher(BaseConversion):
         )
         self.number_of_input_uses = 2
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_random_name("dispatch", ctx)
         var_input = "data_"
 
@@ -3394,7 +3374,7 @@ class PipeConversion(BaseConversion):
             "unexpected label_input type", type(label_arg), label_arg
         )
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         if self.to_be_inlined:
             return self.where.gen_code_and_update_ctx(
                 self.what.gen_code_and_update_ctx(code_input, ctx), ctx

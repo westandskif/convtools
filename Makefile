@@ -47,3 +47,10 @@ test-py%:
 		"pip install -e . && pytest"
 
 test: test-py3.6 test-py3.7 test-py3.8 test-py3.9 test-py3.10 test-py3.11 test-py3.12
+
+benchmark-py%:
+	~/.pyenv/versions/convtools-$*/bin/pip install -e .
+	~/.pyenv/versions/convtools-$*/bin/pip install tabulate
+	~/.pyenv/versions/convtools-$*/bin/python run_benchmarks.py
+
+benchmarks: benchmark-py3.7 benchmark-py3.8 benchmark-py3.9 benchmark-py3.10 benchmark-py3.11 benchmark-py3.12

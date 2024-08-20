@@ -24,16 +24,25 @@ assert c([1, c.this, 2]).execute(None, debug=True) == [1, None, 2]
 
 /// tab | debug stdout
 ```python
-def converter(data_, *, __format=__naive_values__["__format"]):
+def _converter(data_, *, __format=__naive_values__["__format"]):
     try:
-        return {"a": data_[0], "b": data_[1], "c": (data_[0] + data_[1]), __format(data_[0]): "key is dynamic"}
+        return {
+            "a": data_[0],
+            "b": data_[1],
+            "c": (data_[0] + data_[1]),
+            __format(data_[0]): "key is dynamic",
+        }
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return [1, data_, 2]
+        return [
+            1,
+            data_,
+            2,
+        ]
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

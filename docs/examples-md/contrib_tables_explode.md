@@ -27,20 +27,20 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
         return (
             (
-                i["a"],
-                i["b"],
+                _i["a"],
+                _i["b"],
             )
-            for i in data_
+            for _i in data_
         )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
         return (
             (

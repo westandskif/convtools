@@ -1,3 +1,7 @@
+## 1.13.0 (2024-08-21)
+
+- sped up aggregations by CSE (common subexpression elimination)
+
 ## 1.12.1 (2024-07-14)
 
 - sped up `c.item(..., default=...)` for python 3.10+ by a c-extension

@@ -32,7 +32,7 @@ assert (
 
 /// tab | debug stdout
 ```python
-def chunk_by(items_):
+def _chunk_by(items_):
     items_ = iter(items_)
     try:
         item_ = next(items_)
@@ -56,14 +56,14 @@ def chunk_by(items_):
             chunk_item_signature = new_item_signature
     yield chunk_
 
-def converter(data_):
+def _converter(data_):
     try:
-        return list(chunk_by(data_))
+        return list(_chunk_by(data_))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def chunk_by(items_):
+def _chunk_by(items_):
     items_ = iter(items_)
     try:
         item_ = next(items_)
@@ -81,14 +81,14 @@ def chunk_by(items_):
             size_ = 1
     yield chunk_
 
-def converter(data_):
+def _converter(data_):
     try:
-        return list(chunk_by(data_))
+        return list(_chunk_by(data_))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def chunk_by(items_):
+def _chunk_by(items_):
     items_ = iter(items_)
     try:
         item_ = next(items_)
@@ -109,14 +109,14 @@ def chunk_by(items_):
             size_ = 1
     yield chunk_
 
-def converter(data_):
+def _converter(data_):
     try:
-        return list(chunk_by(data_))
+        return list(_chunk_by(data_))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def chunk_by_condition(items_):
+def _chunk_by_condition(items_):
     items_ = iter(items_)
     try:
         chunk_ = [next(items_)]
@@ -132,9 +132,9 @@ def chunk_by_condition(items_):
 
     yield chunk_
 
-def converter(data_):
+def _converter(data_):
     try:
-        return list(chunk_by_condition(data_))
+        return list(_chunk_by_condition(data_))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

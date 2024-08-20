@@ -32,7 +32,7 @@ def iter_mut__(extra, data_):
         item__.update(extra)
         yield item__
 
-def converter(data_, *, extra):
+def _converter(data_, *, extra):
     try:
         return list(iter_mut__(extra, data_))
     except __exceptions_to_dump_sources:

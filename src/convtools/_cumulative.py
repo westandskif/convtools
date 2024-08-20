@@ -35,7 +35,7 @@ class CumulativeReset(BaseConversion):
         self.parent = self.ensure_conversion(parent)
         self.contents |= BaseConversion.ContentTypes.NEW_LABEL
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return (
             f"(_labels.pop({repr(self.label_name)}, None), "
             f"{self.parent.gen_code_and_update_ctx(code_input, ctx)})[1]"
@@ -91,7 +91,7 @@ class Cumulative(BaseConversion):
         )
         self.contents |= BaseConversion.ContentTypes.NEW_LABEL
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return PipeConversion(
             self.parent,
             If(

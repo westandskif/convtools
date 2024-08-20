@@ -13,9 +13,9 @@ assert converter([10]) == -1
 
 /// tab | debug stdout
 ```python
-def converter(data_, *, __get_1_or_default=__naive_values__["__get_1_or_default"]):
+def _converter(data_, *, __get_item_deep_default_simple=__naive_values__["__get_item_deep_default_simple"]):
     try:
-        return __get_1_or_default(data_, 1, -1)
+        return __get_item_deep_default_simple(data_, 1, -1)
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

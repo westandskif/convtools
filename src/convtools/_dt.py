@@ -730,7 +730,7 @@ class DatetimeFormat(BaseConversion):
         super().__init__()
         self.fmt = fmt
 
-    def _to_code(self, code_input, ctx):
+    def to_code(self, code_input, ctx):
         result = []
 
         code_params = CodeParams()
@@ -869,7 +869,7 @@ class DatetimeFormat(BaseConversion):
         code.add_line(f'return f"{f_string_code}"', 0)
         return code
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         try:
             converter_name = self.gen_random_name("datetime_format", ctx)
             function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
@@ -877,7 +877,7 @@ class DatetimeFormat(BaseConversion):
             with function_ctx:
                 code = Code()
                 code.add_line("def placeholder", 1)
-                code_ = self._to_code("data_", ctx)
+                code_ = self.to_code("data_", ctx)
                 if code_ is None:
                     raise UnsupportedFormatCode
                 code.add_code(code_)
@@ -1035,7 +1035,7 @@ class DatetimeParse(BaseConversion):
         format_args = code_params.get_format_args()
         return re_pattern, assignment_code_lines, format_args
 
-    def _to_code(self, code_input, ctx):
+    def to_code(self, code_input, ctx):
         if self.re_pattern is None:
             return None
 
@@ -1072,7 +1072,7 @@ class DatetimeParse(BaseConversion):
         )
         return code
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         if self.re_pattern is None:
             return CallFunc(
                 datetime.strptime, This, self.fmt
@@ -1084,7 +1084,7 @@ class DatetimeParse(BaseConversion):
         with function_ctx:
             code = Code()
             code.add_line("def placeholder", 1)
-            code.add_code(self._to_code("data_", ctx))
+            code.add_code(self.to_code("data_", ctx))
             code.lines_info[0] = (
                 0,
                 f"def {converter_name}({function_ctx.get_def_all_args_code()}):",

@@ -6,6 +6,7 @@ import pytest
 
 from convtools import conversion as c
 from convtools._base import LazyEscapedString, Namespace
+from convtools._utils import CODE_FORMATTING_AVAILABLE, format_code
 
 from .utils import get_code_str
 
@@ -942,3 +943,159 @@ def test_group_by_none_counts():
     ).gen_converter()
     assert converter((1,) * 10) == {1: 10}
     assert converter((None,) * 10) is None
+
+
+def test_group_by_reducers_reuse():
+    converter = (
+        c.group_by(c.item("a"))
+        .aggregate(
+            {
+                "a": c.item("a"),
+                "number": c.ReduceFuncs.Count(),
+                "sum": c.ReduceFuncs.Sum(c.item("b")),
+                "avg": c.ReduceFuncs.Average(c.item("b")).pipe(round, 1),
+                "min": c.ReduceFuncs.Min(c.item("b")),
+                "c_avg": c.ReduceFuncs.Average(
+                    c.item("c"), where=c("c").in_(c.this)
+                ).pipe(round, 1),
+                "c_squared_avg": c.ReduceFuncs.Average(
+                    c.item("c") * c.item("c"), where=c("c").in_(c.this)
+                ).pipe(round, 1),
+                "c_squared_max": c.ReduceFuncs.Max(
+                    c.item("c") * c.item("c"), where=c("c").in_(c.this)
+                ),
+            }
+        )
+        .gen_converter(debug=True)
+    )
+    data = [
+        {"a": 1, "b": 2, "c": 3},
+        {"a": 1, "b": 3, "c": 5},
+        {"a": 1, "b": 4, "c": 7},
+        {"a": 2, "b": 5, "c": 9},
+        {"a": 2, "b": 6, "c": 11},
+        {"a": 2, "b": 7, "c": 13},
+        {"a": 3, "b": 8, "c": 15},
+        {"a": 3, "b": 9, "c": 17},
+        {"a": 3, "b": 10, "c": 19},
+    ]
+    result = converter(data)
+    assert result == [
+        {
+            "a": 1,
+            "number": 3,
+            "sum": 9,
+            "avg": 3.0,
+            "min": 2,
+            "c_avg": 5.0,
+            "c_squared_avg": 27.7,
+            "c_squared_max": 49,
+        },
+        {
+            "a": 2,
+            "number": 3,
+            "sum": 18,
+            "avg": 6.0,
+            "min": 5,
+            "c_avg": 11.0,
+            "c_squared_avg": 123.7,
+            "c_squared_max": 169,
+        },
+        {
+            "a": 3,
+            "number": 3,
+            "sum": 27,
+            "avg": 9.0,
+            "min": 8,
+            "c_avg": 17.0,
+            "c_squared_avg": 291.7,
+            "c_squared_max": 361,
+        },
+    ]
+
+
+def test_aggregate_reducers_reuse():
+    converter = c.aggregate(
+        {
+            "number": c.ReduceFuncs.Count(),
+            "sum": c.ReduceFuncs.Sum(c.item("b")),
+            "count": c.ReduceFuncs.Count(c.item("b")),
+            "avg": c.ReduceFuncs.Average(c.item("b")).pipe(round, 1),
+            "min": c.ReduceFuncs.Min(c.item("b")),
+            "max": c.ReduceFuncs.Max(c.item("b")),
+            "c_avg": c.ReduceFuncs.Average(
+                c.item("c"), where=c("c").in_(c.this)
+            ).pipe(round, 1),
+            "c_squared_avg": c.ReduceFuncs.Average(
+                c.item("c") * c.item("c"), where=c("c").in_(c.this)
+            ).pipe(round, 1),
+            "c_squared_max": c.ReduceFuncs.Max(
+                c.item("c") * c.item("c"), where=c("c").in_(c.this)
+            ),
+        }
+    ).gen_converter(debug=False)
+    if CODE_FORMATTING_AVAILABLE:
+        code_str = format_code(get_code_str(converter))
+        assert (
+            code_str.count("is _none:") == 3
+            and code_str.count('row_["c"]') == 2
+            and code_str.count('row_["b"]') == 2
+        )
+
+    data = [
+        {"a": 1, "b": 2, "c": 3},
+        {"a": 1, "b": 3, "c": 5},
+        {"a": 1, "b": 4, "c": 7},
+        {"a": 2, "b": 5, "c": 9},
+        {"a": 2, "b": 6, "c": 11},
+        {"a": 2, "b": 7, "c": 13},
+        {"a": 3, "b": 8, "c": 15},
+        {"a": 3, "b": 9, "c": 17},
+        {"a": 3, "b": 10, "c": 19},
+    ]
+    result = converter(data)
+    assert result == {
+        "number": 9,
+        "sum": 54,
+        "count": 9,
+        "avg": 6.0,
+        "min": 2,
+        "max": 10,
+        "c_avg": 11.0,
+        "c_squared_avg": 147.7,
+        "c_squared_max": 361,
+    }
+
+    converter = c.aggregate(
+        {
+            "a": c.ReduceFuncs.Sum(c.item(0, "data", "a").pipe(abs)),
+            "b": c.ReduceFuncs.Sum(
+                c.item(0, "data", "b") + c.item(0, "data", "c")
+            ),
+            "c": c.ReduceFuncs.Sum(c.item(0, "data", "c").item("d")),
+            "e": c.ReduceFuncs.Sum(
+                c.item(0, "data", "e"), where=c("e").in_(c.item(0, "data"))
+            ),
+            "ee": c.ReduceFuncs.Sum(
+                c.item(0, "data", "e") * c.item(0, "data", "e"),
+                where=c("e").in_(c.item(0, "data")),
+            ),
+        }
+    ).gen_converter(debug=False)
+    code_str = get_code_str(converter)
+    assert code_str.count('["data"]') == 2 or code_str.count("['data']") == 2
+
+    c_obj_1 = c.item(*range(50))
+    c_obj_2 = c.item(*range(100))
+    converter = c.aggregate(
+        (c.ReduceFuncs.Sum(c_obj_1),)
+        + tuple(c.ReduceFuncs.Sum(c_obj_2.item(key)) for key in "abcdefghijk"),
+    ).gen_converter(debug=False)
+    code_str = get_code_str(converter)
+    assert (
+        "_r0_ = row_[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23][24][25][26][27][28][29][30][31][32][33][34][35][36][37][38][39][40][41][42][43][44][45][46][47][48][49]"
+        in code_str
+        and "_r1_ = _r0_[50][51][52][53][54][55][56][57][58][59][60][61][62][63][64][65][66][67][68][69][70][71][72][73][74][75][76][77][78][79][80][81][82][83][84][85][86][87][88][89][90][91][92][93][94][95][96][97][98][99]"
+        in code_str
+        and "_r2_" not in code_str
+    )

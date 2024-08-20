@@ -254,7 +254,7 @@ class JoinConversion(BaseConversion):
             how = "outer"
         return how
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         join_conditions = _JoinConditions.from_condition(
             self.condition, how=self.how
         )

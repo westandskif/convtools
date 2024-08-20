@@ -52,9 +52,9 @@ def aggregate_i(_none, data_, *, __v=__naive_values__["__v"]):
     it_ = iter(data_)
     for row_i in it_:
         if agg_data_i_v0 is _none:
-            checksum_ += 1
             agg_data_i_v0 = defaultdict(list)
             agg_data_i_v0[row_i[0]].append(row_i)
+            checksum_ += 1
         else:
             agg_data_i_v0[row_i[0]].append(row_i)
         if checksum_ == 1:
@@ -74,7 +74,7 @@ def join_(left_, right_, _none):
         for right_item in right_items:
             yield left_item, right_item
 
-def converter(data_, *, right):
+def _converter(data_, *, right):
     global __none__
     _none = __none__
     try:
@@ -83,9 +83,16 @@ def converter(data_, *, right):
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"a": i[0][0], "b": i[0][1], "c": i[1][1]} for i in data_)
+        return (
+            {
+                "a": _i[0][0],
+                "b": _i[0][1],
+                "c": _i[1][1],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
@@ -97,9 +104,9 @@ def aggregate_e(_none, data_, *, __v=__naive_values__["__v"]):
     it_ = iter(data_)
     for row_e in it_:
         if agg_data_e_v0 is _none:
-            checksum_ += 1
             agg_data_e_v0 = defaultdict(list)
             agg_data_e_v0[row_e[0]].append(row_e)
+            checksum_ += 1
         else:
             agg_data_e_v0[row_e[0]].append(row_e)
         if checksum_ == 1:
@@ -116,7 +123,7 @@ def join_(left_, right_, _none):
     del right_
     for left_item in left_:
         left_key = left_item[0]
-        right_items = iter((((i for i in hash_to_right_items[left_key] if (((left_item[1] < i[1])))) if (left_key in hash_to_right_items) else ())))
+        right_items = iter((((_i for _i in hash_to_right_items[left_key] if (((left_item[1] < _i[1])))) if (left_key in hash_to_right_items) else ())))
         right_item = next(right_items, _none)
         if right_item is _none:
             yield left_item, None
@@ -130,7 +137,7 @@ def join_(left_, right_, _none):
         (None, right_item) for right_item in (item for items in hash_to_right_items.values() for item in items) if id(right_item) not in yielded_right_ids
     )
 
-def converter(data_, *, right):
+def _converter(data_, *, right):
     global __none__
     _none = __none__
     try:
@@ -139,16 +146,16 @@ def converter(data_, *, right):
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
         return (
             {
-                "a_LEFT": ((None if (i[0] is None) else i[0][0])),
-                "b": ((None if (i[0] is None) else i[0][1])),
-                "a_RIGHT": ((None if (i[1] is None) else i[1][0])),
-                "c": ((None if (i[1] is None) else i[1][1])),
+                "a_LEFT": ((None if (_i[0] is None) else _i[0][0])),
+                "b": ((None if (_i[0] is None) else _i[0][1])),
+                "a_RIGHT": ((None if (_i[1] is None) else _i[1][0])),
+                "c": ((None if (_i[1] is None) else _i[1][1])),
             }
-            for i in data_
+            for _i in data_
         )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()

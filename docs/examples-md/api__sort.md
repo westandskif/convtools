@@ -34,22 +34,26 @@ assert converter(data) == [
 
 /// tab | debug stdout
 ```python
-def _converter(data_, *, __lambda=__naive_values__['__lambda']):
+def _converter(data_, *, __lambda=__naive_values__["__lambda"]):
     try:
-        return sorted(data_,key=__lambda,reverse=True)
+        return sorted(data_, key=__lambda, reverse=True)
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
+
 def _sorting_key_wrapper():
     def _sorting_key(data_):
-        return (data_['a'] is not None, ReversedOrdering(data_['a']), data_['b'])
+        return (data_["a"] is not None, ReversedOrdering(data_["a"]), data_["b"])
+
     return _sorting_key
+
 def _converter(data_):
     try:
-        return sorted(data_,key=_sorting_key_wrapper())
+        return sorted(data_, key=_sorting_key_wrapper())
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
+
 
 ```
 ///

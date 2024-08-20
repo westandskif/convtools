@@ -169,7 +169,7 @@ def test_gen_converter():
 
 def test_custom_converter_generation():
     class CustomConversion(c.BaseConversion):
-        def _gen_code_and_update_ctx(self, code_input, ctx):
+        def gen_code_and_update_ctx(self, code_input, ctx):
             function_ctx = self.as_function_ctx(ctx)
             with function_ctx:
                 function_ctx.add_arg("data_", c.this)
@@ -1026,7 +1026,7 @@ def test_call_like_methods():
 
 
 class CustomConversion(c.BaseConversion):
-    def _to_code(self, code_input, ctx):
+    def to_code(self, code_input, ctx):
         code = Code()
         code.add_line("return 1", 0)
         return code

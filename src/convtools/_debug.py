@@ -42,5 +42,5 @@ class Breakpoint(BaseConversion):
             ensure_conversion(to_debug).pipe(self.debug_func)
         )
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return self.conversion.gen_code_and_update_ctx(code_input, ctx)

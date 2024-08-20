@@ -1,13 +1,24 @@
+import ast
+from itertools import zip_longest
+
 import pytest
 
 from convtools import conversion as c
+from convtools._aggregations import fuzzy_merge_group_by_cmp
 from convtools._base import (
     BaseConversion,
     ConverterOptions,
     ConverterOptionsCtx,
     This,
 )
-from convtools._utils import Code, CodeParams, CodeStorage
+from convtools._utils import (
+    Code,
+    CodeParams,
+    CodeStorage,
+    ast_are_fuzzy_equal,
+    ast_merge,
+    ast_unparse,
+)
 
 
 def test_code_generation_ctx():
@@ -131,3 +142,267 @@ def test_code_params():
     params.create("1", "a", used_names="z")
     with pytest.raises(ValueError):
         params.use_param("z")
+
+
+def fuzzy_cmp(x, y, _same=("a", "b")):
+    if (
+        isinstance(x, ast.Name)
+        and isinstance(y, ast.Name)
+        and x.id in _same
+        and y.id in _same
+    ):
+        return True
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("""a""", """a""", fuzzy_cmp, True),
+        ("""a""", """b""", fuzzy_cmp, True),
+        ("""a""", """c""", fuzzy_cmp, False),
+        ("""a + 1""", """b + 1""", fuzzy_cmp, True),
+        ("""a + 1""", """c + 1""", fuzzy_cmp, False),
+        ("""a < 1""", """b < 1""", fuzzy_cmp, True),
+        ("""a < 1""", """b > 1""", fuzzy_cmp, False),
+        ("""d[a]""", """d[b]""", fuzzy_cmp, True),
+        ("""d[a]""", """d[c]""", fuzzy_cmp, False),
+        (
+            """
+if a ** 2 < 2:
+    pass
+            """,
+            """
+if b ** 2 < 2:
+    pass
+            """,
+            fuzzy_cmp,
+            True,
+        ),
+        (
+            """
+if 1 < 2:
+    1 == 2
+    c = a.strip()
+            """,
+            """
+if 1 < 2:
+    1 == 2
+    c = b.strip()
+            """,
+            fuzzy_cmp,
+            True,
+        ),
+        (
+            """
+if 1 < 2:
+    1 == 2
+    c = a.strip()
+            """,
+            """
+if 1 < 2:
+    1 == 2
+    c = d.strip()
+            """,
+            fuzzy_cmp,
+            False,
+        ),
+    ],
+)
+def test_ast_fuzzy_equal(args):
+    code_left, code_right, fuzzy_cmp, expected = args
+    assert (
+        ast_are_fuzzy_equal(
+            ast.parse(code_left), ast.parse(code_right), fuzzy_cmp
+        )
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        (
+            """a = 1""",
+            """b = 1""",
+            """
+b = 1
+a = 1""",
+        ),
+        (
+            """
+if a > 1:
+    a += 1
+        """,
+            """
+if a > 1:
+    a += 2
+        """,
+            """
+if a > 1:
+    a += 2
+    a += 1
+        """,
+        ),
+        (
+            """
+if a > 1:
+    a += 1
+        """,
+            """
+if a >= 1:
+    a += 2
+        """,
+            """
+if a >= 1:
+    a += 2
+if a > 1:
+    a += 1
+        """,
+        ),
+        (
+            """
+if a > 1:
+    a += 1
+    if b['c']:
+        b += 1
+    if b['d']:
+        b += 2
+        """,
+            """
+x += 0
+if a > 1:
+    a += 2
+    if b['c']:
+        b += 3
+    if b['d']:
+        b += 33
+    if b['c']:
+        b += 333
+    if b['c'] < 0:
+        b += 3333
+    c += 4
+d += 5
+        """,
+            """
+x += 0
+if a > 1:
+    a += 2
+    a += 1
+    if b['c']:
+        b += 3
+        b += 1
+    if b['d']:
+        b += 33
+        b += 2
+    if b['c']:
+        b += 333
+    if b['c'] < 0:
+        b += 3333
+    c += 4
+d += 5
+        """,
+        ),
+        (
+            """
+for i in range(10):
+    a += i
+for i in range(11):
+    a += i
+""",
+            """
+for i in range(11):
+    b += i
+for i in range(10):
+    b += i
+""",
+            """
+for i in range(10):
+    a += i
+for i in range(11):
+    b += i
+    a += i
+for i in range(10):
+    b += i
+""",
+        ),
+        (
+            """
+try:
+    a += 1
+except TypeError:
+    a += 2
+finally:
+    a += 3
+while a < 100:
+    a += 1
+""",
+            """
+b = 0
+try:
+    b += 1
+except TypeError:
+    b += 2
+finally:
+    b += 3
+while a < 100:
+    a += 2
+while a <= 100:
+    a += 3
+""",
+            """
+b = 0
+try:
+    b += 1
+    a += 1
+except TypeError:
+    b += 2
+    a += 2
+finally:
+    b += 3
+    a += 3
+while a < 100:
+    a += 2
+    a += 1
+while a <= 100:
+    a += 3
+""",
+        ),
+        (
+            """
+if agg_data_.v1 is _none:
+    agg_data_.v1 = row_['b']
+elif agg_data_.v1 < row_['b']:
+        agg_data_.v1 = row_['b']
+""",
+            """
+if agg_data_.v2 is _none:
+    agg_data_.v2 = row_['b'] + 1
+else:
+    if agg_data_.v2 < row_['b']:
+        agg_data_.v2 = row_['b']
+""",
+            """
+if agg_data_.v1 is _none:
+    agg_data_.v2 = row_['b'] + 1
+    agg_data_.v1 = row_['b']
+else:
+    if agg_data_.v2 < row_['b']:
+        agg_data_.v2 = row_['b']
+    if agg_data_.v1 < row_['b']:
+        agg_data_.v1 = row_['b']
+""",
+        ),
+    ],
+)
+def test_ast_merge(args):
+    code_left, code_right, expected = args
+    left = ast.parse(code_left)
+    ast_merge(left, ast.parse(code_right), fuzzy_merge_group_by_cmp)
+    try:
+        assert ast_are_fuzzy_equal(
+            left, ast.parse(expected), lambda a, b: False
+        )
+    except:
+        print(expected)
+        print(ast_unparse(left))
+        raise

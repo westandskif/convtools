@@ -15,10 +15,11 @@ assert converter(10, increment=5) == 15
 ```python
 def _converter(data_, *, increment):
     try:
-        return (data_ + increment)
+        return data_ + increment
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
+
 
 ```
 ///

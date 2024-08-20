@@ -18,5 +18,4 @@ mkdocs-material
 pygments
 pymdown-extensions
 
-pydantic
 tabulate

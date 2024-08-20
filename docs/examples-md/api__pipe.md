@@ -23,9 +23,9 @@ assert converter([{"value": -4}, {"value": 2}]) == [9, 6]
 def pipe_(input_):
     return (input_ * input_) if (input_ < 0) else (input_ * 2)
 
-def converter(data_):
+def _converter(data_):
     try:
-        return [pipe_((i["value"] + 1)) for i in data_]
+        return [pipe_((_i["value"] + 1)) for _i in data_]
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

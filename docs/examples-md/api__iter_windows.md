@@ -21,7 +21,7 @@ assert converter(range(5)) == [
 
 /// tab | debug stdout
 ```python
-def converter(data_, *, __iter_windows=__naive_values__["__iter_windows"]):
+def _converter(data_, *, __iter_windows=__naive_values__["__iter_windows"]):
     try:
         return list(__iter_windows(data_, 3, 1))
     except __exceptions_to_dump_sources:

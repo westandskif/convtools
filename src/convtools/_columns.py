@@ -25,7 +25,7 @@ class ColumnRef(BaseConversion):
         self.index = index
         return self
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         if self.index is None:
             raise ConversionException(
                 "column index is not initialized, "

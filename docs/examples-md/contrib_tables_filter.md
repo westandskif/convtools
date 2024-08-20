@@ -19,9 +19,16 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"a": i[0], "b": i[1]} for i in data_ if (((i[1] < -2))))
+        return (
+            {
+                "a": _i[0],
+                "b": _i[1],
+            }
+            for _i in data_
+            if (((_i[1] < -2)))
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

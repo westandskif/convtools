@@ -8,11 +8,11 @@ class SimpleTimer(Timer):
     """A simpler timer which allows to automatically measure time taken to get
     stable results based on coefficient of variation (sigma to mean ratio)"""
 
-    REL_PRECISION = 0.005
+    REL_PRECISION = 0.015
 
     def auto_measure(
         self,
-        max_time=10,
+        max_time=15,
         min_time=0.02,
         rel_precision=REL_PRECISION,
         expected_num_of_checks=40,
@@ -58,7 +58,7 @@ class SimpleTimer(Timer):
         while True:
             mean = sum(times) / checks
             std_deviation = (
-                sqrt(sum(d * d for d in (mean - t for t in times))) / checks
+                sqrt(sum(d * d for d in (mean - t for t in times)) / checks)
             )
             ratio = std_deviation / mean
             if ratio < std_deviation_to_mean_ratio:

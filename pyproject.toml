@@ -43,7 +43,9 @@ classifiers = [
 	"Topic :: Software Development :: Libraries :: Python Modules",
 	"Topic :: Utilities",
 ]
-dependencies = []
+dependencies = [
+    'astunparse==1.6.3; python_version < "3.9"',
+]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-benchmark"]

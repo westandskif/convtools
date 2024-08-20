@@ -83,7 +83,7 @@ class SortingKeyConversion(BaseConversion):
         if isinstance(index, InputArg):
             return index, getter_type
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         getter_type = None
         indexes = []
         if self.common_conv is None:
@@ -213,7 +213,7 @@ class SortConversion(BaseConversion):
         if reverse:
             self.sorted_kwargs["reverse"] = self.ensure_conversion(reverse)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         return (
             EscapedString("sorted")
             .call(EscapedString(code_input), **self.sorted_kwargs)

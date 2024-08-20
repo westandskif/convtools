@@ -42,18 +42,18 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
         return (
-            i
-            for i in (
+            _i
+            for _i in (
                 (
-                    float(i_i[0]),
-                    int(i_i[1]),
+                    float(_i_i[0]),
+                    int(_i_i[1]),
                 )
-                for i_i in data_
+                for _i_i in data_
             )
-            if (i[1] >= 0)
+            if (_i[1] >= 0)
         )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
@@ -66,9 +66,9 @@ def aggregate_e(_none, data_, *, __v=__naive_values__["__v"]):
     it_ = iter(data_)
     for row_e in it_:
         if agg_data_e_v0 is _none:
-            checksum_ += 1
             agg_data_e_v0 = defaultdict(list)
             agg_data_e_v0[row_e[0]].append(row_e)
+            checksum_ += 1
         else:
             agg_data_e_v0[row_e[0]].append(row_e)
         if checksum_ == 1:
@@ -88,7 +88,7 @@ def join_(left_, right_, _none):
         for right_item in right_items:
             yield left_item, right_item
 
-def converter(data_, *, right):
+def _converter(data_, *, right):
     global __none__
     _none = __none__
     try:
@@ -97,9 +97,16 @@ def converter(data_, *, right):
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"b": i[0][1], "c": i[1][1], "a": i[0][0]} for i in data_)
+        return (
+            {
+                "b": _i[0][1],
+                "c": _i[1][1],
+                "a": _i[0][0],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
