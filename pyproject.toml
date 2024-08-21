@@ -44,7 +44,7 @@ classifiers = [
 	"Topic :: Utilities",
 ]
 dependencies = [
-    'astunparse==1.6.3; python_version < "3.9"',
+    "astunparse == 1.6.3; python_version < '3.9'",
 ]
 
 [project.optional-dependencies]

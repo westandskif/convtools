@@ -360,9 +360,9 @@ class BaseReducer(BaseConversion):
     default: Union[_None, BaseConversion] = _none
     initial: Union[_None, BaseConversion] = _none
     internals_are_public: bool
-    works_with_not_none_only: Tuple[int, ...]
-    prepare_first_lines: Union[Tuple[str, ...], Callable[[], Tuple[str, ...]]]
-    reduce_lines: Union[Tuple[str, ...], Callable[[], Tuple[str, ...]]]
+    # works_with_not_none_only: Union[Tuple[int, ...], Callable]
+    # prepare_first_lines: Union[Tuple[str, ...], Callable]
+    # reduce_lines: Union[Tuple[str, ...], Callable]
     where: Union[_None, BaseConversion]
 
     self_content_type = (
@@ -758,7 +758,7 @@ class SortedArrayReducer(SingleExpressionReducer):
     internals_are_public = False
     works_with_not_none_only = (False,)
     reduce_lines = ("%(result)s.append(%(value0)s)",)
-    post_conversion = This.call_method("get")
+    post_conversion: Any = This.call_method("get")
 
     def __init__(self, *args, key=None, reverse=False, **kwargs):
         super().__init__(*args, **kwargs)
