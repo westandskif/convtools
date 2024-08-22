@@ -15,16 +15,16 @@ assert list(converter(range(100))) == [0, 1, 2]
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
-        return (i for i in data_ if ((i < 3)))
+        return (_i for _i in data_ if ((_i < 3)))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return (i for i in data_ if ((i < 3)))
+        return (_i for _i in data_ if ((_i < 3)))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

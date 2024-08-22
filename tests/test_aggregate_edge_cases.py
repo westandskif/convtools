@@ -553,7 +553,7 @@ def test_group_by_percentile():
                 ),
             }
         )
-        .execute(input_data)
+        .execute(input_data, debug=False)
     )
 
     assert result == [
@@ -606,17 +606,18 @@ def test_conditional_init_merges():
                 c.ReduceFuncs.MaxRow(c.item(2), where=c.item(0) == 1).item(-1),
             ]
         )
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
-    # fmt: off
-    assert converter(
+    result = converter(
         [
             [1, 2, None],
             [1, 1, 4],
             [1, None, 3],
         ]
-    ) == [[2, None, 1, 2, 3, 4, {1: 1}, {1: 3}, {1: 2}, {1: 4}, [1, 1, 4], 4]]
-    # fmt: on
+    )
+    assert result == [
+        [2, None, 1, 2, 3, 4, {1: 1}, {1: 3}, {1: 2}, {1: 4}, [1, 1, 4], 4]
+    ]
 
     converter = (
         c.group_by(c.item(0))

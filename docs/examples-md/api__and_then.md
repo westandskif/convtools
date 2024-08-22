@@ -25,16 +25,16 @@ assert converter(range(3)) == [10, 1, 12]
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
-        return [(i and int(i)) for i in data_]
+        return [(_i and int(_i)) for _i in data_]
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return [(((i + 10) if (i != 1) else i)) for i in data_]
+        return [(((_i + 10) if (_i != 1) else _i)) for _i in data_]
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

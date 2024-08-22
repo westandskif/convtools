@@ -7,16 +7,16 @@ from collections import defaultdict
 from itertools import chain
 from time import time
 
-from pydantic import BaseModel
 
 import convtools
 from convtools import conversion as c
 from convtools.contrib.tables import Table
 
 from .timer import SimpleTimer
+from typing import NamedTuple
 
 
-class Environment(BaseModel):
+class Environment(NamedTuple):
     system: str
     arch: str
     py_version: str
@@ -26,7 +26,14 @@ class Environment(BaseModel):
     convtools_version: str
 
 
-class BenchmarkResult(Environment):
+class BenchmarkResult(NamedTuple):
+    system: str
+    arch: str
+    py_version: str
+    py_version_exact: str
+    py_implementation: str
+    py_compiler: str
+    convtools_version: str
     name: str
     diff: float
 
@@ -58,9 +65,10 @@ class BaseBenchmark(abc.ABC):
     def compare_results(self, data1, data2) -> bool:
         return data1 == data2
 
-    def get_execution_result(self) -> BenchmarkResult:
+    def get_execution_result(self, silent=False) -> BenchmarkResult:
         name = self.get_name()
-        print(f"TESTING: {name}")
+        if not silent:
+            print(f"TESTING: {name}")
         data = self.gen_data()
 
         convtools_converter = self.gen_converter()
@@ -79,7 +87,7 @@ class BaseBenchmark(abc.ABC):
         return BenchmarkResult(
             name=name,
             diff=best_naive / convtools_time,
-            **ENVIRONMENT.model_dump(),
+            **ENVIRONMENT._asdict(),
         )
 
     @abc.abstractmethod
@@ -107,10 +115,10 @@ class BenchmarkResultsStorage:
         if os.path.exists(self.FILENAME):
             return list(
                 map(
-                    BenchmarkResult.model_validate,
-                    Table.from_csv(self.FILENAME, header=True).into_iter_rows(
-                        dict
-                    ),
+                    BenchmarkResult._make,
+                    Table.from_csv(self.FILENAME, header=True)
+                    .update(diff=c.col("diff").as_type(float))
+                    .into_iter_rows(tuple),
                 )
             )
         return []
@@ -133,7 +141,7 @@ class BenchmarkResultsStorage:
         merged_results = (
             c.group_by(*(c.attr(key_) for key_ in self._key_fields))
             .aggregate(c.ReduceFuncs.Last(c.this))
-            .iter(c.this.call_method("model_dump"))
+            .iter(c.this.call_method("_asdict"))
             .execute(chain(self.load_results(), self.new_results))
         )
         resulting_rows = sorted(

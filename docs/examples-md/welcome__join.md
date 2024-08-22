@@ -58,9 +58,9 @@ def aggregate_i(_none, data_, *, __v=__naive_values__["__v"]):
     for row_i in it_:
         if row_i["age"] >= 18:
             if agg_data_i_v0 is _none:
-                checksum_ += 1
                 agg_data_i_v0 = defaultdict(list)
                 agg_data_i_v0[int(row_i["ID"])].append(row_i)
+                checksum_ += 1
             else:
                 agg_data_i_v0[int(row_i["ID"])].append(row_i)
         if checksum_ == 1:
@@ -86,13 +86,18 @@ def join_(left_, right_, _none):
             for right_item in right_items:
                 yield left_item, right_item
 
-def converter(data_, *, __get_2_or_default=__naive_values__["__get_2_or_default"]):
+def _converter(data_, *, __get_item_deep_default_simple=__naive_values__["__get_item_deep_default_simple"]):
     global __none__
     _none = __none__
     try:
         return [
-            {"id": i[0]["id"], "name": i[0]["name"], "age": __get_2_or_default(i, 1, "age", None), "country": __get_2_or_default(i, 1, "country", None)}
-            for i in join_(data_[0], data_[1], _none)
+            {
+                "id": _i_e[0]["id"],
+                "name": _i_e[0]["name"],
+                "age": __get_item_deep_default_simple(_i_e, 1, "age", None),
+                "country": __get_item_deep_default_simple(_i_e, 1, "country", None),
+            }
+            for _i_e in join_(data_[0], data_[1], _none)
         ]
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()

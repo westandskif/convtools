@@ -15,7 +15,12 @@ def print_new_weights():  # pragma: no cover
         "LIST_INIT": SimpleTimer("[1,2,3,4,5]"),
         "SET_INIT": SimpleTimer("{1,2,3,4,5}"),
         "DICT_INIT": SimpleTimer("{'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5}"),
+        "FUNCTION_CALL": SimpleTimer("f(v, 1)", "v=1\ndef f(v, x): return x"),
     }
+    print("# WARMING UP")
+    for i in range(2):
+        SimpleTimer.get_base_time()
+
     print("# CALCULATING BASE TIME")
     base_time = SimpleTimer.get_base_time() / 100.0
 
@@ -34,7 +39,6 @@ def print_new_weights():  # pragma: no cover
         print(f"    {name} = {it}")
         max_it = max(max_it, it)
 
-    print("    FUNCTION_CALL = DICT_LOOKUP * 4")
     print(f"    UNPREDICTABLE = {max_it * 100}")
 
 

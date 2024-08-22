@@ -21,9 +21,15 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"c": i[2], "a": i[0]} for i in data_)
+        return (
+            {
+                "c": _i[2],
+                "a": _i[0],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

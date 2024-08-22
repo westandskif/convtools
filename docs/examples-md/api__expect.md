@@ -31,26 +31,26 @@ except c.ExpectException as e:
 
 /// tab | debug stdout
 ```python
-def expect(data_):
+def _expect(data_):
     if data_ < 3:
         return data_
     raise ExpectException("too big")
 
-def converter(data_):
+def _converter(data_):
     try:
-        return [(expect(i) ** 10) for i in data_]
+        return [(_expect(_i) ** 10) for _i in data_]
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def expect(data_, *, __format=__naive_values__["__format"]):
+def _expect(data_, *, __format=__naive_values__["__format"]):
     if len(data_) > 3:
         return data_
     raise ExpectException(__format(data_))
 
-def converter(data_):
+def _converter(data_):
     try:
-        return expect(data_["a"])
+        return _expect(data_["a"])
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

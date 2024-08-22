@@ -30,43 +30,42 @@ assert conv(input_data) == {"a": [10, 10, 20], "b": "bar"}
 
 /// tab | debug stdout
 ```python
-def aggregate_(_none, data_, *, __get_1_or_default=__naive_values__["__get_1_or_default"]):
+def aggregate_(_none, data_, *, __get_item_deep_default_simple=__naive_values__["__get_item_deep_default_simple"]):
     agg_data__v0 = agg_data__v1 = _none
 
     checksum_ = 0
     it_ = iter(data_)
     for row_ in it_:
         _r0_ = row_["a"]
-        if row_["b"] == "bar":
-            if agg_data__v0 is _none:
-                checksum_ += 1
-                agg_data__v0 = [row_["a"]]
-            else:
-                agg_data__v0.append(row_["a"])
         if _r0_ is not None:
             if agg_data__v1 is _none:
-                checksum_ += 1
                 agg_data__v1 = (_r0_, row_)
+                checksum_ += 1
+            elif agg_data__v1[0] < _r0_:
+                agg_data__v1 = (_r0_, row_)
+        if row_["b"] == "bar":
+            if agg_data__v0 is _none:
+                agg_data__v0 = [_r0_]
+                checksum_ += 1
             else:
-                if agg_data__v1[0] < _r0_:
-                    agg_data__v1 = (_r0_, row_)
+                agg_data__v0.append(_r0_)
         if checksum_ == 2:
             globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
             break
     for row_ in it_:
         _r0_ = row_["a"]
-        if row_["b"] == "bar":
-            agg_data__v0.append(row_["a"])
         if _r0_ is not None:
             if agg_data__v1[0] < _r0_:
                 agg_data__v1 = (_r0_, row_)
+        if row_["b"] == "bar":
+            agg_data__v0.append(_r0_)
 
     return {
         "a": ((None if (agg_data__v0 is _none) else agg_data__v0)),
-        "b": __get_1_or_default(((None if (agg_data__v1 is _none) else agg_data__v1[1])), "b", None),
+        "b": __get_item_deep_default_simple(((None if (agg_data__v1 is _none) else agg_data__v1[1])), "b", None),
     }
 
-def converter(data_):
+def _converter(data_):
     global __none__
     _none = __none__
     try:

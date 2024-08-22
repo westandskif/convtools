@@ -17,7 +17,7 @@ class IterUnique(BaseConversion):
         self.input_arg_container.depends_on(self.element)
         self.input_arg_container.depends_on(self.by_)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_random_name("iter_unique", ctx)
         function_ctx = self.input_arg_container.as_function_ctx(
             ctx, optimize_naive=True

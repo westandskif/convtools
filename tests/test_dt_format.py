@@ -16,10 +16,10 @@ from .test_dt_utils import (
 
 def test_datetime_format__ensure_supported():
     c_fmt = DatetimeFormat(SUPPORTED_FMT_TOKENS)
-    assert c_fmt._to_code("data_", c_fmt._init_ctx()) is not None
+    assert c_fmt.to_code("data_", c_fmt._init_ctx()) is not None
 
     c_fmt = DatetimeFormat(ALL_FMT_TOKENS)
-    assert c_fmt._to_code("data_", c_fmt._init_ctx()) is None
+    assert c_fmt.to_code("data_", c_fmt._init_ctx()) is None
 
 
 @pytest.mark.parametrize(

@@ -20,17 +20,21 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
         return (
-            {"a": i[0], "b": i[1], "c": abs(i[2])}
-            for i in (
+            {
+                "a": _i[0],
+                "b": _i[1],
+                "c": abs(_i[2]),
+            }
+            for _i in (
                 (
-                    i_i[0],
-                    i_i[1],
-                    (i_i[0] + i_i[1]),
+                    _i_i[0],
+                    _i_i[1],
+                    (_i_i[0] + _i_i[1]),
                 )
-                for i_i in data_
+                for _i_i in data_
             )
         )
     except __exceptions_to_dump_sources:

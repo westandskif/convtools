@@ -34,19 +34,19 @@ def aggregate_(_none, data_):
     it_ = iter(data_)
     for row_ in it_:
         if agg_data__v0 is _none:
-            checksum_ += 1
-            agg_data__v0 = row_
-            agg_data__v1 = row_
             agg_data__v2 = row_ or 0
-        else:
+            checksum_ += 1
             agg_data__v1 = row_
+            agg_data__v0 = row_
+        else:
             agg_data__v2 += row_ or 0
+            agg_data__v1 = row_
         if checksum_ == 1:
             globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
             break
     for row_ in it_:
-        agg_data__v1 = row_
         agg_data__v2 += row_ or 0
+        agg_data__v1 = row_
 
     return {
         "x": ((None if (agg_data__v0 is _none) else agg_data__v0)),
@@ -54,7 +54,7 @@ def aggregate_(_none, data_):
         "z": ((0 if (agg_data__v2 is _none) else agg_data__v2)),
     }
 
-def chunk_by(items_):
+def _chunk_by(items_):
     items_ = iter(items_)
     try:
         item_ = next(items_)
@@ -72,11 +72,11 @@ def chunk_by(items_):
             size_ = 1
     yield chunk_
 
-def converter(data_):
+def _converter(data_):
     global __none__
     _none = __none__
     try:
-        return [aggregate_(_none, i) for i in chunk_by(data_)]
+        return [aggregate_(_none, _i) for _i in _chunk_by(data_)]
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

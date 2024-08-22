@@ -33,7 +33,7 @@ class _TryMultiple(BaseConversion):
             None if default is _none else self.ensure_conversion(default)
         )
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_random_name("try_multiple", ctx)
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", This())

@@ -13,7 +13,7 @@ assert converter(range(2)) == [0, 1]
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
         return list(data_)
     except __exceptions_to_dump_sources:

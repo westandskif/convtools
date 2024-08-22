@@ -61,23 +61,41 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"a": i[0], "b": i[1]} for i in data_)
+        return (
+            {
+                "a": _i[0],
+                "b": _i[1],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"a": i[0], "c": i[1]} for i in data_)
+        return (
+            {
+                "a": _i[0],
+                "c": _i[1],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"a": i[1], "c": i[0]} for i in data_)
+        return (
+            {
+                "a": _i[1],
+                "c": _i[0],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

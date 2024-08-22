@@ -18,22 +18,16 @@ assert c.attr("b", default=None).execute(Obj, debug=True) is None
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
         return data_.obj.a
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def attr_or_default(default_, data_):
+def _converter(data_, *, __get_attr_deep_default_simple=__naive_values__["__get_attr_deep_default_simple"]):
     try:
-        return data_.b
-    except AttributeError:
-        return default_
-
-def converter(data_):
-    try:
-        return attr_or_default(None, data_)
+        return __get_attr_deep_default_simple(data_, "b", None)
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

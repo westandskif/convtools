@@ -37,7 +37,7 @@ assert converter(
 
 /// tab | debug stdout
 ```python
-def iter_unique(data_):
+def _iter_unique(data_):
     s_ = set()
     s_add = s_.add
     for item_ in data_:
@@ -45,14 +45,14 @@ def iter_unique(data_):
             s_add(item_)
             yield item_
 
-def converter(data_):
+def _converter(data_):
     try:
-        return list(iter_unique(data_))
+        return list(_iter_unique(data_))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def iter_unique(data_):
+def _iter_unique(data_):
     s_ = set()
     s_add = s_.add
     for item_ in data_:
@@ -61,14 +61,14 @@ def iter_unique(data_):
             s_add(by_)
             yield item_
 
-def converter(data_):
+def _converter(data_):
     try:
-        return list(iter_unique(data_))
+        return list(_iter_unique(data_))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def iter_unique(data_):
+def _iter_unique(data_):
     s_ = set()
     s_add = s_.add
     for item_ in data_:
@@ -77,9 +77,9 @@ def iter_unique(data_):
             s_add(by_)
             yield item_["name"]
 
-def converter(data_):
+def _converter(data_):
     try:
-        return list(iter_unique(data_["data"]))
+        return list(_iter_unique(data_["data"]))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

@@ -14,7 +14,7 @@ assert converter(1) == 2
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
         return data_ + 1
     except __exceptions_to_dump_sources:

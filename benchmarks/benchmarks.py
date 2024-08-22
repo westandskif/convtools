@@ -19,7 +19,7 @@ class Aggregate1(BaseBenchmark):
             {
                 "a": c.ReduceFuncs.Sum(c.item("value_1")),
                 "b": c.ReduceFuncs.Min(c.item("value_2")),
-                "c": c.ReduceFuncs.Max(c.item("value_3")),
+                "c": c.ReduceFuncs.Max(c.item("value_2")),
             }
         ).gen_converter()
 
@@ -35,10 +35,10 @@ class Aggregate1(BaseBenchmark):
                 ):
                     b = i["value_2"]
 
-                if i["value_3"] is not None and (
-                    c is None or c < i["value_3"]
+                if i["value_2"] is not None and (
+                    c is None or c < i["value_2"]
                 ):
-                    c = i["value_3"]
+                    c = i["value_2"]
             return {
                 "a": a,
                 "b": b,
@@ -49,8 +49,7 @@ class Aggregate1(BaseBenchmark):
 
     def gen_data(self):
         return [
-            {"value_1": random(), "value_2": random(), "value_3": random()}
-            for i in range(10000)
+            {"value_1": random(), "value_2": random()} for i in range(10000)
         ]
 
 

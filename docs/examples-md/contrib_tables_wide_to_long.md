@@ -27,22 +27,22 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
         return (
             (
-                i["name"],
-                i["height"],
-                i["age"],
-                i["mood"],
+                _i["name"],
+                _i["height"],
+                _i["age"],
+                _i["mood"],
             )
-            for i in data_
+            for _i in data_
         )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
         return (
             new_row
@@ -69,9 +69,16 @@ def converter(data_):
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"name": i[0], "metric": i[1], "value": i[2]} for i in data_)
+        return (
+            {
+                "name": _i[0],
+                "metric": _i[1],
+                "value": _i[2],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

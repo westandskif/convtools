@@ -76,7 +76,7 @@ class ChunkBy(BaseChunkBy):
         )
         self.size = size
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_random_name("chunk_by", ctx)
         function_ctx = (self.by or This()).as_function_ctx(
             ctx, optimize_naive=True
@@ -217,7 +217,7 @@ class ChunkByCondition(BaseChunkBy):
             Namespace(condition, {self.CHUNK.name: "chunk_"})
         )
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         converter_name = self.gen_random_name("chunk_by_condition", ctx)
         function_ctx = self.condition.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("items_", This())

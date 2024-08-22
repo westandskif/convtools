@@ -47,28 +47,36 @@ other parts of your code. The below table provides the speed-up of
 convtools-based solutions over the naive ones. 
 
 
-/// tab | py3.12
+/// tab | 3.13
+{! performance-md/perf-3.13.md !}
+///
+
+/// tab | 3.12
 {! performance-md/perf-3.12.md !}
 ///
 
-/// tab | py3.11
+/// tab | 3.11
 {! performance-md/perf-3.11.md !}
 ///
 
-/// tab | py3.10
+/// tab | 3.10
 {! performance-md/perf-3.10.md !}
 ///
 
-/// tab | py3.9
+/// tab | 3.9
 {! performance-md/perf-3.9.md !}
 ///
 
-/// tab | py3.8
+/// tab | 3.8
 {! performance-md/perf-3.8.md !}
 ///
 
-/// tab | py3.7
+/// tab | 3.7
 {! performance-md/perf-3.7.md !}
+///
+
+/// tab | 3.6
+{! performance-md/perf-3.6.md !}
 ///
 
 

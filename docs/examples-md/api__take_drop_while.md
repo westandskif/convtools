@@ -24,7 +24,7 @@ def take_while_(it_):
         else:
             break
 
-def converter(data_):
+def _converter(data_):
     try:
         return list(take_while_(data_))
     except __exceptions_to_dump_sources:
@@ -40,7 +40,7 @@ def drop_while_(it_, *, __chain=__naive_values__["__chain"]):
         return ()
     return __chain((item_,), it_)
 
-def converter(data_):
+def _converter(data_):
     try:
         return list(drop_while_(data_))
     except __exceptions_to_dump_sources:

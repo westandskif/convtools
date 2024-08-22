@@ -48,35 +48,56 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"COLUMN_0": i[0], "COLUMN_1": i[1], "COLUMN_2": i[2]} for i in data_)
+        return (
+            {
+                "COLUMN_0": _i[0],
+                "COLUMN_1": _i[1],
+                "COLUMN_2": _i[2],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"a": i[0], "b": i[1], "c": i[2]} for i in data_)
+        return (
+            {
+                "a": _i[0],
+                "b": _i[1],
+                "c": _i[2],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
-        return ({"a": i[0], "b": i[1], "c": i[2]} for i in data_)
+        return (
+            {
+                "a": _i[0],
+                "b": _i[1],
+                "c": _i[2],
+            }
+            for _i in data_
+        )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_):
+def _converter(data_):
     try:
         return (
             (
-                i["a"],
-                i["b"],
+                _i["a"],
+                _i["b"],
             )
-            for i in data_
+            for _i in data_
         )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()

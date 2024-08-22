@@ -1,9 +1,13 @@
 """Define aggregations with various reduce functions."""
 
 import warnings
+from ast import Attribute as AstAttribute
+from ast import Compare as AstCompare
+from ast import Is as AstIs
+from ast import Name as AstName
+from ast import parse as ast_parse
 from collections import defaultdict
 from decimal import Decimal
-from itertools import chain
 from math import ceil
 from typing import Any, Callable, ClassVar, Dict, Sequence, Tuple, Union
 
@@ -29,51 +33,122 @@ from ._base import (
     _none,
 )
 from ._heuristics import Weights
-from ._utils import Code
+from ._utils import (
+    Code,
+    CodeOptimizer,
+    OptimizationReplacerByName,
+    ast_are_fuzzy_equal,
+    ast_merge,
+    ast_unparse,
+)
 
 
-class ReduceCode:
-    """Merge and store code of reducers."""
+class OptimizationReplacerByNameWithChecksums(OptimizationReplacerByName):
+    """Extends OptimizationReplacerByName, deduplicating checksum incrs."""
 
-    def __init__(self):
-        self.value_to_name: "Dict[str, str]" = {}
-        self.condition_to_child: "Dict[str, ReduceCode]" = {}
-        self.key_to_reduce_lines = {}
+    __slots__ = OptimizationReplacerByName.__slots__ + [
+        "checksum_incrs",
+        "checksum",
+    ]
 
-    def add_assignment(self, value):
-        if value in self.value_to_name:
-            return self.value_to_name[value]
+    def __init__(self, name_to_new_node):
+        super().__init__(name_to_new_node)
+        self.checksum_incrs = []
+        self.checksum = 0
 
-        new_name = self.value_to_name[value] = f"_r{len(self.value_to_name)}_"
-        return new_name
+    def visit_If(self, node):
+        self.checksum_incrs.append(0)
+        result = super().generic_visit(node)
+        self.checksum += self.checksum_incrs.pop()
+        return result
 
-    def use_expression(self, value):
-        if value in self.value_to_name:
-            return self.value_to_name[value]
-        return value
+    def visit_AugAssign(self, node):
+        if isinstance(node.target, AstName) and node.target.id == "checksum_":
+            if self.checksum_incrs[-1] > 0:
+                return None
+            self.checksum_incrs[-1] += 1
+        return super().generic_visit(node)
 
-    def add_condition(self, condition):
-        if condition in self.condition_to_child:
-            return self.condition_to_child[condition]
-        reduce_code = self.condition_to_child[condition] = ReduceCode()
-        return reduce_code
 
-    def add_reduce_lines(
-        self, var_agg_data_value, prepare_first_lines, reduce_lines
-    ) -> str:
-        key = "".join(
-            line.replace(var_agg_data_value, "")
-            for line in chain(prepare_first_lines, reduce_lines)
+def fuzzy_cmp_group_by(x, y):
+    if (
+        isinstance(x, AstAttribute)
+        and isinstance(x.value, AstName)
+        and isinstance(y.value, AstName)
+    ):
+        return x.value.id == "agg_data_" and y.value.id == "agg_data_"
+
+    if isinstance(x, AstName):
+        return (
+            x.id.startswith("n_")
+            and y.id.startswith("n_")
+            and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
         )
-        if key in self.key_to_reduce_lines:
-            return self.key_to_reduce_lines[key][0]
+    return False
 
-        self.key_to_reduce_lines[key] = (
-            var_agg_data_value,
-            prepare_first_lines,
-            reduce_lines,
+
+def fuzzy_cmp_aggregate(x, y):
+    if isinstance(x, AstName):
+        return (
+            x.id.startswith("agg_data_")
+            and y.id.startswith("agg_data_")
+            or x.id.startswith("n_")
+            and y.id.startswith("n_")
+            and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
         )
-        return var_agg_data_value
+    return False
+
+
+def fuzzy_merge_group_by_cmp(x, y):
+    if (
+        isinstance(x, AstCompare)
+        and isinstance(x.comparators[0], AstName)
+        and isinstance(y.comparators[0], AstName)
+        and x.comparators[0].id == "_none"
+        and y.comparators[0].id == "_none"
+        and isinstance(x.ops[0], AstIs)
+        and isinstance(y.ops[0], AstIs)
+        and isinstance(x.left, AstAttribute)
+        and isinstance(y.left, AstAttribute)
+        and isinstance(x.left.value, AstName)
+        and isinstance(y.left.value, AstName)
+        and x.left.value.id == "agg_data_"
+        and y.left.value.id == "agg_data_"
+    ):
+        return True
+
+    if isinstance(x, AstName):
+        return (
+            x.id.startswith("n_")
+            and y.id.startswith("n_")
+            and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
+        )
+
+    return False
+
+
+def fuzzy_merge_aggregate_cmp(x, y):
+    if (
+        isinstance(x, AstCompare)
+        and isinstance(x.comparators[0], AstName)
+        and isinstance(y.comparators[0], AstName)
+        and x.comparators[0].id == "_none"
+        and y.comparators[0].id == "_none"
+        and isinstance(x.ops[0], AstIs)
+        and isinstance(y.ops[0], AstIs)
+        and isinstance(x.left, AstName)
+        and isinstance(y.left, AstName)
+        and x.left.id.startswith("agg_data_")
+        and y.left.id.startswith("agg_data_")
+    ):
+        return True
+
+    return (
+        isinstance(x, AstName)
+        and x.id.startswith("n_")
+        and y.id.startswith("n_")
+        and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
+    )
 
 
 class ReduceManager:
@@ -83,50 +158,151 @@ class ReduceManager:
         "var_row",
         "var_agg_data",
         "aggregate_mode",
-        "number",
-        "reduce_code",
-        "used_indexes",
+        "var_agg_data_to_index",
+        "var_agg_data_value_to_ast_with_init",
+        "var_agg_data_value_to_ast_without_init",
+        "code_optimizer",
     ]
 
     def __init__(self, var_row, var_agg_data, aggregate_mode):
         self.var_row = var_row
         self.var_agg_data = var_agg_data
         self.aggregate_mode = aggregate_mode
-        self.number = 0
-        self.reduce_code = ReduceCode()
-        self.used_indexes = []
+        self.var_agg_data_to_index = {}
+        self.var_agg_data_value_to_ast_with_init = {}
+        self.var_agg_data_value_to_ast_without_init = {}
+
+        self.code_optimizer = CodeOptimizer(self.var_row)
+
+    def add_reducer_code(
+        self, var_agg_data_value, code_with_init, code_without_init
+    ):
+        ast_with_init = ast_parse(code_with_init)
+        for (
+            l_var_agg_data_value,
+            l_ast_with_init,
+        ) in self.var_agg_data_value_to_ast_with_init.items():
+            if ast_are_fuzzy_equal(
+                l_ast_with_init,
+                ast_with_init,
+                (
+                    fuzzy_cmp_aggregate
+                    if self.aggregate_mode
+                    else fuzzy_cmp_group_by
+                ),
+            ):
+                return l_var_agg_data_value
+        self.var_agg_data_value_to_ast_with_init[var_agg_data_value] = (
+            ast_with_init
+        )
+        self.var_agg_data_value_to_ast_without_init[var_agg_data_value] = (
+            code_without_init and ast_parse(code_without_init)
+        )
+        return var_agg_data_value
+
+    def optimize(self, tree, with_checksum=False):
+        replacement_to_node = self.code_optimizer.get_replacement_to_node(tree)
+        if with_checksum:
+            replacer = OptimizationReplacerByNameWithChecksums(
+                replacement_to_node
+            )
+            result = replacer.visit(tree)
+            return result, replacer.checksum
+        else:
+            return OptimizationReplacerByName(replacement_to_node).visit(tree)
 
     def gen_group_by_code(self, var_signature_to_agg_data, code_signature):
+        ast_with_init = None
+        for (
+            l_ast_with_init
+        ) in self.var_agg_data_value_to_ast_with_init.values():
+            if ast_with_init is None:
+                ast_with_init = l_ast_with_init
+            else:
+                ast_merge(
+                    ast_with_init, l_ast_with_init, fuzzy_merge_group_by_cmp
+                )
+
+        ast_assign_var_agg_data = ast_parse(
+            f"{self.var_agg_data} = {var_signature_to_agg_data}[{code_signature}]"
+        )
+        if ast_with_init:
+            ast_merge(
+                ast_with_init,
+                ast_assign_var_agg_data,
+                fuzzy_merge_group_by_cmp,
+            )
+            optimized_ast = self.optimize(ast_with_init)
+        else:
+            optimized_ast = ast_assign_var_agg_data
+
         code = Code()
         code.add_line(f"for {self.var_row} in data_:", 1)
-        code.add_line(
-            f"{self.var_agg_data} = {var_signature_to_agg_data}[{code_signature}]",
-            0,
-        )
-        self.add_group_by_code(code, self.reduce_code)
+        for l_line in ast_unparse(optimized_ast).splitlines():
+            code.add_line(l_line, 0)
+
         return code
 
     def gen_aggregate_code(self):
-        var_init_checksum = "checksum_"
-        code = Code()
-        code.add_line(f"{var_init_checksum} = 0", 0)
-        code.add_line("it_ = iter(data_)", 0)
-        code.add_line(f"for {self.var_row} in it_:", 1)
-        checksum = self.add_group_by_code(
-            code, self.reduce_code, var_init_checksum=var_init_checksum
-        )
-        code.add_line(f"if {var_init_checksum} == {checksum}:", 1)
-        if ConverterOptionsCtx.get_option_value("debug"):
-            code.add_line(
-                "globals()['__BROKEN_EARLY__'] = True  # DEBUG ONLY",
-                0,
-            )
-        code.add_line("break", -2)
+        ast_with_init = None
+        for (
+            l_ast_with_init
+        ) in self.var_agg_data_value_to_ast_with_init.values():
+            if ast_with_init is None:
+                ast_with_init = l_ast_with_init
+            else:
+                ast_merge(
+                    ast_with_init, l_ast_with_init, fuzzy_merge_aggregate_cmp
+                )
 
-        ref = code.get_ref()
-        code.add_line(f"for {self.var_row} in it_:", 1)
-        if self.add_aggregate_stage2_code(code, self.reduce_code) == 0:
-            code.cut_to_ref(ref)
+        code = Code()
+
+        ast_without_init = None
+        for (
+            l_ast_without_init
+        ) in self.var_agg_data_value_to_ast_without_init.values():
+            if ast_without_init is None:
+                ast_without_init = l_ast_without_init
+            elif l_ast_without_init:
+                ast_merge(
+                    ast_without_init,
+                    l_ast_without_init,
+                    fuzzy_merge_aggregate_cmp,
+                )
+
+        if ast_with_init:
+            optimized_ast_with_init, expected_checksum = self.optimize(
+                ast_with_init, with_checksum=True
+            )
+
+            var_init_checksum = "checksum_"
+            code.add_line(f"{var_init_checksum} = 0", 0)
+            if ast_without_init:
+                code.add_line("it_ = iter(data_)", 0)
+                code.add_line(f"for {self.var_row} in it_:", 1)
+            else:
+                code.add_line(f"for {self.var_row} in data_:", 1)
+
+            for l_line in ast_unparse(optimized_ast_with_init).splitlines():
+                code.add_line(l_line, 0)
+
+            code.add_line(
+                f"if {var_init_checksum} == {expected_checksum}:",
+                1,
+            )
+            if ConverterOptionsCtx.get_option_value("debug"):
+                code.add_line(
+                    "globals()['__BROKEN_EARLY__'] = True  # DEBUG ONLY",
+                    0,
+                )
+            code.add_line("break", -2)
+
+        if ast_without_init:
+            optimized_ast_without_init = self.optimize(ast_without_init)
+            code.add_line(f"for {self.var_row} in it_:", 1)
+            for l_line in ast_unparse(optimized_ast_without_init).splitlines():
+                code.add_line(l_line, 0)
+
         return code
 
     def fmt_agg_data_value(self, index):
@@ -137,12 +313,16 @@ class ReduceManager:
         )
 
     def gen_agg_data_value(self):
-        index = self.number
-        self.number += 1
-        return index, self.fmt_agg_data_value(index)
+        index = len(self.var_agg_data_value_to_ast_with_init)
+        var_agg_data_value = self.fmt_agg_data_value(index)
+        self.var_agg_data_to_index[var_agg_data_value] = index
+        return var_agg_data_value
 
     def gen_group_by_data_container(self, grouper, container_name, ctx):
-        attrs = [f"v{i}" for i in self.used_indexes]
+        attrs = [
+            f"v{self.var_agg_data_to_index[var_agg_data_value]}"
+            for var_agg_data_value in self.var_agg_data_value_to_ast_with_init
+        ]
 
         code = Code()
         code.add_line(f"class {container_name}:", 1)
@@ -159,109 +339,17 @@ class ReduceManager:
         ]
 
     def gen_init_aggregate_vars(self):
-        if not self.used_indexes:
+        if not self.var_agg_data_value_to_ast_with_init:
             return ""
         vars_code = " = ".join(
-            [self.fmt_agg_data_value(index) for index in self.used_indexes]
+            [
+                self.fmt_agg_data_value(
+                    self.var_agg_data_to_index[var_agg_data_value]
+                )
+                for var_agg_data_value in self.var_agg_data_value_to_ast_with_init
+            ]
         )
         return f"{vars_code} = _none"
-
-    def add_group_by_code(
-        self,
-        code: Code,
-        reduce_code: ReduceCode,
-        delegated_conditions=(),
-        var_init_checksum=None,
-    ):
-        checksum = 0
-        initial_indent_level = code.indent_level
-
-        if delegated_conditions and (
-            reduce_code.value_to_name
-            or reduce_code.key_to_reduce_lines
-            or len(reduce_code.condition_to_child) > 1
-        ):
-            code.add_line(f"if {' and '.join(delegated_conditions)}:", 1)
-            delegated_conditions = ()
-
-        for value, name in reduce_code.value_to_name.items():
-            code.add_line(f"{name} = {value}", 0)
-
-        if reduce_code.key_to_reduce_lines:
-            var_agg_data_value = next(
-                iter(reduce_code.key_to_reduce_lines.values())
-            )[0]
-            code.add_line(f"if {var_agg_data_value} is _none:", 1)
-
-            if var_init_checksum:
-                code.add_line(f"{var_init_checksum} += 1", 0)
-            checksum += 1
-
-            for item in reduce_code.key_to_reduce_lines.values():
-                for line in item[1]:  # prepare_first_lines
-                    code.add_line(line, 0)
-
-            code.incr_indent_level(-1)
-            code.add_line("else:", 1)
-
-            lines_before = len(code.lines_info)
-            for item in reduce_code.key_to_reduce_lines.values():
-                for line in item[2]:  # reduce_lines
-                    code.add_line(line, 0)
-            if lines_before == len(code.lines_info):
-                code.add_line("pass", 0)
-
-            code.incr_indent_level(-1)
-
-        for condition, child in reduce_code.condition_to_child.items():
-            checksum += self.add_group_by_code(
-                code,
-                child,
-                delegated_conditions=(*delegated_conditions, condition),
-                var_init_checksum=var_init_checksum,
-            )
-
-        code.indent_level = initial_indent_level
-        return checksum
-
-    def add_aggregate_stage2_code(
-        self, code: Code, reduce_code: ReduceCode, delegated_conditions=()
-    ):
-        initial_indent_level = code.indent_level
-        checksum = 0
-        add_pass_if_line_number = -1
-
-        if delegated_conditions and (
-            reduce_code.value_to_name
-            or reduce_code.key_to_reduce_lines
-            or len(reduce_code.condition_to_child) > 1
-        ):
-            code.add_line(f"if {' and '.join(delegated_conditions)}:", 1)
-            add_pass_if_line_number = len(code.lines_info)
-            delegated_conditions = ()
-
-        for value, name in reduce_code.value_to_name.items():
-            code.add_line(f"{name} = {value}", 0)
-
-        if reduce_code.key_to_reduce_lines:
-            for item in reduce_code.key_to_reduce_lines.values():
-                if item[2]:
-                    checksum += 1
-                for line in item[2]:  # reduce_lines
-                    code.add_line(line, 0)
-
-        for condition, child in reduce_code.condition_to_child.items():
-            checksum += self.add_aggregate_stage2_code(
-                code,
-                child,
-                delegated_conditions=(*delegated_conditions, condition),
-            )
-
-        if add_pass_if_line_number == len(code.lines_info):
-            code.add_line("pass", -1)
-
-        code.indent_level = initial_indent_level
-        return checksum
 
 
 class BaseReducer(BaseConversion):
@@ -272,10 +360,9 @@ class BaseReducer(BaseConversion):
     default: Union[_None, BaseConversion] = _none
     initial: Union[_None, BaseConversion] = _none
     internals_are_public: bool
-    values_use_times: Tuple[int, ...]
-    works_with_not_none_only: Tuple[int, ...]
-    prepare_first_lines: Union[Tuple[str, ...], Callable[[], Tuple[str, ...]]]
-    reduce_lines: Union[Tuple[str, ...], Callable[[], Tuple[str, ...]]]
+    # works_with_not_none_only: Union[Tuple[int, ...], Callable]
+    # prepare_first_lines: Union[Tuple[str, ...], Callable]
+    # reduce_lines: Union[Tuple[str, ...], Callable]
     where: Union[_None, BaseConversion]
 
     self_content_type = (
@@ -353,34 +440,18 @@ class BaseReducer(BaseConversion):
             return option_value(ctx)
         return option_value
 
-    def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
+    def gen_code_and_update_ctx(self, code_input, ctx) -> str:
         reduce_manager: ReduceManager = ctx["current_reduce_manager"][-1]
-        index, proposed_code_input = reduce_manager.gen_agg_data_value()
-        new_code_input = self.update_reduce_code(
-            reduce_manager.reduce_code,
-            proposed_code_input,
-            reduce_manager.var_row,
-            code_input,
-            ctx,
-        )
-        if proposed_code_input == new_code_input:
-            reduce_manager.used_indexes.append(index)
+        var_agg_data_value = reduce_manager.gen_agg_data_value()
 
-        return self.conversion.gen_code_and_update_ctx(new_code_input, ctx)
+        var_row = reduce_manager.var_row
 
-    def update_reduce_code(
-        self,
-        reduce_code: ReduceCode,
-        var_agg_data_value,
-        var_row,
-        reducer_code_input,
-        ctx,
-    ):
+        code = Code()
         if not isinstance(self.where, _None):
-            reduce_code = reduce_code.add_condition(
+            line_ = reduce_manager.code_optimizer.use_expression(
                 self.where.gen_code_and_update_ctx(var_row, ctx)
             )
-
+            code.add_line(f"if {line_}:", 1)
         kwargs = {
             "result": var_agg_data_value,
             "row": var_row,
@@ -389,47 +460,65 @@ class BaseReducer(BaseConversion):
         works_with_not_none_only = self.get_option(
             "works_with_not_none_only", ctx
         )
-        values_use_times = self.get_option("values_use_times", ctx)
-
-        prev_reduce_code = reduce_code
         for index, expression in enumerate(self.expressions):
             expression_code = expression.gen_code_and_update_ctx(
-                reducer_code_input, ctx
+                code_input, ctx
             )
-            none_check_needed = works_with_not_none_only[
-                index
-            ] and not expression.has_hint(BaseConversion.OutputHints.NOT_NONE)
-            if (
-                none_check_needed + values_use_times[index] > 1
-                and expression is not This
+            kwargs[f"value{index}"] = (
+                reduce_manager.code_optimizer.use_expression(expression_code)
+            )
+            if works_with_not_none_only[index] and not expression.has_hint(
+                BaseConversion.OutputHints.NOT_NONE
             ):
-                prev_reduce_code.add_assignment(expression_code)
-
-            expression_code = prev_reduce_code.use_expression(expression_code)
-
-            if none_check_needed:
-                reduce_code = reduce_code.add_condition(
-                    f"{expression_code} is not None"
+                code.add_line(
+                    "if {}:".format(
+                        reduce_manager.code_optimizer.use_expression(
+                            f"{expression_code} is not None"
+                        )
+                    ),
+                    1,
                 )
 
-            kwargs[f"value{index}"] = expression_code
-
         reduce_lines = self.get_option("reduce_lines", ctx)
-
         if not isinstance(self.initial, _None) and self.internals_are_public:
+            line_ = reduce_manager.code_optimizer.use_expression(
+                self.initial.gen_code_and_update_ctx(var_row, ctx)
+            )
             prepare_first_lines = (
-                f"%(result)s = {self.initial.gen_code_and_update_ctx(var_row, ctx)}",
+                f"%(result)s = {line_}",
                 *reduce_lines,
             )
         else:
             prepare_first_lines = self.get_option("prepare_first_lines", ctx)
 
-        new_agg_data_value = reduce_code.add_reduce_lines(
-            var_agg_data_value,
-            tuple(line % kwargs for line in prepare_first_lines),
-            tuple(line % kwargs for line in reduce_lines),
+        code_without_init = (
+            code.clone()
+            if reduce_manager.aggregate_mode and reduce_lines
+            else None
         )
-        return new_agg_data_value
+
+        code.add_line(f"if {var_agg_data_value} is _none:", 1)
+        for line in prepare_first_lines:
+            code.add_line(line % kwargs, 0)
+        if reduce_manager.aggregate_mode:
+            code.add_line("checksum_ += 1", 0)
+        code.incr_indent_level(-1)
+
+        if reduce_lines:
+            code.add_line("else:", 1)
+            for l_line in reduce_lines:
+                line = l_line % kwargs
+                code.add_line(line, 0)
+                if code_without_init is not None:
+                    code_without_init.add_line(line, 0)
+
+        new_code_input = reduce_manager.add_reducer_code(
+            var_agg_data_value,
+            code.to_string(0),
+            code_without_init and code_without_init.to_string(0),
+        )
+
+        return self.conversion.gen_code_and_update_ctx(new_code_input, ctx)
 
 
 class OptionalExpressionReducer(BaseReducer):
@@ -496,7 +585,6 @@ class SumReducer(SingleExpressionReducer):
 
     default = NaiveConversion(0)
     internals_are_public = True
-    values_use_times = (1,)
     works_with_not_none_only = (False,)
 
     def prepare_first_lines(self, ctx):  # pylint: disable=unused-argument
@@ -518,11 +606,6 @@ class SumOrNoneReducer(SingleExpressionReducer):
     works_with_not_none_only = (False,)
     prepare_first_lines = ("%(result)s = %(value0)s",)
 
-    def values_use_times(self, ctx):  # pylint: disable=unused-argument
-        if self.expressions[0].has_hint(BaseConversion.OutputHints.NOT_NONE):
-            return (1,)
-        return (2,)
-
     def reduce_lines(self, ctx):  # pylint: disable=unused-argument
         if self.expressions[0].has_hint(BaseConversion.OutputHints.NOT_NONE):
             return ("%(result)s += %(value0)s",)
@@ -537,7 +620,6 @@ class SumOrNoneReducer(SingleExpressionReducer):
 class MaxReducer(SingleExpressionReducer):
     default = NaiveConversion(None)
     internals_are_public = True
-    values_use_times = (2,)
     works_with_not_none_only = (True,)
     prepare_first_lines = ("%(result)s = %(value0)s",)
     reduce_lines = (
@@ -549,7 +631,6 @@ class MaxReducer(SingleExpressionReducer):
 class MinReducer(SingleExpressionReducer):
     default = NaiveConversion(None)
     internals_are_public = True
-    values_use_times = (2,)
     works_with_not_none_only = (True,)
     prepare_first_lines = ("%(result)s = %(value0)s",)
     reduce_lines = (
@@ -568,7 +649,6 @@ class CountReducer(OptionalExpressionReducer):
 
     default = NaiveConversion(0)
     internals_are_public = True
-    values_use_times = (0,)
     prepare_first_lines = ("%(result)s = 1",)
     reduce_lines = ("%(result)s += 1",)
 
@@ -583,7 +663,6 @@ class CountReducer(OptionalExpressionReducer):
 class CountDistinctReducer(SingleExpressionReducer):
     default = NaiveConversion(0)
     internals_are_public = False
-    values_use_times = (1,)
     works_with_not_none_only = (False,)
     prepare_first_lines = ("%(result)s = {%(value0)s}",)
     reduce_lines = ("%(result)s.add(%(value0)s)",)
@@ -593,7 +672,6 @@ class CountDistinctReducer(SingleExpressionReducer):
 class FirstReducer(SingleExpressionReducer):
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1,)
     works_with_not_none_only = (False,)
     prepare_first_lines = ("%(result)s = %(value0)s",)
     reduce_lines = ()
@@ -602,7 +680,6 @@ class FirstReducer(SingleExpressionReducer):
 class LastReducer(SingleExpressionReducer):
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1,)
     works_with_not_none_only = (False,)
     prepare_first_lines = ("%(result)s = %(value0)s",)
     reduce_lines = ("%(result)s = %(value0)s",)
@@ -613,7 +690,6 @@ class MaxRowReducer(SingleExpressionReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (2,)
     works_with_not_none_only = (True,)
     prepare_first_lines = ("%(result)s = (%(value0)s, %(row)s)",)
     reduce_lines = (
@@ -628,7 +704,6 @@ class MinRowReducer(SingleExpressionReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (2,)
     works_with_not_none_only = (True,)
     prepare_first_lines = ("%(result)s = (%(value0)s, %(row)s)",)
     reduce_lines = (
@@ -651,7 +726,6 @@ class MinRowReducer(SingleExpressionReducer):
 class ArrayReducer(SingleExpressionReducer):
     default = NaiveConversion(None)
     internals_are_public = True
-    values_use_times = (1,)
     works_with_not_none_only = (False,)
     prepare_first_lines = ("%(result)s = [%(value0)s]",)
     reduce_lines = ("%(result)s.append(%(value0)s)",)
@@ -682,10 +756,9 @@ class SortedArrayReducer(SingleExpressionReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1,)
     works_with_not_none_only = (False,)
     reduce_lines = ("%(result)s.append(%(value0)s)",)
-    post_conversion = This.call_method("get")
+    post_conversion: Any = This.call_method("get")
 
     def __init__(self, *args, key=None, reverse=False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -704,7 +777,6 @@ class SortedArrayReducer(SingleExpressionReducer):
 class ArrayDistinctReducer(SingleExpressionReducer):
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1,)
     works_with_not_none_only = (False,)
     prepare_first_lines = ("%(result)s = { %(value0)s: None }",)
     reduce_lines = ("%(result)s[%(value0)s] = None",)
@@ -720,7 +792,6 @@ class DictReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1, 1)
     works_with_not_none_only = (False, False)
     prepare_first_lines = ("%(result)s = { %(value0)s: %(value1)s }",)
     reduce_lines = ("%(result)s[%(value0)s] = %(value1)s",)
@@ -740,7 +811,6 @@ class DictArrayReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1, 1)
     works_with_not_none_only = (False, False)
     prepare_first_lines = (
         "%(result)s = defaultdict(list)",
@@ -759,7 +829,6 @@ class DictArrayDistinctReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1, 1)
     works_with_not_none_only = (False, False)
     prepare_first_lines = (
         "%(result)s = defaultdict(dict)",
@@ -781,7 +850,6 @@ class DictSumReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1, 1)
     works_with_not_none_only = (False, False)
     prepare_first_lines = (
         "%(result)s = defaultdict(int)",
@@ -812,11 +880,6 @@ class DictSumOrNoneReducer(BaseDictReducer):
     )
     post_conversion = lock_default_dict_conversion
 
-    def values_use_times(self, ctx):  # pylint: disable=unused-argument
-        if self.expressions[1].has_hint(BaseConversion.OutputHints.NOT_NONE):
-            return (1, 1)
-        return (2, 2)
-
     def reduce_lines(self, ctx):  # pylint: disable=unused-argument
         if self.expressions[1].has_hint(BaseConversion.OutputHints.NOT_NONE):
             return ("%(result)s[%(value0)s] += %(value1)s",)
@@ -837,7 +900,6 @@ class DictMaxReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1, 1)
     prepare_first_lines = ("%(result)s = { %(value0)s: %(value1)s }",)
 
     def works_with_not_none_only(self, ctx):  # pylint: disable=unused-argument
@@ -861,7 +923,6 @@ class DictMinReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1, 1)
     prepare_first_lines = ("%(result)s = { %(value0)s: %(value1)s }",)
 
     def works_with_not_none_only(self, ctx):  # pylint: disable=unused-argument
@@ -887,7 +948,6 @@ class DictCountReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (2, 0)
     prepare_first_lines = ("%(result)s = { %(value0)s: 1 }",)
     reduce_lines = (
         "if %(value0)s not in %(result)s:",
@@ -930,7 +990,6 @@ class DictCountDistinctReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (2, 1)
     works_with_not_none_only = (False, False)
     prepare_first_lines = ("%(result)s = { %(value0)s: { %(value1)s } }",)
     reduce_lines = (
@@ -953,7 +1012,6 @@ class DictFirstReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (2, 1)
     works_with_not_none_only = (False, False)
     prepare_first_lines = ("%(result)s = { %(value0)s: %(value1)s }",)
     reduce_lines = (
@@ -971,7 +1029,6 @@ class DictLastReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    values_use_times = (1, 1)
     works_with_not_none_only = (False, False)
     prepare_first_lines = ("%(result)s = { %(value0)s: %(value1)s }",)
     reduce_lines = ("%(result)s[%(value0)s] = %(value1)s",)
@@ -1349,7 +1406,7 @@ class Grouper(BaseConversion):
     sort = delegate_input_switching_method("sort", True)
     tap = delegate_input_switching_method("tap", True)
 
-    def _gen_code_and_update_ctx(self, code_input, ctx) -> str:
+    def gen_code_and_update_ctx(self, code_input, ctx) -> str:
         ctx["defaultdict"] = defaultdict
         ctx["ListSortedOnceWrapper"] = ListSortedOnceWrapper
 
@@ -1519,9 +1576,6 @@ class Reduce(BaseReducer):
                 DeprecationWarning,
                 stacklevel=1,
             )
-
-    def values_use_times(self, ctx):  # pylint: disable=unused-argument
-        return (1,) * len(self.expressions)
 
     def works_with_not_none_only(self, ctx):  # pylint: disable=unused-argument
         return (False,) * len(self.expressions)

@@ -57,8 +57,8 @@ def aggregate_(_none, data_):
     it_ = iter(data_)
     for row_ in it_:
         if agg_data__v0 is _none:
-            checksum_ += 1
             agg_data__v0 = row_["revenue"] or 0
+            checksum_ += 1
         else:
             agg_data__v0 += row_["revenue"] or 0
         if checksum_ == 1:
@@ -69,7 +69,7 @@ def aggregate_(_none, data_):
 
     return 0 if (agg_data__v0 is _none) else agg_data__v0
 
-def converter(data_):
+def _converter(data_):
     global __none__
     _none = __none__
     try:
@@ -87,11 +87,10 @@ def aggregate_(_none, data_):
         _r0_ = row_["revenue"]
         if _r0_ is not None:
             if agg_data__v0 is _none:
-                checksum_ += 1
                 agg_data__v0 = _r0_
-            else:
-                if agg_data__v0 > _r0_:
-                    agg_data__v0 = _r0_
+                checksum_ += 1
+            elif agg_data__v0 > _r0_:
+                agg_data__v0 = _r0_
         if checksum_ == 1:
             globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
             break
@@ -103,7 +102,7 @@ def aggregate_(_none, data_):
 
     return None if (agg_data__v0 is _none) else agg_data__v0
 
-def converter(data_):
+def _converter(data_):
     global __none__
     _none = __none__
     try:
@@ -122,12 +121,12 @@ def group_by_(_none, data_):
     signature_to_agg_data_ = defaultdict(AggData_)
 
     for row_ in data_:
-        agg_data_ = signature_to_agg_data_[(row_["year"], row_["dept"])]
+        agg_data_ = signature_to_agg_data_[row_["year"], row_["dept"]]
         if agg_data_.v0 is _none:
             agg_data_.v0 = defaultdict(list)
-            agg_data_.v0[(row_["currency"],)].append(row_)
+            agg_data_.v0[row_["currency"],].append(row_)
         else:
-            agg_data_.v0[(row_["currency"],)].append(row_)
+            agg_data_.v0[row_["currency"],].append(row_)
 
     return [
         (
@@ -138,7 +137,7 @@ def group_by_(_none, data_):
         for signature_, agg_data_ in signature_to_agg_data_.items()
     ]
 
-def converter(data_):
+def _converter(data_):
     global __none__
     _none = __none__
     try:
@@ -147,24 +146,24 @@ def converter(data_):
         __convtools__code_storage.dump_sources()
         raise
 
-def pipe_(input_, *, __converter=__naive_values__["__converter"]):
-    return input_ and __converter(input_)
+def pipe_(input_, *, ___converter=__naive_values__["___converter"]):
+    return input_ and ___converter(input_)
 
-def pipe_i(input_, *, __converter_e=__naive_values__["__converter_e"]):
-    return input_ and __converter_e(input_)
+def pipe_i_e(input_, *, ___converter_q=__naive_values__["___converter_q"]):
+    return input_ and ___converter_q(input_)
 
-def converter(data_, *, __v=__naive_values__["__v"], __v_h=__naive_values__["__v_h"]):
+def _converter(data_, *, __v_5=__naive_values__["__v_5"], __v=__naive_values__["__v"]):
     try:
         return (
             {
-                "year": i[0],
-                "dept": i[1],
-                "USD - sum": pipe_(i[2].get(__v)),
-                "USD - min": pipe_i(i[2].get(__v)),
-                "CNY - sum": pipe_(i[2].get(__v_h)),
-                "CNY - min": pipe_i(i[2].get(__v_h)),
+                "year": _i[0],
+                "dept": _i[1],
+                "USD - sum": pipe_(_i[2].get(__v)),
+                "USD - min": pipe_i_e(_i[2].get(__v)),
+                "CNY - sum": pipe_(_i[2].get(__v_5)),
+                "CNY - min": pipe_i_e(_i[2].get(__v_5)),
             }
-            for i in data_
+            for _i in data_
         )
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()

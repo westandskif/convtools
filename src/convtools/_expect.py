@@ -33,7 +33,7 @@ class Expect(BaseConversion):
             error_msg or "condition is not met"
         )
 
-    def _gen_code_and_update_ctx(self, code_input, ctx):
+    def gen_code_and_update_ctx(self, code_input, ctx):
         ctx["ExpectException"] = ExpectException
 
         converter_name = self.gen_random_name("expect", ctx)

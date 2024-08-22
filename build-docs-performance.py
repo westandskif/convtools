@@ -1,10 +1,11 @@
 import os
-from glob import glob
 import subprocess
+from glob import glob
 from hashlib import sha256
 
-from convtools.contrib.tables import Table
 from convtools import conversion as c
+from convtools.contrib.tables import Table
+
 
 DOCS_ROOT = "./docs"
 MD_DIR = os.path.join(DOCS_ROOT, "performance-md")
@@ -21,17 +22,25 @@ def ensure_dir(file_path):
 
 
 from typing import List
-from benchmarks.storage import BenchmarkResultsStorage, BenchmarkResult
+
+from benchmarks.storage import BenchmarkResult, BenchmarkResultsStorage
 from tabulate import tabulate
+
+import convtools
 
 
 def gen_md(results: List[BenchmarkResult], py_version: str, indent="    "):
     filtered_results = (
-        c.filter(c.attr("py_version") == py_version)
+        c.filter(
+            c.and_(
+                c.attr("py_version") == py_version,
+                c.attr("convtools_version") == convtools.__version__,
+            )
+        )
         .pipe(
             c.group_by(c.attr("name"))
             .aggregate(
-                c.ReduceFuncs.MinRow(c.attr("diff")).call_method("model_dump")
+                c.ReduceFuncs.MinRow(c.attr("diff")).call_method("_asdict")
             )
             .sort(key=lambda x: x["diff"])
         )
@@ -57,9 +66,11 @@ def gen_md(results: List[BenchmarkResult], py_version: str, indent="    "):
 
 if __name__ == "__main__":
     benchmark_results = BenchmarkResultsStorage().load_results()
+    gen_md(benchmark_results, "3.6")
     gen_md(benchmark_results, "3.7")
     gen_md(benchmark_results, "3.8")
     gen_md(benchmark_results, "3.9")
     gen_md(benchmark_results, "3.10")
     gen_md(benchmark_results, "3.11")
     gen_md(benchmark_results, "3.12")
+    gen_md(benchmark_results, "3.13")

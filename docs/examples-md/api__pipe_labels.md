@@ -47,19 +47,31 @@ def pipe_(_labels, input_):
     _labels["a"] = input_["a"]
     return input_
 
-def converter(data_):
+def _converter(data_):
     _labels = {}
     try:
-        return [{"a": _labels["a"], "b": i} for i in pipe_(_labels, data_)["b"]]
+        return [
+            {
+                "a": _labels["a"],
+                "b": _i,
+            }
+            for _i in pipe_(_labels, data_)["b"]
+        ]
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
 def pipe_(_labels, input_):
     _labels["a"] = input_["a"]
-    return [{"a": _labels["a"], "b": i} for i in input_["b"]]
+    return [
+        {
+            "a": _labels["a"],
+            "b": _i,
+        }
+        for _i in input_["b"]
+    ]
 
-def converter(data_):
+def _converter(data_):
     _labels = {}
     try:
         return pipe_(_labels, data_)
@@ -67,9 +79,15 @@ def converter(data_):
         __convtools__code_storage.dump_sources()
         raise
 
-def converter(data_, *, __repeat=__naive_values__["__repeat"]):
+def _converter(data_, *, __repeat=__naive_values__["__repeat"]):
     try:
-        return [{"a": i[0], "b": i[1]} for i in zip(__repeat(data_["a"]), data_["b"])]
+        return [
+            {
+                "a": _i[0],
+                "b": _i[1],
+            }
+            for _i in zip(__repeat(data_["a"]), data_["b"])
+        ]
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
