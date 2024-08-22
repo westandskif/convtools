@@ -132,6 +132,8 @@ def test_dt_parse_base_n_multiple_formats():
     assert result == t and result is not t
     result = c.datetime_parse("%Y-%m-%d", default=t).execute("1/1/2000")
     assert result == t and result is not t
+    result = c.date_parse("%Y-%m-%d", default=t).execute("2024-08-22T14:38:23.943838")
+    assert result == t and result is not t
 
 
 @pytest.mark.parametrize(

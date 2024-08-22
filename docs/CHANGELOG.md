@@ -1,3 +1,7 @@
+## 1.12.2 (2024-08-22)
+
+- fixed `c.this.datetime_parse` with default when uncovered data remains
+
 ## 1.12.1 (2024-07-14)
 
 - sped up `c.item(..., default=...)` for python 3.10+ by a c-extension
