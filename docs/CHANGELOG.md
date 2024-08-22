@@ -1,6 +1,10 @@
-## 1.13.0 (2024-08-21)
+## 1.13.0 (2024-08-22)
 
 - sped up aggregations by CSE (common subexpression elimination)
+
+## 1.12.2 (2024-08-22)
+
+- fixed `c.this.datetime_parse` with default when uncovered data remains
 
 ## 1.12.1 (2024-07-14)
 

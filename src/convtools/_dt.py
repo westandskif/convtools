@@ -1055,7 +1055,7 @@ class DatetimeParse(BaseConversion):
         )
         code.add_line(f"if len({code_input}) != match.end():", 1)
         code.add_line(
-            "raise ValueError('unconverted data remains: %s' % data_string[match.end():])",
+            f"raise ValueError('unconverted data remains: %s' % {code_input}[match.end():])",
             -1,
         )
         code.add_line("groups_ = match.groups()", 0)
