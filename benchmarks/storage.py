@@ -65,9 +65,10 @@ class BaseBenchmark(abc.ABC):
     def compare_results(self, data1, data2) -> bool:
         return data1 == data2
 
-    def get_execution_result(self) -> BenchmarkResult:
+    def get_execution_result(self, silent=False) -> BenchmarkResult:
         name = self.get_name()
-        print(f"TESTING: {name}")
+        if not silent:
+            print(f"TESTING: {name}")
         data = self.gen_data()
 
         convtools_converter = self.gen_converter()

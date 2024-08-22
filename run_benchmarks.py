@@ -38,6 +38,10 @@ BENCHMARKS = [
 
 def run():
     storage = BenchmarkResultsStorage()
+    print("WARMING UP")
+    for benchmark in BENCHMARKS[:2]:
+        benchmark.get_execution_result(silent=True)
+
     for benchmark in BENCHMARKS:
         storage.add_item(benchmark.get_execution_result())
     storage.save()

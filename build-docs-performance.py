@@ -66,9 +66,11 @@ def gen_md(results: List[BenchmarkResult], py_version: str, indent="    "):
 
 if __name__ == "__main__":
     benchmark_results = BenchmarkResultsStorage().load_results()
+    gen_md(benchmark_results, "3.6")
     gen_md(benchmark_results, "3.7")
     gen_md(benchmark_results, "3.8")
     gen_md(benchmark_results, "3.9")
     gen_md(benchmark_results, "3.10")
     gen_md(benchmark_results, "3.11")
     gen_md(benchmark_results, "3.12")
+    gen_md(benchmark_results, "3.13")

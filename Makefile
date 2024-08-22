@@ -53,4 +53,4 @@ benchmark-py%:
 	~/.pyenv/versions/convtools-$*/bin/pip install tabulate
 	~/.pyenv/versions/convtools-$*/bin/python run_benchmarks.py
 
-benchmarks: benchmark-py3.7 benchmark-py3.8 benchmark-py3.9 benchmark-py3.10 benchmark-py3.11 benchmark-py3.12
+benchmarks: benchmark-py3.7 benchmark-py3.8 benchmark-py3.9 benchmark-py3.10 benchmark-py3.11 benchmark-py3.12 benchmark-py3.13

@@ -12,7 +12,7 @@ class SimpleTimer(Timer):
 
     def auto_measure(
         self,
-        max_time=15,
+        max_time=20,
         min_time=0.02,
         rel_precision=REL_PRECISION,
         expected_num_of_checks=40,
@@ -57,8 +57,8 @@ class SimpleTimer(Timer):
 
         while True:
             mean = sum(times) / checks
-            std_deviation = (
-                sqrt(sum(d * d for d in (mean - t for t in times)) / checks)
+            std_deviation = sqrt(
+                sum(d * d for d in (mean - t for t in times)) / checks
             )
             ratio = std_deviation / mean
             if ratio < std_deviation_to_mean_ratio:
