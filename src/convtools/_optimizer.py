@@ -554,7 +554,7 @@ class OptimizationStage1(ast.NodeVisitor):
                 max_depth = depth
         return max_depth
 
-    def visit(self, path, node):
+    def visit(self, node):
         raise NotImplementedError
 
     MODE_FIRST_ONLY = -2
