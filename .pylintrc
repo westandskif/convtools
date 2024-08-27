@@ -217,7 +217,7 @@ attr-rgx=^_{0,2}[a-z][a-z0-9_]*$
 argument-rgx=^_?[a-z][a-z0-9_]*$
 
 # Regular expression matching correct class attribute names
-class-attribute-rgx=^(_?[A-Z][A-Z0-9_]*|__[a-z0-9_]+__|_?[a-z][a-z0-9_]*)$
+class-attribute-rgx=^(_?[A-Z][A-Z0-9_]*|__[a-z0-9_]+__|visit_.+|_?[a-z][a-z0-9_]*)$
 
 # Regular expression matching correct inline iteration names
 inlinevar-rgx=^[a-z][a-z0-9_]*$

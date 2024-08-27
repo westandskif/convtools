@@ -814,7 +814,7 @@ def test_aggregate_func():
                 "b", default=None
             ),
         }
-    ).gen_converter()
+    ).gen_converter(debug=False)
 
     assert conv(input_data) == {
         "a": [5, 10, 10],
@@ -966,7 +966,7 @@ def test_group_by_reducers_reuse():
                 ),
             }
         )
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
     data = [
         {"a": 1, "b": 2, "c": 3},
@@ -1099,3 +1099,38 @@ def test_aggregate_reducers_reuse():
         in code_str
         and "_r2_" not in code_str
     )
+
+    converter = c.aggregate(
+        [
+            c.ReduceFuncs.Array(c.item("a").and_(c.item("a", "b"))),
+            c.ReduceFuncs.Array(c.item("a").and_(c.item("a", "b").and_(7))),
+            c.ReduceFuncs.Array(
+                c.item("a").and_(c.item("a", "b") + 1).and_(77)
+            ),
+            c.ReduceFuncs.Max(c.item("a").and_(c.item("a", "b") + 1).and_(77)),
+        ]
+    ).gen_converter(debug=False)
+
+    data = [
+        {"a": 0},
+        {"a": {"b": -1}},
+        {"a": {"b": 0}},
+    ]
+    result = converter(data)
+    code_str = get_code_str(converter)
+    assert converter(data) == [[0, -1, 0], [0, 7, 0], [0, 0, 77], 77]
+    assert (
+        code_str.count("and 77") == 2
+        and (code_str.count("and 7]") + code_str.count("and 7)")) == 3
+    )
+
+    converter = c.aggregate(
+        [
+            c.ReduceFuncs.Array(c.if_(c.item("a"), c.item("a", "b"), 7)),
+            c.ReduceFuncs.Array(c.if_(c.item("a"), c.item("a", "b"), 17)),
+        ]
+    ).gen_converter(debug=False)
+    result = converter(data)
+    code_str = get_code_str(converter)
+    assert result == [[7, -1, 0], [17, -1, 0]]
+    assert code_str.count("['a']") == 2 or code_str.count('["a"]') == 2

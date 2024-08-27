@@ -38,7 +38,7 @@ def _datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_va
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
     if len(data_) != match.end():
-        raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        raise ValueError("unconverted data remains: %s" % data_[match.end() :])
     groups_ = match.groups()
     return __datetime(int(groups_[2]), int(groups_[0]), int(groups_[1]), 0, 0, 0, 0)
 
@@ -54,7 +54,7 @@ def _datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_va
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
     if len(data_) != match.end():
-        raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        raise ValueError("unconverted data remains: %s" % data_[match.end() :])
     groups_ = match.groups()
     return __datetime(int(groups_[2]), int(groups_[0]), int(groups_[1]), 0, 0, 0, 0)
 
@@ -63,7 +63,7 @@ def _datetime_parse_e(data_, *, __v_q=__naive_values__["__v_q"], __datetime=__na
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%Y-%m-%d"""))
     if len(data_) != match.end():
-        raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        raise ValueError("unconverted data remains: %s" % data_[match.end() :])
     groups_ = match.groups()
     return __datetime(int(groups_[0]), int(groups_[1]), int(groups_[2]), 0, 0, 0, 0)
 
@@ -86,7 +86,7 @@ def _datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_va
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y %H:%M"""))
     if len(data_) != match.end():
-        raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        raise ValueError("unconverted data remains: %s" % data_[match.end() :])
     groups_ = match.groups()
     return __datetime(int(groups_[2]), int(groups_[0]), int(groups_[1]), int(groups_[3]), int(groups_[4]), 0, 0)
 

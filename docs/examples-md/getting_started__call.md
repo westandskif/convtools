@@ -33,21 +33,21 @@ assert (
 
 /// tab | debug stdout
 ```python
-def _converter(data_, *, __v=__naive_values__["__v"], __strptime=__naive_values__["__strptime"]):
+def _converter(data_, *, __strptime=__naive_values__["__strptime"], __v=__naive_values__["__v"]):
     try:
         return __strptime(data_, __v)
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def _converter(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+def _converter(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
     try:
         return __datetime.strptime(data_, __v)
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
 
-def _converter(data_, *, __v=__naive_values__["__v"], __strptime=__naive_values__["__strptime"]):
+def _converter(data_, *, __strptime=__naive_values__["__strptime"], __v=__naive_values__["__v"]):
     try:
         return __strptime(data_, __v)
     except __exceptions_to_dump_sources:
