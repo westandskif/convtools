@@ -37,7 +37,9 @@ def aggregate_(_none, data_):
             agg_data__v2 = row_ or 0
             checksum_ += 1
             agg_data__v1 = row_
+            pass
             agg_data__v0 = row_
+            pass
         else:
             agg_data__v2 += row_ or 0
             agg_data__v1 = row_

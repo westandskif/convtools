@@ -25,7 +25,7 @@ def _datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__n
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
     if len(data_) != match.end():
-        raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        raise ValueError("unconverted data remains: %s" % data_[match.end() :])
     groups_ = match.groups()
     return __datetime(int(groups_[2]), int(groups_[0]), int(groups_[1]), 0, 0, 0, 0)
 
@@ -48,7 +48,7 @@ def _datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__n
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
     if len(data_) != match.end():
-        raise ValueError("unconverted data remains: %s" % data_string[match.end() :])
+        raise ValueError("unconverted data remains: %s" % data_[match.end() :])
     groups_ = match.groups()
     return __datetime(int(groups_[2]), int(groups_[0]), int(groups_[1]), 0, 0, 0, 0)
 

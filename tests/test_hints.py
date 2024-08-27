@@ -120,14 +120,14 @@ def test_combination_of_reducers_with_hints():
         "g": c.ReduceFuncs.Max(c.item(0) + c.item(1)),
         "k": c.ReduceFuncs.Max(c.item(0).as_type(int)),
     }
-    converter = c.aggregate(agg_config).gen_converter(debug=True)
+    converter = c.aggregate(agg_config).gen_converter(debug=False)
+    result = converter(zip(range(5), range(5)))
     converter_2 = (
         c.group_by(c.call_func(lambda x: x, 1))
         .aggregate(agg_config)
         .item(0)
-        .gen_converter(debug=True)
+        .gen_converter(debug=False)
     )
-    result = converter(zip(range(5), range(5)))
     result_2 = converter(zip(range(5), range(5)))
     assert (
         result

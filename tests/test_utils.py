@@ -4,21 +4,23 @@ from itertools import zip_longest
 import pytest
 
 from convtools import conversion as c
-from convtools._aggregations import fuzzy_merge_group_by_cmp
+from convtools._aggregations import (
+    fuzzy_merge_group_by_cmp,
+    no_side_effects_test,
+)
 from convtools._base import (
     BaseConversion,
     ConverterOptions,
     ConverterOptionsCtx,
     This,
 )
-from convtools._utils import (
-    Code,
-    CodeParams,
-    CodeStorage,
+from convtools._optimizer import (
+    OptimizationStage1,
     ast_are_fuzzy_equal,
     ast_merge,
     ast_unparse,
 )
+from convtools._utils import PY_VERSION, Code, CodeParams, CodeStorage
 
 
 def test_code_generation_ctx():
@@ -406,3 +408,154 @@ def test_ast_merge(args):
         print(expected)
         print(ast_unparse(left))
         raise
+
+
+def test_optimizer():
+    code = Code()
+    _ = code.add_line
+    optimizer = OptimizationStage1()
+    expr = optimizer.use_expression
+
+    _("from decimal import Decimal, localcontext, ROUND_DOWN", 0)
+    _("from itertools import chain", 0)
+    _("OPTIMIZATION_ENABLED = False", 0)
+    _("try:", 1)
+    _(expr("data['x'] + 1"), -1)
+    _("except NameError:", 1)
+    _("pass", -1)
+    _("def f1(data):", 1)
+    _("a = {}".format(expr("data['x']")), 0)
+    _("a += {}".format(expr("data['x']")), 0)
+    _("agg_data_ = {}".format(expr("data['y']")), 0)
+    _("agg_data_ += {}".format(expr("data['y']")), 0)
+    _("return a + agg_data_", -1)
+    _("a = 4", 0)
+    _("b = 1", 0)
+    _("while a >= 0:", 1)
+    _("if {0}:".format(expr("b > 0")), 1)
+    _("a -= 1", -1)
+    _("a -= (b > 0)", -1)
+    _("c = 0", 0)
+    _("d = {}".format(expr("c + 1")), 0)
+    _("for c in range(3):", 1)
+    _("d += c + 1", 0)
+    _("d += c + 1", -1)
+    _("e = Decimal('3')", 0)
+    _("agg_data_0 = 0", 0)
+    _("with localcontext() as ctx:", 1)
+    _("ctx.rounding = ROUND_DOWN", 0)
+    _("agg_data_0 += {}".format(expr("(e/2).quantize(Decimal('1'))")), 0)
+    _("agg_data_0 += {}".format(expr("(e/2).quantize(Decimal('1'))")), -1)
+    _("i = 3", 0)
+    _("agg_data_1 = 0", 0)
+    expr("i * 2")
+    _("for i in range(i * 2 + i * 2):", 1)
+    _("agg_data_1 += i * 2", 0)
+    _("agg_data_1 += i * 2", 0)
+    _("", -1)
+    _("def f2():", 1)
+    _("a = agg_data_ = 1", 0)
+    _("b = {}".format(expr("a + 1")), 0)
+    _("del a", 0)
+    _("agg_data_ += a + 1", 0)
+    _("agg_data_ += a + 1", 0)
+    _("return agg_data_", -1)
+    _("", 0)
+    _("agg_data_5 = agg_data_4 = agg_data_3 = agg_data_2 = j = 1", 0)
+    expr("j + 2")
+    _("try:", 1)
+    _("agg_data_2 += j + 2", 0)
+    _("agg_data_2 += j + 2", -1)
+    _("except:", 1)
+    _("agg_data_3 += j + 2", 0)
+    _("agg_data_3 += j + 2", -1)
+    _("else:", 1)
+    _("agg_data_4 += j + 2", 0)
+    _("agg_data_4 += j + 2", -1)
+    _("finally:", 1)
+    _("agg_data_5 += j + 2", 0)
+    _("agg_data_5 += j + 2", -1)
+    _("", 0)
+    # fmt: off
+    _("k = 0", 0)
+    _("data = [[1,2,3]]", 0)
+    _("comp1 = {}".format(expr("sum([(k + 3) * (k + 3) for k in chain(data[0], data[0])])")), 0)
+    _("comp2 = {}".format(expr("sum((k + 3) * (k + 3) for k in chain(data[0], data[0]))")), 0)
+    _("comp3 = {}".format(expr("sum({ (k + 3) * (k + 3) for k in chain(data[0], data[0]) })")), 0)
+    _("comp4 = {}".format(expr("sum({\n(k + 3) * (k + 3): 1 for k in chain(data[0], data[0])\n})")), 0)
+    if PY_VERSION >= (3, 8):
+        expr("v + 3")
+        _("v = 1", 0)
+        _("(z := v + 3) + (zz := v + 3)", 0)
+        _("(agg_data_6 := v + 3) + (agg_data_7 := v + 3)", 0)
+    _("", 0)
+    _("l = 0", 0)
+    expr("l + 4")
+    e = expr("[1, 2, l + 4]")
+    _(f"agg_data_8 = {e}", 0)
+    _(f"agg_data_9 = {e}", 0)
+    _("assert agg_data_8 is not agg_data_9, 'check1'", 0)
+    _("assert agg_data_8, 'check1_2'", 0)
+    e = expr("(1, 2, l + 4)")
+    _(f"agg_data_8 = {e}", 0)
+    _(f"agg_data_9 = {e}", 0)
+    _("assert agg_data_8 is agg_data_9 if OPTIMIZATION_ENABLED else agg_data_8 is not agg_data_9, 'check2'", 0)
+    e = expr("{1, 2, l + 4}")
+    _(f"agg_data_8 = {e}", 0)
+    _(f"agg_data_9 = {e}", 0)
+    _("assert agg_data_8 is not agg_data_9, 'check3'", 0)
+    e = expr("{l + 4: l + 4}")
+    _(f"agg_data_8 = {e}", 0)
+    _(f"agg_data_9 = {e}", 0)
+    _("assert agg_data_8 is not agg_data_9, 'check4'", 0)
+    # fmt: on
+    _("", 0)
+    _("", 0)
+    _("", 0)
+    _("", 0)
+    _("", 0)
+    _("RESULTS = []", 0)
+    _("try:", 1)
+    _("f2()", 0)
+    _("RESULTS.append(None)", -1)
+    _("except NameError:", 1)
+    _("RESULTS.append(True)", -1)
+    _("RESULTS.append(f1({'x': 10, 'y': 100}))", 0)
+    _("RESULTS.append(d)", 0)
+    _("RESULTS.append(agg_data_0)", 0)
+    _("RESULTS.append(agg_data_1)", 0)
+    _("RESULTS.append(agg_data_2)", 0)
+    _("RESULTS.append(agg_data_3)", 0)
+    _("RESULTS.append(agg_data_4)", 0)
+    _("RESULTS.append(agg_data_5)", 0)
+    _("RESULTS.append(comp1)", 0)
+    _("RESULTS.append(comp2)", 0)
+    code_str = code.to_string(0)
+
+    optimizer.run(
+        ast.parse(
+            code_str.replace(
+                "OPTIMIZATION_ENABLED = False", "OPTIMIZATION_ENABLED = True"
+            )
+        ),
+        no_side_effects_test=no_side_effects_test,
+    )
+    optimized_code_str = ast_unparse(optimizer.tree)
+    print(optimized_code_str)
+    ctx = {}
+    exec(code_str, ctx, ctx)
+    results_of_non_optimized = ctx["RESULTS"]
+    ctx = {}
+    exec(optimized_code_str, ctx, ctx)
+    results_of_optimized = ctx["RESULTS"]
+    assert results_of_non_optimized == results_of_optimized
+    assert optimized_code_str.count("data['x']") == 3
+    assert optimized_code_str.count("data['y']") == 1
+    assert optimized_code_str.count("b > 0") == 1
+    assert optimized_code_str.count("range(i * 2 + i * 2)") == 0
+    assert optimized_code_str.count("e/2") == 0
+    assert optimized_code_str.count("j + 2") == 4
+    assert optimized_code_str.count("data[0]") == 4
+    if PY_VERSION >= (3, 8):
+        assert optimized_code_str.count("v + 3") == 2
+    assert optimized_code_str.count("l + 4") == 4

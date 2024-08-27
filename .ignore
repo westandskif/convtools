@@ -9,3 +9,4 @@ tmp/
 .pytest_cache/
 *.patch
 .ccls-cache/
+*.csv

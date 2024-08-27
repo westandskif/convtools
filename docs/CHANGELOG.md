@@ -1,4 +1,4 @@
-## 1.13.0 (2024-08-22)
+## 1.13.1 (2024-08-28)
 
 - sped up aggregations by CSE (common subexpression elimination)
 

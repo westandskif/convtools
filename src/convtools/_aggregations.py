@@ -2,14 +2,16 @@
 
 import warnings
 from ast import Attribute as AstAttribute
+from ast import Call as AstCall
 from ast import Compare as AstCompare
 from ast import Is as AstIs
 from ast import Name as AstName
+from ast import Pass as AstPass
 from ast import parse as ast_parse
 from collections import defaultdict
 from decimal import Decimal
 from math import ceil
-from typing import Any, Callable, ClassVar, Dict, Sequence, Tuple, Union
+from typing import Any, Callable, ClassVar, Dict, Sequence, Tuple, Union, cast
 
 from ._base import (
     BaseConversion,
@@ -33,41 +35,45 @@ from ._base import (
     _none,
 )
 from ._heuristics import Weights
-from ._utils import (
-    Code,
-    CodeOptimizer,
-    OptimizationReplacerByName,
+from ._optimizer import (
+    OptimizationStage1,
     ast_are_fuzzy_equal,
     ast_merge,
     ast_unparse,
+    replace_node_by_node_path,
 )
+from ._utils import Code
 
 
-class OptimizationReplacerByNameWithChecksums(OptimizationReplacerByName):
-    """Extends OptimizationReplacerByName, deduplicating checksum incrs."""
+class OptimizationStage1WithChecksums(OptimizationStage1):
+    """OptimizationStage1 + deletion of duplicate checksums."""
 
-    __slots__ = OptimizationReplacerByName.__slots__ + [
-        "checksum_incrs",
-        "checksum",
-    ]
-
-    def __init__(self, name_to_new_node):
-        super().__init__(name_to_new_node)
-        self.checksum_incrs = []
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.stack_checksum_incrs = []
+        self.unnecessary_checksum_node_paths = []
         self.checksum = 0
 
     def visit_If(self, node):
-        self.checksum_incrs.append(0)
-        result = super().generic_visit(node)
-        self.checksum += self.checksum_incrs.pop()
-        return result
+        self.stack_checksum_incrs.append(0)
+        super().visit_If(node)
+        self.checksum += self.stack_checksum_incrs.pop()
 
     def visit_AugAssign(self, node):
         if isinstance(node.target, AstName) and node.target.id == "checksum_":
-            if self.checksum_incrs[-1] > 0:
+            if self.stack_checksum_incrs[-1] > 0:
+                self.unnecessary_checksum_node_paths.append(self.node_path)
                 return None
-            self.checksum_incrs[-1] += 1
-        return super().generic_visit(node)
+            else:
+                self.stack_checksum_incrs[-1] += 1
+            return
+        return super().visit_AugAssign(node)
+
+    def run(self, *args, **kwargs):
+        super().run(*args, **kwargs)
+        new_node = AstPass()
+        for node_path in self.unnecessary_checksum_node_paths:
+            replace_node_by_node_path(node_path, new_node)
 
 
 def fuzzy_cmp_group_by(x, y):
@@ -151,6 +157,21 @@ def fuzzy_merge_aggregate_cmp(x, y):
     )
 
 
+def no_side_effects_test(x):
+    if isinstance(x, AstCall):
+        x = x.func
+    if isinstance(x, AstAttribute):
+        x = x.value
+    elif (
+        isinstance(x, AstCompare)
+        and isinstance(x.ops[0], AstIs)
+        and isinstance(x.comparators[0], AstName)
+        and x.comparators[0].id == "_none"
+    ):
+        x = x.left
+    return isinstance(x, AstName) and x.id.startswith("agg_data_")
+
+
 class ReduceManager:
     """Build group by / aggregate code."""
 
@@ -163,6 +184,9 @@ class ReduceManager:
         "var_agg_data_value_to_ast_without_init",
         "code_optimizer",
     ]
+    code_optimizer: (
+        "Union[OptimizationStage1WithChecksums, OptimizationStage1]"
+    )
 
     def __init__(self, var_row, var_agg_data, aggregate_mode):
         self.var_row = var_row
@@ -172,7 +196,10 @@ class ReduceManager:
         self.var_agg_data_value_to_ast_with_init = {}
         self.var_agg_data_value_to_ast_without_init = {}
 
-        self.code_optimizer = CodeOptimizer(self.var_row)
+        if self.aggregate_mode:
+            self.code_optimizer = OptimizationStage1WithChecksums()
+        else:
+            self.code_optimizer = OptimizationStage1()
 
     def add_reducer_code(
         self, var_agg_data_value, code_with_init, code_without_init
@@ -200,16 +227,12 @@ class ReduceManager:
         )
         return var_agg_data_value
 
-    def optimize(self, tree, with_checksum=False):
-        replacement_to_node = self.code_optimizer.get_replacement_to_node(tree)
-        if with_checksum:
-            replacer = OptimizationReplacerByNameWithChecksums(
-                replacement_to_node
-            )
-            result = replacer.visit(tree)
-            return result, replacer.checksum
-        else:
-            return OptimizationReplacerByName(replacement_to_node).visit(tree)
+    def optimize(self, tree):
+        self.code_optimizer.run(
+            tree=tree,
+            no_side_effects_test=no_side_effects_test,
+        )
+        return self.code_optimizer.tree
 
     def gen_group_by_code(self, var_signature_to_agg_data, code_signature):
         ast_with_init = None
@@ -271,9 +294,10 @@ class ReduceManager:
                 )
 
         if ast_with_init:
-            optimized_ast_with_init, expected_checksum = self.optimize(
-                ast_with_init, with_checksum=True
-            )
+            optimized_ast_with_init = self.optimize(ast_with_init)
+            expected_checksum = cast(
+                OptimizationStage1WithChecksums, self.code_optimizer
+            ).checksum
 
             var_init_checksum = "checksum_"
             code.add_line(f"{var_init_checksum} = 0", 0)
@@ -461,21 +485,15 @@ class BaseReducer(BaseConversion):
             "works_with_not_none_only", ctx
         )
         for index, expression in enumerate(self.expressions):
-            expression_code = expression.gen_code_and_update_ctx(
-                code_input, ctx
+            expression_code = reduce_manager.code_optimizer.use_expression(
+                expression.gen_code_and_update_ctx(code_input, ctx)
             )
-            kwargs[f"value{index}"] = (
-                reduce_manager.code_optimizer.use_expression(expression_code)
-            )
+            kwargs[f"value{index}"] = expression_code
             if works_with_not_none_only[index] and not expression.has_hint(
                 BaseConversion.OutputHints.NOT_NONE
             ):
                 code.add_line(
-                    "if {}:".format(
-                        reduce_manager.code_optimizer.use_expression(
-                            f"{expression_code} is not None"
-                        )
-                    ),
+                    "if {}:".format(f"{expression_code} is not None"),
                     1,
                 )
 
