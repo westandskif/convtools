@@ -11,7 +11,7 @@ from ast import expr as AstExpr
 from ast import parse as ast_parse
 from collections import defaultdict, deque
 from itertools import chain
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ._utils import PY_VERSION, ast_unparse
 
@@ -397,6 +397,7 @@ class OptimizationStage1(ast.NodeVisitor):
         "stack_body_indexes",
         "stack_expr_visibilities",
         "methods",
+        "_node_code_cache",
     ]
 
     def __init__(self):
@@ -405,6 +406,7 @@ class OptimizationStage1(ast.NodeVisitor):
         self.methods: Dict[str, Callable] = defaultdict(
             lambda: self.generic_visit
         )
+        self._node_code_cache = {}
         for name in dir(self):
             if name.startswith("visit_"):
                 self.methods[name] = getattr(self, name)
@@ -417,7 +419,7 @@ class OptimizationStage1(ast.NodeVisitor):
         self.parent_layer = self.root_layer
         self.current_layer = self.root_layer
 
-        self.node_path = None
+        self.node_path: "Tuple[Any, Any]" = (None, None)
         self.stack_body_indexes = []
 
         self.mode_collect_expr_chain = None
@@ -631,7 +633,7 @@ class OptimizationStage1(ast.NodeVisitor):
         if isinstance(node, AstExpr):
             if self.mode_collect_expr_chain:
                 if node_name not in _non_idempotent_expr_nodes:
-                    expr_code = ast_unparse(node)
+                    expr_code = self.get_node_code(node)
                     expr_info = self.expr_code_tree[expr_code]
                     if self.parent_expr_code is not None:
                         self.expr_code_tree[
@@ -644,7 +646,7 @@ class OptimizationStage1(ast.NodeVisitor):
                     self.parent_expr_code = expr_code
 
             else:
-                expr_code = ast_unparse(node)
+                expr_code = self.get_node_code(node)
                 if expr_code in self.exprs_to_optimize:
                     expr_chain_collector = ExprChainCollector(self)
                     expr_chain_collector.start()
@@ -669,6 +671,16 @@ class OptimizationStage1(ast.NodeVisitor):
                 expr_chain_collector.expr_code_tree,
                 self.stack_body_indexes[-1],
             )
+
+    def get_node_code(self, node):
+        if self.parent_expr_code is not None:
+            key = self.parent_expr_code, self.node_path[-1]
+            if key in self._node_code_cache:
+                return self._node_code_cache[key]
+            expr_code = ast_unparse(node)
+            self._node_code_cache[key] = expr_code
+            return expr_code
+        return ast_unparse(node)
 
     def _custom_expr_visit_call(self, node):
         self.visit_by_attr(node, "func")

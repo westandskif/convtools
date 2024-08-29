@@ -1,3 +1,7 @@
+## 1.13.2 (2024-08-29)
+
+- sped up code generation for aggregations
+
 ## 1.13.1 (2024-08-28)
 
 - sped up aggregations by CSE (common subexpression elimination)
