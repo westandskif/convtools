@@ -50,30 +50,9 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
-def aggregate_(_none, data_):
-    agg_data__v0 = _none
-
-    checksum_ = 0
-    it_ = iter(data_)
-    for row_ in it_:
-        if agg_data__v0 is _none:
-            agg_data__v0 = row_["revenue"] or 0
-            checksum_ += 1
-        else:
-            agg_data__v0 += row_["revenue"] or 0
-        if checksum_ == 1:
-            globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
-            break
-    for row_ in it_:
-        agg_data__v0 += row_["revenue"] or 0
-
-    return 0 if (agg_data__v0 is _none) else agg_data__v0
-
 def _converter(data_):
-    global __none__
-    _none = __none__
     try:
-        return aggregate_(_none, data_)
+        return sum(((_i["revenue"] or 0) for _i in data_))
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise
@@ -171,5 +150,6 @@ def _converter(data_, *, __v_5=__naive_values__["__v_5"], __v=__naive_values__["
 
 
 ```
+{ data-search-exclude }
 ///
 

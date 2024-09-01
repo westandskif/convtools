@@ -62,5 +62,6 @@ def _converter(data_, *, __f=__naive_values__["__f"]):
 
 
 ```
+{ data-search-exclude }
 ///
 

@@ -33,7 +33,7 @@ assert converter({"dt": "12/31/2020 15:40"}) == datetime(
 
 /// tab | debug stdout
 ```python
-def _datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+def _datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
     match = __v.match(data_)
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
@@ -49,7 +49,7 @@ def _converter(data_):
         __convtools__code_storage.dump_sources()
         raise
 
-def _datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+def _datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
     match = __v.match(data_)
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
@@ -58,7 +58,7 @@ def _datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_va
     groups_ = match.groups()
     return __datetime(int(groups_[2]), int(groups_[0]), int(groups_[1]), 0, 0, 0, 0)
 
-def _datetime_parse_e(data_, *, __v_q=__naive_values__["__v_q"], __datetime=__naive_values__["__datetime"]):
+def _datetime_parse_e(data_, *, __datetime=__naive_values__["__datetime"], __v_q=__naive_values__["__v_q"]):
     match = __v_q.match(data_)
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%Y-%m-%d"""))
@@ -81,7 +81,7 @@ def _converter(data_):
         __convtools__code_storage.dump_sources()
         raise
 
-def _datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+def _datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
     match = __v.match(data_)
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y %H:%M"""))
@@ -99,5 +99,6 @@ def _converter(data_):
 
 
 ```
+{ data-search-exclude }
 ///
 

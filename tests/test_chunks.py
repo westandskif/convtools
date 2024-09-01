@@ -1,3 +1,5 @@
+from types import GeneratorType
+
 import pytest
 
 from convtools import conversion as c
@@ -24,6 +26,12 @@ def test_chunks_exceptions():
             c.chunk_by(size=bad_value)
     with pytest.raises(ValueError):
         c.chunk_by()
+    with pytest.raises(ValueError):
+        c.unordered_chunk_by()
+    with pytest.raises(ValueError):
+        c.unordered_chunk_by(c.item(0), size=-1)
+    with pytest.raises(ValueError):
+        c.unordered_chunk_by(c.item(0), max_items_in_memory=-1)
 
 
 def test_chunks_by_condition(data_for_chunking):
@@ -93,3 +101,62 @@ def test_chunks_by_size(data_for_chunking):
     assert c.chunk_by(c.item("x"), size=2).aggregate(
         c.ReduceFuncs.Last(c.item("z")),
     ).as_type(list).execute(data_for_chunking) == [11, 12, 14, 15, 17, 18]
+
+
+def test_unordered_chunk_by_size():
+    data = [
+        {"a": 0, "b": 1},
+        {"a": 1, "b": 6},
+        {"a": 0, "b": 2},
+        {"a": 1, "b": 7},
+        {"a": 0, "b": 3},
+        {"a": 1, "b": 8},
+        {"a": 0, "b": 4},
+        {"a": 1, "b": 9},
+        {"a": 1, "b": 10},
+        {"a": 0, "b": 5},
+    ]
+    gen = iter(
+        c.unordered_chunk_by(c.item("a"))
+        .aggregate(c.ReduceFuncs.Array(c.item("b")))
+        .execute(data, debug=False)
+    )
+    assert isinstance(gen, GeneratorType)
+    result = list(gen)
+    assert result == [[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]]
+    result = (
+        c.unordered_chunk_by(c.item("a"), size=3)
+        .aggregate(c.ReduceFuncs.Array(c.item("b")))
+        .as_type(list)
+        .execute(data, debug=False)
+    )
+    assert result == [[1, 2, 3], [6, 7, 8], [4, 5], [9, 10]]
+    result = (
+        c.unordered_chunk_by(
+            c.item("a"),
+            max_items_in_memory=4,
+            portion_to_pop_on_max_memory_hit=1,
+        )
+        .aggregate(c.ReduceFuncs.Array(c.item("b")))
+        .as_type(list)
+        .execute(data, debug=False)
+    )
+    assert result == [[1, 2], [6, 7], [3, 4], [8, 9], [10], [5]]
+    result = (
+        c.unordered_chunk_by(
+            c.item("a"),
+            max_items_in_memory=6,
+            portion_to_pop_on_max_memory_hit=0.5,
+        )
+        .aggregate(c.ReduceFuncs.Array(c.item("b")))
+        .as_type(list)
+        .execute(data, debug=False)
+    )
+    assert result == [[1, 2, 3], [6, 7, 8, 9, 10], [4, 5]]
+    result = (
+        c.unordered_chunk_by(c.item("a"), size=4, max_items_in_memory=6)
+        .aggregate(c.ReduceFuncs.Array(c.item("b")))
+        .as_type(list)
+        .execute(data, debug=True)
+    )
+    assert result == [[1, 2, 3], [6, 7, 8, 9], [4, 5], [10]]

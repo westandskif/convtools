@@ -4,22 +4,17 @@
 install:
 	poetry install --with=test,lint,docs
 
-docs:
+dynamic_docs_examples:
 	python build-docs-examples.py
+
+dynamic_docs_performance:
 	python build-docs-performance.py
 
-docs_drop:
+docs_drop_dynamic_md:
 	rm docs/examples-md/.last_build.csv || true
 
-docs_serve: docs
+docs:
 	mkdocs serve
-
-build:
-	find dist -delete || true
-	hatch build
-
-upload:
-	hatch publish
 
 spellcheck:
 	find . \( -name "*.rst" -o -name "*.py" \) -not -path "./build/*" -not -path "./tests/*" -exec aspell/aspell {} \;

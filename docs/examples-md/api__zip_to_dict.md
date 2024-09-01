@@ -50,5 +50,6 @@ def _converter(data_, *, __from_iterable=__naive_values__["__from_iterable"], __
 
 
 ```
+{ data-search-exclude }
 ///
 
