@@ -1,23 +1,17 @@
 # Contributing
 
-I'd love you to contribute to `convtools`!
+The best way to support the development of convtools is to spread the word!
 
-## Questions / discussions
+Also, if you already are a convtools user, we would love to hear about your use
+cases and challenges in the [Discussions
+section](https://github.com/westandskif/convtools/discussions).
 
-Should you have any questions, feel free to start a discussion
-[here](https://github.com/westandskif/convtools/discussions).
-
-## Issues
-
-Feature requests and bug reports are all welcome, please
-submit an issue
-[here](https://github.com/westandskif/convtools/issues).
+To report a bug or suggest enhancements, please open [an
+issue](https://github.com/westandskif/convtools/issues) and/or submit [a pull
+request](https://github.com/westandskif/convtools/pulls).
 
 
-## Security 
-
-To report a security issue, please see the
-[security policy](https://github.com/westandskif/convtools/security/policy).
+**Reporting a Security Vulnerability**: see the [security policy](https://github.com/westandskif/convtools/security/policy).
 
 ## Pull requests
 
@@ -25,11 +19,11 @@ Unless your change is trivial, please start a discussion or submit an issue to
 discuss before creating a pull request.
 
 1. clone the repo
-1. install dev requrements: `pip install -r requirements/dev.in`
-1. install docs requirements: `pip install -r requirements/docs.txt`
-   (_versions are pinned for python 3.9_)
+1. install python 3.10
+1. install dev requrements: `pip install -r ci-requirements/requirements3.10.out`
 1. make a change
 1. make sure tests are passed: `pytest`
-1. make sure docs are building: `make docs && make docs_serve`
+1. make sure checks are passed: `make checks`
+1. make sure docs are building: `make docs`
 1. include the info to be put into the changelog in PR description
 1. commit the changes and open a pull request

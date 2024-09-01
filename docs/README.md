@@ -111,7 +111,17 @@ pip install convtools
 ### Is it debuggable?
 Despite being compiled at runtime, it is (_by both `pdb` and `pydevd`_).
 
+## Contributing
 
-## Reporting a Security Vulnerability
+The best way to support the development of convtools is to spread the word!
 
-See the [security policy](https://github.com/westandskif/convtools/security/policy).
+Also, if you already are a convtools user, we would love to hear about your use
+cases and challenges in the [Discussions
+section](https://github.com/westandskif/convtools/discussions).
+
+To report a bug or suggest enhancements, please open [an
+issue](https://github.com/westandskif/convtools/issues) and/or submit [a pull
+request](https://github.com/westandskif/convtools/pulls).
+
+
+**Reporting a Security Vulnerability**: see the [security policy](https://github.com/westandskif/convtools/security/policy).
