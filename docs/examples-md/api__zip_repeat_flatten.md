@@ -28,7 +28,7 @@ assert converter([{"a": 1, "b": [2, 3]}, {"a": 10, "b": [4, 5]}]) == [
 
 /// tab | debug stdout
 ```python
-def _converter(data_, *, __repeat=__naive_values__["__repeat"], __from_iterable=__naive_values__["__from_iterable"]):
+def _converter(data_, *, __from_iterable=__naive_values__["__from_iterable"], __repeat=__naive_values__["__repeat"]):
     try:
         return list(__from_iterable((zip(__repeat(_i["a"]), _i["b"]) for _i in data_)))
     except __exceptions_to_dump_sources:
@@ -37,5 +37,6 @@ def _converter(data_, *, __repeat=__naive_values__["__repeat"], __from_iterable=
 
 
 ```
+{ data-search-exclude }
 ///
 

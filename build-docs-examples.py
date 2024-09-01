@@ -58,6 +58,7 @@ def write_md_example(raw_example_path, output):
 ```python
 {output}
 ```
+{{ data-search-exclude }}
 ///
 
 """

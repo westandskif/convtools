@@ -102,5 +102,6 @@ def _converter(data_, *, __datetime_trunc_to_microsecond=__naive_values__["__dat
 
 
 ```
+{ data-search-exclude }
 ///
 

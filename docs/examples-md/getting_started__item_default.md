@@ -22,5 +22,6 @@ def _converter(data_, *, __get_item_deep_default_simple=__naive_values__["__get_
 
 
 ```
+{ data-search-exclude }
 ///
 

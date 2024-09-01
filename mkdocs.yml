@@ -54,3 +54,8 @@ markdown_extensions:
   - pymdownx.snippets:
       base_path: .
       dedent_subsections: true
+  - attr_list
+
+exclude_docs: |
+  examples-md/*.md
+  performance-md/*.md

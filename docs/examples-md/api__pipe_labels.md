@@ -94,5 +94,6 @@ def _converter(data_, *, __repeat=__naive_values__["__repeat"]):
 
 
 ```
+{ data-search-exclude }
 ///
 

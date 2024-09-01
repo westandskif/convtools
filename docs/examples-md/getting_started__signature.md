@@ -45,5 +45,6 @@ def _converter(self):
 
 
 ```
+{ data-search-exclude }
 ///
 

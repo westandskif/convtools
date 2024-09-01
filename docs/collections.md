@@ -141,6 +141,22 @@ We'll cover aggregations later, but bear with me -- chunk conversions have
 
 {!examples-md/api__chunk_aggregate.md!}
 
+#### unordered_chunk_by
+
+Slice an iterable into chunks by values and sizes without keeping order of
+items.
+
+```python
+c.unordered_chunk_by(
+    --8<-- "src/convtools/_chunks.py:unordered_chunk_by_signature"
+)
+```
+
+    --8<-- "src/convtools/_chunks.py:unordered_chunk_by_args_docs"
+
+
+{!examples-md/api__unordered_chunk.md!}
+
 
 #### take_while, drop_while
 

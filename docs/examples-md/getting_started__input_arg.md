@@ -22,5 +22,6 @@ def _converter(data_, *, increment):
 
 
 ```
+{ data-search-exclude }
 ///
 

@@ -1,5 +1,6 @@
 """Conversions for slicing iterables into chunks."""
 
+from collections import defaultdict
 from typing import Optional
 
 from ._aggregations import Aggregate
@@ -158,6 +159,149 @@ class ChunkBy(BaseChunkBy):
                 converter_name, code.to_string(0)
             )
 
+        return function_ctx.call_with_all_args(
+            conversion
+        ).gen_code_and_update_ctx(code_input, ctx)
+
+
+class UnorderedChunkBy(BaseChunkBy):
+    """Slice iterable into unordered chunks by element values and sizes.
+
+    >>> # by "x" values, no chunk size limit, no max items in memory limit
+    >>> c.unordered_chunk_by(c.item("x"))
+    >>>
+    >>> # by "x" values, max 1000 items per chunk, no max items in memory limit
+    >>> c.unordered_chunk_by(c.item("x"), size=1000)
+    >>>
+    >>> # by "x" values, max 1000 items per chunk, max 10,000 items in memory
+    >>> c.unordered_chunk_by(c.item("x"), size=1000, max_items_in_memory=10000)
+    >>>
+    >>> # by "x" values, max 1000 items per chunk, max 10,000 items in memory,
+    >>> # pop 60% of items when max_items_in_memory limit is hit
+    >>> c.unordered_chunk_by(
+    >>>     c.item("x"),
+    >>>     size=1000,
+    >>>     max_items_in_memory=10000,
+    >>>     portion_to_pop_on_max_memory_hit=0.6
+    >>> )
+
+    It also provides a shortcut for running c.aggregate on each chunk like:
+    >>> c.unordered_chunk_by(
+    >>>     c.item("x"),
+    >>>     size=1000
+    >>> ).aggregate({
+    >>>     "x": c.ReduceFuncs.Last(c.item("x")),
+    >>>     "y": c.ReduceFuncs.Sum(c.item("y")),
+    >>> })
+    """
+
+    def __init__(
+        self,
+        # --8<-- [start:unordered_chunk_by_signature]
+        *by,
+        size: Optional[int] = None,
+        max_items_in_memory: Optional[int] = None,
+        portion_to_pop_on_max_memory_hit: float = 0.5,
+        # --8<-- [end:unordered_chunk_by_signature]
+    ):
+        """Init self.
+
+        # --8<-- [start:unordered_chunk_by_args_docs]
+
+        Args:
+          by: fields/conversions to use for slicing into chunks (elements with
+            same values go to the same chunk)
+          size: (optional) positive int to limit max size of a chunk
+          max_items_in_memory: (optional) positive int to limit max number of
+            items held in memory
+          portion_to_pop_on_max_memory_hit: portion of items to pop when
+            max_items_in_memory limit is hit
+        # --8<-- [end:unordered_chunk_by_args_docs]
+        """
+        super().__init__()
+        if not (size is None or size > 0):
+            raise ValueError("size has to be positive or None")
+        if not (max_items_in_memory is None or max_items_in_memory > 0):
+            raise ValueError("max_items_in_memory has to be positive or None")
+        if not by:
+            raise ValueError(
+                "provide one or more 'by' params or consider using c.chunk_by"
+            )
+
+        self.by = self.ensure_conversion(by if len(by) > 1 else by[0])
+        self.size = size
+        self.max_items_in_memory = max_items_in_memory
+        self.portion_to_pop_on_max_memory_hit = (
+            portion_to_pop_on_max_memory_hit
+        )
+
+    def gen_code_and_update_ctx(self, code_input, ctx):
+        ctx["defaultdict"] = defaultdict
+        converter_name = self.gen_random_name("unordered_chunk_by", ctx)
+        function_ctx = (self.by or This).as_function_ctx(
+            ctx, optimize_naive=True
+        )
+        function_ctx.add_arg("items_", This)
+        with function_ctx:
+            code_item_to_signature = (
+                self.by.gen_code_and_update_ctx("item_", ctx)
+                if self.by
+                else None
+            )
+
+            code = Code()
+            code.add_line("def placeholder", 1)
+            code.add_line("key_to_chunk = defaultdict(list)", 0)
+            if self.max_items_in_memory:
+                code.add_line("items_in_memory = 0", 0)
+
+            code.add_line("for item_ in items_:", 1)
+            if self.size:
+                code.add_line(f"key_ = {code_item_to_signature}", 0)
+                code.add_line("chunk_ = key_to_chunk[key_]", 0)
+                code.add_line("chunk_.append(item_)", 0)
+            else:
+                code.add_line(
+                    f"key_to_chunk[{code_item_to_signature}].append(item_)", 0
+                )
+
+            if self.max_items_in_memory:
+                code.add_line("items_in_memory += 1", 0)
+
+            if self.size:
+                code.add_line(f"if len(chunk_) == {self.size}:", 1)
+                code.add_line("del key_to_chunk[key_]", 0)
+                if self.max_items_in_memory:
+                    code.add_line(f"items_in_memory -= {self.size}", 0)
+                code.add_line("yield chunk_", 0)
+                code.add_line("continue", -1)
+
+            if self.max_items_in_memory:
+                code.add_line(
+                    f"if items_in_memory == {self.max_items_in_memory}:", 1
+                )
+                code.add_line(
+                    f"while key_to_chunk and items_in_memory > {self.max_items_in_memory * (1 - self.portion_to_pop_on_max_memory_hit)}:",
+                    1,
+                )
+                code.add_line(
+                    "key, chunk_ = next(iter(key_to_chunk.items()))", 0
+                )
+                code.add_line("items_in_memory -= len(chunk_)", 0)
+                code.add_line("del key_to_chunk[key]", 0)
+                code.add_line("yield chunk_", -2)
+
+            code.incr_indent_level(-1)
+
+            code.add_line("yield from key_to_chunk.values()", 0)
+
+            code.lines_info[0] = (
+                0,
+                f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
+            )
+            conversion = function_ctx.gen_conversion(
+                converter_name, code.to_string(0)
+            )
         return function_ctx.call_with_all_args(
             conversion
         ).gen_code_and_update_ctx(code_input, ctx)

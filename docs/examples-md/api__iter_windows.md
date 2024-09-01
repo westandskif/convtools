@@ -30,5 +30,6 @@ def _converter(data_, *, __iter_windows=__naive_values__["__iter_windows"]):
 
 
 ```
+{ data-search-exclude }
 ///
 

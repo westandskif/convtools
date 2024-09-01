@@ -45,7 +45,7 @@ from ._base import (
     TupleComp,
     ensure_conversion,
 )
-from ._chunks import ChunkBy, ChunkByCondition
+from ._chunks import ChunkBy, ChunkByCondition, UnorderedChunkBy
 from ._columns import ColumnRef
 from ._cumulative import Cumulative
 from ._exceptions import try_multiple
@@ -150,6 +150,7 @@ class Conversion:
     drop_while = DropWhile
 
     chunk_by = ChunkBy
+    unordered_chunk_by = UnorderedChunkBy
     chunk_by_condition = ChunkByCondition
     CHUNK = ChunkByCondition.CHUNK
 

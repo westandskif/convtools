@@ -1,3 +1,9 @@
+## 1.14.0 (2024-09-01)
+
+- added `c.unordered_chunk_by`
+- added short paths for `Sum` and `DictLast` in single-reducer cases of
+`c.aggregate`
+
 ## 1.13.2 (2024-08-29)
 
 - sped up code generation for aggregations

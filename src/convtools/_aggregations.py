@@ -18,7 +18,9 @@ from ._base import (
     CallFunc,
     ConversionException,
     ConverterOptionsCtx,
+    DictComp,
     EscapedString,
+    GeneratorComp,
     GeneratorItem,
     GetItem,
     If,
@@ -538,6 +540,9 @@ class BaseReducer(BaseConversion):
 
         return self.conversion.gen_code_and_update_ctx(new_code_input, ctx)
 
+    def get_single_agg_reduction(self):
+        pass
+
 
 class OptionalExpressionReducer(BaseReducer):
     def check_expressions(self):
@@ -614,6 +619,26 @@ class SumReducer(SingleExpressionReducer):
         if self.expressions[0].has_hint(BaseConversion.OutputHints.NOT_NONE):
             return ("%(result)s += %(value0)s",)
         return ("%(result)s += %(value0)s or 0",)
+
+    def get_single_agg_reduction(self):
+        if (
+            isinstance(self.default, NaiveConversion)
+            and self.default.value == 0
+        ):
+            return CallFunc(
+                sum,
+                GeneratorComp(
+                    (
+                        self.expressions[0]
+                        if self.expressions[0].has_hint(
+                            BaseConversion.OutputHints.NOT_NONE
+                        )
+                        else self.expressions[0].or_(0)
+                    ),
+                    self.where,
+                    This,
+                ),
+            )
 
 
 class SumOrNoneReducer(SingleExpressionReducer):
@@ -747,6 +772,11 @@ class ArrayReducer(SingleExpressionReducer):
     works_with_not_none_only = (False,)
     prepare_first_lines = ("%(result)s = [%(value0)s]",)
     reduce_lines = ("%(result)s.append(%(value0)s)",)
+
+    def get_single_agg_reduction(self):
+        return ListComp(self.expressions[0], self.where, This).or_(
+            self.default
+        )
 
 
 class ListSortedOnceWrapper:
@@ -1051,6 +1081,11 @@ class DictLastReducer(BaseDictReducer):
     prepare_first_lines = ("%(result)s = { %(value0)s: %(value1)s }",)
     reduce_lines = ("%(result)s[%(value0)s] = %(value1)s",)
 
+    def get_single_agg_reduction(self):
+        return DictComp(
+            self.expressions[0], self.expressions[1], self.where, This
+        ).or_(self.default)
+
 
 class ReducerDispatcher:
     def __call__(self, *args, **kwargs) -> "BaseConversion":
@@ -1326,6 +1361,10 @@ class GroupBy:
     def aggregate(
         self, reducer: Union[dict, list, set, tuple, BaseConversion]
     ) -> "Grouper":
+        if not self.by and isinstance(reducer, BaseReducer):
+            conv = reducer.get_single_agg_reduction()
+            if conv is not None:
+                return conv
         return Grouper(self.by, reducer)
 
 

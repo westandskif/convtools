@@ -882,7 +882,9 @@ def test_group_by_delegate():
             and converter.__globals__["__BROKEN_EARLY__"]
         )
 
-        converter = c.aggregate(c.ReduceFuncs.Sum(c.this)).gen_converter()
+        converter = c.aggregate(
+            c.ReduceFuncs.SumOrNone(c.this)
+        ).gen_converter()
         assert (
             converter(range(10)) == 45
             and converter.__globals__["__BROKEN_EARLY__"]
@@ -1135,3 +1137,34 @@ def test_aggregate_reducers_reuse():
     code_str = get_code_str(converter)
     assert result == [[7, -1, 0], [17, -1, 0]]
     assert code_str.count("['a']") == 2 or code_str.count('["a"]') == 2
+
+
+def test_aggregate_single_reducer_reduction():
+    converter = c.aggregate(c.ReduceFuncs.Sum(c.this)).gen_converter()
+    result = converter(range(10))
+    assert result == 45
+    converter = c.aggregate(
+        c.ReduceFuncs.Sum(c.this, where=c.this > 1)
+    ).gen_converter()
+    result = converter(range(10))
+    assert result == 44
+
+    assert c.aggregate(c.ReduceFuncs.Sum(c.this)).execute([]) == 0
+    assert c.aggregate(c.ReduceFuncs.Sum(c.this, default=-1)).execute([]) == -1
+
+    assert c.aggregate(c.ReduceFuncs.DictLast(c.this % 2, c.this)).execute(
+        range(10)
+    ) == {0: 8, 1: 9}
+    assert c.aggregate(
+        c.ReduceFuncs.DictLast(c.this % 2, c.this, where=c.this < 7)
+    ).execute(range(10)) == {0: 6, 1: 5}
+    assert (
+        c.aggregate(c.ReduceFuncs.DictLast(c.this % 2, c.this)).execute([])
+        is None
+    )
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.DictLast(c.this % 2, c.this, default=-1)
+        ).execute([])
+        == -1
+    )
