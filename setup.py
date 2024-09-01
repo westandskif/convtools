@@ -1,5 +1,6 @@
 import os
 import sys
+import sysconfig
 
 from setuptools import Extension, find_packages, setup
 
@@ -7,7 +8,7 @@ from setuptools import Extension, find_packages, setup
 ext_modules = []
 setup_kwargs = {}
 ext_kwargs = {}
-is_free_threading = "t" in sys.abiflags
+is_free_threading = sysconfig.get_config_var("Py_GIL_DISABLED") == 1
 
 if not is_free_threading:
     ext_kwargs["py_limited_api"] = True
