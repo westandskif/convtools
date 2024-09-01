@@ -1,4 +1,3 @@
-#define Py_LIMITED_API 0x03A00000
 #define PY_SSIZE_T_CLEAN /* Make "s#" use Py_ssize_t rather than int. */
 #include <Python.h>
 
@@ -140,7 +139,7 @@ static PyObject *get_attr_deep_default_callable(PyObject *self,
     }
 }
 
-static PyMethodDef CExtMethods[] = {
+static PyMethodDef cext_methods[] = {
     {"get_item_deep_default_simple", (PyCFunction)get_item_deep_default_simple,
      METH_FASTCALL, "c-level fail-safe __getitem__ with default"},
     {"get_item_deep_default_callable",
@@ -155,13 +154,24 @@ static PyMethodDef CExtMethods[] = {
     {NULL, NULL, 0, NULL} /* Sentinel */
 };
 static struct PyModuleDef cext_module = {
-    PyModuleDef_HEAD_INIT, "_cext", /* name of module */
-    NULL,                           /* module documentation, may be NULL */
-    -1, /* size of per-interpreter state of the module,
-           or -1 if the module keeps state in global variables. */
-    CExtMethods};
+    PyModuleDef_HEAD_INIT,
+    "_cext", /* name of module */
+    NULL,    /* module documentation, may be NULL */
+    -1,      /* size of per-interpreter state of the module,
+                or -1 if the module keeps state in global variables. */
+    cext_methods,
+};
 
-PyMODINIT_FUNC PyInit__cext(void) { return PyModule_Create(&cext_module); };
+PyMODINIT_FUNC PyInit__cext(void) {
+    PyObject *module = PyModule_Create(&cext_module);
+    if (module == NULL) {
+        return NULL;
+    }
+#ifdef Py_GIL_DISABLED
+    PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED);
+#endif
+    return module;
+};
 
 // PySys_WriteStdout(PyUnicode_AsUTF8AndSize(PyObject_Repr(config), NULL));
 // PySys_WriteStdout("DBG2 ref count: %i\n", (int)context->tuple->ob_refcnt);

@@ -57,9 +57,6 @@ lint = [
     "mypy",
     "pylint",
 ]
-build = [
-    "hatch",
-]
 doc = [
     "markdown-include",
     "mdx-truly-sane-lists",
