@@ -2,7 +2,9 @@
 
 
 install:
-	poetry install --with=test,lint,docs
+	find src/convtools -type f -name "*.so" -delete
+	pip install -e .
+	ls -la src/convtools
 
 dynamic_docs_examples:
 	python build-docs-examples.py

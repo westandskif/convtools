@@ -1,3 +1,7 @@
+## 1.14.1 (2024-09-01)
+
+- python 3.13t (free threading) support
+
 ## 1.14.0 (2024-09-01)
 
 - added `c.unordered_chunk_by`
