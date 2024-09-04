@@ -160,17 +160,17 @@ def fuzzy_merge_aggregate_cmp(x, y):
 
 
 def no_side_effects_test(x):
-    if isinstance(x, AstCall):
-        x = x.func
-    if isinstance(x, AstAttribute):
-        x = x.value
-    elif (
+    if (
         isinstance(x, AstCompare)
         and isinstance(x.ops[0], AstIs)
         and isinstance(x.comparators[0], AstName)
         and x.comparators[0].id == "_none"
     ):
         x = x.left
+    elif isinstance(x, AstCall):
+        x = x.func
+    if isinstance(x, AstAttribute):
+        x = x.value
     return isinstance(x, AstName) and x.id.startswith("agg_data_")
 
 

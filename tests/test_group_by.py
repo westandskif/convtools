@@ -1015,6 +1015,23 @@ def test_group_by_reducers_reuse():
         },
     ]
 
+    converter = (
+        c.group_by(c.item("x"))
+        .aggregate(
+            {
+                "x": c.item("x"),
+                "y": c.ReduceFuncs.Sum(c.item("obj", "y")),
+                "z": c.ReduceFuncs.Sum(c.item("obj", "z")),
+            }
+        )
+        .gen_converter(debug=False)
+    )
+    code_str = format_code(get_code_str(converter))
+    assert (
+        code_str.count("row_['obj']") == 1
+        or code_str.count('row_["obj"]') == 1
+    )
+
 
 def test_aggregate_reducers_reuse():
     converter = c.aggregate(

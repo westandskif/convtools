@@ -1,3 +1,7 @@
+## 1.14.2 (2024-09-04)
+
+- improved CSE (common subexpression elimination) for `c.group_by` mode
+
 ## 1.14.1 (2024-09-01)
 
 - python 3.13t (free threading) support
