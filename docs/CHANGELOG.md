@@ -1,3 +1,7 @@
+## 1.14.3 (2024-09-04)
+
+- improved CSE (common subexpression elimination) dict c.ReduceFuncs
+
 ## 1.14.2 (2024-09-04)
 
 - improved CSE (common subexpression elimination) for `c.group_by` mode

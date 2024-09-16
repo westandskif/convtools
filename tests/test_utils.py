@@ -508,6 +508,12 @@ def test_optimizer():
     _(f"agg_data_8 = {e}", 0)
     _(f"agg_data_9 = {e}", 0)
     _("assert agg_data_8 is not agg_data_9, 'check4'", 0)
+    e = expr("l + 5")
+    _("agg_data_10 = Obj({'a': 0})", 0)
+    _("agg_data_11 = Obj({'a': 0})", 0)
+    _(f"agg_data_10.v['a'] += {e}", 0)
+    _(f"agg_data_11.v['a'] += {e}", 0)
+
     # fmt: on
     _("", 0)
     _("", 0)
@@ -528,6 +534,8 @@ def test_optimizer():
     _("RESULTS.append(agg_data_3)", 0)
     _("RESULTS.append(agg_data_4)", 0)
     _("RESULTS.append(agg_data_5)", 0)
+    _("RESULTS.append(agg_data_10.v['a'])", 0)
+    _("RESULTS.append(agg_data_11.v['a'])", 0)
     _("RESULTS.append(comp1)", 0)
     _("RESULTS.append(comp2)", 0)
     code_str = code.to_string(0)
@@ -542,10 +550,15 @@ def test_optimizer():
     )
     optimized_code_str = ast_unparse(optimizer.tree)
     print(optimized_code_str)
-    ctx = {}
+
+    class Obj:
+        def __init__(self, v):
+            self.v = v
+
+    ctx = {"Obj": Obj}
     exec(code_str, ctx, ctx)
     results_of_non_optimized = ctx["RESULTS"]
-    ctx = {}
+    ctx = {"Obj": Obj}
     exec(optimized_code_str, ctx, ctx)
     results_of_optimized = ctx["RESULTS"]
     assert results_of_non_optimized == results_of_optimized
@@ -559,3 +572,4 @@ def test_optimizer():
     if PY_VERSION >= (3, 8):
         assert optimized_code_str.count("v + 3") == 2
     assert optimized_code_str.count("l + 4") == 4
+    assert optimized_code_str.count("l + 5") == 1

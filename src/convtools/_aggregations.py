@@ -7,6 +7,7 @@ from ast import Compare as AstCompare
 from ast import Is as AstIs
 from ast import Name as AstName
 from ast import Pass as AstPass
+from ast import Subscript as AstSubscript
 from ast import parse as ast_parse
 from collections import defaultdict
 from decimal import Decimal
@@ -169,6 +170,8 @@ def no_side_effects_test(x):
         x = x.left
     elif isinstance(x, AstCall):
         x = x.func
+    elif isinstance(x, AstSubscript):
+        x = x.value
     if isinstance(x, AstAttribute):
         x = x.value
     return isinstance(x, AstName) and x.id.startswith("agg_data_")
