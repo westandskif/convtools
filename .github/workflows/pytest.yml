@@ -22,6 +22,7 @@ jobs:
           - [ubuntu-20.04, "3.10", "CONVTOOLS_CEXT_DISABLED=1"]
           - [ubuntu-20.04, "3.11", "CONVTOOLS_CEXT_DISABLED=1"]
           - [ubuntu-20.04, "3.12", "CONVTOOLS_CEXT_DISABLED=1"]
+          - [ubuntu-20.04, "3.13", "CONVTOOLS_CEXT_DISABLED=1"]
           - [ubuntu-20.04, "3.10", "CONVTOOLS_CEXT_DISABLED=0"]
     runs-on: ${{ matrix.os-python-env[0] }}
     steps:
