@@ -211,7 +211,7 @@ def test_datetime_parse_exceptions():
             c.datetime_parse(bad_fmt)
 
     # https://github.com/python/cpython/issues/131434
-    if PY_VERSION != (3, 13):
+    if PY_VERSION not in ((3, 13), (3, 12)):
         for bad_fmt in ("%Y %",):
             f = c.datetime_parse(bad_fmt).gen_converter()
             with pytest.raises(ValueError):
