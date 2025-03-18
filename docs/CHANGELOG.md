@@ -1,3 +1,8 @@
+## 1.14.4 (2025-03-19)
+
+- fixed CSE (common subexpression elimination) for aggregations (used to raise
+UndefinedError)
+
 ## 1.14.3 (2024-09-04)
 
 - improved CSE (common subexpression elimination) dict c.ReduceFuncs

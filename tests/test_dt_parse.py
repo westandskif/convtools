@@ -3,6 +3,7 @@ from datetime import date, datetime
 import pytest
 
 from convtools import conversion as c
+from convtools._utils import PY_VERSION
 
 from .test_dt_utils import (
     ALL_FMT_TOKENS,
@@ -209,10 +210,12 @@ def test_datetime_parse_exceptions():
         with pytest.raises(ValueError):
             c.datetime_parse(bad_fmt)
 
-    for bad_fmt in ("%Y %",):
-        f = c.datetime_parse(bad_fmt).gen_converter()
-        with pytest.raises(ValueError):
-            f("2000 %")
+    # https://github.com/python/cpython/issues/131434
+    if PY_VERSION != (3, 13):
+        for bad_fmt in ("%Y %",):
+            f = c.datetime_parse(bad_fmt).gen_converter()
+            with pytest.raises(ValueError):
+                f("2000 %")
 
     fmt = "%m/%d/%Y"
     for bad_dt_str in (None, 123, "24f", date(2020, 12, 31)):
