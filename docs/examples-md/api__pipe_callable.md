@@ -24,7 +24,7 @@ def _converter(data_):
         __convtools__code_storage.dump_sources()
         raise
 
-def _converter(data_, *, __v=__naive_values__["__v"], __strptime=__naive_values__["__strptime"]):
+def _converter(data_, *, __strptime=__naive_values__["__strptime"], __v=__naive_values__["__v"]):
     try:
         return __strptime(data_["dt"], __v)
     except __exceptions_to_dump_sources:

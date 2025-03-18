@@ -11,7 +11,7 @@ from ast import expr as AstExpr
 from ast import parse as ast_parse
 from collections import defaultdict, deque
 from itertools import chain
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Tuple
 
 from ._utils import PY_VERSION, ast_unparse
 
@@ -182,16 +182,22 @@ def ast_merge(
 
 
 def node_from_node_path(path):
-    if isinstance(path[1], int):
-        return path[0][path[1]]
-    return getattr(path[0], path[1])
+    if isinstance(path[1], str):
+        return getattr(path[0], path[1])
+
+    return path[1]
 
 
 def replace_node_by_node_path(path, new_node):
-    if isinstance(path[1], int):
-        path[0][path[1]] = new_node
-    else:
+    if isinstance(path[1], str):
         setattr(path[0], path[1], new_node)
+    else:
+        body, item_to_search = path
+        for index, item in enumerate(body):
+            if item is item_to_search:
+                body[index] = new_node
+                return
+        raise AssertionError("bug")
 
 
 class ExprInfo:
@@ -199,23 +205,21 @@ class ExprInfo:
 
     __slots__ = [
         "node_paths",
-        "parents",
-        "children",
         "number",
+        "children",
     ]
 
     def __init__(self):
         self.node_paths = []
-        self.parents = set()
-        self.children = set()
         self.number = 0
+        self.children = None
 
     def to_dict(self):  # pragma: no cover
         return {
             "node_paths": self.node_paths,
-            "parents": self.parents,
-            "children": self.children,
             "number": self.number,
+            # "children": self.children
+            # and [child.to_dict() for child in self.children],
         }
 
 
@@ -224,75 +228,64 @@ class CodeLayer:
 
     __slots__ = [
         "body",
-        "stack_indexes",
-        "stack_expr_code_to_info",
+        "opt_above",
+        "opt_below",
+        "expr_code_to_info",
         "children",
-        "number_updates",
+        "propagate_with_coeff",
+        "_inserted_optimizations",
     ]
 
-    def __init__(self, body):
+    def __init__(self, body, opt_above, opt_below):
         self.body = body
-        self.stack_indexes = [0]
-        self.stack_expr_code_to_info: "List[Optional[Dict[str, ExprInfo]]]" = [
-            None
-        ]
+        self.opt_above = opt_above
+        self.opt_below = opt_below
+        self.expr_code_to_info: "Dict[str, ExprInfo]" = defaultdict(ExprInfo)
         self.children = []
-        self.number_updates = []
+        self.propagate_with_coeff = None
+        self._inserted_optimizations = 0
 
     def to_dict(self):  # pragma: no cover
         return {
             "body": self.body,
-            "stack_indexes": self.stack_indexes,
-            "stack_expr_code_to_info": [
-                {
-                    expr_code: info.to_dict()
-                    for expr_code, info in (item and item.items() or ())
-                }
-                for item in self.stack_expr_code_to_info
-            ],
+            "opt_above": self.opt_above,
+            "opt_below": self.opt_below,
+            "propagate_with_coeff": self.propagate_with_coeff,
+            "expr_code_to_info": {
+                expr_code: info.to_dict()
+                for expr_code, info in self.expr_code_to_info.items()
+            },
             "children": [child.to_dict() for child in self.children],
-            "number_updates": self.number_updates,
         }
 
-    def start_tracking_number_updates(self):
-        self.number_updates.append(defaultdict(int))
+    def track_expr_chain(self, expr_code_tree):
+        expr_code_to_info = self.expr_code_to_info
 
-    def stop_tracking_number_updates_and_pop_deltas(self):
-        return self.number_updates.pop()
+        for expr_code, l_expr_info in expr_code_tree.items():
+            if expr_code in expr_code_to_info:
+                expr_info = expr_code_to_info[expr_code]
+                expr_info.node_paths.extend(l_expr_info.node_paths)
+                expr_info.number += l_expr_info.number
+            else:
+                expr_code_to_info[expr_code] = l_expr_info
 
-    def track_expr_chain(self, expr_code_tree, stack_index):
-        number_updates = (
-            self.number_updates[-1] if self.number_updates else None
-        )
-
-        for index in range(len(self.stack_indexes) - 1, -1, -1):
-            if self.stack_indexes[index] > stack_index:
-                continue
-
-            expr_code_to_info = self.stack_expr_code_to_info[index]
-            if expr_code_to_info is None:
-                expr_code_to_info = self.stack_expr_code_to_info[index] = (
-                    defaultdict(ExprInfo)
-                )
-            for expr_code, l_expr_info in expr_code_tree.items():
-                if expr_code in expr_code_to_info:
-                    expr_info = expr_code_to_info[expr_code]
-                    expr_info.node_paths.extend(l_expr_info.node_paths)
-                    expr_info.parents.update(l_expr_info.parents)
-                    expr_info.children.update(l_expr_info.children)
-                    expr_info.number += l_expr_info.number
-                else:
-                    expr_code_to_info[expr_code] = l_expr_info
-                if number_updates is not None:
-                    number_updates[(index, expr_code)] += l_expr_info.number
-
-            return
-        raise AssertionError
-
-    def split_current_layer(self, index):
-        if not self.stack_indexes or self.stack_indexes[-1] != index:
-            self.stack_indexes.append(index)
-            self.stack_expr_code_to_info.append(None)
+    def insert_optimization(self, node):
+        item_to_search = self.opt_above or self.opt_below
+        if item_to_search:
+            for i, item in enumerate(self.body):
+                if item is item_to_search:
+                    index = (
+                        i
+                        if self.opt_above
+                        else i + 1 + self._inserted_optimizations
+                    )
+                    break
+            else:
+                raise AssertionError("bug")
+        else:
+            index = self._inserted_optimizations
+        self._inserted_optimizations += 1
+        self.body.insert(index, node)
 
 
 class NewLayerCtx:
@@ -310,11 +303,9 @@ class NewLayerCtx:
         visitor.current_layer.children.append(self.code_layer)
         visitor.parent_layer = visitor.current_layer
         visitor.current_layer = self.code_layer
-        visitor.stack_body_indexes.append(0)
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        self.visitor.stack_body_indexes.pop()
         self.visitor.parent_layer, self.visitor.current_layer = self.prev
 
 
@@ -390,14 +381,17 @@ class OptimizationStage1(ast.NodeVisitor):
         "mode_collect_expr_chain",
         "mode_track_numbers",
         "no_side_effects_test",
+        "condition_is_transparent_test",
         "node_path",
         "parent_expr_code",
         "parent_layer",
         "root_layer",
-        "stack_body_indexes",
         "stack_expr_visibilities",
         "methods",
+        "global_expr_code_to_child_code",
+        "global_expr_code_to_parent_code",
         "_node_code_cache",
+        "_side_effects",
     ]
 
     def __init__(self):
@@ -407,20 +401,25 @@ class OptimizationStage1(ast.NodeVisitor):
             lambda: self.generic_visit
         )
         self._node_code_cache = {}
+        self.global_expr_code_to_child_code = defaultdict(set)
+        self.global_expr_code_to_parent_code = defaultdict(set)
         for name in dir(self):
             if name.startswith("visit_"):
                 self.methods[name] = getattr(self, name)
+        self._side_effects = 0
 
-    def _init_optimization_params(self, tree, no_side_effects_test):
+    def _init_optimization_params(
+        self, tree, no_side_effects_test, condition_is_transparent_test
+    ):
         self.tree = tree
         self.no_side_effects_test = no_side_effects_test
+        self.condition_is_transparent_test = condition_is_transparent_test
 
-        self.root_layer = CodeLayer(self.tree.body)
+        self.root_layer = CodeLayer(self.tree.body, None, None)
         self.parent_layer = self.root_layer
         self.current_layer = self.root_layer
 
         self.node_path: "Tuple[Any, Any]" = (None, None)
-        self.stack_body_indexes = []
 
         self.mode_collect_expr_chain = None
         self.mode_track_numbers = True
@@ -437,8 +436,10 @@ class OptimizationStage1(ast.NodeVisitor):
             self.exprs_to_optimize.add(ast_unparse(ast_parse(expression_code)))
         return expression_code
 
-    def run(self, tree, no_side_effects_test):
-        self._init_optimization_params(tree, no_side_effects_test)
+    def run(self, tree, no_side_effects_test, condition_is_transparent_test):
+        self._init_optimization_params(
+            tree, no_side_effects_test, condition_is_transparent_test
+        )
         self.raw_visit(self.tree)
 
         if self.root_layer is None:
@@ -451,109 +452,121 @@ class OptimizationStage1(ast.NodeVisitor):
             l_path = paths_to_process.popleft()
             l_children = l_path[-1].children
             if l_children:
+                self_in_the_middle = False
+                propagation_is_possible = True
                 for l_code_layer in l_children:
-                    paths_to_process.append(l_path + (l_code_layer,))
-                continue
-            for index in range(len(l_path) - 1, 0, -1):
-                child_expr_code_to_info = l_path[
-                    index
-                ].stack_expr_code_to_info[0]
-                if child_expr_code_to_info is None:
+                    if l_code_layer.propagate_with_coeff is None:
+                        propagation_is_possible = False
+
+                    if propagation_is_possible:
+                        self_in_the_middle = True
+                        paths_to_process.append(l_path + (l_code_layer,))
+                    else:
+                        paths_to_process.append((l_code_layer,))
+                if self_in_the_middle:
                     continue
-                for expr_code, info in child_expr_code_to_info.items():
-                    if not info.node_paths:
-                        continue
-                    for parent_index in range(index):
-                        parent_expr_code_to_info = l_path[
-                            parent_index
-                        ].stack_expr_code_to_info[0]
-                        if (
-                            parent_expr_code_to_info
-                            and expr_code in parent_expr_code_to_info
-                        ):
-                            parent_info = parent_expr_code_to_info[expr_code]
-                            parent_info.number += info.number
-                            parent_info.node_paths.extend(info.node_paths)
-                            parent_info.children.update(info.children)
-                            parent_info.parents.update(info.parents)
-                            info.node_paths.clear()
-                            info.number = 0
-                            break
+
+            for index in range(len(l_path) - 1, 0, -1):
+                current_child = l_path[index]
+                current_parent = l_path[index - 1]
+                for expr_code, info in current_child.expr_code_to_info.items():
+                    parent_info = current_parent.expr_code_to_info[expr_code]
+                    parent_info.number += info.number * (
+                        current_child.propagate_with_coeff or 0
+                    )
+                    if parent_info.children is None:
+                        parent_info.children = [info]
+                    else:
+                        parent_info.children.append(info)
+
+                    if info.children:
+                        parent_info.children.extend(info.children)
 
         # from pprint import pprint
-
-        # pprint(self.root_layer.to_dict())
+        # print("\n")
+        # print(ast_unparse(self.tree))
+        # print("\n")
+        # pprint(self.root_layer.to_dict(), sort_dicts=False)
         # breakpoint()
 
         code_layers_to_process = deque([self.root_layer])
-        key_to_index: "Dict[Tuple[int, int], int]" = {}
         number_of_replacements = 0
+
         while code_layers_to_process:
-            code_layer = code_layers_to_process.pop()
-            for l_code_layer in code_layer.children:
-                code_layers_to_process.append(l_code_layer)
+            layer = code_layers_to_process.popleft()
+            for l_layer in layer.children:
+                code_layers_to_process.append(l_layer)
 
-            for expr_code_to_info, body_index in zip(
-                reversed(code_layer.stack_expr_code_to_info),
-                reversed(code_layer.stack_indexes),
-            ):
-                if expr_code_to_info is None:
-                    continue
+            exprs_to_optimize = sorted(
+                [
+                    (self.get_expr_depth_below(expr_code), expr_code, info)
+                    for expr_code, info in layer.expr_code_to_info.items()
+                    if info.number > 1
+                ]
+            )
+            max_idx_expr_to_optimize = len(exprs_to_optimize) - 1
+            for i in range(max_idx_expr_to_optimize + 1):
+                _, expr_code, info = exprs_to_optimize[i]
 
-                for expr_code, info in sorted(
-                    filter(
-                        lambda item: item[1].node_paths and item[1].number > 1,
-                        expr_code_to_info.items(),
-                    ),
-                    key=lambda item: self.get_expr_depth_below(
-                        item[0],
-                        expr_code_to_info,  # pylint: disable=cell-var-from-loop
-                    ),
-                ):
-                    if info.parents and all(
-                        info.number == expr_code_to_info[parent_code].number
-                        for parent_code in info.parents
+                if info.children is not None:
+                    for child_info in info.children:
+                        child_info.number = -1
+
+                if i < max_idx_expr_to_optimize:
+                    _, next_expr_code, next_info = exprs_to_optimize[i + 1]
+                    if (
+                        info.number == next_info.number
+                        and next_expr_code
+                        in self.global_expr_code_to_parent_code[expr_code]
+                        and len(
+                            self.global_expr_code_to_parent_code[expr_code]
+                        )
+                        == 1
                     ):
+                        info.number = -1
                         continue
 
-                    local_var_name = f"_r{number_of_replacements}_"
-                    number_of_replacements += 1
+                info.number = -1
+                local_var_name = f"_r{number_of_replacements}_"
+                number_of_replacements += 1
 
-                    replacement_node = AstAssign(
-                        targets=[AstName(id=local_var_name, ctx=AstStore())],
-                        value=node_from_node_path(
-                            expr_code_to_info[expr_code].node_paths[0]
-                        ),
-                    )
-                    # ast visit_Assign get_type_comment fails without it
-                    replacement_node.lineno = None  # type: ignore
+                new_node = AstName(id=local_var_name, ctx=AstLoad())
+                replacement_node = None
 
-                    new_node = AstName(id=local_var_name, ctx=AstLoad())
-                    for node_path in info.node_paths:
+                for z_info in chain(
+                    (info,), info.children if info.children else ()
+                ):
+                    while z_info.node_paths:
+                        node_path = z_info.node_paths.pop()
+                        if replacement_node is None:
+                            replacement_node = AstAssign(
+                                targets=[
+                                    AstName(id=local_var_name, ctx=AstStore())
+                                ],
+                                value=node_from_node_path(node_path),
+                            )
+                            # ast visit_Assign get_type_comment fails without it
+                            replacement_node.lineno = None  # type: ignore
                         replace_node_by_node_path(node_path, new_node)
 
-                    key = id(code_layer.body), body_index
-                    if key in key_to_index:
-                        key_to_index[key] = index = key_to_index[key] + 1
-                    else:
-                        index = key_to_index[key] = body_index
+                layer.insert_optimization(replacement_node)
 
-                    code_layer.body.insert(index, replacement_node)
-
-    def get_expr_depth_below(self, expr_code, expr_code_to_info):
+    def get_expr_depth_below(self, expr_code):
+        global_expr_code_to_child_code = self.global_expr_code_to_child_code
         stack = [(expr_code, 0)]
         max_depth = -1
         visited = {expr_code}
         while stack:
             expr, depth = stack.pop()
-            children = expr_code_to_info[expr].children
+            children = global_expr_code_to_child_code[expr]
             if children:
                 for l_expr in children:
-                    if l_expr not in visited:
+                    if l_expr not in visited:  # pragma: no cover
                         stack.append((l_expr, depth + 1))
                         visited.add(l_expr)
             elif max_depth < depth:
                 max_depth = depth
+
         return max_depth
 
     def visit(self, node):
@@ -568,6 +581,7 @@ class OptimizationStage1(ast.NodeVisitor):
         attr,
         mode=None,
         _stmt_attrs=frozenset(["body", "orelse", "finalbody"]),
+        split_layer_after_side_effects=True,
     ):
         value = getattr(node, attr)
         parent_expr_code = self.parent_expr_code
@@ -584,19 +598,23 @@ class OptimizationStage1(ast.NodeVisitor):
 
             if attr in _stmt_attrs:
                 while index < length:
-                    self.node_path = (value, index)
-                    self.stack_body_indexes.append(index)
                     item = value[index]
+                    self.node_path = (value, item)
+                    side_effects = self._side_effects
                     # self.raw_visit(item)
                     self.methods[f"visit_{item.__class__.__name__}"](item)
-                    self.stack_body_indexes.pop()
+                    if (
+                        side_effects < self._side_effects
+                        and split_layer_after_side_effects
+                    ):
+                        self.split_layer_below(item)
                     index += 1
 
             else:
                 while index < length:
                     item = value[index]
                     if isinstance(item, AST):  # pragma: no cover
-                        self.node_path = (value, index)
+                        self.node_path = (value, item)
                         # self.raw_visit(item)
                         self.methods[f"visit_{item.__class__.__name__}"](item)
                         self.parent_expr_code = parent_expr_code
@@ -636,10 +654,12 @@ class OptimizationStage1(ast.NodeVisitor):
                     expr_code = self.get_node_code(node)
                     expr_info = self.expr_code_tree[expr_code]
                     if self.parent_expr_code is not None:
-                        self.expr_code_tree[
+                        self.global_expr_code_to_child_code[
                             self.parent_expr_code
-                        ].children.add(expr_code)
-                        expr_info.parents.add(self.parent_expr_code)
+                        ].add(expr_code)
+                        self.global_expr_code_to_parent_code[expr_code].add(
+                            self.parent_expr_code
+                        )
                     expr_info.number += self.mode_track_numbers
                     expr_info.node_paths.append(self.node_path)
 
@@ -668,8 +688,7 @@ class OptimizationStage1(ast.NodeVisitor):
         if expr_chain_collector is not None:
             expr_chain_collector.stop()
             self.current_layer.track_expr_chain(
-                expr_chain_collector.expr_code_tree,
-                self.stack_body_indexes[-1],
+                expr_chain_collector.expr_code_tree
             )
 
     def get_node_code(self, node):
@@ -686,10 +705,7 @@ class OptimizationStage1(ast.NodeVisitor):
         self.visit_by_attr(node, "func")
         self.visit_by_attr(node, "args")
         self.visit_by_attr(node, "keywords")
-        if not self.mode_collect_expr_chain and self.may_have_side_effects(
-            node
-        ):
-            self.split_current_layer()
+        self.may_have_side_effects(node)
 
     def _custom_expr_visit_list(self, node):
         self.visit_by_attr(node, "elts")
@@ -708,8 +724,7 @@ class OptimizationStage1(ast.NodeVisitor):
             self.visit_by_attr(node, "orelse")
 
     def _custom_expr_visit_named_expr(self, node):
-        if self.may_have_side_effects(node.target):
-            self.split_current_layer(after_current_line=True)
+        self.may_have_side_effects(node.target)
         self.visit_by_attr(node, "value")
 
     def _custom_expr_visit_bool_op(self, node):
@@ -732,49 +747,45 @@ class OptimizationStage1(ast.NodeVisitor):
         "BoolOp": _custom_expr_visit_bool_op,
     }
 
-    def new_layer_ctx(self, body):
-        return NewLayerCtx(self, CodeLayer(body))
+    def new_layer_ctx(self, body, *, opt_above=None, opt_below=None):
+        return NewLayerCtx(self, CodeLayer(body, opt_above, opt_below))
 
-    def split_current_layer(self, after_current_line=False):
-        self.current_layer.split_current_layer(
-            self.stack_body_indexes[-1] + 1
-            if after_current_line
-            else self.stack_body_indexes[-1]
-        )
+    def split_layer_below(self, node):
+        self.current_layer = CodeLayer(self.current_layer.body, None, node)
+        self.parent_layer.children.append(self.current_layer)
+
+    def report_side_effect(self):
+        self._side_effects += 1
+
+    def may_have_side_effects(self, node):
+        # if self.mode_collect_expr_chain:
+        #     return False
+        result = not self.no_side_effects_test(node)
+        if result:
+            self.report_side_effect()
+        return result
 
     def visit_If(self, node):
-        if self.may_have_side_effects(node.test):
-            self.visit_by_attr(node, "test")
-            with self.new_layer_ctx(node.body):
-                self.visit_by_attr(node, "body")
-
-            if node.orelse:
-                with self.new_layer_ctx(node.orelse):
-                    self.visit_by_attr(node, "orelse")
-
-        else:
-            self.current_layer.start_tracking_number_updates()
-            self.visit_by_attr(node, "body")
-            body_deltas = (
-                self.current_layer.stop_tracking_number_updates_and_pop_deltas()
+        propagate_with_coeff = (
+            0.5 if self.condition_is_transparent_test(node.test) else 0
+        )
+        side_effects = self._side_effects
+        self.visit_by_attr(node, "test")
+        with self.new_layer_ctx(node.body) as ctx:
+            self.visit_by_attr(
+                node, "body", split_layer_after_side_effects=False
             )
-            self.current_layer.start_tracking_number_updates()
-            self.visit_by_attr(node, "orelse")
-            orelse_deltas = (
-                self.current_layer.stop_tracking_number_updates_and_pop_deltas()
-            )
+            ctx.code_layer.propagate_with_coeff = propagate_with_coeff
 
-            for key in set(chain(body_deltas, orelse_deltas)):
-                index, expr_code = key
-                d1 = body_deltas.get(key, 0)
-                d2 = orelse_deltas.get(key, 0)
-                expr_info = self.current_layer.stack_expr_code_to_info[index][
-                    expr_code
-                ]
-                if d1 == 0 or d2 == 0:
-                    expr_info.number -= d1 + d2
-                else:
-                    expr_info.number -= (d1 + d2) * 0.5
+        if node.orelse:
+            with self.new_layer_ctx(node.orelse) as ctx:
+                self.visit_by_attr(
+                    node, "orelse", split_layer_after_side_effects=False
+                )
+                ctx.code_layer.propagate_with_coeff = propagate_with_coeff
+
+        if side_effects < self._side_effects:
+            self.split_layer_below(node)
 
     def visit_Try(self, node):
         with self.new_layer_ctx(node.body):
@@ -802,23 +813,24 @@ class OptimizationStage1(ast.NodeVisitor):
         pass
 
     def visit_Delete(self, node):  # pylint: disable=unused-argument
-        self.split_current_layer(after_current_line=True)
+        self.report_side_effect()
 
     def visit_While(self, node):
         with self.new_layer_ctx(node.body):
             self.visit_by_attr(node, "body")
+        self.report_side_effect()
 
     def visit_For(self, node):
         self.visit_by_attr(node, "iter")
         with self.new_layer_ctx(node.body):
-            self.split_current_layer()
             self.visit_by_attr(node, "body")
+        self.report_side_effect()
 
     def visit_With(self, node):
         self.visit_by_attr(node, "items")
         with self.new_layer_ctx(node.body):
-            self.split_current_layer()
             self.visit_by_attr(node, "body")
+        self.report_side_effect()
 
     visit_AsyncFor = visit_For
 
@@ -831,30 +843,22 @@ class OptimizationStage1(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node):
         with self.new_layer_ctx(node.body):
-            self.split_current_layer()
             self.visit_by_attr(node, "body")
+        self.report_side_effect()
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
-    def may_have_side_effects(self, node):
-        return not self.no_side_effects_test(node)
-
     def visit_Assign(self, node):
         self.visit_by_attr(node, "value")
-        for target in node.targets:
-            if self.may_have_side_effects(target):
-                self.split_current_layer(after_current_line=True)
-                break
-
-    def visit_AugAssign(self, node):
-        self.visit_by_attr(node, "value")
-        if self.may_have_side_effects(node.target):
-            self.split_current_layer(after_current_line=True)
+        self.may_have_side_effects(node)
 
     def visit_Assert(self, node):
         self.visit_by_attr(node, "test")
-        if self.may_have_side_effects(node.test):
-            self.split_current_layer(after_current_line=True)
+        self.report_side_effect()
+
+    def visit_AugAssign(self, node):
+        self.visit_by_attr(node, "value")
+        self.may_have_side_effects(node)
 
     def not_implemented(self, node):
         raise NotImplementedError

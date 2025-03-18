@@ -16,8 +16,8 @@ assert (
 /// tab | debug stdout
 ```python
 def pipe_(_labels, input_):
-    result_ = (input_ + _labels["2e4a2feb28e740e5a3a7f341339d091d"]) if ("2e4a2feb28e740e5a3a7f341339d091d" in _labels) else input_
-    _labels["2e4a2feb28e740e5a3a7f341339d091d"] = result_
+    result_ = (input_ + _labels["c539bfef4db348689e8d817ef5cbb1fb"]) if ("c539bfef4db348689e8d817ef5cbb1fb" in _labels) else input_
+    _labels["c539bfef4db348689e8d817ef5cbb1fb"] = result_
     return result_
 
 def _converter(data_):

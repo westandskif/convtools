@@ -36,29 +36,27 @@ def aggregate_(_none, data_, *, __get_item_deep_default_simple=__naive_values__[
     checksum_ = 0
     it_ = iter(data_)
     for row_ in it_:
-        _r0_ = row_["a"]
-        if _r0_ is not None:
+        if row_["a"] is not None:
             if agg_data__v1 is _none:
-                agg_data__v1 = (_r0_, row_)
+                agg_data__v1 = (row_["a"], row_)
                 checksum_ += 1
-            elif agg_data__v1[0] < _r0_:
-                agg_data__v1 = (_r0_, row_)
+            elif agg_data__v1[0] < row_["a"]:
+                agg_data__v1 = (row_["a"], row_)
         if row_["b"] == "bar":
             if agg_data__v0 is _none:
-                agg_data__v0 = [_r0_]
+                agg_data__v0 = [row_["a"]]
                 checksum_ += 1
             else:
-                agg_data__v0.append(_r0_)
+                agg_data__v0.append(row_["a"])
         if checksum_ == 2:
             globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
             break
     for row_ in it_:
-        _r0_ = row_["a"]
-        if _r0_ is not None:
-            if agg_data__v1[0] < _r0_:
-                agg_data__v1 = (_r0_, row_)
+        if row_["a"] is not None:
+            if agg_data__v1[0] < row_["a"]:
+                agg_data__v1 = (row_["a"], row_)
         if row_["b"] == "bar":
-            agg_data__v0.append(_r0_)
+            agg_data__v0.append(row_["a"])
 
     return {
         "a": ((None if (agg_data__v0 is _none) else agg_data__v0)),

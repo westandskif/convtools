@@ -1142,6 +1142,7 @@ def test_aggregate_reducers_reuse():
     assert (
         code_str.count("and 77") == 2
         and (code_str.count("and 7]") + code_str.count("and 7)")) == 3
+        and code_str.count("row_['a']") == 2
     )
 
     converter = c.aggregate(

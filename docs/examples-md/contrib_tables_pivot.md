@@ -63,21 +63,19 @@ def aggregate_(_none, data_):
     checksum_ = 0
     it_ = iter(data_)
     for row_ in it_:
-        _r0_ = row_["revenue"]
-        if _r0_ is not None:
+        if row_["revenue"] is not None:
             if agg_data__v0 is _none:
-                agg_data__v0 = _r0_
+                agg_data__v0 = row_["revenue"]
                 checksum_ += 1
-            elif agg_data__v0 > _r0_:
-                agg_data__v0 = _r0_
+            elif agg_data__v0 > row_["revenue"]:
+                agg_data__v0 = row_["revenue"]
         if checksum_ == 1:
             globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
             break
     for row_ in it_:
-        _r0_ = row_["revenue"]
-        if _r0_ is not None:
-            if agg_data__v0 > _r0_:
-                agg_data__v0 = _r0_
+        if row_["revenue"] is not None:
+            if agg_data__v0 > row_["revenue"]:
+                agg_data__v0 = row_["revenue"]
 
     return None if (agg_data__v0 is _none) else agg_data__v0
 
@@ -131,7 +129,7 @@ def pipe_(input_, *, ___converter=__naive_values__["___converter"]):
 def pipe_i_e(input_, *, ___converter_q=__naive_values__["___converter_q"]):
     return input_ and ___converter_q(input_)
 
-def _converter(data_, *, __v_5=__naive_values__["__v_5"], __v=__naive_values__["__v"]):
+def _converter(data_, *, __v=__naive_values__["__v"], __v_5=__naive_values__["__v_5"]):
     try:
         return (
             {

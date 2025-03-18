@@ -20,7 +20,7 @@ assert converter("some str") == date.today()
 
 /// tab | debug stdout
 ```python
-def _datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
+def _datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
     match = __v.match(data_)
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))
@@ -43,7 +43,7 @@ def _converter(data_):
         __convtools__code_storage.dump_sources()
         raise
 
-def _datetime_parse(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
+def _datetime_parse(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
     match = __v.match(data_)
     if not match:
         raise ValueError("time data %r does not match format %r" % (data_, """%m/%d/%Y"""))

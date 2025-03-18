@@ -22,7 +22,7 @@ assert converter(date(2020, 12, 31)) == "Thu Dec 31 00:00:00 2020"
 
 /// tab | debug stdout
 ```python
-def _converter(data_, *, __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+def _converter(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
     try:
         is_datetime = isinstance(data_, __datetime)
         hour = data_.hour if is_datetime else 0
@@ -38,7 +38,7 @@ def _converter(data_, *, __datetime=__naive_values__["__datetime"]):
         __convtools__code_storage.dump_sources()
         raise
 
-def _converter(data_, *, __strftime=__naive_values__["__strftime"], __v=__naive_values__["__v"], __datetime=__naive_values__["__datetime"]):
+def _converter(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"], __strftime=__naive_values__["__strftime"]):
     try:
         return __strftime(data_, __v)
     except __exceptions_to_dump_sources:

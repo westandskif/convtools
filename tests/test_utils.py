@@ -5,6 +5,7 @@ import pytest
 
 from convtools import conversion as c
 from convtools._aggregations import (
+    condition_is_transparent_test,
     fuzzy_merge_group_by_cmp,
     no_side_effects_test,
 )
@@ -431,10 +432,13 @@ def test_optimizer():
     _("return a + agg_data_", -1)
     _("a = 4", 0)
     _("b = 1", 0)
+    _("agg_data_ = 0", 0)
     _("while a >= 0:", 1)
     _("if {0}:".format(expr("b > 0")), 1)
-    _("a -= 1", -1)
-    _("a -= (b > 0)", -1)
+    _("agg_data_ += (b > 0)", 0)
+    _("agg_data_ += (b > 0)", 0)
+    _("a -= 1", -2)
+    _("assert agg_data_ == 10", 0)
     _("c = 0", 0)
     _("d = {}".format(expr("c + 1")), 0)
     _("for c in range(3):", 1)
@@ -547,6 +551,7 @@ def test_optimizer():
             )
         ),
         no_side_effects_test=no_side_effects_test,
+        condition_is_transparent_test=condition_is_transparent_test,
     )
     optimized_code_str = ast_unparse(optimizer.tree)
     print(optimized_code_str)
@@ -564,7 +569,7 @@ def test_optimizer():
     assert results_of_non_optimized == results_of_optimized
     assert optimized_code_str.count("data['x']") == 3
     assert optimized_code_str.count("data['y']") == 1
-    assert optimized_code_str.count("b > 0") == 1
+    assert optimized_code_str.count("b > 0") == 2
     assert optimized_code_str.count("range(i * 2 + i * 2)") == 0
     assert optimized_code_str.count("e/2") == 0
     assert optimized_code_str.count("j + 2") == 4

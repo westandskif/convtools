@@ -1,7 +1,9 @@
 """Define aggregations with various reduce functions."""
 
 import warnings
+from ast import Assign as AstAssign
 from ast import Attribute as AstAttribute
+from ast import AugAssign as AstAugAssign
 from ast import Call as AstCall
 from ast import Compare as AstCompare
 from ast import Is as AstIs
@@ -77,6 +79,7 @@ class OptimizationStage1WithChecksums(OptimizationStage1):
         new_node = AstPass()
         for node_path in self.unnecessary_checksum_node_paths:
             replace_node_by_node_path(node_path, new_node)
+        self.unnecessary_checksum_node_paths = []
 
 
 def fuzzy_cmp_group_by(x, y):
@@ -161,6 +164,24 @@ def fuzzy_merge_aggregate_cmp(x, y):
 
 
 def no_side_effects_test(x):
+    if isinstance(x, AstAssign):
+        return all(no_side_effects_test(t) for t in x.targets)
+    if isinstance(x, AstAugAssign):
+        x = x.target
+
+    if isinstance(x, AstSubscript):
+        x = x.value
+
+    if isinstance(x, AstCall):
+        x = x.func
+
+    if isinstance(x, AstAttribute):
+        x = x.value
+
+    return isinstance(x, AstName) and x.id.startswith("agg_data_")
+
+
+def condition_is_transparent_test(x):
     if (
         isinstance(x, AstCompare)
         and isinstance(x.ops[0], AstIs)
@@ -168,10 +189,6 @@ def no_side_effects_test(x):
         and x.comparators[0].id == "_none"
     ):
         x = x.left
-    elif isinstance(x, AstCall):
-        x = x.func
-    elif isinstance(x, AstSubscript):
-        x = x.value
     if isinstance(x, AstAttribute):
         x = x.value
     return isinstance(x, AstName) and x.id.startswith("agg_data_")
@@ -236,6 +253,7 @@ class ReduceManager:
         self.code_optimizer.run(
             tree=tree,
             no_side_effects_test=no_side_effects_test,
+            condition_is_transparent_test=condition_is_transparent_test,
         )
         return self.code_optimizer.tree
 

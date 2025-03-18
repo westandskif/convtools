@@ -1,13 +1,15 @@
 import random
 import statistics
 from collections import Counter
-from itertools import cycle
+from datetime import date
+from itertools import chain, cycle
 from operator import eq
 from typing import List, Tuple
 
 import pytest
 
 from convtools import conversion as c
+from convtools._utils import CODE_FORMATTING_AVAILABLE, format_code
 
 from .utils import get_code_str
 
@@ -664,3 +666,57 @@ def test_reducer_bad_number_of_expressions():
 
     with pytest.raises(TypeError):
         c.reduce(lambda a, b: a + b, default=0)
+
+
+# test_group_by_reducers_reuse
+# test_aggregate_reducers_reuse
+def test_group_by_dict_reducer_optimization():
+    def gen_reducers(idx_start, number, *, with_side_effect):
+        return {
+            f"f{idx_start+i:02}": (
+                c.ReduceFuncs.DictSum(
+                    c.item(0, idx_start + i), c.item(1, idx_start + i)
+                )
+                if with_side_effect
+                else c.ReduceFuncs.Sum(c.item(1, idx_start + i))
+            )
+            for i in range(number)
+        }
+
+    get_data_by_purchaser = c.aggregate(
+        {
+            **gen_reducers(0, 3, with_side_effect=False),
+            **gen_reducers(3, 3, with_side_effect=True),
+            **gen_reducers(6, 3, with_side_effect=False),
+            **gen_reducers(9, 3, with_side_effect=True),
+        }
+    )
+
+    converter = get_data_by_purchaser.gen_converter(debug=False)
+    code_str = format_code(get_code_str(converter))
+    data = [
+        [
+            list(range(12)),
+            list(range(12, 24)),
+        ],
+        [
+            list(range(24, 36)),
+            list(range(36, 48)),
+        ],
+    ]
+    result = converter(data)
+    assert result == {
+        "f00": 48,
+        "f01": 50,
+        "f02": 52,
+        "f03": {3: 15, 27: 39},
+        "f04": {4: 16, 28: 40},
+        "f05": {5: 17, 29: 41},
+        "f06": 60,
+        "f07": 62,
+        "f08": 64,
+        "f09": {9: 21, 33: 45},
+        "f10": {10: 22, 34: 46},
+        "f11": {11: 23, 35: 47},
+    }
+    assert code_str.count("row_[0]") == 18 and code_str.count("row_[1]") == 2
