@@ -352,6 +352,20 @@ def test_naive_conversion_item():
     assert converter([]) == -1
     assert method.call_count == 1
 
+    class A:
+        def __getitem__(self, index):
+            raise NotImplementedError
+
+    with pytest.raises(NotImplementedError):
+        c.item(0, default=-1).execute(A())
+
+    class A:
+        def __getattr__(self, index):
+            raise NotImplementedError
+
+    with pytest.raises(NotImplementedError):
+        c.attr("a", default=-1).execute(A())
+
 
 def test_item():
     assert c.item("key1").as_type(int).execute({"key1": "15"}) == 15

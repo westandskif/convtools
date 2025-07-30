@@ -7,32 +7,41 @@ static PyObject *get_item_deep_default_simple(PyObject *self, PyObject *args[],
         PyErr_SetString(PyExc_ValueError, "at least 3 arguments are expected");
         return NULL;
     }
-    int i;
-    int default_index = nargs - 1;
+
+    Py_ssize_t i;
+    Py_ssize_t default_index = nargs - 1;
+
+    PyObject *a;
     PyObject *item = args[0];
+    Py_INCREF(item);
 
     for (i = 1; i < default_index; i++) {
         if (item == Py_None) {
-            break;
+            Py_DECREF(item);
+            goto return_default;
         }
-
-        PyObject *a = PyObject_GetItem(item, args[i]);
-        if (!a) {
-            PyErr_Clear();
-            break;
+        a = PyObject_GetItem(item, args[i]);
+        Py_DECREF(item);
+        if (a == NULL) {
+            if (PyErr_ExceptionMatches(PyExc_KeyError) ||
+                PyErr_ExceptionMatches(PyExc_IndexError) ||
+                PyErr_ExceptionMatches(PyExc_TypeError)) {
+                PyErr_Clear();
+                goto return_default;
+            } else {
+                return NULL;
+            }
         }
         item = a;
     }
-    if (i == default_index) {
-        Py_INCREF(item);
-        return item;
-    } else {
-        PyObject *a;
-        a = args[default_index];
-        Py_INCREF(a);
-        return a;
-    }
+
+    return item;
+
+return_default:
+    Py_INCREF(args[default_index]);
+    return args[default_index];
 }
+
 static PyObject *get_item_deep_default_callable(PyObject *self,
                                                 PyObject *args[],
                                                 Py_ssize_t nargs) {
@@ -40,34 +49,42 @@ static PyObject *get_item_deep_default_callable(PyObject *self,
         PyErr_SetString(PyExc_ValueError, "at least 3 arguments are expected");
         return NULL;
     }
-    int i;
-    int default_index = nargs - 1;
+
+    Py_ssize_t i;
+    Py_ssize_t default_index = nargs - 1;
+
+    PyObject *a;
     PyObject *item = args[0];
+    Py_INCREF(item);
 
     for (i = 1; i < default_index; i++) {
         if (item == Py_None) {
-            break;
+            Py_DECREF(item);
+            goto return_default;
         }
-
-        PyObject *a = PyObject_GetItem(item, args[i]);
-        if (!a) {
-            PyErr_Clear();
-            break;
+        a = PyObject_GetItem(item, args[i]);
+        Py_DECREF(item);
+        if (a == NULL) {
+            if (PyErr_ExceptionMatches(PyExc_KeyError) ||
+                PyErr_ExceptionMatches(PyExc_IndexError) ||
+                PyErr_ExceptionMatches(PyExc_TypeError)) {
+                PyErr_Clear();
+                goto return_default;
+            } else {
+                return NULL;
+            }
         }
         item = a;
     }
-    if (i == default_index) {
-        Py_INCREF(item);
-        return item;
-    } else {
-        PyObject *a;
-        a = PyObject_CallNoArgs(args[default_index]);
-        if (!a) {
-            return NULL;
-        }
-        Py_INCREF(a);
-        return a;
+
+    return item;
+
+return_default:
+    a = PyObject_CallNoArgs(args[default_index]);
+    if (a == NULL) {
+        return NULL;
     }
+    return a;
 }
 
 static PyObject *get_attr_deep_default_simple(PyObject *self, PyObject *args[],
@@ -76,32 +93,40 @@ static PyObject *get_attr_deep_default_simple(PyObject *self, PyObject *args[],
         PyErr_SetString(PyExc_ValueError, "at least 3 arguments are expected");
         return NULL;
     }
-    int i;
-    int default_index = nargs - 1;
+
+    Py_ssize_t i;
+    Py_ssize_t default_index = nargs - 1;
+
+    PyObject *a;
     PyObject *item = args[0];
+    Py_INCREF(item);
 
     for (i = 1; i < default_index; i++) {
         if (item == Py_None) {
-            break;
+            Py_DECREF(item);
+            goto return_default;
         }
 
-        PyObject *a = PyObject_GetAttr(item, args[i]);
-        if (!a) {
-            PyErr_Clear();
-            break;
+        a = PyObject_GetAttr(item, args[i]);
+        Py_DECREF(item);
+        if (a == NULL) {
+            if (PyErr_ExceptionMatches(PyExc_AttributeError)) {
+                PyErr_Clear();
+                goto return_default;
+            } else {
+                return NULL;
+            }
         }
         item = a;
     }
-    if (i == default_index) {
-        Py_INCREF(item);
-        return item;
-    } else {
-        PyObject *a;
-        a = args[default_index];
-        Py_INCREF(a);
-        return a;
-    }
+
+    return item;
+
+return_default:
+    Py_INCREF(args[default_index]);
+    return args[default_index];
 }
+
 static PyObject *get_attr_deep_default_callable(PyObject *self,
                                                 PyObject *args[],
                                                 Py_ssize_t nargs) {
@@ -109,34 +134,40 @@ static PyObject *get_attr_deep_default_callable(PyObject *self,
         PyErr_SetString(PyExc_ValueError, "at least 3 arguments are expected");
         return NULL;
     }
-    int i;
-    int default_index = nargs - 1;
+    Py_ssize_t i;
+    Py_ssize_t default_index = nargs - 1;
+
+    PyObject *a;
     PyObject *item = args[0];
+    Py_INCREF(item);
 
     for (i = 1; i < default_index; i++) {
         if (item == Py_None) {
-            break;
+            Py_DECREF(item);
+            goto return_default;
         }
 
-        PyObject *a = PyObject_GetAttr(item, args[i]);
-        if (!a) {
-            PyErr_Clear();
-            break;
+        a = PyObject_GetAttr(item, args[i]);
+        Py_DECREF(item);
+        if (a == NULL) {
+            if (PyErr_ExceptionMatches(PyExc_AttributeError)) {
+                PyErr_Clear();
+                goto return_default;
+            } else {
+                return NULL;
+            }
         }
         item = a;
     }
-    if (i == default_index) {
-        Py_INCREF(item);
-        return item;
-    } else {
-        PyObject *a;
-        a = PyObject_CallNoArgs(args[default_index]);
-        if (!a) {
-            return NULL;
-        }
-        Py_INCREF(a);
-        return a;
+
+    return item;
+
+return_default:
+    a = PyObject_CallNoArgs(args[default_index]);
+    if (a == NULL) {
+        return NULL;
     }
+    return a;
 }
 
 static PyMethodDef cext_methods[] = {

@@ -4,7 +4,7 @@
 install:
 	find src/convtools -type f -name "*.so" -delete
 	pip install -e .
-	ls -la src/convtools
+	ls -la src/convtools | grep .so
 
 dynamic_docs_examples:
 	python build-docs-examples.py

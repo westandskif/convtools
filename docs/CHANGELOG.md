@@ -1,3 +1,12 @@
+## 1.14.5 (2025-07-31)
+
+- **fixed memory leaks `c.item` and `c.attr` with `default`**, which were sped up
+in v1.12+ py3.10+
+- stopped suppressing exceptions other than `(TypeError, KeyError, IndexError)`
+for `c.item` with `default`
+- stopped suppressing exceptions other than `AttributeError` `c.attr` with
+`default`
+
 ## 1.14.4 (2025-03-19)
 
 - fixed CSE (common subexpression elimination) for aggregations (used to raise
