@@ -15,7 +15,6 @@ jobs:
       fail-fast: true
       matrix:
         os-python-env:
-          - [ubuntu-24.04, "3.6",  "CONVTOOLS_CEXT_DISABLED=1"]
           - [ubuntu-24.04, "3.7",  "CONVTOOLS_CEXT_DISABLED=1"]
           - [ubuntu-24.04, "3.8",  "CONVTOOLS_CEXT_DISABLED=1"]
           - [ubuntu-24.04, "3.9",  "CONVTOOLS_CEXT_DISABLED=1"]
