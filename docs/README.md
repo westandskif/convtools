@@ -30,7 +30,7 @@ pip install convtools
    buffers with custom newlines
 
 
-### Sneak peak on what's inside
+### Sneak peek on what's inside
 
 #### Pipes
 
