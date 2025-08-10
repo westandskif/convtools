@@ -1,3 +1,14 @@
+## 1.14.6 (2025-08-10)
+
+- **fixed the following c.ReduceFuncs so they skip `None` values** just like `Min`, `Max`:
+    * `Average`
+    * `Percentile`
+    * `TopK`
+    * `CountDistinct`
+    * `DictCountDistinct`
+- documented whether reducers skip `None` in [Group By and Aggregate / Reducers API](./aggregations.md#reducers-api)
+
+
 ## 1.14.5 (2025-07-31)
 
 - **fixed memory leaks `c.item` and `c.attr` with `default`**, which were sped up

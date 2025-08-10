@@ -399,7 +399,7 @@ def reducers_in_out():
         groupby=c.item("name"),
         reduce=c.ReduceFuncs.CountDistinct(c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3 + reducer_data4,
-        output=[('Bill', 4), ('Nick', 3)],
+        output=[('Bill', 3), ('Nick', 3)],
         raises=None,
     ),
     dict(
@@ -497,7 +497,7 @@ def reducers_in_out():
         groupby=True,
         reduce=c.ReduceFuncs.DictCountDistinct(c.item("name"), c.item("debit")),
         data=reducer_data1 + reducer_data2 + reducer_data3 + reducer_data4,
-        output=[(True, {'Bill': 4, 'Nick': 3})],
+        output=[(True, {'Bill': 3, 'Nick': 3})],
         raises=None,
         debug=False,
     ),
@@ -1056,7 +1056,7 @@ def test_aggregate_reducers_reuse():
     if CODE_FORMATTING_AVAILABLE:
         code_str = format_code(get_code_str(converter))
         assert (
-            code_str.count("is _none:") == 3
+            code_str.count("is _none:") == 4
             and code_str.count('row_["c"]') == 2
             and code_str.count('row_["b"]') == 2
         )
@@ -1155,6 +1155,13 @@ def test_aggregate_reducers_reuse():
     code_str = get_code_str(converter)
     assert result == [[7, -1, 0], [17, -1, 0]]
     assert code_str.count("['a']") == 2 or code_str.count('["a"]') == 2
+
+    f = c.aggregate(c.ReduceFuncs.Average(c.this)).gen_converter()
+    assert f([None, 1, 2, 3, 4]) == 2.5
+    f = c.aggregate(
+        c.ReduceFuncs.Average(c.this, c.this.or_(0))
+    ).gen_converter()
+    assert f([None, 1, 2, 3, 4]) == 3.0
 
 
 def test_aggregate_single_reducer_reduction():

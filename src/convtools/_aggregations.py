@@ -34,6 +34,7 @@ from ._base import (
     NaiveConversion,
     Namespace,
     NamespaceCtx,
+    Or,
     This,
     Tuple_,
     _None,
@@ -435,14 +436,6 @@ class BaseReducer(BaseConversion):
             if (where is None or where is _none)
             else self.ensure_conversion(where)
         )
-        post_conversion = self.get_option("post_conversion", None, None)
-        self.conversion = self.ensure_conversion(
-            If(
-                This.is_(EscapedString("_none")),
-                self.default,
-                (post_conversion if post_conversion is not None else This),
-            )
-        )
 
     def check_expressions(self):
         if not self.internals_are_public and not isinstance(
@@ -559,7 +552,12 @@ class BaseReducer(BaseConversion):
             code_without_init and code_without_init.to_string(0),
         )
 
-        return self.conversion.gen_code_and_update_ctx(new_code_input, ctx)
+        post_conversion = self.get_option("post_conversion", ctx, None)
+        return If(
+            This.is_(EscapedString("_none")),
+            self.default,
+            (This if post_conversion is None else post_conversion),
+        ).gen_code_and_update_ctx(new_code_input, ctx)
 
     def get_single_agg_reduction(self):
         pass
@@ -727,7 +725,7 @@ class CountReducer(OptionalExpressionReducer):
 class CountDistinctReducer(SingleExpressionReducer):
     default = NaiveConversion(0)
     internals_are_public = False
-    works_with_not_none_only = (False,)
+    works_with_not_none_only = (True,)
     prepare_first_lines = ("%(result)s = {%(value0)s}",)
     reduce_lines = ("%(result)s.add(%(value0)s)",)
     post_conversion = CallFunc(len, This)
@@ -831,6 +829,7 @@ class SortedArrayReducer(SingleExpressionReducer):
 
     def __init__(self, *args, key=None, reverse=False, **kwargs):
         super().__init__(*args, **kwargs)
+
         self.key = self.ensure_conversion(key)
         self.reverse = self.ensure_conversion(reverse)
 
@@ -1059,7 +1058,6 @@ class DictCountDistinctReducer(BaseDictReducer):
 
     default = NaiveConversion(None)
     internals_are_public = False
-    works_with_not_none_only = (False, False)
     prepare_first_lines = ("%(result)s = { %(value0)s: { %(value1)s } }",)
     reduce_lines = (
         "if %(value0)s not in %(result)s:",
@@ -1070,6 +1068,11 @@ class DictCountDistinctReducer(BaseDictReducer):
     post_conversion = InlineExpr(
         "{{ k_: len(v_) for k_, v_ in {}.items() }}"
     ).pass_args(This)
+
+    def works_with_not_none_only(self, ctx):  # pylint: disable=unused-argument
+        if self.expressions[1].has_hint(BaseConversion.OutputHints.NOT_NONE):
+            return (False, False)
+        return (False, True)
 
 
 class DictFirstReducer(BaseDictReducer):
@@ -1119,16 +1122,19 @@ class AverageReducerDispatcher(ReducerDispatcher):
     def __call__(
         self, value, weight=1, default=None, where=None
     ) -> "BaseConversion":
-        if isinstance(weight, (int, float, Decimal)) and weight == 1:
+        if isinstance(weight, (int, float, Decimal)) and weight:
             return If(
-                CountReducer(where=where),
-                (SumReducer(value, where=where) / CountReducer(where=where)),
+                CountReducer(value, where=where),
+                (
+                    SumReducer(value, where=where)
+                    / CountReducer(value, where=where)
+                ),
                 default,
             )
         return If(
             SumReducer(weight, where=where),
             (
-                SumReducer(value * weight, where=where)
+                SumReducer(Or(value, 0) * weight, where=where)
                 / SumReducer(weight, where=where)
             ),
             default,
@@ -1149,22 +1155,28 @@ class TopReducer(DictCountReducer):
             raise ValueError("K must be a positive integer greater than 0.")
 
         self.k = k
-        super().__init__(key_conv, *args, **kwargs)
+        super().__init__(key_conv, key_conv, *args, **kwargs)
 
-    def post_conversion(self, ctx):  # pylint: disable=unused-argument
+    def post_conversion(self, ctx):
+        from operator import itemgetter
+
+        ctx["operator_itemgetter"] = itemgetter
         return InlineExpr(
-            "[key for key, value in sorted((v, k) for k, v in {data}.items())[:-{k}:-1]]"
-        ).pass_args(data=This, k=self.k + 1)
+            "[k for k, v in sorted({data}.items(), key=operator_itemgetter(1), reverse=True)[:{k}]]"
+        ).pass_args(data=This, k=self.k)
 
 
 class ModeReducer(DictCountReducer):
     def __init__(self, conv, *args, **kwargs):
         super().__init__(conv, conv, *args, **kwargs)
 
-    # TODO: check how MaxRow performs here
-    post_conversion = InlineExpr(
-        "sorted({data}.items(), key=lambda x: x[1])[-1][0]"
-    ).pass_args(data=This)
+    def post_conversion(self, ctx):
+        from operator import itemgetter
+
+        ctx["operator_itemgetter"] = itemgetter
+        return InlineExpr(
+            "sorted({data}.items(), key=operator_itemgetter(1), reverse=True)[0][0]"
+        ).pass_args(data=This)
 
 
 class PercentileReducer(SortedArrayReducer):
@@ -1182,6 +1194,7 @@ class PercentileReducer(SortedArrayReducer):
     """
 
     interpolation_to_method: ClassVar[Dict[str, Callable]] = {}
+    works_with_not_none_only = (True,)
 
     def __init__(
         self, percentile: float, conv, *args, interpolation="linear", **kwargs

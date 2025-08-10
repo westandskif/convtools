@@ -40,18 +40,20 @@ Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
     * CountDistinct - len of resulting set of values
     * First - first encountered value
     * Last - last encountered value
-    * Average(value, weight=1) - pass custom weight conversion for weighted average
+    * Average(value, weight=1) - simple/weighted average, skips None
     * Median
-    * Percentile(percentile, value, interpolation="linear")
-	    c.ReduceFuncs.Percentile(95.0, c.item("x"))
+    * Percentile(percentile, value, interpolation="linear") - percentile value,
+      skips None;
 		interpolation is one of:
 		  - "linear"
 		  - "lower"
 		  - "higher"
 		  - "midpoint"
 		  - "nearest"
-    * Mode
-    * TopK - c.ReduceFuncs.TopK(3, c.item("x"))
+      e.g.: c.ReduceFuncs.Percentile(95.0, c.item("x"))
+    * Mode - most frequent value, skips None
+    * TopK - top K most frequent values, skips None
+      e.g. top 3 most frequent ones: c.ReduceFuncs.TopK(3, c.item("x"))
     * Array
     * ArrayDistinct
     * ArraySorted
@@ -90,38 +92,39 @@ The table below gives the following info on builtin reducers:
 
  * how many positional arguments they can accept
  * what are their default values (_returned when no rows are reduced_)
- * and whether they support `initial` keyword argument.
+ * whether they skip `None` during reducing
+ * whether they support `initial` keyword argument.
 
-| Reducer           | 0-args  | 1-args | 2-args  | default | supports initial |
-| ----------------- | ------- | ------ | ------- | ------- | ---------------- |
-| Array             |         | v      |         | None    | v                |
-| ArrayDistinct     |         | v      |         | None    |                  |
-| ArraySorted       |         | v      |         | None    |                  |
-| Average           |         | v      |         | None    |                  |
-| Count             | v       | v      |         | 0       | v                |
-| CountDistinct     |         | v      |         | 0       |                  |
-| First             |         | v      |         | None    |                  |
-| Last              |         | v      |         | None    |                  |
-| Max               |         | v      |         | None    | v                |
-| MaxRow            |         | v      |         | None    |                  |
-| Median            |         | v      |         | None    |                  |
-| Min               |         | v      |         | None    | v                |
-| MinRow            |         | v      |         | None    |                  |
-| Mode              |         | v      |         | None    |                  |
-| Percentile        |         | v      |         | None    |                  |
-| Sum               |         | v      |         | 0       | v                |
-| SumOrNone         |         | v      |         | None    | v                |
-| TopK              |         | v      |         | None    |                  |
-| Dict              |         |        | v       | None    |                  |
-| DictArray         |         |        | v       | None    |                  |
-| DictCount         |         | v      | v       | None    |                  |
-| DictCountDistinct |         |        | v       | None    |                  |
-| DictFirst         |         |        | v       | None    |                  |
-| DictLast          |         |        | v       | None    |                  |
-| DictMax           |         |        | v       | None    |                  |
-| DictMin           |         |        | v       | None    |                  |
-| DictSum           |         |        | v       | None    |                  |
-| DictSumOrNone     |         |        | v       | None    |                  |
+| Reducer           | 0-args  | 1-args | 2-args  | default | skips None | supports initial |
+| ----------------- | ------- | ------ | ------- | ------- | ---------- | ---------------- |
+| Array             |         | v      |         | None    |            | v                |
+| ArrayDistinct     |         | v      |         | None    |            |                  |
+| ArraySorted       |         | v      |         | None    |            |                  |
+| Average           |         | v      |         | None    | v          |                  |
+| Count             | v       | v      |         | 0       | 1-args     | v                |
+| CountDistinct     |         | v      |         | 0       | v          |                  |
+| First             |         | v      |         | None    |            |                  |
+| Last              |         | v      |         | None    |            |                  |
+| Max               |         | v      |         | None    | v          | v                |
+| MaxRow            |         | v      |         | None    | v          |                  |
+| Median            |         | v      |         | None    | v          |                  |
+| Min               |         | v      |         | None    | v          | v                |
+| MinRow            |         | v      |         | None    | v          |                  |
+| Mode              |         | v      |         | None    | v          |                  |
+| Percentile        |         | v      |         | None    | v          |                  |
+| Sum               |         | v      |         | 0       | v          | v                |
+| SumOrNone         |         | v      |         | None    |            | v                |
+| TopK              |         | v      |         | None    | V          |                  |
+| Dict              |         |        | v       | None    |            |                  |
+| DictArray         |         |        | v       | None    |            |                  |
+| DictCount         |         | v      | v       | None    | 2-args     |                  |
+| DictCountDistinct |         |        | v       | None    | v          |                  |
+| DictFirst         |         |        | v       | None    |            |                  |
+| DictLast          |         |        | v       | None    |            |                  |
+| DictMax           |         |        | v       | None    | v          |                  |
+| DictMin           |         |        | v       | None    | v          |                  |
+| DictSum           |         |        | v       | None    | v          |                  |
+| DictSumOrNone     |         |        | v       | None    |            |                  |
 
 
 

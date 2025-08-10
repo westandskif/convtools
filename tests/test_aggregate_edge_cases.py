@@ -205,13 +205,14 @@ def test_mode_with_groupby():
 def test_top_k(series, k):
     assert eq(
         c.aggregate(c.ReduceFuncs.TopK(k, c.item(1))).execute(series),
-        [x[1] for x in Counter(x[1] for x in series).most_common(k)],
+        [x[0] for x in Counter(x[1] for x in series).most_common(k)],
     )
 
 
 def test_top_k_extra():
     assert c.aggregate(c.ReduceFuncs.TopK(2, c.this)).execute(
-        [3, 3, 3, 2, 2, 1]
+        [None] * 4 + [3, 3, 3, 2, 2, 1],
+        debug=False,
     ) == [3, 2]
 
 
@@ -235,7 +236,7 @@ def test_top_k_with_group_by(series, k):
         .execute(series),
         [
             [
-                x[1]
+                x[0]
                 for x in Counter(
                     x[1] for x in series if x[0] == key
                 ).most_common(k)
@@ -440,6 +441,18 @@ def test_aggregate_no_init_loops():
     }
 
 
+def test_array_sorted():
+    assert c.aggregate(c.ReduceFuncs.ArraySorted(c.this)).execute(
+        [3, 1, 2]
+    ) == [1, 2, 3]
+    assert c.aggregate(
+        c.ReduceFuncs.ArraySorted(c.this, reverse=True)
+    ).execute([3, 1, 2]) == [3, 2, 1]
+    assert c.aggregate(
+        c.ReduceFuncs.ArraySorted(c.this, key=c.sorting_key(c.this.desc()))
+    ).execute([3, 1, 2]) == [3, 2, 1]
+
+
 def test_aggregate_percentile():
     converter = c.aggregate(
         (
@@ -521,6 +534,10 @@ def test_aggregate_percentile():
         c.ReduceFuncs.Percentile(200, c.this)
     with pytest.raises(ValueError):
         c.ReduceFuncs.Percentile(10, c.this, interpolation="asd")
+
+    f = c.aggregate(c.ReduceFuncs.Percentile(50, c.this)).gen_converter()
+    assert f([4, 2, 3, 1]) == 2.5
+    assert f([None, 4, 2, 3, 1]) == 2.5
 
 
 def test_group_by_percentile():

@@ -85,6 +85,7 @@ def test_reducers_with_hints(reducer_cls, data, expected_result, conv):
         (c.ReduceFuncs.DictSumOrNone, list(range(6)), {0: 6, 1: 9}),
         (c.ReduceFuncs.DictMax, list(range(6)), {0: 4, 1: 5}),
         (c.ReduceFuncs.DictMin, list(range(6)), {0: 0, 1: 1}),
+        (c.ReduceFuncs.DictCountDistinct, list(range(6)), {0: 3, 1: 3}),
     ],
 )
 @pytest.mark.parametrize(

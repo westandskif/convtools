@@ -9,7 +9,6 @@ from ._base import (
     GetAttr,
     GetItem,
     InputArg,
-    LabelConversion,
     NaiveConversion,
 )
 from ._utils import Code
@@ -177,7 +176,7 @@ class SortingKeyConversion(BaseConversion):
 
 
 class SortConversion(BaseConversion):
-    """Shortcut for CallFunc(sorted, self, key=key, reverse=reverse)."""
+    """Extended version of sorted(..., key=key, reverse=reverse)."""
 
     def __init__(self, key=None, reverse=False):
         """Initialize SortConversion.
@@ -204,13 +203,14 @@ class SortConversion(BaseConversion):
         """
         super().__init__()
         self.sorted_kwargs = {}
-        if key is not None:
-            if callable(key) or isinstance(key, LabelConversion):
+        key_value = NaiveConversion.get_value(key)
+        if key_value is not None:
+            if callable(key_value):
                 self.sorted_kwargs["key"] = self.ensure_conversion(key)
             else:
                 self.sorted_kwargs["key"] = self.ensure_conversion(
                     SortingKeyConversion(
-                        (key if isinstance(key, tuple) else (key,))
+                        key if isinstance(key, tuple) else (key,)
                     )
                 )
         if reverse:

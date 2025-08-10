@@ -8,7 +8,7 @@ class SimpleTimer(Timer):
     """A simpler timer which allows to automatically measure time taken to get
     stable results based on coefficient of variation (sigma to mean ratio)"""
 
-    REL_PRECISION = 0.015
+    REL_PRECISION = 0.075
 
     def auto_measure(
         self,

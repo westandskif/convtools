@@ -923,7 +923,13 @@ class BaseConversion(Generic[CT]):
         return CallFunc(len, self)
 
     def sort(self, key=None, reverse=False) -> "BaseConversion":
-        """Shortcut for CallFunc(sorted, self, key=key, reverse=reverse)."""
+        """Extended version of sorted(..., key=key, reverse=reverse).
+
+        Args:
+          key: callable or conversion/tuple of conversions to form a sorting
+            key, to be passed to :py:obj:`sorted`
+          reverse (bool): to be passed to :py:obj:`sorted`
+        """
         return self.pipe(
             convtools_ordering.SortConversion(key=key, reverse=reverse)
         )

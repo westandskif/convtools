@@ -319,7 +319,11 @@ class AppliedWindow(BaseConversion):
                     This,
                 )
                 .as_type(list)
-                .sort(key=LabelConversion(label_sorting_key))
+                .pipe(
+                    This.call_method(
+                        "sort", key=LabelConversion(label_sorting_key)
+                    ).or_(This)
+                )
                 .pipe(
                     CallFunc(
                         zip,
