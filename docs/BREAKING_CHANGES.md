@@ -8,7 +8,7 @@
    * Last
    * MaxRow
    * MinRow
-   * SortedArray
+   * ArraySorted
    * Dict
    * DictArray
    * DictArrayDistinct

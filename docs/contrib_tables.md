@@ -5,8 +5,12 @@ first row or accepts yours and allows you to massage columns and rows in a
 stream-friendly manner (_without operations which require to consume the whole
 sequence_).
 
-`Table` data can only be consumed once: since a table takes an iterable,
-there's no way to iterate the second time.
+/// admonition
+    type: warning
+
+* **`Table` data can only be consumed once: since a table takes an iterable, there's no way to iterate the second time.**
+* **If you want to use `Table` inside conversions, [read this first](./contrib_tables.md#using-tables-inside-conversions).**
+///
 
 
 ## Read / Output rows

@@ -140,7 +140,7 @@ changes as it used to break completely_)
    * Last
    * MaxRow
    * MinRow
-   * SortedArray
+   * ArraySorted
    * Dict
    * DictArray
    * DictArrayDistinct

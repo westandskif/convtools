@@ -49,7 +49,7 @@ pip install convtools
     * MaxRow - row with max not None
     * Min - min not None
     * MinRow - row with min not None
-    * Count - count of everything
+    * Count - Count() counts rows; Count(x) counts not‑None values
     * CountDistinct - len of resulting set of values
     * First - first encountered value
     * Last - last encountered value

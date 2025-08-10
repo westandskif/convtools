@@ -27,12 +27,13 @@ of:
 
 Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
 
-    * Sum - auto-replaces False values with 0; default=0
-    * SumOrNone - sum or None if at least one None is encountered; default=None
-    * Max - max not None
-    * MaxRow - row with max not None
-    * Min - min not None
-    * MinRow - row with min not None
+    * Sum - sum values, considering false values as 0; default=0
+    * SumOrNone - strict sum OR None if at least one None is encountered;
+      default=None
+    * Max - max value, skips None
+    * MaxRow - row with max value, skips None
+    * Min - min value, skips None
+    * MinRow - row with min value, skips None
     * Count
 	    - when 0-args: count of rows
 		- when 1-args: count of not None values
