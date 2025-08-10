@@ -5,11 +5,6 @@ reduces clarity and can hide issues in the code.**
 
 ## c.try_
 
-/// admonition | Experimental feature
-    type: warning
-It was added on Feb 21, 2024 and may be stabilized ~ in half a year.
-///
-
 `c.try_(conv).except_(exc_def, value, re_raise_if=None)` conversion
 wrapper allows to handle exceptions:
 

@@ -899,7 +899,6 @@ class Table:
     ):
         """Turn wide table into a long form.
 
-        It was added on Mar 6, 2024 and may be stabilized ~ in half a year.
         This is an operation, which is opposite to pivot operation:
         >>> assert list(
         >>>     Table.from_rows(
@@ -979,7 +978,6 @@ class Table:
     ) -> "Table":
         """Create a pivot table.
 
-        It was added on Jun 5, 2024 and may be stabilized ~ in half a year.
         >>> assert list(
         >>>     Table.from_rows([
         >>>        {"dept": 1, "year": 2023, "currency": "USD", "revenue": 100},

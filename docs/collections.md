@@ -76,12 +76,6 @@ To filter an input use `c.filter` or `filter` conversion method:
 
 #### sort
 
-/// admonition | Experimental feature
-    type: warning
-Key as conversion or tuple of conversions support was added on Jul 1, 2024 and
-may be stabilized ~ in half a year.
-///
-
 `sort` conversion extends usual python's `sorted` with per-item asc/desc +
 none_first/none_last configuration:
 

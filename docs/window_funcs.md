@@ -2,11 +2,6 @@
 
 **Please, make sure you've covered [Reference / Basics](./basics.md) first.**
 
-/// admonition | Experimental feature
-    type: warning
-It was added on Jul 1, 2024 and may be stabilized ~ in a year.
-///
-
 This is SQL's `count(*) over (...)` counterpart, its interface should closely follow
 [PostgreSQL's window functions](https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS).
 

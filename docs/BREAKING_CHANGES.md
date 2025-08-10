@@ -1,6 +1,6 @@
-## When v2 comes (if):
+## if v2 happens one day, it will:
 
-- the following reducers now raise `ValueError` if `initial` is passed:
+- make the following reducers raise `ValueError` if `initial` is passed:
 ```
    * ArrayDistinct
    * CountDistinct

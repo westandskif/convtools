@@ -12,8 +12,6 @@ _none = BaseConversion._none
 class Try(BaseConversion):
     """Conversion wrapper to handle exceptions.
 
-    It was added on Feb 21, 2024 and may be stabilized ~ in half a year.
-
     >>> c.try_(c.item("a")).except_(
     >>>     KeyError,
     >>>     -1,

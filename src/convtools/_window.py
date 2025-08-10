@@ -1,8 +1,6 @@
 """Brings window functions, based on PostgreSQL's ones.
 
 https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS
-
-It was added on Jul 1, 2024 and may be stabilized ~ in a year.
 """
 
 from enum import Enum
@@ -118,7 +116,7 @@ class AppliedWindow(BaseConversion):
           conv: conversion to apply window funcs to
 
           # --8<-- [start:over_args_docs]
-          reducer: window accepts a conversion, which can contains reducers
+          reducer: window accepts a conversion, which can contain reducers
             and/or window functions to be applied to window frames
 
           partition_by (optional): conversion to partition by

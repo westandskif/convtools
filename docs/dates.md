@@ -130,7 +130,7 @@ risk missing the very first period.
 Arguments are:
 
 * `step` (step) defines grid period length (see how STEP-STRING is defined above)
-* `offset` (optional step) defined the offset of the date/datetime grid
+* `offset` (optional step) defines the offset of the date/datetime grid
 * `mode` (default is `"start"`) defines which part of a date/datetime grid
   period is to be returned
     * `"start"` returns the beginning of a grid period

@@ -6,11 +6,6 @@
 Mutations are conversions which update the data in-place. Here is the list of
 supported mutations:
 
-/// admonition | Experimental feature
-    type: warning
-`of_` parameter was added on Jun 7, 2024 and may be stabilized ~ in half a year.
-///
-
 | expected code | mutation |
 |:--------------|:---------|
 | `d[name] = value` |`c.Mut.set_item(name, value)`

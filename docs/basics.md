@@ -20,7 +20,7 @@ If we called `data` as `c.this`, then this data transform would look like:
 
 So the steps of getting a converter function are:
 
-1. you define data transforms using it's building blocks (_conversions_)
+1. you define data transforms using its building blocks (_conversions_)
 1. you call ``gen_converter`` conversion method to generate ad-hoc code and
    compile a function, which implements the transform you just defined
 1. you use the resulting function as many times as needed
@@ -57,8 +57,8 @@ There are two ways to do it:
 
 #### With default
 
-Should you need to suppress `KeyError` to achieve `dict.get(key, default)`
-behavior:
+Should you need to suppress `KeyError`, `IndexError` and `TypeError` to achieve
+`dict.get(key, default)`-like behavior but for arbitrary data:
 
 {!examples-md/getting_started__item_default.md!}
 
@@ -81,6 +81,8 @@ def f(data):
 ```
 
 just use `c.attr("value")`.
+
+Should you need to suppress `AttributeError`, pass `default` argument.
 
 Here is all-in one example:
 
@@ -186,7 +188,7 @@ there are three parameters of `gen_converter` to achieve that:
 1. `class_method` - results in signature like `def converter(cls, data_)`
 1. `signature` - uses the provided signature
 
-just make sure you to include `data_` in case your conversion uses the input.
+just make sure you include `data_` in case your conversion uses the input.
 
 {!examples-md/getting_started__signature.md!}
 

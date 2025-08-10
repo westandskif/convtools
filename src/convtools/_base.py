@@ -1022,8 +1022,6 @@ class BaseConversion(Generic[CT]):
     ):
         """Applies one of conversions of the dict, based on the key.
 
-        It was added on Feb 7, 2024 and may be stabilized ~ in half a year.
-
         Takes a conversion to be used as a key and applies corresponding
         conversion from dict. The key conversion should return hashable object.
 
@@ -1317,7 +1315,6 @@ class BaseConversion(Generic[CT]):
         return _expect.Expect(self, condition, error_msg)
 
     def window(self, *args, **kwargs):
-        # It was added on Jul 1, 2024 and may be stabilized ~ in a year.
         from convtools import _window
 
         return _window.Window(self, *args, **kwargs)
@@ -1325,7 +1322,6 @@ class BaseConversion(Generic[CT]):
     def asc(self, *, none_last=None, none_first=None):
         """Sets ascending ordering hint, to be used by conversion sort method.
 
-        It was added on Jul 1, 2024 and may be stabilized ~ in half a year.
         # --8<-- [start:asc_args_docs]
 
         Args:
@@ -1343,8 +1339,6 @@ class BaseConversion(Generic[CT]):
 
     def desc(self, none_last=None, none_first=None):
         """Sets descending ordering hint, to be used by conversion sort method.
-
-        It was added on Jul 1, 2024 and may be stabilized ~ in half a year.
 
         Args:
           none_last: if True, None values go last

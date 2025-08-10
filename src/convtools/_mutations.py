@@ -16,8 +16,7 @@ class BaseNameValueMutation(BaseMutation):
             a key/attr/index for a mutation
           value: to be wrapped with :py:obj:`ensure_conversion` and used as
             a value for a mutation
-          of_: [EXPERIMENTAL] conversion which points at what to mutate. It was
-            added on Jun 7, 2024 and may be stabilized ~ in half a year.
+          of_: conversion which points at what to mutate.
         """
         super().__init__()
         self.name = self.ensure_conversion(name)
@@ -51,8 +50,7 @@ class BaseIndexMutation(BaseMutation):
           index: to be wrapped with :py:obj:`ensure_conversion` and used as
             an index/key/attr for a mutation
           if_exists: mutates if the index/key/attr exists
-          of_: [EXPERIMENTAL] conversion which points at what to mutate. It was
-            added on Jun 7, 2024 and may be stabilized ~ in half a year.
+          of_: conversion which points at what to mutate.
         """
         super().__init__()
         self.index = self.ensure_conversion(index)

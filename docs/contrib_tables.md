@@ -21,8 +21,8 @@ Arguments are as follows:
 	  only exception: when an iterable of dicts is accepted, unless
 	  `header=False` it automatically infers the header from the first dict.
 	* `list` and `tuple` - specify column names
-	* `dict` - keys specify column names, values are indexes to be get column
-	  values
+    * `dict` - keys specify column names, values are indexes to be used to get
+      column values
 * `duplicate_columns`
 	* **`raise` - the default for `from_rows`**. It raises `ValueError` when
 	  encounters duplicate column names
@@ -37,7 +37,7 @@ Arguments are as follows:
 **`into_iter_rows`** method outputs the results as an iterator of rows,
 arguments are:
 
-* `type_` should be exactly one of the following: `dict`, `list`, `dict`
+* `type_` should be exactly one of the following: `dict`, `tuple`, `list`
 * `include_header=None` whether to emit header or not
 
 {!examples-md/contrib_tables_read_rows.md!}
@@ -53,8 +53,8 @@ arguments are:
 * `header` supports multiple types
     * `bool` - whether to infer the header or not
 	* `list` and `tuple` - specify column names
-	* `dict` - keys specify column names, values are indexes to be get column
-	  values
+    * `dict` - keys specify column names, values are indexes to be used to get
+      column values
 * `duplicate_columns`
 	* `raise` - It raises `ValueError` when encounters duplicate column names
 	* **`mangle` - the default for `from_csv`**. It mangles duplicate column
@@ -176,11 +176,6 @@ only parameter is `column_name` to explode.
 
 ## Wide to long
 
-/// admonition | Experimental feature
-    type: warning
-It was added on Mar 6, 2024 and may be stabilized ~ in half a year.
-///
-
 `wide_to_long` method turns a table from wide to long view, turning a single
 row into multiple rows, which have fewer columns:
 
@@ -196,11 +191,6 @@ Args:
 
 
 ## Pivot
-
-/// admonition | Experimental feature
-    type: warning
-It was added on Jun 5, 2024 and may be stabilized ~ in half a year.
-///
 
 `pivot` method aggregates data and creates a pivot table.
 

@@ -36,7 +36,7 @@ pip install convtools
 
 {!examples-md/welcome__pipes.md!}
 
-#### Aggregations & Group By
+#### Group By and Aggregate
 
 {!examples-md/welcome__aggregations.md!}
 
@@ -113,9 +113,12 @@ Despite being compiled at runtime, it is (_by both `pdb` and `pydevd`_).
 
 ## Contributing
 
-The best way to support the development of convtools is to spread the word!
+Best ways to support the development of convtools are:
 
-Also, if you already are a convtools user, we would love to hear about your use
+* spread the word
+* give it a star on [Github](https://github.com/westandskif/convtools)
+
+Also, if you already are a convtools user, we would **love** to hear about your use
 cases and challenges in the [Discussions
 section](https://github.com/westandskif/convtools/discussions).
 
