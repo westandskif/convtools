@@ -157,6 +157,7 @@ disable=abstract-method,
         not-callable,
         import-outside-toplevel,
         cyclic-import,
+        too-many-positional-arguments,
 
 
 [REPORTS]

@@ -23,6 +23,9 @@ class ReversedOrdering:
     def __init__(self, v):
         self.v = v
 
+    def __hash__(self):
+        return hash(self.v)  # pragma: no cover
+
     def __lt__(self, other):
         return other.v < self.v
 

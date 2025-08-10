@@ -7,6 +7,7 @@ theme:
   custom_dir: docs/overrides
   features:
     - content.code.copy
+    - navigation.expand
 
 extra:
   analytics:
