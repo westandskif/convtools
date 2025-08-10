@@ -1,8 +1,9 @@
-# convtools
+# convtools — write transformations as expressions, run them as Python
 
-**convtools** is a Python library that simplifies data transformation by
-allowing you to define them in a declarative way. It then generates the
-necessary Python code in the background, saving you time and effort.
+**convtools** lets you declare data transformations in plain Python, then
+compiles them into tiny, optimized Python functions at runtime. You keep your
+data in native iterables (lists, dicts, generators, CSV streams)—no heavy
+container required.
 
 [![License](https://img.shields.io/github/license/westandskif/convtools.svg)](https://github.com/westandskif/convtools/blob/master/LICENSE.txt)
 [![codecov](https://codecov.io/gh/westandskif/convtools/branch/master/graph/badge.svg)]( https://codecov.io/gh/westandskif/convtools)
@@ -13,11 +14,29 @@ necessary Python code in the background, saving you time and effort.
 [![Downloads](https://static.pepy.tech/badge/convtools)](https://pepy.tech/project/convtools)
 [![Python versions](https://img.shields.io/pypi/pyversions/convtools.svg)](https://pypi.org/project/convtools/)
 
+### Why pick convtools?
+
+  * **Stay in Python.** Compose transformations as expressions: pipes, filters,
+  joins, group‑bys, reducers, window functions, and more. Then call
+  `.gen_converter()` to get a real Python function.
+  * **Stream‑friendly.** Works directly on iterators and files; the Table
+  helper processes CSV‑like data without loading everything into memory.
+  * **Powerful aggregations.** Rich reducers (Sum, CountDistinct, MaxRow,
+  ArraySorted, Dict*, TopK…) with per‑reducer `where` filters and defaults.
+  Nested aggregations are first‑class.
+  * **Debuggable & inspectable.** Print the generated code with `debug=True` or
+  set global options via `c.OptionsCtx`. Works with `pdb`/`pydevd`.
+  * **Plays nicely with Pandas/Polars.** It’s not a DataFrame; it’s a
+  code‑generation layer. Use it when you want lean, composable transforms over
+  native Python data.
+
 ____
 
-## Installation
+### Installation
 
-`pip install convtools`
+```
+pip install convtools
+```
 
 ## Documentation
 
@@ -99,29 +118,27 @@ assert conv(input_data) == {
     AND LASTLY YOU CAN DEFINE YOUR OWN REDUCER BY PASSING ANY REDUCE FUNCTION
     OF TWO ARGUMENTS TO ``c.reduce``.
 
+---
 
-## What's the point if there are tools like Pandas / Polars?
 
-* convtools doesn't need to wrap data in a container to provide functionality,
-  it simply runs the python code it generates on **any input**
-* convtools is lightweight (_though optional `black` is highly recommended for
-  pretty-printing generated code out of curiosity_)
-* convtools fosters building pipelines on top of iterators, allowing for stream
-  processing
-* convtools supports nested aggregations
-* convtools is a set of primitives for code generation, so it's just different.
+### When should I reach for convtools?
 
-## Contributing
+* You need **composable transforms** over native Python data
+(lists/dicts/generators/CSV), not a DataFrame.
+* You want to **express business rules declaratively** and generate fast,
+readable Python functions.
+* You need **aggregations/joins/pipes** that you can **reuse** across scripts
+and services.
 
-The best way to support the development of convtools is to spread the word!
+---
 
-Also, if you already are a convtools user, we would love to hear about your use
-cases and challenges in the [Discussions
-section](https://github.com/westandskif/convtools/discussions).
+### Contributing
 
-To report a bug or suggest enhancements, please open [an
+* Star the repo and share use‑cases in Discussions -- it really helps.
+
+* To report a bug or suggest enhancements, please open [an
 issue](https://github.com/westandskif/convtools/issues) and/or submit [a pull
 request](https://github.com/westandskif/convtools/pulls).
 
-
-**Reporting a Security Vulnerability**: see the [security policy](https://github.com/westandskif/convtools/security/policy).
+* **Reporting a Security Vulnerability**: see the [security
+policy](https://github.com/westandskif/convtools/security/policy).

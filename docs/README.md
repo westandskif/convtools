@@ -1,8 +1,9 @@
-# Welcome to convtools
+# convtools — write transformations as expressions, run them as Python
 
-**convtools** is a Python library that simplifies data transformation by
-allowing you to define them in a declarative way. It then generates the
-necessary Python code in the background, saving you time and effort.
+**convtools** lets you declare data transformations in plain Python, then
+compiles them into tiny, optimized Python functions at runtime. You keep your
+data in native iterables (lists, dicts, generators, CSV streams)—no heavy
+container required.
 
 [![License](https://img.shields.io/github/license/westandskif/convtools.svg)](https://github.com/westandskif/convtools/blob/master/LICENSE.txt)
 [![codecov](https://codecov.io/gh/westandskif/convtools/branch/master/graph/badge.svg)]( https://codecov.io/gh/westandskif/convtools)
@@ -13,118 +14,139 @@ necessary Python code in the background, saving you time and effort.
 [![Downloads](https://static.pepy.tech/badge/convtools)](https://pepy.tech/project/convtools)
 [![Python versions](https://img.shields.io/pypi/pyversions/convtools.svg)](https://pypi.org/project/convtools/)
 
+### Why pick convtools?
+
+  * **Stay in Python.** Compose transformations as expressions: pipes, filters,
+  joins, group‑bys, reducers, window functions, and more. Then call
+  `.gen_converter()` to get a real Python function.
+  * **Stream‑friendly.** Works directly on iterators and files; the Table
+  helper processes CSV‑like data without loading everything into memory.
+  * **Powerful aggregations.** Rich reducers (Sum, CountDistinct, MaxRow,
+  ArraySorted, Dict*, TopK…) with per‑reducer `where` filters and defaults.
+  Nested aggregations are first‑class.
+  * **Debuggable & inspectable.** Print the generated code with `debug=True` or
+  set global options via `c.OptionsCtx`. Works with `pdb`/`pydevd`.
+  * **Plays nicely with Pandas/Polars.** It’s not a DataFrame; it’s a
+  code‑generation layer. Use it when you want lean, composable transforms over
+  native Python data.
+
 ### Installation
 ```
 pip install convtools
 ```
 
-### Structure
 
-1. `#!py from convtools import conversion as c` exposes the main interface to
-   build pipelines for processing data, doing complex aggregations and joins.
+### 60-second tour
 
-1. `#!py from convtools.contrib.tables import Table` - stream processing of
-   table-like data (e.g. CSV)
+#### 1) Build & run a converter
 
-1. `#!py from convtools.contrib import fs` - tiny utils to handle splitting
-   buffers with custom newlines
+{!examples-md/welcome_1.md!}
+
+Under the hood `gen_converter()` compiles your expression into an ad‑hoc Python
+function. Want a one‑off call? Use `.execute(data)` instead.
+
+#### 2) Transform a collection
+
+{!examples-md/welcome_2.md!}
+
+Uses `c.iter` to express a per‑row transform and `.as_type(list)` to collect. 
+
+#### 3) Group & aggregate
+
+{!examples-md/welcome_3.md!}
+
+Reducers support `where` filters and sensible defaults.
+`c.group_by(...).aggregate(...)` returns a list you can sort, filter, or map
+further.
+
+#### 4) Join two sequences
+
+{!examples-md/welcome_4.md!}
+
+`c.join` returns `(left, right)` tuples; `c.LEFT`/`c.RIGHT` let you express join
+conditions. Hash‑join optimization kicks in on equi‑joins.
+
+---
+
+### Streaming CSVs with `Table`
+
+{!examples-md/welcome_5.md!}
+
+`Table` is optimized for streaming transformations: rename/take/drop/update
+columns, joins, explode, pivot, and more. Note: `Table` consumes its input once
+(it’s an iterator).
+
+---
+
+### Debugging & generated code
+
+Pass `debug=True` to `.gen_converter(...)` or `.execute(...)` to print the
+compiled function for inspection. You can also set global debug options with
+`c.OptionsCtx()`. Installing `black` prettifies the printed code automatically.
+
+{!examples-md/welcome_6.md!}
+
+---
+
+### When should I reach for convtools?
+
+* You need **composable transforms** over native Python data
+(lists/dicts/generators/CSV), not a DataFrame.
+* You want to **express business rules declaratively** and generate fast,
+readable Python functions.
+* You need **aggregations/joins/pipes** that you can **reuse** across scripts
+and services.
+
+/// admonition
+    type: info
+
+Looking for benchmarks and deeper rationale? See [Benefits](./benefits.md) in
+the docs and the linked benchmark sources.
+///
+
+---
+
+### Install & use in 3 steps
+
+1. `pip install convtools`
+
+1. `from convtools import conversion as c`
+
+1. Build an expression → `gen_converter()` → call it wherever you need. 
+
+---
+
+### Links
+
+* 📚 Docs: [https://convtools.readthedocs.io/](https://convtools.readthedocs.io/)
+* 📦 PyPI: [https://pypi.org/project/convtools/](https://pypi.org/project/convtools/)
+* 🧪 Examples: see “Basics”, “Collections”, “Aggregations”, “Joins”, and
+“Contrib / Tables” in the docs.
 
 
-### Sneak peek on what's inside
+### Contributing
 
-#### Pipes
+* Star the repo and share use‑cases in Discussions -- it really helps.
 
-{!examples-md/welcome__pipes.md!}
-
-#### Group By and Aggregate
-
-{!examples-md/welcome__aggregations.md!}
-
-{!examples-md/welcome__group_by.md!}
-
-##### Built-in reducers like `c.ReduceFuncs.Sum`
-    * Sum - auto-replaces False values with 0; default=0
-    * SumOrNone - sum or None if at least one None is encountered; default=None
-    * Max - max not None
-    * MaxRow - row with max not None
-    * Min - min not None
-    * MinRow - row with min not None
-    * Count - Count() counts rows; Count(x) counts not‑None values
-    * CountDistinct - len of resulting set of values
-    * First - first encountered value
-    * Last - last encountered value
-    * Average(value, weight=1) - pass custom weight conversion for weighted average
-    * Median
-    * Percentile(percentile, value, interpolation="linear")
-        c.ReduceFuncs.Percentile(95.0, c.item("x"))
-        interpolation is one of:
-          - "linear"
-          - "lower"
-          - "higher"
-          - "midpoint"
-          - "nearest"
-    * Mode
-    * TopK - c.ReduceFuncs.TopK(3, c.item("x"))
-    * Array
-    * ArrayDistinct
-    * ArraySorted
-        c.ReduceFuncs.ArraySorted(c.item("x"), key=lambda v: v, reverse=True)
-
-    DICT REDUCERS ARE IN FACT AGGREGATIONS THEMSELVES, BECAUSE VALUES GET REDUCED.
-    * Dict
-        c.ReduceFuncs.Dict(c.item("key"), c.item("x"))
-    * DictArray - dict values are lists of encountered values
-    * DictSum - values are sums
-    * DictSumOrNone
-    * DictMax
-    * DictMin
-    * DictCount
-    * DictCountDistinct
-    * DictFirst
-    * DictLast
-
-    AND LASTLY YOU CAN DEFINE YOUR OWN REDUCER BY PASSING ANY REDUCE FUNCTION
-    OF TWO ARGUMENTS TO ``c.reduce``.
-
-#### Joins
-
-{!examples-md/welcome__join.md!}
-
-#### Tables
-
-{!examples-md/welcome__tables.md!}
-
-
-**And of course you can mix all this together!**
-
-### What's the point if there are tools like Pandas / Polars?
-
-* convtools doesn't need to wrap data in a container to provide functionality,
-  it simply runs the python code it generates on **any input**
-* convtools is lightweight (_though optional `black` is highly recommended for
-  pretty-printing generated code out of curiosity_)
-* convtools fosters building pipelines on top of iterators, allowing for stream
-  processing
-* convtools supports nested aggregations
-* convtools is a set of primitives for code generation, so it's just different.
-
-### Is it debuggable?
-Despite being compiled at runtime, it is (_by both `pdb` and `pydevd`_).
-
-## Contributing
-
-Best ways to support the development of convtools are:
-
-* spread the word
-* give it a star on [Github](https://github.com/westandskif/convtools)
-
-Also, if you already are a convtools user, we would **love** to hear about your use
-cases and challenges in the [Discussions
-section](https://github.com/westandskif/convtools/discussions).
-
-To report a bug or suggest enhancements, please open [an
+* To report a bug or suggest enhancements, please open [an
 issue](https://github.com/westandskif/convtools/issues) and/or submit [a pull
 request](https://github.com/westandskif/convtools/pulls).
 
+* **Reporting a Security Vulnerability**: see the [security
+policy](https://github.com/westandskif/convtools/security/policy).
 
-**Reporting a Security Vulnerability**: see the [security policy](https://github.com/westandskif/convtools/security/policy).
+---
+
+### What’s included in the box?
+
+* `from convtools import conversion as c` — the main interface.
+
+* `from convtools.contrib.tables import Table` — stream processing of CSV‑like/tabular data.
+
+* `from convtools.contrib import fs` — tiny helpers for splitting buffers with custom newlines.
+
+---
+
+### License
+
+MIT License (see `LICENSE.txt`).
