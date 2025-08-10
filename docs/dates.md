@@ -1,6 +1,6 @@
 # Dates
 
-**Please, make sure you've covered [Reference / Basics](./basics.md) first.**
+**Please, make sure you've covered [Basics](./basics.md) first.**
 
 ## Formatting dates
 

@@ -1,6 +1,6 @@
 # Group By and Aggregate
 
-**Please, make sure you've covered [Reference / Basics](./basics.md) first.**
+**Please, make sure you've covered [Basics](./basics.md) first.**
 
 The syntax to define aggregations is as follows:
 
@@ -27,7 +27,7 @@ of:
 
 Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
 
-    * Sum - sum values, considering false values as 0; default=0
+    * Sum - sums values, skips None, considering false values as 0; default=0
     * SumOrNone - strict sum OR None if at least one None is encountered;
       default=None
     * Max - max value, skips None
@@ -114,7 +114,7 @@ The table below gives the following info on builtin reducers:
 | Percentile        |         | v      |         | None    | v          |                  |
 | Sum               |         | v      |         | 0       | v          | v                |
 | SumOrNone         |         | v      |         | None    |            | v                |
-| TopK              |         | v      |         | None    | V          |                  |
+| TopK              |         | v      |         | None    | v          |                  |
 | Dict              |         |        | v       | None    |            |                  |
 | DictArray         |         |        | v       | None    |            |                  |
 | DictCount         |         | v      | v       | None    | 2-args     |                  |

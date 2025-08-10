@@ -1,6 +1,6 @@
 # Mutations
 
-**Please, make sure you've covered [Reference / Basics](./basics.md) first.**
+**Please, make sure you've covered [Basics](./basics.md) first.**
 
 
 Mutations are conversions which update the data in-place. Here is the list of
@@ -15,9 +15,9 @@ supported mutations:
 | `d.pop(index)` |`c.Mut.del_item(index)`
 | `d.pop(index, None)` |`c.Mut.del_item(index, if_exists=True)`
 | `d[1][2].pop(index)` |`c.Mut.del_item(index, of_=c.item(1,2))`
-| `delattr(obj, index)` |`c.Mut.del_attr(index)`
-| same, but if attr exists |`c.Mut.del_attr(index, if_exists=True)`
-| `delattr(obj.a.b, index)` |`c.Mut.del_attr(index, of_=c.attr("a", "b"))`
+| `delattr(obj, attr)` |`c.Mut.del_attr(attr)`
+| same, but if attr exists |`c.Mut.del_attr(attr, if_exists=True)`
+| `delattr(obj.a.b, attr)` |`c.Mut.del_attr(attr, of_=c.attr("a", "b"))`
 | run a custom conversion |`c.Mut.custom(any_conversion)`
 
 and they cannot be used outside of the below methods.

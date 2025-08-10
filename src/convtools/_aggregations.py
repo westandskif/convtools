@@ -818,7 +818,7 @@ class ListSortedOnceWrapper:
         return self.list_
 
 
-class SortedArrayReducer(SingleExpressionReducer):
+class ArraySortedReducer(SingleExpressionReducer):
     """Reduce values to a sorted array."""
 
     default = NaiveConversion(None)
@@ -1179,7 +1179,7 @@ class ModeReducer(DictCountReducer):
         ).pass_args(data=This)
 
 
-class PercentileReducer(SortedArrayReducer):
+class PercentileReducer(ArraySortedReducer):
     """Calculates percentile (float: from 0 to 100 inclusive).
 
     >>> c.ReduceFuncs.Percentile(95, c.item("amount"))
@@ -1336,7 +1336,7 @@ class ReduceFuncs:
     #: Aggregates distinct values into array, preserves order
     ArrayDistinct = ArrayDistinctReducer
     #: Aggregates values into array, sorting them in the end
-    ArraySorted = SortedArrayReducer
+    ArraySorted = ArraySortedReducer
 
     #: Aggregates values into dict; dict values are last values per group
     Dict = DictReducer

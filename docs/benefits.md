@@ -46,7 +46,6 @@ optimization is the root of all evil (or at least most of it) in programming._
 other parts of your code. The below table provides the speed-up of
 convtools-based solutions over the naive ones. 
 
-
 /// tab | Speedups by python version
 {! performance-md/perf-benchmarks.md !}
 ///
