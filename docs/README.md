@@ -118,10 +118,11 @@ the docs and the linked benchmark sources.
 
 ### Links
 
-* 📚 Docs: [https://convtools.readthedocs.io/](https://convtools.readthedocs.io/)
+* 📚 Docs: [https://convtools.readthedocs.io/](https://convtools.readthedocs.io/) *<-- You are here*
 * 📦 PyPI: [https://pypi.org/project/convtools/](https://pypi.org/project/convtools/)
-* 🧪 Examples: see “Basics”, “Collections”, “Aggregations”, “Joins”, and
-“Contrib / Tables” in the docs.
+* 🧪 Examples: see ["Basics"](./basics.md), ["Collections"](./collections.md),
+["Aggregations"](./aggregations.md), ["Joins"](./joins.md) and ["Contrib /
+Tables"](./contrib_tables.md) in the docs.
 
 
 ### Contributing
