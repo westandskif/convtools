@@ -18,7 +18,7 @@ tuples.
 can degrade performance.
 ///
 
- * `how` is any of `"inner" | "left" | "right" | "outer"`
+ * `how` is any of `"inner" | "left" | "right" | "full"`
 
 
 

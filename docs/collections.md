@@ -179,7 +179,8 @@ of the provided condition:
 
 `c.iter_windows` iterates through an iterable and yields tuples, which are
 obtained by sliding a window of a given width and by moving the window by
-specified step size as follows: `c.iter_windows(width=7, step=1)`
+specified step size as follows: `c.iter_windows(width=7, step=1)`.
+It yields partial windows at the boundaries.
 
 {!examples-md/api__iter_windows.md!}
 

@@ -136,7 +136,7 @@ class AppliedWindow(BaseConversion):
             - "CURRENT ROW":
                 * "ROWS" mode: current row
                 * "RANGE" / "GROUPS": the first row of the peer group
-            - (offset, "PRECEDING") or (offset, "FOLLOWING):
+            - (offset, "PRECEDING") or (offset, "FOLLOWING"):
                 * "ROWS" mode: offset in rows; must be non-negative int
                 * "RANGE" mode: offset is added to / subtracted from an
                   ordering key of the current row and looked for within the
@@ -149,7 +149,7 @@ class AppliedWindow(BaseConversion):
             - "CURRENT ROW" (default):
                 * "ROWS" mode: current row
                 * "RANGE" / "GROUPS": the last row of the peer group
-            - (offset, "PRECEDING") or (offset, "FOLLOWING):
+            - (offset, "PRECEDING") or (offset, "FOLLOWING"):
                 * "ROWS" mode: offset in rows; must be non-negative int
                 * "RANGE" mode: offset is added to / subtracted from an
                   ordering key of the current row and looked for within the

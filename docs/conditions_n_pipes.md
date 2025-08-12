@@ -39,8 +39,9 @@ input:
 #### and_then
 
 `and_then(conversion, condition=bool)` method applies provided conversion if
-condition is true (by default condition is standard python's truth check).
-`condition` accepts both conversions and callables.
+condition is true (_by default condition is standard python's truth check_)
+otherwise returns the original value unchanged. `condition` accepts both
+conversions and callables.
 
 {!examples-md/api__and_then.md!}
 
@@ -50,7 +51,7 @@ condition is true (by default condition is standard python's truth check).
     type: warning
 Despite the fact that `convtools` encourages a functional approach and
 working with immutable data, sometimes it's inevitable to use global
-variables. Anyway avoid using labels if possible.
+variables. Avoid using labels if possible.
 ///
 
 There are two ways to label data for further use:

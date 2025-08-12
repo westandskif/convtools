@@ -1,10 +1,10 @@
 # Basics
 
 The idea behind this library is to allow you to dynamically build data
-transforms, which can be compiled to ad-hoc python functions.
+transforms, which can be compiled to ad-hoc Python functions.
 
 This means that we need to introduce `convtools` primitives for the most basic
-python operations first, before we can get to a more complex things like
+Python operations first, before we can get to a more complex things like
 aggregations and joins.
 
 ## c.this

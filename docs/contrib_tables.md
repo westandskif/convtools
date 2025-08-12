@@ -130,8 +130,7 @@ To join two tables, use `join` method, which accepts the following arguments:
 * `on` can be either:
     * a join conversion like `c.LEFT.col("a") == c.RIGHT.col("A")`
 	* or an iterable of column names to join on
-* `how` is to be one of: `"inner"`, `"left"`, `"right"`, `"outer"` (_same as
-  `"full"`_)
+* `how` is to be one of: `"inner"`, `"left"`, `"right"`, `"full"`
 * `suffixes` is a tuple of two strings (left and right) to be concatenated with
   column names of conflicting columns (_`on` columns passed as an iterable of
   strings don't count_). Default is `("_LEFT", "_RIGHT")`.
@@ -172,7 +171,7 @@ To join two tables, use `join` method, which accepts the following arguments:
 ## Explode table
 
 `explode` method transforms a table with a column, which contains lists, to a
-table with values of these lists, by repeating values of other columns. It's
+table with values of these lists, by repeating values of other columns. Its
 only parameter is `column_name` to explode.
 
 {!examples-md/contrib_tables_explode.md!}

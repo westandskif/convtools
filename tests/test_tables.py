@@ -463,7 +463,7 @@ def test_table_outer_join():
         Table.from_rows([(1, 2, 10), (2, 3, 11)], ["a", "b", "d"])
         .join(
             Table.from_rows([(4, 3, 20), (2, 4, 21)], ["a", "c", "d"]),
-            how="outer",
+            how="full",
             on=["a"],
         )
         .into_iter_rows(include_header=True)
@@ -479,7 +479,7 @@ def test_table_outer_join():
         Table.from_rows([(1, 2, 10), (2, 3, 11)], ["a", "b", "d"])
         .join(
             Table.from_rows([], ["a", "c", "d"]),
-            how="outer",
+            how="full",
             on=["a"],
         )
         .into_iter_rows(include_header=True)

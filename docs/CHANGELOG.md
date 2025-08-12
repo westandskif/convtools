@@ -6,7 +6,7 @@
     * `TopK`
     * `CountDistinct`
     * `DictCountDistinct`
-- documented whether reducers skip `None` in [Group By and Aggregate / Reducers API](./aggregations.md#reducers-api)
+- documented whether reducers skip `None` in [Aggregations / Reducers API](./aggregations.md#reducers-api)
 
 
 ## 1.14.5 (2025-07-31)
@@ -301,7 +301,7 @@ changes as it used to break completely_)
 
 - reworked ``c.join`` so it has its custom simpler implementation
   (on python 3.9 it has become approximately 1.62x, 1.95x, 2.15x times faster
-  for inner, left and outer joins correspondingly)
+  for inner, left and full joins correspondingly)
 
 ## 0.38.0 (2022-10-26)
 

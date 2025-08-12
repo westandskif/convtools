@@ -8,7 +8,7 @@
 * functional approach (_pipes, "everything is an expression"_) lifts the
   obligation to name variables at each step, lowering the chance of confusing
   them
-* `convtools` test coverage is 100% and it's development is test-driven, so
+* `convtools` test coverage is 100% and its development is test-driven, so
   whenever a bug is found, we'll do our best to make sure it never occurs
   again.
 

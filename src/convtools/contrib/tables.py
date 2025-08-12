@@ -698,8 +698,7 @@ class Table:
               ``c.LEFT.col("a") == c.RIGHT.col("A")``
             * or iterable of column names to join on
 
-          how: either of these: "inner", "left", "right", "outer" (same as
-            "full")
+          how: either of these: "inner", "left", "right", "full"
           suffixes: tuple of two strings: the first one is the suffix to be
             added to left columns, having conflicting names with right columns;
             the second one is added to conflicting right ones. When ``on`` is
@@ -754,8 +753,8 @@ class Table:
         del on
 
         only_left_values_matter = how in ("left", "inner")
-        left_is_optional = how in ("right", "outer")
-        right_is_optional = how in ("left", "outer")
+        left_is_optional = how in ("right", "full")
+        right_is_optional = how in ("left", "full")
         for column in left.meta_columns.columns:
             index = column.index
             column_name = column.name
@@ -766,7 +765,7 @@ class Table:
                         after_join_conversions.append(GetItem(0, index))
                     elif how == "right":
                         after_join_conversions.append(GetItem(1, index))
-                    else:  # outer
+                    else:  # full
                         after_join_conversions.append(
                             If(
                                 GetItem(0).is_(None),

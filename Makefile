@@ -3,7 +3,7 @@
 
 install:
 	find src/convtools -type f -name "*.so" -delete
-	pip install -e .
+	CONVTOOLS_CEXT_STRICT=1 pip install -e .
 	ls -la src/convtools | grep .so
 
 dynamic_docs_examples:

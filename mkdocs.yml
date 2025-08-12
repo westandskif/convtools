@@ -25,7 +25,7 @@ nav:
      - Basics: basics.md
      - Collections: collections.md
      - Conditions and Pipes: conditions_n_pipes.md
-     - Group By and Aggregate: aggregations.md
+     - Aggregations: aggregations.md
      - Joins: joins.md
      - Dates: dates.md
      - Mutations: mutations.md

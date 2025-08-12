@@ -73,8 +73,8 @@ class _JoinConditions:
         self.swapped = swapped
 
         self.inner_join = how == "inner"
-        self.left_join = how in {"left", "outer"}
-        self.outer_join = how == "outer"
+        self.left_join = how in {"left", "full"}
+        self.full_join = how == "full"
         if not self.inner_join and not self.left_join:
             raise AssertionError
 
@@ -99,7 +99,7 @@ class _JoinConditions:
         if self.swapped and external_call:
             return self._add_left_filter(filter_conv, external_call=False)
 
-        if self.outer_join:
+        if self.full_join:
             self.inner_loop_conditions.append(filter_conv)
         else:
             self.right_collection_filters.append(filter_conv)
@@ -213,7 +213,7 @@ class JoinConversion(BaseConversion):
       condition (BaseConversion): join condition. If is True, results in cross
         join
       how (str): one of the following: ``"inner"``, ``"left"``, ``"right"``,
-        ``"outer"``
+        ``"full"``
     """
 
     self_content_type = (
@@ -246,12 +246,16 @@ class JoinConversion(BaseConversion):
         self.how = self.validate_how(how)
 
     @classmethod
-    def validate_how(cls, how: str):
+    def validate_how(
+        cls,
+        how: str,
+        _how_choices=frozenset(["inner", "left", "right", "full", "outer"]),
+    ):
         how = how.lower()
-        if how not in ("inner", "left", "right", "outer", "full"):
+        if how not in _how_choices:
             raise ValueError(how)
-        if how == "full":
-            how = "outer"
+        if how == "outer":
+            how = "full"
         return how
 
     def gen_code_and_update_ctx(self, code_input, ctx):
@@ -288,11 +292,11 @@ class JoinConversion(BaseConversion):
                     0,
                 )
 
-            if join_conditions.outer_join:
+            if join_conditions.full_join:
                 code.add_line("yielded_right_ids = set()", 0)
 
             def track_id():
-                if join_conditions.outer_join:
+                if join_conditions.full_join:
                     code.add_line("yielded_right_ids.add(id(right_item))", 0)
 
             if join_conditions.right_row_hashers:
@@ -470,7 +474,7 @@ class JoinConversion(BaseConversion):
                     -2,
                 )
 
-            if join_conditions.outer_join:
+            if join_conditions.full_join:
                 code.add_line(
                     "yield from ("
                     "(None, right_item) "
@@ -495,7 +499,7 @@ class JoinConversion(BaseConversion):
                     c_result,
                     Tuple_().pipe(iter),
                 )
-            elif join_conditions.outer_join:
+            elif join_conditions.full_join:
                 c_result = If(
                     And(*join_conditions.pre_filter),
                     c_result,

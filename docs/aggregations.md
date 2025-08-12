@@ -1,4 +1,4 @@
-# Group By and Aggregate
+# Aggregations
 
 **Please, make sure you've covered [Basics](./basics.md) first.**
 

@@ -67,7 +67,7 @@ def test_join_conditions():
         and join_conditions.left_row_hashers == [c12, c22]
     )
     join_conditions = _JoinConditions.from_condition(
-        c.and_(c11 == c12, c22 == c21, c13).and_(c23, c01), how="outer"
+        c.and_(c11 == c12, c22 == c21, c13).and_(c23, c01), how="full"
     )
     assert (
         True
@@ -109,7 +109,7 @@ def test_join_conditions():
     c2 = c.RIGHT == 1
     c3 = c.input_arg("x") == 1
     join_conditions = _JoinConditions.from_condition(
-        c1.and_(c2, c3), how="outer"
+        c1.and_(c2, c3), how="full"
     )
     assert (
         True
@@ -523,7 +523,7 @@ def test_outer_join():
                 c.LEFT + c.RIGHT < 10,
                 c.LEFT > 0,
             ),
-            how="outer",
+            how="full",
         )
         .as_type(list)
         .gen_converter(debug=False)
