@@ -102,6 +102,11 @@ class CustomCsvDialect(csv.Dialect):
         super().__init__()
 
 
+def _prepare_column_names(names: Sequence[Any]):
+    """Prepares column name from pieces, convertible to str."""
+    return " - ".join(map(str, names))
+
+
 class Table:
     """Streaming operations on table-like data and csv files.
 
@@ -414,21 +419,30 @@ class Table:
 
         return self
 
-    def _set_col_indexes(self, name_to_column, conversion):
-        conversion = ensure_conversion(conversion)
+    def _set_col_indexes(self, name_to_column, conversions):
+        d = {"needs_embedding": False}
+        refs = [
+            d.__setitem__(  # type: ignore
+                "needs_embedding",
+                d["needs_embedding"]
+                or name_to_column[ref.name].conversion is not None,
+            )
+            or ref
+            for conversion in conversions
+            for ref in conversion.get_dependencies(types=ColumnRef)
+        ]
+        if d["needs_embedding"]:
+            self.embed_conversions()
 
-        for ref in conversion.get_dependencies(types=ColumnRef):
-            column = name_to_column[ref.name]
-            if column.conversion is not None:
-                self.embed_conversions()
-            ref.set_index(column.index)
-
-        return conversion
+        for ref in refs:
+            ref.set_index(name_to_column[ref.name].index)
 
     def filter(self, condition: "BaseConversion") -> "Table":
         """Keep rows where ``condition`` resolves to `True`."""
-        condition = self._set_col_indexes(
-            self.meta_columns.get_name_to_column(), condition
+        condition = ensure_conversion(condition)
+        self._set_col_indexes(
+            self.meta_columns.get_name_to_column(),
+            (condition,),
         )
         self.pipeline = (self.pipeline or This()).filter(condition)
         return self
@@ -441,12 +455,15 @@ class Table:
             values are conversions to be applied row-wise
         """
         column_name_to_column = self.meta_columns.get_name_to_column()
+        column_to_conversion = {
+            k: ensure_conversion(v) for k, v in column_to_conversion.items()
+        }
+        self._set_col_indexes(
+            column_name_to_column,
+            column_to_conversion.values(),
+        )
 
-        for column_name in list(column_to_conversion):
-            conversion = self._set_col_indexes(
-                column_name_to_column, column_to_conversion[column_name]
-            )
-
+        for column_name, conversion in column_to_conversion.items():
             if column_name in column_name_to_column:
                 column = column_name_to_column[column_name]
                 column.conversion = conversion
@@ -973,7 +990,7 @@ class Table:
         rows: "Sequence[str]",
         columns: "Sequence[str]",
         values: "Mapping[str, BaseConversion]",
-        prepare_column_names: "Callable[[Sequence[str]], str]" = " - ".join,
+        prepare_column_names: "Callable[[Sequence[str]], str]" = _prepare_column_names,
     ) -> "Table":
         """Create a pivot table.
 
@@ -1022,38 +1039,43 @@ class Table:
         """
         name_to_column = self.meta_columns.get_name_to_column()
         name_to_index_cols = {
-            col_name: self._set_col_indexes(
-                name_to_column, ColumnRef(col_name)
-            )
-            for col_name in rows
+            col_name: ColumnRef(col_name) for col_name in rows
         }
-        columns = [
-            self._set_col_indexes(name_to_column, ColumnRef(col_name))
-            for col_name in columns
-        ]
-        value_name_to_aggregator = {
-            key: Aggregate(
-                self._set_col_indexes(name_to_column, value)
-            ).gen_converter()
-            for key, value in values.items()
-        }
+        column_refs = [ColumnRef(col_name) for col_name in columns]
+        del columns
+
+        values = {k: ensure_conversion(v) for k, v in values.items()}
+
+        self._set_col_indexes(
+            name_to_column,
+            chain(
+                name_to_index_cols.values(),
+                column_refs,
+                values.values(),
+            ),
+        )
 
         aggregated_data = (
             GroupBy(*name_to_index_cols.values())
             .aggregate(
                 (
                     *name_to_index_cols.values(),
-                    ReduceFuncs.DictArray(tuple(columns), This()),
+                    ReduceFuncs.DictArray(tuple(column_refs), This()),
                 )
             )
             .execute(self.into_iter_rows(self.row_type))
         )
+
         index_ = len(name_to_index_cols)
         new_col_keys = list(
             {key: 0 for row in aggregated_data for key in row[index_]}
         )
 
         agg_data_col = "7b51817c-c2d2-4f9c-a708-65d776ed2ddd"
+        value_name_to_aggregator = {
+            key: Aggregate(value).gen_converter()
+            for key, value in values.items()
+        }
         return (
             Table.from_rows(
                 aggregated_data,

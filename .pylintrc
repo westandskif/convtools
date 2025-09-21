@@ -158,6 +158,7 @@ disable=abstract-method,
         import-outside-toplevel,
         cyclic-import,
         too-many-positional-arguments,
+        unnecessary-dunder-call,
 
 
 [REPORTS]

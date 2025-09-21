@@ -1,3 +1,7 @@
+## 1.14.7 (2025-09-21)
+
+- fixed `Table.pivot` for cases with prior table mutations
+
 ## 1.14.6 (2025-08-10)
 
 - **fixed the following c.ReduceFuncs so they skip `None` values** just like `Min`, `Max`:

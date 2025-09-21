@@ -880,3 +880,31 @@ def test_table_pivot():
             "year": 2024,
         },
     ]
+
+    result = list(
+        Table.from_rows(
+            [
+                {"a": 1, "b": [1, 2], "c": 0},
+                {"a": 2, "b": [1, 2], "c": 1},
+                {"a": 3, "b": [1, 3], "c": 0},
+                {"a": 4, "b": [1, 4], "c": 1},
+            ]
+        )
+        .update(b=c.col("b").as_type(tuple))
+        .explode("b")
+        .update(d=c.col("b"))
+        .drop("b")
+        .pivot(
+            rows=["c"],
+            columns=["d"],
+            values={
+                "x": c.ReduceFuncs.Count(),
+            },
+        )
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("c", "1 - x", "2 - x", "3 - x", "4 - x"),
+        (0, 2, 1, 1, None),
+        (1, 2, 1, None, 1),
+    ]
