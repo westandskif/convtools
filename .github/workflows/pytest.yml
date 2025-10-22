@@ -112,7 +112,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: artifact-${{ matrix.buildplat[1] }}
+          name: artifact-${{ matrix.py_ver_info[0] }}-${{ matrix.buildplat[1] }}
           path: ./wheelhouse/*.whl
 
   pypi-publish:
