@@ -177,7 +177,8 @@ def con(window_in_1):
         "insert into t values (:id, :a, :dt, :b)",
         window_in_1,
     )
-    return con
+    yield con
+    con.close()
 
 
 @pytest.mark.parametrize(

@@ -203,6 +203,4 @@ PyMODINIT_FUNC PyInit__cext(void) {
 #endif
     return module;
 };
-
 // PySys_WriteStdout(PyUnicode_AsUTF8AndSize(PyObject_Repr(config), NULL));
-// PySys_WriteStdout("DBG2 ref count: %i\n", (int)context->tuple->ob_refcnt);

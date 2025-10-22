@@ -1,3 +1,7 @@
+## 1.14.8 (2025-10-23)
+
+- updated tests, Github Actions and pyproject.toml for Python 3.14
+
 ## 1.14.7 (2025-09-21)
 
 - fixed `Table.pivot` for cases with prior table mutations

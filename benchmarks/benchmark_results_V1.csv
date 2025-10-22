@@ -74,6 +74,21 @@ Darwin,arm64,3.13,3.13.0,CPython,Clang 16.0.0 (clang-1600.0.26.3),1.14.3,DatePar
 Darwin,arm64,3.13,3.13.0,CPython,Clang 16.0.0 (clang-1600.0.26.3),1.14.3,DatetimeParse1,4.548154040682596
 Darwin,arm64,3.13,3.13.2,CPython,Clang 16.0.0 (clang-1600.0.26.6),1.14.5,DateFormat1,6.051632936130955
 Darwin,arm64,3.13,3.13.0,CPython,Clang 16.0.0 (clang-1600.0.26.3),1.14.3,DateFormat1,6.36850020606821
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,GetDefaultPositive,1.121501448849117
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,IterOfIter1,1.3244778132518589
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,Aggregate1,1.4234659199025899
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,GroupBy1 - MANY_GROUPS,1.460359940734598
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,DatetimeFormat2,1.544796802092994
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,DatetimeFormat1,1.6278035285481534
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,GroupBy1 - FEW_GROUPS,1.8236978617635606
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,GetDefaultNegative,1.8419345827838045
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,TableDictReader,1.9407570586157818
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,DateFormat2,2.435941752138012
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,DatetimeParse2,3.9750566535747476
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,DateParse2,4.422457139104213
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,DateParse1,4.433749953907539
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,DatetimeParse1,4.51667109784458
+Darwin,arm64,3.14,3.14.0,CPython,Clang 17.0.0 (clang-1700.0.13.5),1.14.7,DateFormat1,5.7683919050073875
 Darwin,arm64,3.6,3.6.15,CPython,GCC Apple LLVM 13.1.6 (clang-1316.0.21.2.5),1.13.0,GroupBy1 - FEW_GROUPS,0.9512122851865839
 Darwin,arm64,3.6,3.6.15,CPython,GCC Apple LLVM 13.1.6 (clang-1316.0.21.2.5),1.13.0,GroupBy1 - MANY_GROUPS,0.9642313954882428
 Darwin,arm64,3.6,3.6.15,CPython,GCC Apple LLVM 13.1.6 (clang-1316.0.21.2.5),1.13.0,GetDefaultNegative,1.0313669604644666
