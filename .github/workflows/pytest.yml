@@ -98,8 +98,8 @@ jobs:
           - [macos-14, macosx_arm64]
           - [windows-2022, win_amd64]
         py_ver_info:
-          - ["310", "==3.10"]
-          - ["314t", "==3.14"]
+          - ["310", "~=3.10"]
+          - ["314t", "~=3.14"]
     runs-on: ${{ matrix.buildplat[0] }}
     steps:
       - uses: actions/checkout@v4
@@ -107,8 +107,8 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.2.1
         env:
-          CIBW_BUILD: cp${{matrix.py_ver_info[0]}}-${{ matrix.buildplat[1] }}
-          CIBW_PROJECT_REQUIRES_PYTHON: ${{matrix.py_ver_info[1]}}
+          CIBW_BUILD: cp${{ matrix.py_ver_info[0] }}-${{ matrix.buildplat[1] }}
+          CIBW_PROJECT_REQUIRES_PYTHON: ${{ matrix.py_ver_info[1] }}
 
       - uses: actions/upload-artifact@v4
         with:
