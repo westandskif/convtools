@@ -19,7 +19,9 @@ from ._utils import PY_VERSION, ast_unparse
 def ast_are_fuzzy_equal(left, right, fuzzy_cmp, fields_to_skip=frozenset()):
     cls_left = type(left)
     if issubclass(cls_left, AST):
-        if cls_left is not type(right):
+        if cls_left is not type(  # pylint: disable=unidiomatic-typecheck
+            right
+        ):
             return False
 
         if fuzzy_cmp(left, right):

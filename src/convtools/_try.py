@@ -88,7 +88,9 @@ class Try(BaseConversion):
                 -1,
             )
             for exc_def, value, re_raise_if in zip(
-                self._exc_def, self._value, self._re_raise_if
+                self._exc_def,
+                self._value,
+                self._re_raise_if,
             ):
                 code.add_line(
                     "except {} as exc_:".format(

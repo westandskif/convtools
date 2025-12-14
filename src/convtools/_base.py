@@ -1574,7 +1574,7 @@ class ThisConversion(BaseConversion):
         )
 
 
-This = ThisConversion()
+This = ThisConversion()  # pylint: disable=invalid-name
 
 
 class InputArg(BaseConversion):

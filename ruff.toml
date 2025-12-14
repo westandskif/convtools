@@ -16,6 +16,7 @@ select = [
 # Never enforce `E501` (line length violations).
 ignore = [
   "B904",
+  "B905",
   "E501",
   "PLC0415",
   "PLR0911",
