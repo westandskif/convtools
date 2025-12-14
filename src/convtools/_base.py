@@ -927,8 +927,8 @@ class BaseConversion(Generic[CT]):
 
         Args:
           key: callable or conversion/tuple of conversions to form a sorting
-            key, to be passed to :py:obj:`sorted`
-          reverse (bool): to be passed to :py:obj:`sorted`
+            key, to be passed to sorted
+          reverse (bool): to be passed to sorted
         """
         return self.pipe(
             convtools_ordering.SortConversion(key=key, reverse=reverse)

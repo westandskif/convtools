@@ -34,10 +34,10 @@ nav:
      - Contrib / Tables: contrib_tables.md
      - Contrib / Fs: contrib_fs.md
   - Benefits: benefits.md
-  - Changelog: CHANGELOG.md
-  - Breaking changes: BREAKING_CHANGES.md
+  - Changelog: changelog.md
+  - Breaking changes: breaking_changes.md
   - Contributors: contributors.md
-  - License: LICENSE.md
+  - License: license.md
 
 markdown_extensions:
   - toc:

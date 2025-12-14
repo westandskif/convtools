@@ -62,7 +62,7 @@ There are two ways to label data for further use:
     * `str` - label name
 	* `dict` - label names to conversion map. Labels are put on results of
 	  conversions.
-1. `add_label` - shortcut to `pipe(This, label_input=label_name)`
+1. `add_label` - shortcut to `pipe(c.this, label_input=label_name)`
 
 To reference previously labeled data use `c.label("label_name")`.
 

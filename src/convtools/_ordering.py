@@ -185,8 +185,8 @@ class SortConversion(BaseConversion):
 
         Args:
           key: callable or conversion/tuple of conversions to form a sorting
-            key, to be passed to :py:obj:`sorted`
-          reverse (bool): to be passed to :py:obj:`sorted`
+            key, to be passed to sorted
+          reverse (bool): to be passed to sorted
         # --8<-- [end:sort_args_docs]
 
         >>> c.this.sort(key=lambda x: x["a"])
