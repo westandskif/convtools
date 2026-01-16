@@ -55,6 +55,74 @@ def test_base_zip():
     ).execute([[1], [2]]) == [1, 2]
 
 
+def test_base_zip_longest():
+    # Test with positional args (tuples output)
+    converter = (
+        c.zip_longest(
+            c.item("a"),
+            c.item("b"),
+        )
+        .as_type(list)
+        .gen_converter()
+    )
+    assert converter({"a": [1, 2, 3], "b": [4, 5]}) == [
+        (1, 4),
+        (2, 5),
+        (3, None),
+    ]
+
+    # Test with fill_value for positional args
+    converter = (
+        c.zip_longest(
+            c.item("a"),
+            c.item("b"),
+            fill_value=-1,
+        )
+        .as_type(list)
+        .gen_converter()
+    )
+    assert converter({"a": [1, 2, 3], "b": [4, 5]}) == [
+        (1, 4),
+        (2, 5),
+        (3, -1),
+    ]
+
+    # Test with keyword args (dicts output)
+    converter = (
+        c.zip_longest(
+            x=c.item("a"),
+            y=c.item("b"),
+        )
+        .as_type(list)
+        .gen_converter()
+    )
+    assert converter({"a": [1, 2, 3], "b": [4, 5]}) == [
+        {"x": 1, "y": 4},
+        {"x": 2, "y": 5},
+        {"x": 3, "y": None},
+    ]
+
+    # Test with fill_value for keyword args
+    converter = (
+        c.zip_longest(
+            x=c.item("a"),
+            y=c.item("b"),
+            fill_value="missing",
+        )
+        .as_type(list)
+        .gen_converter()
+    )
+    assert converter({"a": [1, 2], "b": [4, 5, 6]}) == [
+        {"x": 1, "y": 4},
+        {"x": 2, "y": 5},
+        {"x": "missing", "y": 6},
+    ]
+
+    # Test error when mixing args and kwargs
+    with pytest.raises(ValueError):
+        c.zip_longest(1, 2, a=1)
+
+
 def test_zip_in_aggregate():
     input_data = [
         ("kitchen", "size", 10),

@@ -101,7 +101,7 @@ none_first/none_last configuration:
 Whenever you need to annotate something or just zip sequences, it's convenient
 to have these shortcuts/helpers:
 
-1. `c.zip`
+1. `c.zip` / `c.zip_longest`
 1. `c.repeat`
 1. `flatten` method
 
@@ -110,6 +110,14 @@ to have these shortcuts/helpers:
 `c.zip` supports keyword arguments to build dicts:
 
 {!examples-md/api__zip_to_dict.md!}
+
+`c.zip_longest` works like `c.zip`, but pads shorter iterables with a `fill_value` (default: `None`):
+
+{!examples-md/api__zip_longest.md!}
+
+`c.zip_longest` also supports keyword arguments to build dicts:
+
+{!examples-md/api__zip_longest_to_dict.md!}
 
 
 #### len, min, max

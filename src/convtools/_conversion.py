@@ -1,6 +1,6 @@
 """The main module exposing public API."""
 
-from itertools import repeat
+from itertools import repeat, zip_longest
 
 from ._aggregations import (
     Aggregate,
@@ -213,6 +213,24 @@ class Conversion:
         return CallFunc(zip, *kwargs.values()).iter(
             {name: self.item(index) for index, name in enumerate(kwargs)}
         )
+
+    def zip_longest(self, *args, fill_value=None, **kwargs):
+        """Conversion which calls :py:obj:`zip_longest` on conversions.
+
+        Args:
+          args: conversions to zip - returns tuples
+          fill_value: value to use for missing values (default: None)
+          kwargs: named conversions to zip - returns dicts
+
+        """
+        if args and kwargs:
+            raise ValueError("pass either args or kwargs")
+        if args:
+            return CallFunc(zip_longest, *args, fillvalue=fill_value)
+
+        return CallFunc(
+            zip_longest, *kwargs.values(), fillvalue=fill_value
+        ).iter({name: self.item(index) for index, name in enumerate(kwargs)})
 
     def repeat(self, obj, times=None):
         """Shortcut for call :py:obj:`itertools.repeat`."""
