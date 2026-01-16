@@ -203,16 +203,23 @@ class SortConversion(BaseConversion):
         """
         super().__init__()
         self.sorted_kwargs = {}
-        key_value = NaiveConversion.get_value(key)
-        if key_value is not None:
-            if callable(key_value):
+        if key is not None:
+            if isinstance(key, BaseConversion):
+                # Conversion specification - wrap in SortingKeyConversion
+                self.sorted_kwargs["key"] = self.ensure_conversion(
+                    SortingKeyConversion((key,))
+                )
+            elif isinstance(key, tuple):
+                # Tuple of conversions
+                self.sorted_kwargs["key"] = self.ensure_conversion(
+                    SortingKeyConversion(key)
+                )
+            elif callable(key):
+                # Real Python function (lambda, etc.)
                 self.sorted_kwargs["key"] = self.ensure_conversion(key)
             else:
-                self.sorted_kwargs["key"] = self.ensure_conversion(
-                    SortingKeyConversion(
-                        key if isinstance(key, tuple) else (key,)
-                    )
-                )
+                raise AssertionError("bug in SortConversion")
+
         if reverse:
             self.sorted_kwargs["reverse"] = self.ensure_conversion(reverse)
 

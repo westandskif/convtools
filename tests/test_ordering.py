@@ -156,3 +156,14 @@ def test_ordering_exceptions():
         c.this.asc(none_first=True, none_last=True)
     with pytest.raises(ValueError):
         c.this.desc(none_first=True, none_last=True)
+
+
+def test_ordering_callable_key():
+    """Test sort with callable conversion keys like c.this."""
+    # c.this as key (was broken before fix - ThisConversion is callable)
+    converter = c.this.sort(key=c.this).gen_converter()
+    assert converter([3, 1, 2]) == [1, 2, 3]
+
+    # Lambda function as key (should still work)
+    converter = c.this.sort(key=lambda x: -x).gen_converter()
+    assert converter([3, 1, 2]) == [3, 2, 1]

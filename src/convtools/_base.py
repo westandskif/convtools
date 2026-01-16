@@ -1337,11 +1337,12 @@ class BaseConversion(Generic[CT]):
         """
         if none_last and none_first:
             raise ValueError("pass either none_last or none_first")
+        result = self
         if none_last:
-            self.add_hint(self.OutputHints.ORDERING_NONE_LAST)
+            result = result.add_hint(self.OutputHints.ORDERING_NONE_LAST)
         if none_first:
-            self.add_hint(self.OutputHints.ORDERING_NONE_FIRST)
-        return self
+            result = result.add_hint(self.OutputHints.ORDERING_NONE_FIRST)
+        return result
 
     def desc(self, none_last=None, none_first=None):
         """Sets descending ordering hint, to be used by conversion sort method.
@@ -1352,12 +1353,12 @@ class BaseConversion(Generic[CT]):
         """
         if none_last and none_first:
             raise ValueError("pass either none_last or none_first")
+        result = self
         if none_last:
-            self.add_hint(self.OutputHints.ORDERING_NONE_LAST)
+            result = result.add_hint(self.OutputHints.ORDERING_NONE_LAST)
         if none_first:
-            self.add_hint(self.OutputHints.ORDERING_NONE_FIRST)
-        self.add_hint(self.OutputHints.ORDERING_DESC)
-        return self
+            result = result.add_hint(self.OutputHints.ORDERING_NONE_FIRST)
+        return result.add_hint(self.OutputHints.ORDERING_DESC)
 
 
 class BaseMutation(BaseConversion):
@@ -1535,6 +1536,15 @@ class ThisConversion(BaseConversion):
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         return code_input
+
+    def clone(self):
+        result = ThisConversion()
+        result.output_hints = self.output_hints
+        return result
+
+    def add_hint(self, hint: int):
+        """Return a copy with the hint added to avoid mutating the singleton."""
+        return super(ThisConversion, self.clone()).add_hint(hint)
 
     def pipe(
         self,
