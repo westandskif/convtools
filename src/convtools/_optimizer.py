@@ -59,39 +59,6 @@ def ast_are_fuzzy_equal(left, right, fuzzy_cmp, fields_to_skip=frozenset()):
     else:
         return left == right
 
-    # if type(left) is not type(right):
-    #     return False
-    # _stack = [(left, right)]
-    # while _stack:
-    #     left, right = _stack.pop()
-    #     cls_left = type(left)
-    #     if not issubclass(cls_left, AST):
-    #         if left != right:
-    #             return False
-    #         continue
-
-    #     if cls_left is not type(right):
-    #         return False
-
-    #     if fuzzy_cmp(left, right):
-    #         continue
-
-    #     for right_field in right._fields:
-    #         if right_field not in fields_to_skip:
-    #             left_value_or_values = getattr(left, right_field)
-    #             right_value_or_values = getattr(right, right_field)
-    #             if isinstance(right_value_or_values, list):
-    #                 if len(left_value_or_values) != len(right_value_or_values):
-    #                     return False
-    #                 _stack.extend(
-    #                     zip(left_value_or_values, right_value_or_values)
-    #                 )
-    #             else:
-    #                 _stack.append(
-    #                     (left_value_or_values, right_value_or_values)
-    #                 )
-    # return True
-
 
 class AstMergeCtx:
     """Holds last used indexes for multi-statement AST nodes."""

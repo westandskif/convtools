@@ -626,3 +626,107 @@ def test_join_with_complex_pipe():
             {"a": 3},
         ]
     ) == [1, 1, 2, 3, 3]
+
+
+def test_full_join_duplicate_object_references():
+    """Full join should handle same object appearing multiple times in right input."""
+    obj = {"id": 1}
+    right_data = [obj, obj, obj]  # Same object 3 times
+    left_data = [{"id": 2}]  # No matches
+
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.LEFT.item("id") == c.RIGHT.item("id"),
+            how="full",
+        )
+        .as_type(list)
+        .gen_converter()
+    )([left_data, right_data])
+
+    # All 3 right items should appear as unmatched
+    assert result == [
+        ({"id": 2}, None),
+        (None, {"id": 1}),
+        (None, {"id": 1}),
+        (None, {"id": 1}),
+    ]
+
+
+def test_full_join_duplicate_object_references_with_matches():
+    """Full join with duplicate objects where some match."""
+    obj = {"id": 1}
+    right_data = [obj, obj, obj]  # Same object 3 times
+    left_data = [{"id": 1}]  # Matches all 3
+
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.LEFT.item("id") == c.RIGHT.item("id"),
+            how="full",
+        )
+        .as_type(list)
+        .gen_converter()
+    )([left_data, right_data])
+
+    # All 3 should match - cartesian product
+    assert result == [
+        ({"id": 1}, {"id": 1}),
+        ({"id": 1}, {"id": 1}),
+        ({"id": 1}, {"id": 1}),
+    ]
+
+
+def test_full_join_duplicate_object_references_nested_loop():
+    """Full join with duplicate objects using nested loop (non-hash) join."""
+    obj = {"id": 1}
+    right_data = [obj, obj, obj]  # Same object 3 times
+    left_data = [{"id": 2}]  # No matches
+
+    # Using a condition that doesn't use equality hashers (nested loop join)
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.LEFT.item("id") > c.RIGHT.item("id"),
+            how="full",
+        )
+        .as_type(list)
+        .gen_converter()
+    )([left_data, right_data])
+
+    # id=2 > id=1, so we get 3 matches plus no unmatched
+    assert result == [
+        ({"id": 2}, {"id": 1}),
+        ({"id": 2}, {"id": 1}),
+        ({"id": 2}, {"id": 1}),
+    ]
+
+
+def test_full_join_duplicate_object_references_nested_loop_unmatched():
+    """Full join with duplicate objects using nested loop where some unmatched."""
+    obj = {"id": 1}
+    right_data = [obj, obj, obj]  # Same object 3 times
+    left_data = [{"id": 0}]  # No matches (0 is not > 1)
+
+    # Using a condition that doesn't use equality hashers (nested loop join)
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.LEFT.item("id") > c.RIGHT.item("id"),
+            how="full",
+        )
+        .as_type(list)
+        .gen_converter()
+    )([left_data, right_data])
+
+    # All 3 right items should appear as unmatched
+    assert result == [
+        ({"id": 0}, None),
+        (None, {"id": 1}),
+        (None, {"id": 1}),
+        (None, {"id": 1}),
+    ]

@@ -258,6 +258,243 @@ class JoinConversion(BaseConversion):
             how = "full"
         return how
 
+    @staticmethod
+    def _yield_pair(swapped: bool) -> str:
+        """Return yield statement for a matched pair."""
+        if swapped:
+            return "yield right_item, left_item"
+        return "yield left_item, right_item"
+
+    @staticmethod
+    def _yield_left_with_none(swapped: bool) -> str:
+        """Return yield statement for unmatched left item."""
+        if swapped:
+            return "yield None, left_item"
+        return "yield left_item, None"
+
+    @staticmethod
+    def _wrap_for_full_join(conv, join_conditions, **namespace_kwargs):
+        """Wrap conversion to handle (idx, item) tuples in full joins.
+
+        For full joins, right items are stored as (idx, item) tuples to track
+        matched items. This helper extracts the item before applying namespace.
+        """
+        wrapped = join_conditions.wrap_with_namespace(conv, **namespace_kwargs)
+        if join_conditions.full_join:
+            return This.item(1).pipe(wrapped)
+        return wrapped
+
+    @classmethod
+    def _build_inner_loop_filter(cls, join_conditions):
+        """Build filter for inner loop conditions, handling full join tuples."""
+        if not join_conditions.inner_loop_conditions:
+            return None
+        return cls._wrap_for_full_join(
+            And(*join_conditions.inner_loop_conditions),
+            join_conditions,
+            left="left_item",
+            right=True,
+        )
+
+    @staticmethod
+    def _maybe_track_right_index(code, join_conditions):
+        """Track right item index for full joins."""
+        if not join_conditions.full_join:
+            raise AssertionError
+        code.add_line("yielded_right_indices.add(right_idx)", 0)
+
+    def _gen_hash_join_code(self, code, ctx, join_conditions):
+        """Generate hash join code. Returns initial_right for full join yield."""
+        c_left_key_to_hash = join_conditions.wrap_with_namespace(
+            (
+                Tuple_(*join_conditions.left_row_hashers)
+                if len(join_conditions.left_row_hashers) > 1
+                else join_conditions.left_row_hashers[0]
+            ),
+            left=True,
+        )
+        c_right_hasher = (
+            Tuple_(*join_conditions.right_row_hashers)
+            if len(join_conditions.right_row_hashers) > 1
+            else join_conditions.right_row_hashers[0]
+        )
+        c_right_key_to_hash = self._wrap_for_full_join(
+            c_right_hasher, join_conditions, right=True
+        )
+        if join_conditions.full_join:
+            code.add_line(
+                "right_enumerated_ = list(enumerate(right_))", 0
+            )
+            right_input = EscapedString("right_enumerated_")
+        else:
+            right_input = EscapedString("right_")
+        where_clause = (
+            self._wrap_for_full_join(
+                And(*join_conditions.right_collection_filters),
+                join_conditions,
+                right=True,
+            )
+            if join_conditions.right_collection_filters
+            else None
+        )
+        code.add_line(
+            "hash_to_right_items = %s"
+            % right_input.pipe(
+                Aggregate(
+                    ReduceFuncs.DictArray(
+                        c_right_key_to_hash,
+                        This,
+                        default=NaiveConversion({}),
+                        where=where_clause,
+                    )
+                )
+            ).gen_code_and_update_ctx(
+                "right_enumerated_"
+                if join_conditions.full_join
+                else "right_",
+                ctx,
+            ),
+            0,
+        )
+        code.add_line("del right_", 0)
+        if join_conditions.full_join:
+            code.add_line("del right_enumerated_", 0)
+            initial_right = "(enum_item for items in hash_to_right_items.values() for enum_item in items)"
+        else:
+            initial_right = "(item for items in hash_to_right_items.values() for item in items)"
+
+        code.add_line("for left_item in left_:", 1)
+        code.add_line(
+            "left_key = %s"
+            % c_left_key_to_hash.gen_code_and_update_ctx("left_item", ctx),
+            0,
+        )
+
+        c_left_key = EscapedString("left_key")
+        c_hash_to_right_items = EscapedString("hash_to_right_items")
+
+        inner_loop_filter = self._build_inner_loop_filter(join_conditions)
+        code.add_line(
+            "right_items = %s"
+            % If(
+                c_left_key.in_(c_hash_to_right_items),
+                c_hash_to_right_items.item(c_left_key).pipe(
+                    This.filter(inner_loop_filter)
+                    if inner_loop_filter
+                    else This
+                ),
+                Tuple_(),
+            )
+            .pipe(iter if join_conditions.left_join else This)
+            .gen_code_and_update_ctx(None, ctx),
+            0,
+        )
+        return initial_right
+
+    def _gen_nested_loop_join_code(self, code, ctx, join_conditions):
+        """Generate nested loop join code. Returns initial_right for full join yield."""
+        if join_conditions.right_collection_filters:
+            code.add_line(
+                "right_ = %s"
+                % ListComp(
+                    This,
+                    join_conditions.wrap_with_namespace(
+                        And(*join_conditions.right_collection_filters),
+                        right=True,
+                    ),
+                    _none,
+                ).gen_code_and_update_ctx("right_", ctx),
+                0,
+            )
+        else:
+            code.add_line(
+                "right_ = %s"
+                % If(
+                    CallFunc(isinstance, This, Sized),
+                    This,
+                    This.pipe(list),
+                ).gen_code_and_update_ctx("right_", ctx),
+                0,
+            )
+
+        if join_conditions.full_join:
+            # For full joins, enumerate right items to track by index
+            code.add_line(
+                "right_enumerated_ = list(enumerate(right_))", 0
+            )
+            initial_right = "right_enumerated_"
+            right_input_var = "right_enumerated_"
+        else:
+            initial_right = "right_"
+            right_input_var = "right_"
+        inner_loop_filter = self._build_inner_loop_filter(join_conditions)
+
+        code.add_line("for left_item in left_:", 1)
+        code.add_line(
+            "right_items = %s"
+            % (
+                This.filter(inner_loop_filter)
+                if inner_loop_filter
+                else This
+            )
+            .pipe(iter if join_conditions.left_join else This)
+            .gen_code_and_update_ctx(right_input_var, ctx),
+            0,
+        )
+        return initial_right
+
+    def _gen_yield_statements(self, code, join_conditions):
+        """Generate yield statements for matched pairs."""
+        if join_conditions.left_join:
+            if join_conditions.full_join:
+                # For full joins, right_items contains (idx, item) tuples
+                code.add_line(
+                    "right_enum = next(right_items, _none)", 0
+                )
+                code.add_line("if right_enum is _none:", 1)
+                code.add_line(
+                    self._yield_left_with_none(join_conditions.swapped), -1
+                )
+                code.add_line("else:", 1)
+                code.add_line("right_idx, right_item = right_enum", 0)
+                self._maybe_track_right_index(code, join_conditions)
+                code.add_line(
+                    self._yield_pair(join_conditions.swapped), 0
+                )
+                code.add_line(
+                    "for right_idx, right_item in right_items:",
+                    1,
+                )
+                self._maybe_track_right_index(code, join_conditions)
+                code.add_line(
+                    self._yield_pair(join_conditions.swapped), -3
+                )
+            else:
+                code.add_line(
+                    "right_item = next(right_items, _none)", 0
+                )
+                code.add_line("if right_item is _none:", 1)
+                code.add_line(
+                    self._yield_left_with_none(join_conditions.swapped), -1
+                )
+                code.add_line("else:", 1)
+                code.add_line(
+                    self._yield_pair(join_conditions.swapped), 0
+                )
+                code.add_line(
+                    "for right_item in right_items:",
+                    1,
+                )
+                code.add_line(
+                    self._yield_pair(join_conditions.swapped), -3
+                )
+
+        else:
+            code.add_line("for right_item in right_items:", 1)
+            code.add_line(
+                self._yield_pair(join_conditions.swapped), -2
+            )
+
     def gen_code_and_update_ctx(self, code_input, ctx):
         join_conditions = _JoinConditions.from_condition(
             self.condition, how=self.how
@@ -293,193 +530,25 @@ class JoinConversion(BaseConversion):
                 )
 
             if join_conditions.full_join:
-                code.add_line("yielded_right_ids = set()", 0)
-
-            def track_id():
-                if join_conditions.full_join:
-                    code.add_line("yielded_right_ids.add(id(right_item))", 0)
+                code.add_line("yielded_right_indices = set()", 0)
 
             if join_conditions.right_row_hashers:
-                c_left_key_to_hash = join_conditions.wrap_with_namespace(
-                    (
-                        Tuple_(*join_conditions.left_row_hashers)
-                        if len(join_conditions.left_row_hashers) > 1
-                        else join_conditions.left_row_hashers[0]
-                    ),
-                    left=True,
+                initial_right = self._gen_hash_join_code(
+                    code, ctx, join_conditions
                 )
-                c_right_key_to_hash = join_conditions.wrap_with_namespace(
-                    (
-                        Tuple_(*join_conditions.right_row_hashers)
-                        if len(join_conditions.right_row_hashers) > 1
-                        else join_conditions.right_row_hashers[0]
-                    ),
-                    right=True,
-                )
-                code.add_line(
-                    "hash_to_right_items = %s"
-                    % EscapedString("right_")
-                    .pipe(
-                        Aggregate(
-                            ReduceFuncs.DictArray(
-                                c_right_key_to_hash,
-                                This,
-                                default=NaiveConversion({}),
-                                where=(
-                                    join_conditions.wrap_with_namespace(
-                                        And(
-                                            *join_conditions.right_collection_filters
-                                        ),
-                                        right=True,
-                                    )
-                                    if join_conditions.right_collection_filters
-                                    else None
-                                ),
-                            )
-                        )
-                    )
-                    .gen_code_and_update_ctx("right_", ctx),
-                    0,
-                )
-                code.add_line("del right_", 0)
-                initial_right = "(item for items in hash_to_right_items.values() for item in items)"
-
-                code.add_line("for left_item in left_:", 1)
-                code.add_line(
-                    "left_key = %s"
-                    % c_left_key_to_hash.gen_code_and_update_ctx(
-                        "left_item", ctx
-                    ),
-                    0,
-                )
-
-                c_left_key = EscapedString("left_key")
-                c_hash_to_right_items = EscapedString("hash_to_right_items")
-
-                code.add_line(
-                    "right_items = %s"
-                    % If(
-                        c_left_key.in_(c_hash_to_right_items),
-                        c_hash_to_right_items.item(c_left_key).pipe(
-                            This.filter(
-                                join_conditions.wrap_with_namespace(
-                                    And(
-                                        *join_conditions.inner_loop_conditions
-                                    ),
-                                    left="left_item",
-                                    right=True,
-                                )
-                            )
-                            if join_conditions.inner_loop_conditions
-                            else This
-                        ),
-                        Tuple_(),
-                    )
-                    .pipe(iter if join_conditions.left_join else This)
-                    .gen_code_and_update_ctx(None, ctx),
-                    0,
-                )
-
             else:
-                if join_conditions.right_collection_filters:
-                    code.add_line(
-                        "right_ = %s"
-                        % ListComp(
-                            This,
-                            join_conditions.wrap_with_namespace(
-                                And(*join_conditions.right_collection_filters),
-                                right=True,
-                            ),
-                            _none,
-                        ).gen_code_and_update_ctx("right_", ctx),
-                        0,
-                    )
-                else:
-                    code.add_line(
-                        "right_ = %s"
-                        % If(
-                            CallFunc(isinstance, This, Sized),
-                            This,
-                            This.pipe(list),
-                        ).gen_code_and_update_ctx("right_", ctx),
-                        0,
-                    )
-                initial_right = "right_"
-
-                code.add_line("for left_item in left_:", 1)
-                code.add_line(
-                    "right_items = %s"
-                    % (
-                        This.filter(
-                            Namespace(
-                                And(*join_conditions.inner_loop_conditions),
-                                name_to_code={
-                                    _JoinConditions.LEFT_NAME: "left_item",
-                                    _JoinConditions.RIGHT_NAME: True,
-                                },
-                            )
-                        )
-                        if join_conditions.inner_loop_conditions
-                        else This
-                    )
-                    .pipe(iter if join_conditions.left_join else This)
-                    .gen_code_and_update_ctx("right_", ctx),
-                    0,
+                initial_right = self._gen_nested_loop_join_code(
+                    code, ctx, join_conditions
                 )
 
-            if join_conditions.left_join:
-                code.add_line("right_item = next(right_items, _none)", 0)
-                code.add_line("if right_item is _none:", 1)
-                code.add_line(
-                    (
-                        "yield None, left_item"
-                        if join_conditions.swapped
-                        else "yield left_item, None"
-                    ),
-                    -1,
-                )
-                code.add_line("else:", 1)
-                track_id()
-                code.add_line(
-                    (
-                        "yield right_item, left_item"
-                        if join_conditions.swapped
-                        else "yield left_item, right_item"
-                    ),
-                    0,
-                )
-                code.add_line(
-                    "for right_item in right_items:",
-                    1,
-                )
-                track_id()
-                code.add_line(
-                    (
-                        "yield right_item, left_item"
-                        if join_conditions.swapped
-                        else "yield left_item, right_item"
-                    ),
-                    -3,
-                )
-
-            else:
-                code.add_line("for right_item in right_items:", 1)
-                track_id()
-                code.add_line(
-                    (
-                        "yield right_item, left_item"
-                        if join_conditions.swapped
-                        else "yield left_item, right_item"
-                    ),
-                    -2,
-                )
+            self._gen_yield_statements(code, join_conditions)
 
             if join_conditions.full_join:
                 code.add_line(
                     "yield from ("
                     "(None, right_item) "
-                    f"for right_item in {initial_right} "
-                    "if id(right_item) not in yielded_right_ids)",
+                    f"for right_idx, right_item in {initial_right} "
+                    "if right_idx not in yielded_right_indices)",
                     0,
                 )
 
