@@ -10,54 +10,54 @@ from ast import Store as AstStore
 from ast import expr as AstExpr
 from ast import parse as ast_parse
 from collections import defaultdict, deque
+from enum import Enum, auto
 from itertools import chain
 from typing import Any, Callable, Dict, Tuple
 
 from ._utils import PY_VERSION, ast_unparse
 
 
+class IterMode(Enum):
+    """Mode for iterating over list values in visit_by_attr."""
+
+    ALL = auto()
+    FIRST_ONLY = auto()
+    ALL_BUT_FIRST = auto()
+
+
 def ast_are_fuzzy_equal(left, right, fuzzy_cmp, fields_to_skip=frozenset()):
+    """Check if two AST nodes are fuzzy-equal using the provided comparison."""
     cls_left = type(left)
     if issubclass(cls_left, AST):
-        if cls_left is not type(  # pylint: disable=unidiomatic-typecheck
-            right
-        ):
+        if cls_left is not type(right):  # pylint: disable=unidiomatic-typecheck
             return False
 
         if fuzzy_cmp(left, right):
             return True
 
-        for right_field in right._fields:  # pylint: disable=protected-access
-            if right_field not in fields_to_skip:
-                right_value_or_values = getattr(right, right_field)
-                left_value_or_values = getattr(left, right_field)
-                if isinstance(right_value_or_values, list):
-                    length = len(right_value_or_values)
-                    if length != len(left_value_or_values):
-                        return False
-                    index = 0
-                    while index < length:
-                        if not ast_are_fuzzy_equal(
-                            left_value_or_values[index],
-                            right_value_or_values[index],
-                            fuzzy_cmp,
-                            fields_to_skip,
-                        ):
-                            return False
-                        index += 1
+        for field in right._fields:  # pylint: disable=protected-access
+            if field in fields_to_skip:
+                continue
 
-                elif not ast_are_fuzzy_equal(
-                    left_value_or_values,
-                    right_value_or_values,
-                    fuzzy_cmp,
-                    fields_to_skip,
-                ):
+            right_values = getattr(right, field)
+            left_values = getattr(left, field)
+
+            if isinstance(right_values, list):
+                if len(right_values) != len(left_values):
                     return False
+                for left_item, right_item in zip(left_values, right_values):
+                    if not ast_are_fuzzy_equal(
+                        left_item, right_item, fuzzy_cmp, fields_to_skip
+                    ):
+                        return False
+            elif not ast_are_fuzzy_equal(
+                left_values, right_values, fuzzy_cmp, fields_to_skip
+            ):
+                return False
 
         return True
 
-    else:
-        return left == right
+    return left == right
 
 
 class AstMergeCtx:
@@ -181,7 +181,7 @@ class ExprInfo:
     def __init__(self):
         self.node_paths = []
         self.number = 0
-        self.children = None
+        self.children = []
 
     def to_dict(self):  # pragma: no cover
         return {
@@ -410,7 +410,11 @@ class OptimizationStage1(ast.NodeVisitor):
             tree, no_side_effects_test, condition_is_transparent_test
         )
         self.raw_visit(self.tree)
+        self._propagate_expression_counts()
+        self._apply_common_subexpression_elimination()
 
+    def _propagate_expression_counts(self):
+        """Propagate expression counts from child layers to parents."""
         if self.root_layer is None:
             raise AssertionError("bug")
 
@@ -418,53 +422,45 @@ class OptimizationStage1(ast.NodeVisitor):
             [(self.root_layer,)]
         )
         while paths_to_process:
-            l_path = paths_to_process.popleft()
-            l_children = l_path[-1].children
-            if l_children:
+            layer_path = paths_to_process.popleft()
+            layer_children = layer_path[-1].children
+            if layer_children:
                 self_in_the_middle = False
                 propagation_is_possible = True
-                for l_code_layer in l_children:
-                    if l_code_layer.propagate_with_coeff is None:
+                for code_layer in layer_children:
+                    if code_layer.propagate_with_coeff is None:
                         propagation_is_possible = False
 
                     if propagation_is_possible:
                         self_in_the_middle = True
-                        paths_to_process.append(l_path + (l_code_layer,))
+                        paths_to_process.append(layer_path + (code_layer,))
                     else:
-                        paths_to_process.append((l_code_layer,))
+                        paths_to_process.append((code_layer,))
                 if self_in_the_middle:
                     continue
 
-            for index in range(len(l_path) - 1, 0, -1):
-                current_child = l_path[index]
-                current_parent = l_path[index - 1]
+            for index in range(len(layer_path) - 1, 0, -1):
+                current_child = layer_path[index]
+                current_parent = layer_path[index - 1]
                 for expr_code, info in current_child.expr_code_to_info.items():
                     parent_info = current_parent.expr_code_to_info[expr_code]
                     parent_info.number += info.number * (
                         current_child.propagate_with_coeff or 0
                     )
-                    if parent_info.children is None:
-                        parent_info.children = [info]
-                    else:
-                        parent_info.children.append(info)
+                    parent_info.children.append(info)
 
                     if info.children:
                         parent_info.children.extend(info.children)
 
-        # from pprint import pprint
-        # print("\n")
-        # print(ast_unparse(self.tree))
-        # print("\n")
-        # pprint(self.root_layer.to_dict(), sort_dicts=False)
-        # breakpoint()
-
+    def _apply_common_subexpression_elimination(self):
+        """Replace duplicate expressions with temporary variables."""
         code_layers_to_process = deque([self.root_layer])
         number_of_replacements = 0
 
         while code_layers_to_process:
             layer = code_layers_to_process.popleft()
-            for l_layer in layer.children:
-                code_layers_to_process.append(l_layer)
+            for child_layer in layer.children:
+                code_layers_to_process.append(child_layer)
 
             exprs_to_optimize = sorted(
                 [
@@ -477,7 +473,7 @@ class OptimizationStage1(ast.NodeVisitor):
             for i in range(max_idx_expr_to_optimize + 1):
                 _, expr_code, info = exprs_to_optimize[i]
 
-                if info.children is not None:
+                if info.children:
                     for child_info in info.children:
                         child_info.number = -1
 
@@ -496,17 +492,17 @@ class OptimizationStage1(ast.NodeVisitor):
                         continue
 
                 info.number = -1
-                local_var_name = f"_r{number_of_replacements}_"
+                local_var_name = f"_tmp{number_of_replacements}_"
                 number_of_replacements += 1
 
                 new_node = AstName(id=local_var_name, ctx=AstLoad())
                 replacement_node = None
 
-                for z_info in chain(
+                for expr_info in chain(
                     (info,), info.children if info.children else ()
                 ):
-                    while z_info.node_paths:
-                        node_path = z_info.node_paths.pop()
+                    while expr_info.node_paths:
+                        node_path = expr_info.node_paths.pop()
                         if replacement_node is None:
                             replacement_node = AstAssign(
                                 targets=[
@@ -541,9 +537,6 @@ class OptimizationStage1(ast.NodeVisitor):
     def visit(self, node):
         raise NotImplementedError
 
-    MODE_FIRST_ONLY = -2
-    MODE_ALL_BUT_FIRST = -3
-
     def visit_by_attr(
         self,
         node,
@@ -555,13 +548,13 @@ class OptimizationStage1(ast.NodeVisitor):
         value = getattr(node, attr)
         parent_expr_code = self.parent_expr_code
         if isinstance(value, list):
-            if mode is None:
+            if mode is None or mode is IterMode.ALL:
                 index = 0
                 length = len(value)
-            elif mode == self.MODE_FIRST_ONLY:
+            elif mode is IterMode.FIRST_ONLY:
                 index = 0
                 length = min(1, len(value))
-            else:
+            else:  # IterMode.ALL_BUT_FIRST
                 index = 1
                 length = len(value)
 
@@ -570,7 +563,6 @@ class OptimizationStage1(ast.NodeVisitor):
                     item = value[index]
                     self.node_path = (value, item)
                     side_effects = self._side_effects
-                    # self.raw_visit(item)
                     self.methods[f"visit_{item.__class__.__name__}"](item)
                     if (
                         side_effects < self._side_effects
@@ -584,13 +576,11 @@ class OptimizationStage1(ast.NodeVisitor):
                     item = value[index]
                     if isinstance(item, AST):  # pragma: no cover
                         self.node_path = (value, item)
-                        # self.raw_visit(item)
                         self.methods[f"visit_{item.__class__.__name__}"](item)
                         self.parent_expr_code = parent_expr_code
                     index += 1
         elif isinstance(value, AST):
             self.node_path = (node, attr)
-            # self.raw_visit(value)
             self.methods[f"visit_{value.__class__.__name__}"](value)
             self.parent_expr_code = parent_expr_code
 
@@ -662,13 +652,16 @@ class OptimizationStage1(ast.NodeVisitor):
 
     def get_node_code(self, node):
         if self.parent_expr_code is not None:
-            key = self.parent_expr_code, self.node_path[-1]
-            if key in self._node_code_cache:
-                return self._node_code_cache[key]
-            expr_code = ast_unparse(node)
-            self._node_code_cache[key] = expr_code
-            return expr_code
-        return ast_unparse(node)
+            key = (self.parent_expr_code, self.node_path[-1])
+        else:
+            key = id(node)
+
+        if key in self._node_code_cache:
+            return self._node_code_cache[key]
+
+        expr_code = ast_unparse(node)
+        self._node_code_cache[key] = expr_code
+        return expr_code
 
     def _custom_expr_visit_call(self, node):
         self.visit_by_attr(node, "func")
@@ -697,9 +690,9 @@ class OptimizationStage1(ast.NodeVisitor):
         self.visit_by_attr(node, "value")
 
     def _custom_expr_visit_bool_op(self, node):
-        self.visit_by_attr(node, "values", self.MODE_FIRST_ONLY)
+        self.visit_by_attr(node, "values", IterMode.FIRST_ONLY)
         with NoTrackNumbersCtx(self):
-            self.visit_by_attr(node, "values", self.MODE_ALL_BUT_FIRST)
+            self.visit_by_attr(node, "values", IterMode.ALL_BUT_FIRST)
 
     CUSTOM_EXPR_VISITORS = {
         "Call": _custom_expr_visit_call,

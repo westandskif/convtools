@@ -50,6 +50,55 @@ from ._optimizer import (
 )
 from ._utils import Code
 
+# Module-level constants for code generation
+AGG_DATA_PREFIX = "agg_data_"
+REDUCER_VAR_PREFIX = "n_"
+NONE_SENTINEL_NAME = "_none"
+CHECKSUM_VAR = "checksum_"
+AGG_DATA_ATTR_PREFIX = "v"
+INPUT_VAR_NAME = "data_"
+
+
+def _names_have_matching_reducer_prefix(x, y):
+    """Check if two AstName nodes have matching n_* prefixes."""
+    return (
+        isinstance(x, AstName)
+        and isinstance(y, AstName)
+        and x.id.startswith(REDUCER_VAR_PREFIX)
+        and y.id.startswith(REDUCER_VAR_PREFIX)
+        and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
+    )
+
+
+def _is_agg_data_name(node):
+    """Check if node is an AstName starting with agg_data_."""
+    return isinstance(node, AstName) and node.id.startswith(AGG_DATA_PREFIX)
+
+
+def _is_agg_data_attribute(node):
+    """Check if node is an AstAttribute accessing agg_data_."""
+    return (
+        isinstance(node, AstAttribute)
+        and isinstance(node.value, AstName)
+        and node.value.id == AGG_DATA_PREFIX
+    )
+
+
+def _is_none_sentinel_comparison(compare_node, left_checker):
+    """Check if node is a comparison against _none sentinel.
+
+    Args:
+        compare_node: The AstCompare node to check
+        left_checker: Function to validate the left side of comparison
+    """
+    return (
+        isinstance(compare_node, AstCompare)
+        and isinstance(compare_node.ops[0], AstIs)
+        and isinstance(compare_node.comparators[0], AstName)
+        and compare_node.comparators[0].id == NONE_SENTINEL_NAME
+        and left_checker(compare_node.left)
+    )
+
 
 class OptimizationStage1WithChecksums(OptimizationStage1):
     """OptimizationStage1 + deletion of duplicate checksums."""
@@ -66,7 +115,7 @@ class OptimizationStage1WithChecksums(OptimizationStage1):
         self.checksum += self.stack_checksum_incrs.pop()
 
     def visit_AugAssign(self, node):
-        if isinstance(node.target, AstName) and node.target.id == "checksum_":
+        if isinstance(node.target, AstName) and node.target.id == CHECKSUM_VAR:
             if self.stack_checksum_incrs[-1] > 0:
                 self.unnecessary_checksum_node_paths.append(self.node_path)
                 return None
@@ -84,87 +133,43 @@ class OptimizationStage1WithChecksums(OptimizationStage1):
 
 
 def fuzzy_cmp_group_by(x, y):
-    if (
-        isinstance(x, AstAttribute)
-        and isinstance(x.value, AstName)
-        and isinstance(y.value, AstName)
-    ):
-        return x.value.id == "agg_data_" and y.value.id == "agg_data_"
-
-    if isinstance(x, AstName):
-        return (
-            x.id.startswith("n_")
-            and y.id.startswith("n_")
-            and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
-        )
-    return False
+    """Compare AST nodes for group_by fuzzy equality."""
+    if _is_agg_data_attribute(x) and _is_agg_data_attribute(y):
+        return True
+    return _names_have_matching_reducer_prefix(x, y)
 
 
 def fuzzy_cmp_aggregate(x, y):
-    if isinstance(x, AstName):
-        return (
-            x.id.startswith("agg_data_")
-            and y.id.startswith("agg_data_")
-            or x.id.startswith("n_")
-            and y.id.startswith("n_")
-            and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
-        )
+    """Compare AST nodes for aggregate fuzzy equality."""
+    if isinstance(x, AstName) and isinstance(y, AstName):
+        if _is_agg_data_name(x) and _is_agg_data_name(y):
+            return True
+        return _names_have_matching_reducer_prefix(x, y)
     return False
 
 
 def fuzzy_merge_group_by_cmp(x, y):
+    """Compare AST nodes for group_by merge fuzzy equality."""
     if (
-        isinstance(x, AstCompare)
-        and isinstance(x.comparators[0], AstName)
-        and isinstance(y.comparators[0], AstName)
-        and x.comparators[0].id == "_none"
-        and y.comparators[0].id == "_none"
-        and isinstance(x.ops[0], AstIs)
-        and isinstance(y.ops[0], AstIs)
-        and isinstance(x.left, AstAttribute)
-        and isinstance(y.left, AstAttribute)
-        and isinstance(x.left.value, AstName)
-        and isinstance(y.left.value, AstName)
-        and x.left.value.id == "agg_data_"
-        and y.left.value.id == "agg_data_"
+        _is_none_sentinel_comparison(x, _is_agg_data_attribute)
+        and _is_none_sentinel_comparison(y, _is_agg_data_attribute)
     ):
         return True
-
-    if isinstance(x, AstName):
-        return (
-            x.id.startswith("n_")
-            and y.id.startswith("n_")
-            and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
-        )
-
-    return False
+    return _names_have_matching_reducer_prefix(x, y)
 
 
 def fuzzy_merge_aggregate_cmp(x, y):
+    """Compare AST nodes for aggregate merge fuzzy equality."""
     if (
-        isinstance(x, AstCompare)
-        and isinstance(x.comparators[0], AstName)
-        and isinstance(y.comparators[0], AstName)
-        and x.comparators[0].id == "_none"
-        and y.comparators[0].id == "_none"
-        and isinstance(x.ops[0], AstIs)
-        and isinstance(y.ops[0], AstIs)
-        and isinstance(x.left, AstName)
-        and isinstance(y.left, AstName)
-        and x.left.id.startswith("agg_data_")
-        and y.left.id.startswith("agg_data_")
+        _is_none_sentinel_comparison(x, _is_agg_data_name)
+        and _is_none_sentinel_comparison(y, _is_agg_data_name)
     ):
         return True
-
-    return (
-        isinstance(x, AstName)
-        and x.id.startswith("n_")
-        and y.id.startswith("n_")
-        and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
-    )
+    return _names_have_matching_reducer_prefix(x, y)
 
 
 def no_side_effects_test(x):
+    """Check if an AST node has no side effects in aggregation context."""
     if isinstance(x, AstAssign):
         return all(no_side_effects_test(t) for t in x.targets)
     if isinstance(x, AstAugAssign):
@@ -179,20 +184,21 @@ def no_side_effects_test(x):
     if isinstance(x, AstAttribute):
         x = x.value
 
-    return isinstance(x, AstName) and x.id.startswith("agg_data_")
+    return _is_agg_data_name(x)
 
 
 def condition_is_transparent_test(x):
+    """Check if a condition is transparent for optimization purposes."""
     if (
         isinstance(x, AstCompare)
         and isinstance(x.ops[0], AstIs)
         and isinstance(x.comparators[0], AstName)
-        and x.comparators[0].id == "_none"
+        and x.comparators[0].id == NONE_SENTINEL_NAME
     ):
         x = x.left
     if isinstance(x, AstAttribute):
         x = x.value
-    return isinstance(x, AstName) and x.id.startswith("agg_data_")
+    return _is_agg_data_name(x)
 
 
 class ReduceManager:
@@ -679,26 +685,34 @@ class SumOrNoneReducer(SingleExpressionReducer):
         )
 
 
-class MaxReducer(SingleExpressionReducer):
+class _ComparisonReducer(SingleExpressionReducer):
+    """Base class for reducers that compare values (Max/Min)."""
+
+    comparison_op: str  # "<" for Max, ">" for Min
+
     default = NaiveConversion(None)
     internals_are_public = True
     works_with_not_none_only = (True,)
     prepare_first_lines = ("%(result)s = %(value0)s",)
-    reduce_lines = (
-        "if %(result)s < %(value0)s:",
-        "    %(result)s = %(value0)s",
-    )
+
+    @property
+    def reduce_lines(self):
+        return (
+            f"if %(result)s {self.comparison_op} %(value0)s:",
+            "    %(result)s = %(value0)s",
+        )
 
 
-class MinReducer(SingleExpressionReducer):
-    default = NaiveConversion(None)
-    internals_are_public = True
-    works_with_not_none_only = (True,)
-    prepare_first_lines = ("%(result)s = %(value0)s",)
-    reduce_lines = (
-        "if %(result)s > %(value0)s:",
-        "    %(result)s = %(value0)s",
-    )
+class MaxReducer(_ComparisonReducer):
+    """Find maximum value, skips None."""
+
+    comparison_op = "<"
+
+
+class MinReducer(_ComparisonReducer):
+    """Find minimum value, skips None."""
+
+    comparison_op = ">"
 
 
 class CountReducer(OptionalExpressionReducer):
@@ -959,50 +973,45 @@ class DictSumOrNoneReducer(BaseDictReducer):
         )
 
 
-class DictMaxReducer(BaseDictReducer):
+class _DictComparisonReducer(BaseDictReducer):
+    """Base class for dict reducers that compare values (DictMax/DictMin)."""
+
+    comparison_op: str  # ">" for DictMax, "<" for DictMin
+
+    default = NaiveConversion(None)
+    internals_are_public = False
+    prepare_first_lines = ("%(result)s = { %(value0)s: %(value1)s }",)
+
+    def works_with_not_none_only(self, ctx):  # pylint: disable=unused-argument
+        if self.expressions[1].has_hint(BaseConversion.OutputHints.NOT_NONE):
+            return (False, False)
+        return (False, True)
+
+    def reduce_lines(self, ctx):  # pylint: disable=unused-argument
+        return (
+            f"if %(value0)s not in %(result)s or %(value1)s {self.comparison_op} %(result)s[%(value0)s]:",
+            "    %(result)s[%(value0)s] = %(value1)s",
+        )
+
+
+class DictMaxReducer(_DictComparisonReducer):
     """Reduce two values to a dict.
 
     Keys: defined by the first argument
     Values: defined by the second argument, reduced with Max.
     """
 
-    default = NaiveConversion(None)
-    internals_are_public = False
-    prepare_first_lines = ("%(result)s = { %(value0)s: %(value1)s }",)
-
-    def works_with_not_none_only(self, ctx):  # pylint: disable=unused-argument
-        if self.expressions[1].has_hint(BaseConversion.OutputHints.NOT_NONE):
-            return (False, False)
-        return (False, True)
-
-    def reduce_lines(self, ctx):  # pylint: disable=unused-argument
-        return (
-            "if %(value0)s not in %(result)s or %(value1)s > %(result)s[%(value0)s]:",
-            "    %(result)s[%(value0)s] = %(value1)s",
-        )
+    comparison_op = ">"
 
 
-class DictMinReducer(BaseDictReducer):
+class DictMinReducer(_DictComparisonReducer):
     """Reduce two values to a dict.
 
     Keys: defined by the first argument
     Values: defined by the second argument, reduced with Min.
     """
 
-    default = NaiveConversion(None)
-    internals_are_public = False
-    prepare_first_lines = ("%(result)s = { %(value0)s: %(value1)s }",)
-
-    def works_with_not_none_only(self, ctx):  # pylint: disable=unused-argument
-        if self.expressions[1].has_hint(BaseConversion.OutputHints.NOT_NONE):
-            return (False, False)
-        return (False, True)
-
-    def reduce_lines(self, ctx):  # pylint: disable=unused-argument
-        return (
-            "if %(value0)s not in %(result)s or %(value1)s < %(result)s[%(value0)s]:",
-            "    %(result)s[%(value0)s] = %(value1)s",
-        )
+    comparison_op = "<"
 
 
 class DictCountReducer(BaseDictReducer):
