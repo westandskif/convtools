@@ -40,6 +40,9 @@ If we need a converter function to run it only once, then we can shorten it to:
 Of course the above is not enough to work with data. Let's define conversions
 to perform key/index lookups.
 
+Note that `c.item(x)` is shorthand for `c.this.item(x)` - it operates on the
+input data by default, just like `c.this` does.
+
 #### No default
 
 ```python
@@ -117,8 +120,10 @@ _And yes, you can pass conversions as arguments to other conversions (notice
 ## c.input_arg
 
 Given that we are generating functions, it is useful to be able to add
-parameters to them. Let's update our "increment" function to have a
-keyword-only `increment` parameter:
+parameters to them.
+
+Let's update our "increment" function to have a keyword-only `increment`
+parameter:
 
 ```python
 def f(data, *, increment):
@@ -130,6 +135,14 @@ To build a conversion like this use `c.input_arg("increment")` to reference the
 keyword argument to be passed:
 
 {!examples-md/getting_started__input_arg.md!}
+
+#### When to use c.naive vs c.input_arg
+
+- **`c.naive`**: Use when the value is known at converter creation time and
+  won't change between calls (lookup tables, configuration constants, helper
+  functions).
+- **`c.input_arg`**: Use when the value varies per call (runtime parameters,
+  user-provided configuration, dynamic thresholds).
 
 
 ## Calling functions
@@ -161,6 +174,10 @@ while both other variants perform this lookup only once at conversion
 building stage and wouldn't perform it if we stored the converter for
 further reuse.
 ///
+
+**Recommendation:** For most cases, prefer `c.call_func` or
+`c.naive(func)(...)`. Both avoid repeated attribute lookups and produce
+cleaner generated code.
 
 #### calling with `*args`, `**kwargs`
 
@@ -214,6 +231,10 @@ c({"a": c.breakpoint()}).gen_converter(debug=True)
 c({"a": c.item(0).breakpoint()}).gen_converter(debug=True)
 ```
 
+When triggered, `c.breakpoint()` inserts a `pdb` breakpoint directly into the
+generated code at that point in the conversion. This lets you inspect the
+intermediate value and step through execution interactively.
+
 
 ## Inline expressions
 
@@ -221,6 +242,15 @@ c({"a": c.item(0).breakpoint()}).gen_converter(debug=True)
     type: warning
 `convtools` cannot guard you here and doesn't infer any insights from the
 attributes of unknown pieces of code. Avoid using if possible.
+
+**Risks:**
+
+- **Code injection**: Never pass untrusted user input to inline expressions -
+  they are executed as Python code.
+- **Bypasses optimizer**: Inline code cannot be analyzed or optimized by
+  convtools.
+- **Harder to debug**: Errors in inline expressions produce less helpful
+  tracebacks.
 ///
 
 There are two ways to pass custom code expression as a string:
