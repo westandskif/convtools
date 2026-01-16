@@ -102,7 +102,7 @@ class Conversion:
 
     this = This
 
-    #: Shortcut to :py:obj:`convtools.base.BaseConversion.and_then`
+    #: Shortcut to `BaseConversion.and_then`
     and_then = This.and_then
 
     naive = NaiveConversion
@@ -198,7 +198,7 @@ class Conversion:
         return Reduce(to_call_with_2_args, *args, **kwargs)
 
     def zip(self, *args, **kwargs):
-        """Conversion which calls :py:obj:`zip` on conversions.
+        """Conversion which calls `zip` on conversions.
 
         Args:
           args: conversions to zip - returns tuples
@@ -215,7 +215,7 @@ class Conversion:
         )
 
     def zip_longest(self, *args, fill_value=None, **kwargs):
-        """Conversion which calls :py:obj:`zip_longest` on conversions.
+        """Conversion which calls `zip_longest` on conversions.
 
         Args:
           args: conversions to zip - returns tuples
@@ -233,7 +233,7 @@ class Conversion:
         ).iter({name: self.item(index) for index, name in enumerate(kwargs)})
 
     def repeat(self, obj, times=None):
-        """Shortcut for call :py:obj:`itertools.repeat`."""
+        """Shortcut for call `itertools.repeat`."""
         args = () if times is None else (times,)
         return CallFunc(repeat, obj, *args)
 

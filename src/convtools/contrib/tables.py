@@ -315,7 +315,7 @@ class Table:
         """Initialize a table conversion from a csv-like object.
 
         Args:
-          filepath_or_buffer: a filepath or something :py:obj:`csv.reader` can
+          filepath_or_buffer: a filepath or something `csv.reader` can
             read
 
           header: specifies header inference mode:
@@ -344,12 +344,12 @@ class Table:
             data contains a header, but you provide your own - in this case
             it's convenient to skip the heading row from the input
 
-          dialect: a dialect acceptable by :py:obj:`csv.reader` There's a
+          dialect: a dialect acceptable by `csv.reader` There's a
             helper method:
-            :py:obj:`convtools.contrib.tables.Table.csv_dialect` to create
+            `Table.csv_dialect` to create
             dialects without defining classes
 
-          encoding: encoding to pass to :py:obj:`open`
+          encoding: encoding to pass to `open`
         """
         file_to_close: "Optional[TextIO]"
         buffer: "TextIO"
@@ -382,8 +382,8 @@ class Table:
         """For internal use only.
 
         There's no need in calling this directly, it's done automatically
-        when you use :py:obj:`convtools.contrib.tables.Table.update` or
-        :py:obj:`convtools.contrib.tables.Table.join` See the explanation
+        when you use `Table.update` or
+        `Table.join` See the explanation
         below:
 
         Since each column is either:
@@ -1171,9 +1171,9 @@ class Table:
         Args:
           type_: casts output rows to the type. Accepts the following values:
 
-            * :py:obj:`dict`
-            * :py:obj:`tuple`
-            * :py:obj:`list`
+            * `dict`
+            * `tuple`
+            * `list`
           include_header: whether to include header row in the result or not
 
         """
@@ -1193,14 +1193,14 @@ class Table:
         """Writes rows to a file.
 
         Args:
-          filepath_or_buffer: a filepath or something :py:obj:`csv.writer` can
+          filepath_or_buffer: a filepath or something `csv.writer` can
             write to
           include_header: self-explanatory bool
-          dialect: a dialect acceptable by :py:obj:`csv.writer` There's a
+          dialect: a dialect acceptable by `csv.writer` There's a
             helper method:
-            :py:obj:`convtools.contrib.tables.Table.csv_dialect` to create
+            `Table.csv_dialect` to create
             dialects without defining classes
-          encoding: encoding to pass to :py:obj:`open`
+          encoding: encoding to pass to `open`
         """
         row_type = list if self.row_type is list else tuple
 

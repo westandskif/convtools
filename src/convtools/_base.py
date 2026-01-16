@@ -658,7 +658,7 @@ class BaseConversion(Generic[CT]):
 
         Args:
           condition_conv (object): to be wrapped with
-            :py:obj:`ensure_conversion` and used on each item of a collection
+            `ensure_conversion` and used on each item of a collection
             to filter it
           cast (callable): to wrap the generator of filtered items
         Returns:
@@ -2128,9 +2128,9 @@ class InlineExpr(BaseConversion):
 
         Args:
           args (tuple of objects): each is wrapped with
-            :py:obj:`ensure_conversion`
+            `ensure_conversion`
           kwargs (dict of objects): each value is wrapped
-            with :py:obj:`ensure_conversion`
+            with `ensure_conversion`
         Returns:
           InlineExpr: Clone of the conversion after arguments are passed.
         """
@@ -2448,7 +2448,7 @@ class BaseComp(BaseMethodConversion):
         """Initialize self.
 
         Args:
-          generator_item (object): to be wrapped with :py:obj:`ensure_conversion`
+          generator_item (object): to be wrapped with `ensure_conversion`
             and used as a conversion on each item of a collection.
           where: conversion to be used in ``if`` clause of a comprehension
           self_conv: do not use. It is populated automatically.
@@ -2638,9 +2638,9 @@ class DictComp(BaseMethodConversion):
         """Initialize self.
 
         Args:
-          key (object): to be wrapped with :py:obj:`ensure_conversion` and
+          key (object): to be wrapped with `ensure_conversion` and
             used on each item of a collection to form keys
-          value (object): to be wrapped with :py:obj:`ensure_conversion` and
+          value (object): to be wrapped with `ensure_conversion` and
             used on each item of a collection to form values
           where: conversion to be used in ``if`` clause of a comprehension
           self_conv: do not use. It is populated automatically.
@@ -2699,7 +2699,7 @@ class BaseCollectionConversion(BaseConversion):
 
         Args:
           items (objects): items to form a collection from.
-            every item gets wrapped with :py:obj:`ensure_conversion`
+            every item gets wrapped with `ensure_conversion`
         """
         super().__init__()
         self._init_from_items(items)
@@ -3208,9 +3208,9 @@ class PipeConversion(BaseConversion):
           what: the 1st conversion, whose result is to be passed the `where`
           where: the 2nd conversion, which accepts the output of `what`
             conversion. If it is callable, it is called.
-          args (tuple): to be wrapped with :py:obj:`ensure_conversion` and
+          args (tuple): to be wrapped with `ensure_conversion` and
             passed to `next_conversion` if it's callable
-          kwargs (dict): to be wrapped with :py:obj:`ensure_conversion` and
+          kwargs (dict): to be wrapped with `ensure_conversion` and
             passed to `next_conversion` if it's callable
           label_input (str or dict): Labels to be put on pipe input data.
             If a ``str`` is passed, then it is used as a label name.

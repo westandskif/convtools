@@ -12,9 +12,9 @@ class BaseNameValueMutation(BaseMutation):
         """Init self.
 
         Args:
-          name: to be wrapped with :py:obj:`ensure_conversion` and used as
+          name: to be wrapped with `ensure_conversion` and used as
             a key/attr/index for a mutation
-          value: to be wrapped with :py:obj:`ensure_conversion` and used as
+          value: to be wrapped with `ensure_conversion` and used as
             a value for a mutation
           of_: conversion which points at what to mutate.
         """
@@ -47,7 +47,7 @@ class BaseIndexMutation(BaseMutation):
         """Init self.
 
         Args:
-          index: to be wrapped with :py:obj:`ensure_conversion` and used as
+          index: to be wrapped with `ensure_conversion` and used as
             an index/key/attr for a mutation
           if_exists: mutates if the index/key/attr exists
           of_: conversion which points at what to mutate.

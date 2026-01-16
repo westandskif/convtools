@@ -53,7 +53,7 @@ class ChunkBy(BaseChunkBy):
     >>> })
 
     It also provides a shortcut for running
-    :py:obj:`convtools.aggregations.Aggregate` on chunks.
+    `Aggregate` on chunks.
     """
 
     def __init__(self, *by, size: Optional[int] = None):
@@ -350,7 +350,7 @@ class ChunkByCondition(BaseChunkBy):
     >>> })
 
     It also provides a shortcut for running
-    :py:obj:`convtools.aggregations.Aggregate` on chunks.
+    `Aggregate` on chunks.
     """
 
     CHUNK = LazyEscapedString("chunk_")
