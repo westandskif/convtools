@@ -1193,3 +1193,253 @@ def test_aggregate_single_reducer_reduction():
         ).execute([])
         == -1
     )
+
+
+def test_variance_and_stddev():
+    from math import isclose
+    import statistics
+
+    data = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]
+    expected_var = statistics.variance(data)
+    expected_std = statistics.stdev(data)
+    expected_pvar = statistics.pvariance(data)
+    expected_pstd = statistics.pstdev(data)
+
+    # Simple aggregate - Variance
+    f = c.aggregate(c.ReduceFuncs.Variance(c.this)).gen_converter()
+    assert isclose(f(data), expected_var)
+
+    # Simple aggregate - StdDev
+    f = c.aggregate(c.ReduceFuncs.StdDev(c.this)).gen_converter()
+    assert isclose(f(data), expected_std)
+
+    # Simple aggregate - PopulationVariance
+    f = c.aggregate(c.ReduceFuncs.PopulationVariance(c.this)).gen_converter()
+    assert isclose(f(data), expected_pvar)
+
+    # Simple aggregate - PopulationStdDev
+    f = c.aggregate(c.ReduceFuncs.PopulationStdDev(c.this)).gen_converter()
+    assert isclose(f(data), expected_pstd)
+
+    # Edge cases: None for n<2 (sample variance/stddev)
+    assert (
+        c.aggregate(c.ReduceFuncs.Variance(c.this)).gen_converter()([5.0])
+        is None
+    )
+    assert (
+        c.aggregate(c.ReduceFuncs.StdDev(c.this)).gen_converter()([5.0])
+        is None
+    )
+    # Edge cases: None for empty
+    assert (
+        c.aggregate(c.ReduceFuncs.Variance(c.this)).gen_converter()([]) is None
+    )
+    assert (
+        c.aggregate(c.ReduceFuncs.StdDev(c.this)).gen_converter()([]) is None
+    )
+
+    # PopulationVariance: 0 for single value
+    assert (
+        c.aggregate(c.ReduceFuncs.PopulationVariance(c.this)).gen_converter()(
+            [5.0]
+        )
+        == 0.0
+    )
+    # PopulationStdDev: 0 for single value
+    assert (
+        c.aggregate(c.ReduceFuncs.PopulationStdDev(c.this)).gen_converter()(
+            [5.0]
+        )
+        == 0.0
+    )
+
+    # Group-by
+    data = [
+        {"g": "a", "v": 1},
+        {"g": "a", "v": 2},
+        {"g": "a", "v": 3},
+        {"g": "b", "v": 10},
+        {"g": "b", "v": 20},
+    ]
+    f = (
+        c.group_by(c.item("g"))
+        .aggregate(
+            {
+                "g": c.item("g"),
+                "var": c.ReduceFuncs.Variance(c.item("v")),
+            }
+        )
+        .gen_converter()
+    )
+    result = {r["g"]: r["var"] for r in f(data)}
+    assert isclose(result["a"], 1.0)  # var([1,2,3]) = 1.0
+    assert isclose(result["b"], 50.0)  # var([10,20]) = 50.0
+
+    # Test with `where` filter
+    data_with_filter = [1.0, 2.0, 3.0, 100.0, 4.0, 5.0]
+    f = c.aggregate(
+        c.ReduceFuncs.Variance(c.this, where=c.this < 50)
+    ).gen_converter()
+    expected = statistics.variance([1.0, 2.0, 3.0, 4.0, 5.0])
+    assert isclose(f(data_with_filter), expected)
+
+
+def test_covariance_and_correlation():
+    from math import isclose
+
+    x = [1.0, 2.0, 3.0, 4.0, 5.0]
+    y = [2.0, 4.0, 6.0, 8.0, 10.0]  # y = 2x, perfect correlation
+    data = [{"x": xi, "y": yi} for xi, yi in zip(x, y)]
+
+    # Covariance
+    f = c.aggregate(
+        c.ReduceFuncs.Covariance(c.item("x"), c.item("y"))
+    ).gen_converter()
+    # cov(x, 2x) = 2 * var(x) = 2 * 2.5 = 5.0
+    assert isclose(f(data), 5.0)
+
+    # Correlation
+    f = c.aggregate(
+        c.ReduceFuncs.Correlation(c.item("x"), c.item("y"))
+    ).gen_converter()
+    assert isclose(f(data), 1.0)  # perfect positive correlation
+
+    # Negative correlation
+    y_neg = [10.0, 8.0, 6.0, 4.0, 2.0]
+    data_neg = [{"x": xi, "y": yi} for xi, yi in zip(x, y_neg)]
+    assert isclose(f(data_neg), -1.0)  # perfect negative correlation
+
+    # Edge cases: None for n<2
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Covariance(c.item("x"), c.item("y"))
+        ).gen_converter()([{"x": 1, "y": 2}])
+        is None
+    )
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Correlation(c.item("x"), c.item("y"))
+        ).gen_converter()([{"x": 1, "y": 2}])
+        is None
+    )
+
+    # Edge cases: None for empty
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Covariance(c.item("x"), c.item("y"))
+        ).gen_converter()([])
+        is None
+    )
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Correlation(c.item("x"), c.item("y"))
+        ).gen_converter()([])
+        is None
+    )
+
+    # Correlation undefined when one variable is constant
+    const_data = [{"x": 1, "y": 5}, {"x": 2, "y": 5}, {"x": 3, "y": 5}]
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Correlation(c.item("x"), c.item("y"))
+        ).gen_converter()(const_data)
+        is None
+    )
+
+    # Group-by with covariance
+    data = [
+        {"g": "a", "x": 1, "y": 2},
+        {"g": "a", "x": 2, "y": 4},
+        {"g": "a", "x": 3, "y": 6},
+        {"g": "b", "x": 1, "y": 10},
+        {"g": "b", "x": 2, "y": 8},
+    ]
+    f = (
+        c.group_by(c.item("g"))
+        .aggregate(
+            {
+                "g": c.item("g"),
+                "corr": c.ReduceFuncs.Correlation(c.item("x"), c.item("y")),
+            }
+        )
+        .gen_converter()
+    )
+    result = {r["g"]: r["corr"] for r in f(data)}
+    assert isclose(result["a"], 1.0)  # perfect positive for group a
+    assert isclose(result["b"], -1.0)  # perfect negative for group b
+
+    # Test with `where` filter
+    data_with_outlier = [
+        {"x": 1, "y": 2},
+        {"x": 2, "y": 4},
+        {"x": 3, "y": 6},
+        {"x": 100, "y": 100},  # outlier that should be filtered
+    ]
+    f = c.aggregate(
+        c.ReduceFuncs.Correlation(c.item("x"), c.item("y"), where=c.item("x") < 50)
+    ).gen_converter()
+    assert isclose(f(data_with_outlier), 1.0)
+
+
+def test_variance_and_stddev_with_decimal():
+    from decimal import Decimal
+
+    data = [Decimal("2"), Decimal("4"), Decimal("4"), Decimal("4"), Decimal("5"), Decimal("5"), Decimal("7"), Decimal("9")]
+
+    # Variance with Decimal
+    f = c.aggregate(c.ReduceFuncs.Variance(c.this)).gen_converter()
+    result = f(data)
+    assert isinstance(result, Decimal)
+    # Expected sample variance: 4.571428571428571...
+    assert abs(result - Decimal("32") / Decimal("7")) < Decimal("0.0000000001")
+
+    # StdDev with Decimal
+    f = c.aggregate(c.ReduceFuncs.StdDev(c.this)).gen_converter()
+    result = f(data)
+    assert isinstance(result, Decimal)
+    expected_std = (Decimal("32") / Decimal("7")).sqrt()
+    assert abs(result - expected_std) < Decimal("0.0000000001")
+
+    # PopulationVariance with Decimal
+    f = c.aggregate(c.ReduceFuncs.PopulationVariance(c.this)).gen_converter()
+    result = f(data)
+    assert isinstance(result, Decimal)
+    assert abs(result - Decimal("4")) < Decimal("0.0000000001")
+
+    # PopulationStdDev with Decimal
+    f = c.aggregate(c.ReduceFuncs.PopulationStdDev(c.this)).gen_converter()
+    result = f(data)
+    assert isinstance(result, Decimal)
+    assert abs(result - Decimal("2")) < Decimal("0.0000000001")
+
+
+def test_covariance_and_correlation_with_decimal():
+    from decimal import Decimal
+
+    x = [Decimal("1"), Decimal("2"), Decimal("3"), Decimal("4"), Decimal("5")]
+    y = [Decimal("2"), Decimal("4"), Decimal("6"), Decimal("8"), Decimal("10")]  # y = 2x
+    data = [{"x": xi, "y": yi} for xi, yi in zip(x, y)]
+
+    # Covariance with Decimal
+    f = c.aggregate(
+        c.ReduceFuncs.Covariance(c.item("x"), c.item("y"))
+    ).gen_converter()
+    result = f(data)
+    assert isinstance(result, Decimal)
+    # cov(x, 2x) = 2 * var(x) = 2 * 2.5 = 5.0
+    assert result == Decimal("5")
+
+    # Correlation with Decimal
+    f = c.aggregate(
+        c.ReduceFuncs.Correlation(c.item("x"), c.item("y"))
+    ).gen_converter()
+    result = f(data)
+    assert isinstance(result, Decimal)
+    assert abs(result - Decimal("1")) < Decimal("0.0000000001")
+
+    # Negative correlation with Decimal
+    y_neg = [Decimal("10"), Decimal("8"), Decimal("6"), Decimal("4"), Decimal("2")]
+    data_neg = [{"x": xi, "y": yi} for xi, yi in zip(x, y_neg)]
+    result = f(data_neg)
+    assert isinstance(result, Decimal)
+    assert abs(result - Decimal("-1")) < Decimal("0.0000000001")

@@ -832,6 +832,78 @@ class ListSortedOnceWrapper:
         return self.list_
 
 
+def _safe_sqrt(x):
+    """Square root that works with both float and Decimal."""
+    if isinstance(x, Decimal):
+        return x.sqrt()
+    return x**0.5
+
+
+class WelfordAccumulator:
+    """Online accumulator for mean and variance using Welford's algorithm."""
+
+    __slots__ = ["count", "mean", "m2"]
+
+    def __init__(self, value):
+        self.count = 1
+        self.mean = value
+        self.m2 = 0
+
+    def update(self, value):
+        self.count += 1
+        delta = value - self.mean
+        self.mean += delta / self.count
+        self.m2 += delta * (value - self.mean)
+
+    def get_variance(self):  # sample variance, None for n<2
+        return self.m2 / (self.count - 1) if self.count > 1 else None
+
+    def get_population_variance(self):
+        return self.m2 / self.count if self.count else None
+
+
+class WelfordCovarianceAccumulator:
+    """Online accumulator for covariance/correlation using Welford's algo."""
+
+    __slots__ = ["count", "mean_x", "mean_y", "m2_x", "m2_y", "c"]
+
+    def __init__(self, x, y):
+        self.count = 1
+        self.mean_x = x
+        self.mean_y = y
+        self.m2_x = 0
+        self.m2_y = 0
+        self.c = 0  # co-moment
+
+    def update(self, x, y):
+        self.count += 1
+        dx = x - self.mean_x
+        self.mean_x += dx / self.count
+        dx2 = x - self.mean_x
+
+        dy = y - self.mean_y
+        self.mean_y += dy / self.count
+        dy2 = y - self.mean_y
+
+        self.m2_x += dx * dx2
+        self.m2_y += dy * dy2
+        self.c += dx * dy2
+
+    def get_covariance(self):  # sample covariance, None for n<2
+        return self.c / (self.count - 1) if self.count > 1 else None
+
+    def get_correlation(self):
+        if self.count < 2:
+            return None
+        var_x = self.m2_x / (self.count - 1)
+        var_y = self.m2_y / (self.count - 1)
+        if var_x == 0 or var_y == 0:
+            return None  # undefined when one variable is constant
+        if isinstance(var_x, Decimal):
+            return self.c / (self.count - 1) / (var_x.sqrt() * var_y.sqrt())
+        return self.c / (self.count - 1) / (var_x**0.5 * var_y**0.5)
+
+
 class ArraySortedReducer(SingleExpressionReducer):
     """Reduce values to a sorted array."""
 
@@ -863,6 +935,68 @@ class ArrayDistinctReducer(SingleExpressionReducer):
     prepare_first_lines = ("%(result)s = { %(value0)s: None }",)
     reduce_lines = ("%(result)s[%(value0)s] = None",)
     post_conversion = This.as_type(list)
+
+
+class VarianceReducer(SingleExpressionReducer):
+    """Sample variance using Welford's algorithm."""
+
+    default = NaiveConversion(None)
+    internals_are_public = False
+    works_with_not_none_only = (True,)
+    prepare_first_lines = ("%(result)s = WelfordAccumulator(%(value0)s)",)
+    reduce_lines = ("%(result)s.update(%(value0)s)",)
+    post_conversion = This.call_method("get_variance")
+
+
+class PopulationVarianceReducer(SingleExpressionReducer):
+    """Population variance using Welford's algorithm."""
+
+    default = NaiveConversion(None)
+    internals_are_public = False
+    works_with_not_none_only = (True,)
+    prepare_first_lines = ("%(result)s = WelfordAccumulator(%(value0)s)",)
+    reduce_lines = ("%(result)s.update(%(value0)s)",)
+    post_conversion = This.call_method("get_population_variance")
+
+
+def StdDevReducer(conv, *args, **kwargs) -> BaseConversion:
+    """Sample standard deviation."""
+    return VarianceReducer(conv, *args, **kwargs).pipe(
+        If(This.is_not(None), CallFunc(_safe_sqrt, This), None)
+    )
+
+
+def PopulationStdDevReducer(conv, *args, **kwargs) -> BaseConversion:
+    """Population standard deviation."""
+    return PopulationVarianceReducer(conv, *args, **kwargs).pipe(
+        If(This.is_not(None), CallFunc(_safe_sqrt, This), None)
+    )
+
+
+class CovarianceReducer(BaseDictReducer):
+    """Sample covariance using Welford's algorithm."""
+
+    default = NaiveConversion(None)
+    internals_are_public = False
+    works_with_not_none_only = (True, True)
+    prepare_first_lines = (
+        "%(result)s = WelfordCovarianceAccumulator(%(value0)s, %(value1)s)",
+    )
+    reduce_lines = ("%(result)s.update(%(value0)s, %(value1)s)",)
+    post_conversion = This.call_method("get_covariance")
+
+
+class CorrelationReducer(BaseDictReducer):
+    """Pearson correlation using Welford's algorithm."""
+
+    default = NaiveConversion(None)
+    internals_are_public = False
+    works_with_not_none_only = (True, True)
+    prepare_first_lines = (
+        "%(result)s = WelfordCovarianceAccumulator(%(value0)s, %(value1)s)",
+    )
+    reduce_lines = ("%(result)s.update(%(value0)s, %(value1)s)",)
+    post_conversion = This.call_method("get_correlation")
 
 
 class DictReducer(BaseDictReducer):
@@ -1331,6 +1465,18 @@ class ReduceFuncs:
     Average = AverageReducerDispatcher()
     #: Calculates the median value.
     Median = MedianReducer
+    #: Calculates sample variance using Welford's online algorithm
+    Variance = VarianceReducer
+    #: Calculates sample standard deviation
+    StdDev = StdDevReducer
+    #: Calculates population variance
+    PopulationVariance = PopulationVarianceReducer
+    #: Calculates population standard deviation
+    PopulationStdDev = PopulationStdDevReducer
+    #: Calculates sample covariance between two variables
+    Covariance = CovarianceReducer
+    #: Calculates Pearson correlation between two variables
+    Correlation = CorrelationReducer
     #: Calculates percentile: floats in [0, 100]
     Percentile = PercentileReducer
     #: Calculates the most common value.
@@ -1509,6 +1655,8 @@ class Grouper(BaseConversion):
     def gen_code_and_update_ctx(self, code_input, ctx) -> str:
         ctx["defaultdict"] = defaultdict
         ctx["ListSortedOnceWrapper"] = ListSortedOnceWrapper
+        ctx["WelfordAccumulator"] = WelfordAccumulator
+        ctx["WelfordCovarianceAccumulator"] = WelfordCovarianceAccumulator
 
         suffix = self.gen_random_name("_", ctx)
         var_row = f"row{suffix}"

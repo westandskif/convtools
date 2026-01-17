@@ -54,6 +54,12 @@ Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
     * Mode - most frequent value, skips None
     * TopK - top K most frequent values, skips None
       e.g. top 3 most frequent ones: c.ReduceFuncs.TopK(3, c.item("x"))
+    * Variance - sample variance, skips None; returns None for n<2
+    * StdDev - sample standard deviation, skips None
+    * PopulationVariance - population variance, skips None
+    * PopulationStdDev - population standard deviation, skips None
+    * Covariance(x, y) - sample covariance between two variables, skips None
+    * Correlation(x, y) - Pearson correlation coefficient, skips None
     * Array
     * ArrayDistinct
     * ArraySorted
@@ -115,6 +121,12 @@ The table below gives the following info on builtin reducers:
 | Sum               |         | v      |         | 0       | v          | v                |
 | SumOrNone         |         | v      |         | None    |            | v                |
 | TopK              |         | v      |         | None    | v          |                  |
+| Variance          |         | v      |         | None    | v          |                  |
+| StdDev            |         | v      |         | None    | v          |                  |
+| PopulationVariance|         | v      |         | None    | v          |                  |
+| PopulationStdDev  |         | v      |         | None    | v          |                  |
+| Covariance        |         |        | v       | None    | v          |                  |
+| Correlation       |         |        | v       | None    | v          |                  |
 | Dict              |         |        | v       | None    |            |                  |
 | DictArray         |         |        | v       | None    |            |                  |
 | DictCount         |         | v      | v       | None    | 2-args     |                  |
