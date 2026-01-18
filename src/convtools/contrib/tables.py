@@ -928,7 +928,7 @@ class Table:
             )
         else:
             # Multiple columns: use zip_longest
-            c_values = EscapedString("values_")
+            c_zipped_values = EscapedString("values_")
             index_set = set(indices)
             index_to_zip_pos = {idx: pos for pos, idx in enumerate(indices)}
 
@@ -939,15 +939,17 @@ class Table:
                 .pass_args(
                     new_row=Tuple_(
                         *(
-                            c_values.item(index_to_zip_pos[i])
-                            if i in index_set
-                            else c_row.item(i)
+                            (
+                                c_zipped_values.item(index_to_zip_pos[i])
+                                if i in index_set
+                                else c_row.item(i)
+                            )
                             for i in range(len(columns))
                         )
                     ),
                     row=c_row,
                     rows=This,
-                    values=c_values,
+                    values=c_zipped_values,
                     zipped=NaiveConversion(zip_longest).call(
                         *(c_row.item(idx) for idx in indices)
                     ),

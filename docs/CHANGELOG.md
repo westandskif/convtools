@@ -1,6 +1,18 @@
-## 1.14.9 (unreleased)
+## 1.15.0 (2026-01-18)
 
+**Features**
+
+- added `c.spread` conversion for spreading/unpacking collections into parent structures
+- added `c.zip_longest` conversion matching Python's `itertools.zip_longest`
+- added statistical reducers: `c.ReduceFuncs.Variance`, `c.ReduceFuncs.StdDev`, `c.ReduceFuncs.Covariance`, `c.ReduceFuncs.Correlation`
 - added multi-column support to `Table.explode` with `zip_longest` semantics
+
+**Bugfix**
+
+- fixed `c.ReduceFuncs.Percentile` and `c.ReduceFuncs.Median` to work with `Decimal` values
+- fixed `c.breakpoint` sending generated code to stdout when debug is not explicitly requested
+- fixed `.asc()` and `.desc()` mutating `c.this` instead of creating a new conversion
+- fixed `c.join` full join for cases with same reference objects
 
 ## 1.14.8 (2025-10-23)
 

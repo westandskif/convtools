@@ -740,9 +740,7 @@ def test_table_explode():
 def test_table_explode_multiple_columns():
     # Two columns with same length arrays
     result = list(
-        Table.from_rows(
-            [["a", "b", "c"], [1, [2, 3], [10, 20]]], header=True
-        )
+        Table.from_rows([["a", "b", "c"], [1, [2, 3], [10, 20]]], header=True)
         .explode("b", "c")
         .into_iter_rows(dict)
     )
