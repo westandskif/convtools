@@ -170,9 +170,17 @@ To join two tables, use `join` method, which accepts the following arguments:
 
 ## Explode table
 
-`explode` method transforms a table with a column, which contains lists, to a
-table with values of these lists, by repeating values of other columns. Its
-only parameter is `column_name` to explode.
+`explode` method transforms a table with columns containing lists into a
+table with values of these lists, by repeating values of other columns.
+
+Args:
+
+* `column_name: str` - first column with iterables to explode
+* `*other_column_names: str` - additional columns to explode together
+
+When multiple columns are provided, they are exploded together using
+`zip_longest` semantics (like PostgreSQL's multiple `unnest` in same SELECT).
+Shorter arrays are padded with `None`.
 
 {!examples-md/contrib_tables_explode.md!}
 

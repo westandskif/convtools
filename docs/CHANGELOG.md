@@ -1,3 +1,7 @@
+## 1.14.9 (unreleased)
+
+- added multi-column support to `Table.explode` with `zip_longest` semantics
+
 ## 1.14.8 (2025-10-23)
 
 - updated tests, Github Actions and pyproject.toml for Python 3.14

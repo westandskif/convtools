@@ -737,6 +737,79 @@ def test_table_explode():
         )
 
 
+def test_table_explode_multiple_columns():
+    # Two columns with same length arrays
+    result = list(
+        Table.from_rows(
+            [["a", "b", "c"], [1, [2, 3], [10, 20]]], header=True
+        )
+        .explode("b", "c")
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"a": 1, "b": 2, "c": 10},
+        {"a": 1, "b": 3, "c": 20},
+    ]
+
+    # Two columns with different length arrays (None padding)
+    result = list(
+        Table.from_rows(
+            [["a", "b", "c"], [1, [2, 3], [10, 20, 30]]], header=True
+        )
+        .explode("b", "c")
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"a": 1, "b": 2, "c": 10},
+        {"a": 1, "b": 3, "c": 20},
+        {"a": 1, "b": None, "c": 30},
+    ]
+
+    # Multiple rows with multiple columns
+    result = list(
+        Table.from_rows(
+            [
+                ["a", "b", "c"],
+                [1, [2, 3], [10, 20]],
+                [4, [5], [30, 40, 50]],
+            ],
+            header=True,
+        )
+        .explode("b", "c")
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"a": 1, "b": 2, "c": 10},
+        {"a": 1, "b": 3, "c": 20},
+        {"a": 4, "b": 5, "c": 30},
+        {"a": 4, "b": None, "c": 40},
+        {"a": 4, "b": None, "c": 50},
+    ]
+
+    # Three or more columns
+    result = list(
+        Table.from_rows(
+            [["a", "b", "c", "d"], [1, [2], [10, 20], [100, 200, 300]]],
+            header=True,
+        )
+        .explode("b", "c", "d")
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"a": 1, "b": 2, "c": 10, "d": 100},
+        {"a": 1, "b": None, "c": 20, "d": 200},
+        {"a": 1, "b": None, "c": None, "d": 300},
+    ]
+
+    # Error handling for unknown column in multi-column case
+    with pytest.raises(ValueError):
+        list(
+            Table.from_rows([["a", "b"]], header=True)
+            .explode("a", "unknown")
+            .into_iter_rows(dict)
+        )
+
+
 def test_table_wide_to_long():
     result = list(
         Table.from_rows([("a", "b", "c"), (1, 2, 3), (4, 5, 6)], header=True)

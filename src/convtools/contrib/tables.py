@@ -856,8 +856,12 @@ class Table:
             pending_changes=ColumnChanges.MUTATE,
         )
 
-    def explode(self, column_name: str):
-        """Explode a table by unnesting a column with iterables.
+    def explode(self, column_name: str, *other_column_names: str):
+        """Explode a table by unnesting columns with iterables.
+
+        When multiple columns are provided, they are exploded together using
+        zip_longest semantics (like PostgreSQL's multiple unnest in same
+        SELECT). Shorter arrays are padded with None.
 
         >>> | a |   b    |
         >>> | 1 | [2, 3] |
@@ -868,40 +872,88 @@ class Table:
         >>> | a | b |
         >>> | 1 | 2 |
         >>> | 1 | 3 |
-        >>> | 2 | 5 |
-        >>> | 2 | 6 |
+        >>> | 4 | 5 |
+        >>> | 4 | 6 |
+
+        Multiple columns example:
+
+        >>> | a |   b    |     c       |
+        >>> | 1 | [2, 3] | [10, 20, 30]|
+        >>>
+        >>> table.explode("b", "c")
+        >>>
+        >>> | a |  b   |  c  |
+        >>> | 1 |  2   | 10  |
+        >>> | 1 |  3   | 20  |
+        >>> | 1 | None | 30  |
 
         Args:
           column_name: column with iterables to be exploded
+          other_column_names: additional columns to explode together
         """
         columns = self.columns
-        try:
-            index = columns.index(column_name)
-        except ValueError as e:
-            raise ValueError("unknown column", column_name) from e
+        all_column_names = (column_name,) + other_column_names
+        indices = []
+        for name in all_column_names:
+            try:
+                indices.append(columns.index(name))
+            except ValueError as e:
+                raise ValueError("unknown column", name) from e
 
         c_row = EscapedString("row_")
-        c_value = EscapedString("value_")
-        c_values = c_row.item(index)
 
-        new_rows = (
-            InlineExpr(
-                """({new_row} for {row} in {rows} for {value} in {values})"""
+        if len(indices) == 1:
+            # Single column: keep original efficient implementation
+            index = indices[0]
+            c_value = EscapedString("value_")
+            c_values = c_row.item(index)
+
+            new_rows = (
+                InlineExpr(
+                    """({new_row} for {row} in {rows} for {value} in {values})"""
+                )
+                .pass_args(
+                    new_row=Tuple_(
+                        *(
+                            c_value if i == index else c_row.item(i)
+                            for i in range(len(columns))
+                        )
+                    ),
+                    row=c_row,
+                    rows=This,
+                    value=c_value,
+                    values=c_values,
+                )
+                .execute(self.into_iter_rows(tuple, include_header=False))
             )
-            .pass_args(
-                new_row=Tuple_(
-                    *(
-                        c_value if i == index else c_row.item(i)
-                        for i in range(len(columns))
-                    )
-                ),
-                row=c_row,
-                rows=This,
-                value=c_value,
-                values=c_values,
+        else:
+            # Multiple columns: use zip_longest
+            c_values = EscapedString("values_")
+            index_set = set(indices)
+            index_to_zip_pos = {idx: pos for pos, idx in enumerate(indices)}
+
+            new_rows = (
+                InlineExpr(
+                    """({new_row} for {row} in {rows} for {values} in {zipped})"""
+                )
+                .pass_args(
+                    new_row=Tuple_(
+                        *(
+                            c_values.item(index_to_zip_pos[i])
+                            if i in index_set
+                            else c_row.item(i)
+                            for i in range(len(columns))
+                        )
+                    ),
+                    row=c_row,
+                    rows=This,
+                    values=c_values,
+                    zipped=NaiveConversion(zip_longest).call(
+                        *(c_row.item(idx) for idx in indices)
+                    ),
+                )
+                .execute(self.into_iter_rows(tuple, include_header=False))
             )
-            .execute(self.into_iter_rows(tuple, include_header=False))
-        )
 
         return Table.from_rows(new_rows, header=columns)
 
