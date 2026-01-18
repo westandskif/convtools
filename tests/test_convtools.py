@@ -720,7 +720,10 @@ def test_spread():
         "x": 10,
         "b": 2,
     }
-    assert conv({"extra": {"x": 10}, "key": None, "val": 2}) == {"a": 1, "x": 10}
+    assert conv({"extra": {"x": 10}, "key": None, "val": 2}) == {
+        "a": 1,
+        "x": 10,
+    }
 
 
 def test_list_comprehension():

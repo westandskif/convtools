@@ -69,6 +69,7 @@ Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
     * Dict
 	    c.ReduceFuncs.Dict(c.item("key"), c.item("x"))
     * DictArray - dict values are lists of encountered values
+    * DictArrayDistinct - dict values are lists of unique group (values preserves order)
     * DictSum - dict values are reduced by Sum
     * DictSumOrNone
     * DictMax

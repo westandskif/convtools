@@ -1542,7 +1542,7 @@ class ThisConversion(BaseConversion):
         result.output_hints = self.output_hints
         return result
 
-    def add_hint(self, hint: int):
+    def add_hint(self, hint: int):  # pylint: disable=useless-parent-delegation
         """Return a copy with the hint added to avoid mutating the singleton."""
         return super(ThisConversion, self.clone()).add_hint(hint)
 
@@ -2687,7 +2687,9 @@ class BaseCollectionConversion(BaseConversion):
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     )
     conversions: Optional[List[BaseConversion]] = None
-    pairs: Optional[List[Tuple[BaseConversion, BaseConversion]]] = None
+    pairs: (
+        "Optional[List[Union[Tuple[BaseConversion, BaseConversion], Spread]]]"
+    ) = None
     conditions: Optional[Mapping[int, BaseConversion]] = None
 
     JOINED_ITEMS_PREFIX: str
@@ -2742,6 +2744,7 @@ class BaseCollectionConversion(BaseConversion):
                             if self.conditions and index in self.conditions
                             else None
                         ),
+                        False,
                     )
                     for index, conv in enumerate(self.conversions)
                 ]
@@ -2783,13 +2786,11 @@ class BaseCollectionConversion(BaseConversion):
             else:
                 raise AssertionError
 
-            for item in conv_code_to_condition_code:
-                if len(item) == 3:
-                    conv_code, condition_code, is_spread = item
-                else:
-                    conv_code, condition_code = item
-                    is_spread = False
-
+            for (
+                conv_code,
+                condition_code,
+                is_spread,
+            ) in conv_code_to_condition_code:
                 if is_spread:
                     code.add_line(f"yield from {conv_code}.items()", 0)
                 elif condition_code:

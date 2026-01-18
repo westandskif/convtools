@@ -1,10 +1,21 @@
 """Conversions for slicing iterables into chunks."""
 
 from collections import defaultdict
+from itertools import islice
 from typing import Optional
 
 from ._aggregations import Aggregate
 from ._base import BaseConversion, Code, LazyEscapedString, Namespace, This
+
+
+def _chunk_by_size(items, size):
+    """Chunk iterable into fixed-size pieces using islice."""
+    items = iter(items)
+    while True:
+        chunk = list(islice(items, size))
+        if not chunk:
+            return
+        yield chunk
 
 
 _none = BaseConversion._none
@@ -78,6 +89,14 @@ class ChunkBy(BaseChunkBy):
         self.size = size
 
     def gen_code_and_update_ctx(self, code_input, ctx):
+        # Optimized path: size-only chunking using islice
+        if self.by is None:
+            from ._base import CallFunc
+
+            return CallFunc(
+                _chunk_by_size, This(), self.size
+            ).gen_code_and_update_ctx(code_input, ctx)
+
         converter_name = self.gen_random_name("chunk_by", ctx)
         function_ctx = (self.by or This()).as_function_ctx(
             ctx, optimize_naive=True
@@ -94,12 +113,9 @@ class ChunkBy(BaseChunkBy):
 
             code.add_line("chunk_ = [item_]", 0)
 
-            code_item_to_signature = (
-                self.by.gen_code_and_update_ctx("item_", ctx)
-                if self.by
-                else None
+            code_item_to_signature = self.by.gen_code_and_update_ctx(
+                "item_", ctx
             )
-
             code_before_for = Code()
             code_after_for = Code()
             code_if_condition = None
@@ -110,26 +126,25 @@ class ChunkBy(BaseChunkBy):
             code_if_new_chunk.add_line("yield chunk_", 0)
             code_if_new_chunk.add_line("chunk_ = [item_]", 0)
 
-            if code_item_to_signature and self.size:
+            if self.size:
                 code_if_condition = (
                     "chunk_item_signature == new_item_signature and size_ < "
                     f"{self.size}"
                 )
 
-            if code_item_to_signature:
-                code_before_for.add_line(
-                    f"chunk_item_signature = {code_item_to_signature}", 0
-                )
-                code_after_for.add_line(
-                    f"new_item_signature = {code_item_to_signature}", 0
-                )
-                code_if_condition = (
-                    code_if_condition
-                    or "chunk_item_signature == new_item_signature"
-                )
-                code_if_new_chunk.add_line(
-                    "chunk_item_signature = new_item_signature", 0
-                )
+            code_before_for.add_line(
+                f"chunk_item_signature = {code_item_to_signature}", 0
+            )
+            code_after_for.add_line(
+                f"new_item_signature = {code_item_to_signature}", 0
+            )
+            code_if_condition = (
+                code_if_condition
+                or "chunk_item_signature == new_item_signature"
+            )
+            code_if_new_chunk.add_line(
+                "chunk_item_signature = new_item_signature", 0
+            )
 
             if self.size:
                 code_before_for.add_line("size_ = 1", 0)

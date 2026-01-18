@@ -12,7 +12,7 @@ from ast import parse as ast_parse
 from collections import defaultdict, deque
 from enum import Enum, auto
 from itertools import chain
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, Tuple, Union
 
 from ._utils import PY_VERSION, ast_unparse
 
@@ -29,7 +29,9 @@ def ast_are_fuzzy_equal(left, right, fuzzy_cmp, fields_to_skip=frozenset()):
     """Check if two AST nodes are fuzzy-equal using the provided comparison."""
     cls_left = type(left)
     if issubclass(cls_left, AST):
-        if cls_left is not type(right):  # pylint: disable=unidiomatic-typecheck
+        if cls_left is not type(  # pylint: disable=unidiomatic-typecheck
+            right
+        ):
             return False
 
         if fuzzy_cmp(left, right):
@@ -651,6 +653,7 @@ class OptimizationStage1(ast.NodeVisitor):
             )
 
     def get_node_code(self, node):
+        key: "Union[tuple, int]"
         if self.parent_expr_code is not None:
             key = (self.parent_expr_code, self.node_path[-1])
         else:

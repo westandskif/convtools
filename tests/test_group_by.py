@@ -1196,8 +1196,8 @@ def test_aggregate_single_reducer_reduction():
 
 
 def test_variance_and_stddev():
-    from math import isclose
     import statistics
+    from math import isclose
 
     data = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]
     expected_var = statistics.variance(data)
@@ -1376,7 +1376,9 @@ def test_covariance_and_correlation():
         {"x": 100, "y": 100},  # outlier that should be filtered
     ]
     f = c.aggregate(
-        c.ReduceFuncs.Correlation(c.item("x"), c.item("y"), where=c.item("x") < 50)
+        c.ReduceFuncs.Correlation(
+            c.item("x"), c.item("y"), where=c.item("x") < 50
+        )
     ).gen_converter()
     assert isclose(f(data_with_outlier), 1.0)
 
@@ -1384,7 +1386,16 @@ def test_covariance_and_correlation():
 def test_variance_and_stddev_with_decimal():
     from decimal import Decimal
 
-    data = [Decimal("2"), Decimal("4"), Decimal("4"), Decimal("4"), Decimal("5"), Decimal("5"), Decimal("7"), Decimal("9")]
+    data = [
+        Decimal("2"),
+        Decimal("4"),
+        Decimal("4"),
+        Decimal("4"),
+        Decimal("5"),
+        Decimal("5"),
+        Decimal("7"),
+        Decimal("9"),
+    ]
 
     # Variance with Decimal
     f = c.aggregate(c.ReduceFuncs.Variance(c.this)).gen_converter()
@@ -1417,7 +1428,13 @@ def test_covariance_and_correlation_with_decimal():
     from decimal import Decimal
 
     x = [Decimal("1"), Decimal("2"), Decimal("3"), Decimal("4"), Decimal("5")]
-    y = [Decimal("2"), Decimal("4"), Decimal("6"), Decimal("8"), Decimal("10")]  # y = 2x
+    y = [
+        Decimal("2"),
+        Decimal("4"),
+        Decimal("6"),
+        Decimal("8"),
+        Decimal("10"),
+    ]  # y = 2x
     data = [{"x": xi, "y": yi} for xi, yi in zip(x, y)]
 
     # Covariance with Decimal
@@ -1438,7 +1455,13 @@ def test_covariance_and_correlation_with_decimal():
     assert abs(result - Decimal("1")) < Decimal("0.0000000001")
 
     # Negative correlation with Decimal
-    y_neg = [Decimal("10"), Decimal("8"), Decimal("6"), Decimal("4"), Decimal("2")]
+    y_neg = [
+        Decimal("10"),
+        Decimal("8"),
+        Decimal("6"),
+        Decimal("4"),
+        Decimal("2"),
+    ]
     data_neg = [{"x": xi, "y": yi} for xi, yi in zip(x, y_neg)]
     result = f(data_neg)
     assert isinstance(result, Decimal)

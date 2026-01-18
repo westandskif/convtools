@@ -50,6 +50,7 @@ from ._optimizer import (
 )
 from ._utils import Code
 
+
 # Module-level constants for code generation
 AGG_DATA_PREFIX = "agg_data_"
 REDUCER_VAR_PREFIX = "n_"
@@ -150,20 +151,18 @@ def fuzzy_cmp_aggregate(x, y):
 
 def fuzzy_merge_group_by_cmp(x, y):
     """Compare AST nodes for group_by merge fuzzy equality."""
-    if (
-        _is_none_sentinel_comparison(x, _is_agg_data_attribute)
-        and _is_none_sentinel_comparison(y, _is_agg_data_attribute)
-    ):
+    if _is_none_sentinel_comparison(
+        x, _is_agg_data_attribute
+    ) and _is_none_sentinel_comparison(y, _is_agg_data_attribute):
         return True
     return _names_have_matching_reducer_prefix(x, y)
 
 
 def fuzzy_merge_aggregate_cmp(x, y):
     """Compare AST nodes for aggregate merge fuzzy equality."""
-    if (
-        _is_none_sentinel_comparison(x, _is_agg_data_name)
-        and _is_none_sentinel_comparison(y, _is_agg_data_name)
-    ):
+    if _is_none_sentinel_comparison(
+        x, _is_agg_data_name
+    ) and _is_none_sentinel_comparison(y, _is_agg_data_name):
         return True
     return _names_have_matching_reducer_prefix(x, y)
 
@@ -959,14 +958,14 @@ class PopulationVarianceReducer(SingleExpressionReducer):
     post_conversion = This.call_method("get_population_variance")
 
 
-def StdDevReducer(conv, *args, **kwargs) -> BaseConversion:
+def std_dev_reducer(conv, *args, **kwargs) -> BaseConversion:
     """Sample standard deviation."""
     return VarianceReducer(conv, *args, **kwargs).pipe(
         If(This.is_not(None), CallFunc(_safe_sqrt, This), None)
     )
 
 
-def PopulationStdDevReducer(conv, *args, **kwargs) -> BaseConversion:
+def population_std_dev_reducer(conv, *args, **kwargs) -> BaseConversion:
     """Population standard deviation."""
     return PopulationVarianceReducer(conv, *args, **kwargs).pipe(
         If(This.is_not(None), CallFunc(_safe_sqrt, This), None)
@@ -1468,11 +1467,11 @@ class ReduceFuncs:
     #: Calculates sample variance using Welford's online algorithm
     Variance = VarianceReducer
     #: Calculates sample standard deviation
-    StdDev = StdDevReducer
+    StdDev = std_dev_reducer
     #: Calculates population variance
     PopulationVariance = PopulationVarianceReducer
     #: Calculates population standard deviation
-    PopulationStdDev = PopulationStdDevReducer
+    PopulationStdDev = population_std_dev_reducer
     #: Calculates sample covariance between two variables
     Covariance = CovarianceReducer
     #: Calculates Pearson correlation between two variables

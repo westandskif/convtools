@@ -322,9 +322,7 @@ class JoinConversion(BaseConversion):
             c_right_hasher, join_conditions, right=True
         )
         if join_conditions.full_join:
-            code.add_line(
-                "right_enumerated_ = list(enumerate(right_))", 0
-            )
+            code.add_line("right_enumerated_ = list(enumerate(right_))", 0)
             right_input = EscapedString("right_enumerated_")
         else:
             right_input = EscapedString("right_")
@@ -349,9 +347,7 @@ class JoinConversion(BaseConversion):
                     )
                 )
             ).gen_code_and_update_ctx(
-                "right_enumerated_"
-                if join_conditions.full_join
-                else "right_",
+                "right_enumerated_" if join_conditions.full_join else "right_",
                 ctx,
             ),
             0,
@@ -419,9 +415,7 @@ class JoinConversion(BaseConversion):
 
         if join_conditions.full_join:
             # For full joins, enumerate right items to track by index
-            code.add_line(
-                "right_enumerated_ = list(enumerate(right_))", 0
-            )
+            code.add_line("right_enumerated_ = list(enumerate(right_))", 0)
             initial_right = "right_enumerated_"
             right_input_var = "right_enumerated_"
         else:
@@ -432,11 +426,7 @@ class JoinConversion(BaseConversion):
         code.add_line("for left_item in left_:", 1)
         code.add_line(
             "right_items = %s"
-            % (
-                This.filter(inner_loop_filter)
-                if inner_loop_filter
-                else This
-            )
+            % (This.filter(inner_loop_filter) if inner_loop_filter else This)
             .pipe(iter if join_conditions.left_join else This)
             .gen_code_and_update_ctx(right_input_var, ctx),
             0,
@@ -448,9 +438,7 @@ class JoinConversion(BaseConversion):
         if join_conditions.left_join:
             if join_conditions.full_join:
                 # For full joins, right_items contains (idx, item) tuples
-                code.add_line(
-                    "right_enum = next(right_items, _none)", 0
-                )
+                code.add_line("right_enum = next(right_items, _none)", 0)
                 code.add_line("if right_enum is _none:", 1)
                 code.add_line(
                     self._yield_left_with_none(join_conditions.swapped), -1
@@ -458,42 +446,30 @@ class JoinConversion(BaseConversion):
                 code.add_line("else:", 1)
                 code.add_line("right_idx, right_item = right_enum", 0)
                 self._maybe_track_right_index(code, join_conditions)
-                code.add_line(
-                    self._yield_pair(join_conditions.swapped), 0
-                )
+                code.add_line(self._yield_pair(join_conditions.swapped), 0)
                 code.add_line(
                     "for right_idx, right_item in right_items:",
                     1,
                 )
                 self._maybe_track_right_index(code, join_conditions)
-                code.add_line(
-                    self._yield_pair(join_conditions.swapped), -3
-                )
+                code.add_line(self._yield_pair(join_conditions.swapped), -3)
             else:
-                code.add_line(
-                    "right_item = next(right_items, _none)", 0
-                )
+                code.add_line("right_item = next(right_items, _none)", 0)
                 code.add_line("if right_item is _none:", 1)
                 code.add_line(
                     self._yield_left_with_none(join_conditions.swapped), -1
                 )
                 code.add_line("else:", 1)
-                code.add_line(
-                    self._yield_pair(join_conditions.swapped), 0
-                )
+                code.add_line(self._yield_pair(join_conditions.swapped), 0)
                 code.add_line(
                     "for right_item in right_items:",
                     1,
                 )
-                code.add_line(
-                    self._yield_pair(join_conditions.swapped), -3
-                )
+                code.add_line(self._yield_pair(join_conditions.swapped), -3)
 
         else:
             code.add_line("for right_item in right_items:", 1)
-            code.add_line(
-                self._yield_pair(join_conditions.swapped), -2
-            )
+            code.add_line(self._yield_pair(join_conditions.swapped), -2)
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         join_conditions = _JoinConditions.from_condition(
