@@ -1466,3 +1466,42 @@ def test_covariance_and_correlation_with_decimal():
     result = f(data_neg)
     assert isinstance(result, Decimal)
     assert abs(result - Decimal("-1")) < Decimal("0.0000000001")
+
+
+def test_median_and_percentile_with_decimal():
+    from decimal import Decimal
+
+    data = [
+        Decimal("1"),
+        Decimal("2"),
+        Decimal("3"),
+        Decimal("4"),
+        Decimal("5"),
+    ]
+
+    # Median with Decimal
+    f = c.aggregate(c.ReduceFuncs.Median(c.this)).gen_converter()
+    result = f(data)
+    assert isinstance(result, Decimal)
+    assert result == Decimal("3")
+
+    # Percentile (linear interpolation) with Decimal
+    f = c.aggregate(c.ReduceFuncs.Percentile(25, c.this)).gen_converter()
+    result = f(data)
+    assert isinstance(result, Decimal)
+    assert result == Decimal("2")
+
+    # Percentile 75 with Decimal
+    f = c.aggregate(c.ReduceFuncs.Percentile(75, c.this)).gen_converter()
+    result = f(data)
+    assert isinstance(result, Decimal)
+    assert result == Decimal("4")
+
+    # Percentile with midpoint interpolation
+    data_even = [Decimal("1"), Decimal("2"), Decimal("3"), Decimal("4")]
+    f = c.aggregate(
+        c.ReduceFuncs.Percentile(50, c.this, interpolation="midpoint")
+    ).gen_converter()
+    result = f(data_even)
+    assert isinstance(result, Decimal)
+    assert result == Decimal("2.5")

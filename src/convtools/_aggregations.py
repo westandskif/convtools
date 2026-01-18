@@ -838,6 +838,13 @@ def _safe_sqrt(x):
     return x**0.5
 
 
+def _decimal_safe_mul(value, multiplier):
+    """Multiply that works with both float and Decimal values."""
+    if isinstance(value, Decimal):
+        return value * Decimal(str(multiplier))
+    return value * multiplier
+
+
 class WelfordAccumulator:
     """Online accumulator for mean and variance using Welford's algorithm."""
 
@@ -1376,8 +1383,8 @@ class PercentileReducer(ArraySortedReducer):
         if left_index == max_index:
             return left_value
 
-        return left_value + (data[left_index + 1] - left_value) * (
-            index - left_index
+        return left_value + _decimal_safe_mul(
+            data[left_index + 1] - left_value, index - left_index
         )
 
     @staticmethod
@@ -1396,7 +1403,9 @@ class PercentileReducer(ArraySortedReducer):
             return data[left_index]
 
         left_value = data[left_index]
-        return left_value + (data[left_index + 1] - left_value) * 0.5
+        return left_value + _decimal_safe_mul(
+            data[left_index + 1] - left_value, 0.5
+        )
 
     @staticmethod
     def percentile_nearest(data, quantile):
