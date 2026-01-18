@@ -541,6 +541,112 @@ def test_table_csv():
     assert result == [("1",)]
 
 
+def test_table_jsonl():
+    # Basic round-trip test with file path
+    Table.from_rows([{"a": 1, "b": 2}, {"a": 3, "b": 4}]).into_jsonl(
+        "tests/csvs/out.jsonl"
+    )
+    result = list(
+        Table.from_jsonl("tests/csvs/out.jsonl").into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
+
+    # Test with buffer (read and write)
+    with open("tests/csvs/out.jsonl", "w") as f_out:
+        Table.from_rows([{"x": 10, "y": 20}]).into_jsonl(f_out)
+    with open("tests/csvs/out.jsonl", "r") as f_in:
+        result = list(Table.from_jsonl(f_in).into_iter_rows(dict))
+    assert result == [{"x": 10, "y": 20}]
+
+    # Test header=True (infer from first row)
+    Table.from_rows([{"a": 1}]).into_jsonl("tests/csvs/out.jsonl")
+    result = list(
+        Table.from_jsonl("tests/csvs/out.jsonl", header=True).into_iter_rows(
+            tuple, include_header=True
+        )
+    )
+    assert result == [("a",), (1,)]
+
+    # Test header=False (use numbered columns)
+    with open("tests/csvs/out.jsonl", "w") as f:
+        f.write("[1, 2, 3]\n[4, 5, 6]\n")
+    result = list(
+        Table.from_jsonl(
+            "tests/csvs/out.jsonl", header=False
+        ).into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [("COLUMN_0", "COLUMN_1", "COLUMN_2"), (1, 2, 3), (4, 5, 6)]
+
+    # Test with custom header list
+    with open("tests/csvs/out.jsonl", "w") as f:
+        f.write("[1, 2]\n[3, 4]\n")
+    result = list(
+        Table.from_jsonl(
+            "tests/csvs/out.jsonl", header=["col_a", "col_b"]
+        ).into_iter_rows(dict)
+    )
+    assert result == [{"col_a": 1, "col_b": 2}, {"col_a": 3, "col_b": 4}]
+
+    # Test skip_rows
+    with open("tests/csvs/out.jsonl", "w") as f:
+        f.write('{"a": 1}\n{"a": 2}\n{"a": 3}\n')
+    result = list(
+        Table.from_jsonl("tests/csvs/out.jsonl", skip_rows=1).into_iter_rows(
+            dict
+        )
+    )
+    assert result == [{"a": 2}, {"a": 3}]
+
+    # Test empty lines are skipped
+    with open("tests/csvs/out.jsonl", "w") as f:
+        f.write('{"a": 1}\n\n{"a": 2}\n   \n{"a": 3}\n')
+    result = list(
+        Table.from_jsonl("tests/csvs/out.jsonl").into_iter_rows(dict)
+    )
+    assert result == [{"a": 1}, {"a": 2}, {"a": 3}]
+
+    # Test unicode handling
+    Table.from_rows([{"name": "日本語", "emoji": "🎉"}]).into_jsonl(
+        "tests/csvs/out.jsonl"
+    )
+    result = list(
+        Table.from_jsonl("tests/csvs/out.jsonl").into_iter_rows(dict)
+    )
+    assert result == [{"name": "日本語", "emoji": "🎉"}]
+
+    # Test pipeline transformations
+    result = list(
+        Table.from_rows([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
+        .update(c=c.col("a") + c.col("b"))
+        .take("a", "c")
+        .into_iter_rows(dict)
+    )
+    # Write through JSONL and read back
+    Table.from_rows(result).into_jsonl("tests/csvs/out.jsonl")
+    result2 = list(
+        Table.from_jsonl("tests/csvs/out.jsonl").into_iter_rows(dict)
+    )
+    assert result2 == [{"a": 1, "c": 3}, {"a": 3, "c": 7}]
+
+
+def test_table_jsonl_errors():
+    import json
+
+    # Test invalid JSON raises JSONDecodeError
+    with open("tests/csvs/out.jsonl", "w") as f:
+        f.write('{"a": 1}\n{invalid json}\n')
+    with pytest.raises(json.JSONDecodeError):
+        list(Table.from_jsonl("tests/csvs/out.jsonl").into_iter_rows(dict))
+
+    # Test missing file raises FileNotFoundError
+    with pytest.raises(FileNotFoundError):
+        list(
+            Table.from_jsonl("tests/csvs/nonexistent.jsonl").into_iter_rows(
+                dict
+            )
+        )
+
+
 def test_table_exceptions():
     with pytest.raises(c.ConversionException):
         c.col("tst").gen_converter()

@@ -9,6 +9,7 @@ Conversions are defined in realtime based on table headers and called methods:
 """
 
 import csv
+import json
 from collections.abc import Callable, Sized
 from itertools import chain, zip_longest
 from typing import (
@@ -369,6 +370,82 @@ class Table:
             tuple,  # type: ignore
             csv.reader(buffer, dialect=dialect),
         )
+
+        return cls.from_rows(
+            rows,
+            header,
+            duplicate_columns,
+            skip_rows=skip_rows,
+            file_to_close=file_to_close,
+        )
+
+    @classmethod
+    def from_jsonl(
+        cls,
+        filepath_or_buffer: "Union[str, TextIO]",
+        header: """Optional[
+            Union[
+                bool, List[str], Tuple[str], Mapping[str, Union[str, int]]
+            ]
+        ]""" = None,
+        duplicate_columns: str = "mangle",
+        skip_rows: int = 0,
+        encoding: str = "utf-8",
+    ) -> "Table":
+        """Initialize a table conversion from a JSONL (JSON Lines) file.
+
+        Args:
+          filepath_or_buffer: a filepath or a text buffer to read from
+
+          header: specifies header inference mode:
+             * True: takes either the first tuple/list or keys of the first
+               dict as a header
+             * False: there's no header in input data, use numbered columns
+               instead: COLUMN_0, COLUMN_1, etc.
+             * list/tuple of str: there's no header in input data, so this is
+               the header to be used (raises ValueError if numbers of columns
+               don't match)
+             * dict: its keys form the header, values are str/int indices to
+               take values of columns from input rows (raises ValueError if
+               numbers of columns don't match)
+             * None: inspects the first row and if it's a dict, then takes its
+               keys as a header
+
+          duplicate_columns: either of following ("mangle" by default):
+            * "raise": ValueError is raise if a duplicate column is detected
+            * "keep": duplicate columns are left as is, but when referenced the
+              first one is used
+            * "drop": duplicate columns are skipped
+            * "mangle": names of duplicate columns are mangled like: "name",
+              "name_1", "name_2", etc.
+
+          skip_rows: number of rows to skip at the beginning. Useful when input
+            data contains a header, but you provide your own - in this case
+            it's convenient to skip the heading row from the input
+
+          encoding: encoding to pass to `open`
+        """
+        file_to_close: "Optional[TextIO]"
+        buffer: "TextIO"
+        if isinstance(filepath_or_buffer, str):
+            buffer = file_to_close = (
+                open(  # pylint: disable=consider-using-with # noqa: SIM115
+                    filepath_or_buffer,
+                    "r",
+                    encoding=encoding,
+                )
+            )
+        else:
+            buffer = filepath_or_buffer
+            file_to_close = None
+
+        def parse_jsonl(buffer):
+            for line in buffer:
+                line = line.strip()
+                if line:
+                    yield json.loads(line)
+
+        rows = parse_jsonl(buffer)
 
         return cls.from_rows(
             rows,
@@ -1277,6 +1354,39 @@ class Table:
                 row_type, include_header=False
             ):
                 writer.writerows(chunk)
+        finally:
+            if f_to_close is not None:
+                f_to_close.close()
+
+    def into_jsonl(
+        self,
+        filepath_or_buffer: "Union[str, TextIO]",
+        encoding="utf-8",
+    ):
+        """Writes rows to a JSONL (JSON Lines) file.
+
+        Args:
+          filepath_or_buffer: a filepath or a text buffer to write to
+          encoding: encoding to pass to `open`
+        """
+        f_to_close = None
+        f: "TextIO"
+        if isinstance(filepath_or_buffer, str):
+            f = f_to_close = (
+                open(  # pylint:disable=consider-using-with  # noqa: SIM115
+                    filepath_or_buffer, "w", encoding=encoding
+                )
+            )
+        else:
+            f = filepath_or_buffer
+
+        try:
+            for chunk in self.into_list_of_iterables(
+                dict, include_header=False
+            ):
+                for row in chunk:
+                    json.dump(row, f, ensure_ascii=False)
+                    f.write("\n")
         finally:
             if f_to_close is not None:
                 f_to_close.close()
