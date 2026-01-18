@@ -504,7 +504,7 @@ class BaseConversion(Generic[CT]):
           The compiled function
         """
         if (
-            (debug or (self.contents & self.ContentTypes.BREAKPOINT))
+            debug
             and not _inner
             and not ConverterOptionsCtx.get_option_value("debug")
         ):
@@ -606,7 +606,7 @@ class BaseConversion(Generic[CT]):
         del ctx[self.PREFIXED_HASH_TO_NAME]
         del ctx[self.NAIVE_TO_WARM_UP]
 
-        if debug:
+        if debug or (self.contents & self.ContentTypes.BREAKPOINT):
             ctx["__convtools__code_storage"].dump_sources()
 
         if class_method:
