@@ -24,6 +24,21 @@ It's possible to mark a particular item as optional, so it disappears from an
 
 {!examples-md/api__collections_optional.md!}
 
+#### Spread (dict unpacking)
+
+`c.spread(conversion)` unpacks dict items into another dict, similar to Python's
+`**` operator or JavaScript's spread syntax. This is useful for merging nested
+dicts into a parent dict.
+
+{!examples-md/api__spread.md!}
+
+/// admonition
+    type: note
+
+`c.spread` can only be used inside `c.dict()`. Using it elsewhere raises an
+`AssertionError`.
+///
+
 
 ## Type casting
 

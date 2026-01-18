@@ -2746,31 +2746,55 @@ class BaseCollectionConversion(BaseConversion):
                     for index, conv in enumerate(self.conversions)
                 ]
             elif self.pairs is not None:
-                conv_code_to_condition_code = [
-                    (
-                        (
-                            f"({key.gen_code_and_update_ctx(inner_code_input, ctx)}, "
-                            f"{value.gen_code_and_update_ctx(inner_code_input, ctx)})"
-                        ),
-                        (
-                            self.conditions[index].gen_code_and_update_ctx(
-                                inner_code_input, ctx
+                conv_code_to_condition_code = []
+                for index, item in enumerate(self.pairs):
+                    if isinstance(item, Spread):
+                        # Spread items: (code, condition, is_spread)
+                        conv_code_to_condition_code.append(
+                            (
+                                item.conversion.gen_code_and_update_ctx(
+                                    inner_code_input, ctx
+                                ),
+                                None,
+                                True,
                             )
-                            if self.conditions and index in self.conditions
-                            else None
-                        ),
-                    )
-                    for index, (key, value) in enumerate(self.pairs)
-                ]
-
+                        )
+                    else:
+                        key, value = item
+                        conv_code_to_condition_code.append(
+                            (
+                                (
+                                    f"({key.gen_code_and_update_ctx(inner_code_input, ctx)}, "
+                                    f"{value.gen_code_and_update_ctx(inner_code_input, ctx)})"
+                                ),
+                                (
+                                    self.conditions[
+                                        index
+                                    ].gen_code_and_update_ctx(
+                                        inner_code_input, ctx
+                                    )
+                                    if self.conditions
+                                    and index in self.conditions
+                                    else None
+                                ),
+                                False,
+                            )
+                        )
             else:
                 raise AssertionError
 
-            for conv_code, condition_code in conv_code_to_condition_code:
-                if condition_code:
+            for item in conv_code_to_condition_code:
+                if len(item) == 3:
+                    conv_code, condition_code, is_spread = item
+                else:
+                    conv_code, condition_code = item
+                    is_spread = False
+
+                if is_spread:
+                    code.add_line(f"yield from {conv_code}.items()", 0)
+                elif condition_code:
                     code.add_line(f"if {condition_code}:", 1)
                     code.add_line(f"yield {conv_code}", -1)
-
                 else:
                     code.add_line(f"yield {conv_code}", 0)
 
@@ -2868,6 +2892,21 @@ class OptionalCollectionItem(BaseConversion):
         )
 
 
+class Spread(BaseConversion):
+    """Spread/unpack a dict into another dict definition."""
+
+    valid_pipe_output = False
+
+    def __init__(self, conversion):
+        super().__init__()
+        self.conversion = self.ensure_conversion(conversion)
+
+    def gen_code_and_update_ctx(self, code_input, ctx):
+        raise AssertionError(
+            "Spread cannot be used outside of dict collections"
+        )
+
+
 class Tuple_(BaseCollectionConversion):
     """Define tuple."""
 
@@ -2913,10 +2952,19 @@ class Dict_(BaseCollectionConversion):
     EMPTY_JOINED_ITEMS_CODE = "{}"
 
     def _init_from_items(self, items):
-        pairs: "List[Tuple[BaseConversion, BaseConversion]]" = []
+        pairs: "List[Union[Tuple[BaseConversion, BaseConversion], Spread]]" = (
+            []
+        )
         conditions = None
 
-        for raw_key, raw_value in items:
+        for item in items:
+            # Handle Spread items
+            if isinstance(item, Spread):
+                pairs.append(item)
+                continue
+
+            # Handle (key, value) tuples
+            raw_key, raw_value = item
             key = self.ensure_conversion(raw_key)
             value = self.ensure_conversion(raw_value)
             condition = None
@@ -2947,10 +2995,17 @@ class Dict_(BaseCollectionConversion):
             raise AssertionError
         write_ = stream.write
         sep = "," if len(self.pairs) < 3 else ",\n"
-        for key, value in self.pairs:
-            write_(key.gen_code_and_update_ctx(code_input, ctx))
-            write_(":")
-            write_(value.gen_code_and_update_ctx(code_input, ctx))
+        for item in self.pairs:
+            if isinstance(item, Spread):
+                write_("**")
+                write_(
+                    item.conversion.gen_code_and_update_ctx(code_input, ctx)
+                )
+            else:
+                key, value = item
+                write_(key.gen_code_and_update_ctx(code_input, ctx))
+                write_(":")
+                write_(value.gen_code_and_update_ctx(code_input, ctx))
             write_(sep)
 
     def gen_collection_from_generator(self, generator_code, code_input, ctx):

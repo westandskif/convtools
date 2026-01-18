@@ -105,36 +105,41 @@ def aggregate_e(_none, data_, *, __v=__naive_values__["__v"]):
     for row_e in it_:
         if agg_data_e_v0 is _none:
             agg_data_e_v0 = defaultdict(list)
-            agg_data_e_v0[row_e[0]].append(row_e)
+            agg_data_e_v0[row_e[1][0]].append(row_e)
             checksum_ += 1
         else:
-            agg_data_e_v0[row_e[0]].append(row_e)
+            agg_data_e_v0[row_e[1][0]].append(row_e)
         if checksum_ == 1:
             globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
             break
     for row_e in it_:
-        agg_data_e_v0[row_e[0]].append(row_e)
+        agg_data_e_v0[row_e[1][0]].append(row_e)
 
     return __v if (agg_data_e_v0 is _none) else (setattr(agg_data_e_v0, "default_factory", None) or agg_data_e_v0)
 
 def join_(left_, right_, _none):
-    yielded_right_ids = set()
-    hash_to_right_items = aggregate_e(_none, right_)
+    yielded_right_indices = set()
+    right_enumerated_ = list(enumerate(right_))
+    hash_to_right_items = aggregate_e(_none, right_enumerated_)
     del right_
+    del right_enumerated_
     for left_item in left_:
         left_key = left_item[0]
-        right_items = iter((((_i for _i in hash_to_right_items[left_key] if (((left_item[1] < _i[1])))) if (left_key in hash_to_right_items) else ())))
-        right_item = next(right_items, _none)
-        if right_item is _none:
+        right_items = iter((((_i for _i in hash_to_right_items[left_key] if (((left_item[1] < _i[1][1])))) if (left_key in hash_to_right_items) else ())))
+        right_enum = next(right_items, _none)
+        if right_enum is _none:
             yield left_item, None
         else:
-            yielded_right_ids.add(id(right_item))
+            right_idx, right_item = right_enum
+            yielded_right_indices.add(right_idx)
             yield left_item, right_item
-            for right_item in right_items:
-                yielded_right_ids.add(id(right_item))
+            for right_idx, right_item in right_items:
+                yielded_right_indices.add(right_idx)
                 yield left_item, right_item
     yield from (
-        (None, right_item) for right_item in (item for items in hash_to_right_items.values() for item in items) if id(right_item) not in yielded_right_ids
+        (None, right_item)
+        for right_idx, right_item in (enum_item for items in hash_to_right_items.values() for enum_item in items)
+        if right_idx not in yielded_right_indices
     )
 
 def _converter(data_, *, right):

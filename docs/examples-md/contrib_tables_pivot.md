@@ -50,6 +50,41 @@ with c.OptionsCtx() as options:
 
 /// tab | debug stdout
 ```python
+class AggData_:
+    __slots__ = ["v0"]
+
+    def __init__(self, _none=__none__):
+        self.v0 = _none
+
+def group_by_(_none, data_):
+    signature_to_agg_data_ = defaultdict(AggData_)
+
+    for row_ in data_:
+        agg_data_ = signature_to_agg_data_[row_["year"], row_["dept"]]
+        if agg_data_.v0 is _none:
+            agg_data_.v0 = defaultdict(list)
+            agg_data_.v0[row_["currency"],].append(row_)
+        else:
+            agg_data_.v0[row_["currency"],].append(row_)
+
+    return [
+        (
+            signature_[0],
+            signature_[1],
+            ((None if (agg_data_.v0 is _none) else (setattr(agg_data_.v0, "default_factory", None) or agg_data_.v0))),
+        )
+        for signature_, agg_data_ in signature_to_agg_data_.items()
+    ]
+
+def _converter(data_):
+    global __none__
+    _none = __none__
+    try:
+        return group_by_(_none, data_)
+    except __exceptions_to_dump_sources:
+        __convtools__code_storage.dump_sources()
+        raise
+
 def _converter(data_):
     try:
         return sum(((_i["revenue"] or 0) for _i in data_))
@@ -84,41 +119,6 @@ def _converter(data_):
     _none = __none__
     try:
         return aggregate_(_none, data_)
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-class AggData_:
-    __slots__ = ["v0"]
-
-    def __init__(self, _none=__none__):
-        self.v0 = _none
-
-def group_by_(_none, data_):
-    signature_to_agg_data_ = defaultdict(AggData_)
-
-    for row_ in data_:
-        agg_data_ = signature_to_agg_data_[row_["year"], row_["dept"]]
-        if agg_data_.v0 is _none:
-            agg_data_.v0 = defaultdict(list)
-            agg_data_.v0[row_["currency"],].append(row_)
-        else:
-            agg_data_.v0[row_["currency"],].append(row_)
-
-    return [
-        (
-            signature_[0],
-            signature_[1],
-            ((None if (agg_data_.v0 is _none) else (setattr(agg_data_.v0, "default_factory", None) or agg_data_.v0))),
-        )
-        for signature_, agg_data_ in signature_to_agg_data_.items()
-    ]
-
-def _converter(data_):
-    global __none__
-    _none = __none__
-    try:
-        return group_by_(_none, data_)
     except __exceptions_to_dump_sources:
         __convtools__code_storage.dump_sources()
         raise

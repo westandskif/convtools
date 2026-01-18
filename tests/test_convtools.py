@@ -688,6 +688,41 @@ def test_dict():
     }
 
 
+def test_spread():
+    # Basic spread
+    conv = c.dict((1, 2), c.spread(c.item("a")), (3, 4)).gen_converter()
+    assert conv({"a": {"x": 10}}) == {1: 2, "x": 10, 3: 4}
+
+    # Multiple spreads
+    conv = c.dict(c.spread(c.item("a")), c.spread(c.item("b"))).gen_converter()
+    assert conv({"a": {"x": 1}, "b": {"y": 2}}) == {"x": 1, "y": 2}
+
+    # Override order (later wins)
+    conv = c.dict(("x", 1), c.spread(c.item("a"))).gen_converter()
+    assert conv({"a": {"x": 999}}) == {"x": 999}
+
+    # Empty spread
+    conv = c.dict((1, 2), c.spread(c.item("a"))).gen_converter()
+    assert conv({"a": {}}) == {1: 2}
+
+    # Spread outside dict raises
+    with pytest.raises(AssertionError):
+        c.spread(c.this).gen_converter()
+
+    # Spread combined with optional items (triggers generator code path)
+    conv = c.dict(
+        ("a", 1),
+        c.spread(c.item("extra")),
+        (c.optional(c.item("key"), skip_value=None), c.item("val")),
+    ).gen_converter()
+    assert conv({"extra": {"x": 10}, "key": "b", "val": 2}) == {
+        "a": 1,
+        "x": 10,
+        "b": 2,
+    }
+    assert conv({"extra": {"x": 10}, "key": None, "val": 2}) == {"a": 1, "x": 10}
+
+
 def test_list_comprehension():
     assert c.list_comp(1).gen_converter()(range(5)) == [1] * 5
     data = [{"name": "John"}, {"name": "Bill"}, {"name": "Nick"}]

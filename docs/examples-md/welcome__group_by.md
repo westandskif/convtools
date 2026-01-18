@@ -45,16 +45,16 @@ def group_by_(_none, data_):
     signature_to_agg_data_ = defaultdict(AggData_)
 
     for row_ in data_:
-        _r0_ = row_["a"]
+        _tmp0_ = row_["a"]
         agg_data_ = signature_to_agg_data_[row_["b"]]
-        if _r0_ is not None:
+        if _tmp0_ is not None:
             if agg_data_.v1 is _none:
-                agg_data_.v1 = _r0_
-            elif agg_data_.v1 < _r0_:
-                agg_data_.v1 = _r0_
-        if _r0_ > 5:
+                agg_data_.v1 = _tmp0_
+            elif agg_data_.v1 < _tmp0_:
+                agg_data_.v1 = _tmp0_
+        if _tmp0_ > 5:
             if agg_data_.v0 is _none:
-                agg_data_.v0 = _r0_
+                agg_data_.v0 = _tmp0_
 
     return [
         {

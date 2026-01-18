@@ -18,7 +18,7 @@ pipe = (
     .filter(c.col("status") == "paid")  # row-wise filter
     .update(total=c.col("price").as_type(Decimal) * c.col("qty").as_type(int))
     .take("order_id", "total")
-    .into_iter_rows(dict)  # stream out or .into_csv("out.csv")
+    .into_iter_rows(dict)  # stream out or into_csv("output.csv")
 )
 
 assert list(pipe) == [

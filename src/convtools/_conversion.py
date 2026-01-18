@@ -39,6 +39,7 @@ from ._base import (
     Or,
     Set_,
     SetComp,
+    Spread,
     TakeWhile,
     This,
     Tuple_,
@@ -136,6 +137,7 @@ class Conversion:
     set = Set_
     dict = Dict_
     optional = OptionalCollectionItem
+    spread = Spread
 
     group_by = GroupBy
     aggregate = staticmethod(Aggregate)
