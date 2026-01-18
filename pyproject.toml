@@ -72,7 +72,7 @@ doc = [
 homepage = "https://github.com/westandskif/convtools"
 documentation = "https://convtools.readthedocs.io/en/latest/"
 repository = "https://github.com/westandskif/convtools"
-changelog = "https://github.com/westandskif/convtools/blob/master/docs/CHANGELOG.md"
+changelog = "https://github.com/westandskif/convtools/blob/master/docs/changelog.md"
 
 
 [tool.black]
