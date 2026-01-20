@@ -118,7 +118,7 @@ elif PY_VERSION == (3, 12):  # pragma: no cover
         FUNCTION_CALL = 186
         UNPREDICTABLE = 85200
 
-else:  # pragma: no cover
+elif PY_VERSION == (3, 13):  # pragma: no cover
     # 3.13.0
     class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
         # base_time: 1.064610156154231e-10
@@ -133,3 +133,19 @@ else:  # pragma: no cover
         DICT_INIT = 993
         FUNCTION_CALL = 169
         UNPREDICTABLE = 99300
+
+else:  # pragma: no cover
+    # 3.14.0
+    class Weights:  # type: ignore # pragma: no cover # pylint: disable=missing-class-docstring # noqa: F811
+        # base_time: 6.7441961854153e-11
+        STEP = 100
+        LOGICAL = 123
+        DICT_LOOKUP = 158
+        MATH_SIMPLE = 199
+        ATTR_LOOKUP = 89
+        TUPLE_INIT = 264
+        LIST_INIT = 306
+        SET_INIT = 620
+        DICT_INIT = 987
+        FUNCTION_CALL = 218
+        UNPREDICTABLE = 98700
