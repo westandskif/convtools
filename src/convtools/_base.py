@@ -2034,6 +2034,21 @@ class IfMultiple(BaseConversion):
         ]
         self.else_ = self.ensure_conversion(else_)
 
+        # ensure_conversion sums all uses (conditions + values + else), but
+        # for short-circuit evaluation, only one value branch executes.
+        # Adjust: replace sum(value_uses) with max(value_uses)
+        value_uses = [
+            v.number_of_input_uses for _, v in self.condition_to_value_pairs
+        ]
+        value_uses.append(self.else_.number_of_input_uses)
+        self.number_of_input_uses += max(value_uses) - sum(value_uses)
+
+        value_weights = [
+            v.total_weight for _, v in self.condition_to_value_pairs
+        ]
+        value_weights.append(self.else_.total_weight)
+        self.total_weight += max(value_weights) - sum(value_weights)
+
     def gen_code_and_update_ctx(self, code_input, ctx):
         code = Code()
         suffix = self.gen_random_name("_", ctx)

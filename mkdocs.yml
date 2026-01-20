@@ -60,3 +60,7 @@ markdown_extensions:
 exclude_docs: |
   examples-md/*.md
   performance-md/*.md
+
+watch:
+  - docs
+  - src/convtools

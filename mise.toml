@@ -1,0 +1,36 @@
+[env]
+CURRENT_BRANCH = 'master'
+
+[tools]
+python = { version = '3.10', postinstall = '''
+pip install virtualenv
+mkdir -p .venvs
+'''}
+
+[hooks.enter]
+shell = 'zsh'
+script = '''
+source .venvs/$CURRENT_BRANCH/bin/activate
+'''
+[hooks.leave]
+shell = 'zsh'
+script = '''
+deactivate
+'''
+
+
+[tasks.pyinstall]
+description = "Build the CLI"
+run = '''
+
+if [ ! -d ".venvs/$CURRENT_BRANCH" ]; then
+  echo "CREATING VENV: $CURRENT_BRANCH"
+  virtualenv .venvs/$CURRENT_BRANCH
+  source .venvs/$CURRENT_BRANCH/bin/activate
+else
+  echo "VENV ALREADY CREATED: $CURRENT_BRANCH"
+fi
+
+.venvs/$CURRENT_BRANCH/bin/pip install black ruff isort mypy 'python-lsp-server[all]'
+.venvs/$CURRENT_BRANCH/bin/pip install -r ci-requirements/requirements3.10.out
+'''

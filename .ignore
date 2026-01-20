@@ -10,3 +10,4 @@ tmp/
 *.patch
 .ccls-cache/
 *.csv
+.venvs/

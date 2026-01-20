@@ -214,10 +214,12 @@ Arguments:
 
 * `column_name` - first column with iterables to explode.
 * `*other_column_names` - additional columns to explode together.
+* `fill_value` - value used to pad shorter arrays when exploding multiple
+  columns together; default is `None`.
 
 When multiple columns are provided, they are exploded together using
 `zip_longest` semantics (like PostgreSQL's multiple `unnest` in the same
-`SELECT`). Shorter arrays are padded with `None`.
+`SELECT`). Shorter arrays are padded with `fill_value`.
 
 {!examples-md/contrib_tables_explode.md!}
 

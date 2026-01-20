@@ -1,0 +1,5 @@
+--exclude=build
+--exclude=*.md
+--exclude=*.js
+--exclude=*.json
+--exclude=.venvs

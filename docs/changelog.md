@@ -1,3 +1,13 @@
+## 1.16.0 (2026-01-20)
+
+**Features**
+
+- added `fill_value` parameter to `Table.explode` for customizing padding when exploding multiple columns
+
+**Bugfix**
+
+- fixed `c.if_multiple` to correctly calculate `number_of_input_uses` and `total_weight` for short-circuit evaluation
+
 ## 1.15.0 (2026-01-18)
 
 **Features**

@@ -571,11 +571,15 @@ def test_table_jsonl():
     with open("tests/csvs/out.jsonl", "w") as f:
         f.write("[1, 2, 3]\n[4, 5, 6]\n")
     result = list(
-        Table.from_jsonl(
-            "tests/csvs/out.jsonl", header=False
-        ).into_iter_rows(tuple, include_header=True)
+        Table.from_jsonl("tests/csvs/out.jsonl", header=False).into_iter_rows(
+            tuple, include_header=True
+        )
     )
-    assert result == [("COLUMN_0", "COLUMN_1", "COLUMN_2"), (1, 2, 3), (4, 5, 6)]
+    assert result == [
+        ("COLUMN_0", "COLUMN_1", "COLUMN_2"),
+        (1, 2, 3),
+        (4, 5, 6),
+    ]
 
     # Test with custom header list
     with open("tests/csvs/out.jsonl", "w") as f:
@@ -912,6 +916,20 @@ def test_table_explode_multiple_columns():
             .explode("a", "unknown")
             .into_iter_rows(dict)
         )
+
+    # Custom fill_value for padding
+    result = list(
+        Table.from_rows(
+            [["a", "b", "c"], [1, [2, 3], [10, 20, 30]]], header=True
+        )
+        .explode("b", "c", fill_value=-1)
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"a": 1, "b": 2, "c": 10},
+        {"a": 1, "b": 3, "c": 20},
+        {"a": 1, "b": -1, "c": 30},
+    ]
 
 
 def test_table_wide_to_long():

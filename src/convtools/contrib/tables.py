@@ -441,9 +441,9 @@ class Table:
 
         def parse_jsonl(buffer):
             for line in buffer:
-                line = line.strip()
-                if line:
-                    yield json.loads(line)
+                trimmed_line = line.strip()
+                if trimmed_line:
+                    yield json.loads(trimmed_line)
 
         rows = parse_jsonl(buffer)
 
@@ -933,7 +933,9 @@ class Table:
             pending_changes=ColumnChanges.MUTATE,
         )
 
-    def explode(self, column_name: str, *other_column_names: str):
+    def explode(
+        self, column_name: str, *other_column_names: str, fill_value=None
+    ):
         """Explode a table by unnesting columns with iterables.
 
         When multiple columns are provided, they are exploded together using
@@ -967,6 +969,8 @@ class Table:
         Args:
           column_name: column with iterables to be exploded
           other_column_names: additional columns to explode together
+          fill_value: value to use for padding shorter arrays when exploding
+            multiple columns together. Defaults to None.
         """
         columns = self.columns
         all_column_names = (column_name,) + other_column_names
@@ -1028,7 +1032,8 @@ class Table:
                     rows=This,
                     values=c_zipped_values,
                     zipped=NaiveConversion(zip_longest).call(
-                        *(c_row.item(idx) for idx in indices)
+                        *(c_row.item(idx) for idx in indices),
+                        fillvalue=fill_value,
                     ),
                 )
                 .execute(self.into_iter_rows(tuple, include_header=False))
