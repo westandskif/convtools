@@ -54,6 +54,10 @@ Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
     * Mode - most frequent value, skips None
     * TopK - top K most frequent values, skips None
       e.g. top 3 most frequent ones: c.ReduceFuncs.TopK(3, c.item("x"))
+    * FirstN - collect first N values as a list
+      e.g.: c.ReduceFuncs.FirstN(3, c.item("x"))
+    * LastN - collect last N values as a list
+      e.g.: c.ReduceFuncs.LastN(3, c.item("x"))
     * Variance - sample variance, skips None; returns None for n<2
     * StdDev - sample standard deviation, skips None
     * PopulationVariance - population variance, skips None
@@ -80,6 +84,10 @@ Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
     * DictCountDistinct
     * DictFirst
     * DictLast
+    * DictFirstN - dict values are lists of first N encountered values
+      e.g.: c.ReduceFuncs.DictFirstN(3, c.item("key"), c.item("x"))
+    * DictLastN - dict values are lists of last N encountered values
+      e.g.: c.ReduceFuncs.DictLastN(3, c.item("key"), c.item("x"))
 
 	AND LASTLY YOU CAN DEFINE YOUR OWN REDUCER BY PASSING ANY REDUCE FUNCTION
 	OF TWO ARGUMENTS TO ``c.reduce`` (it may be slower because of extra
@@ -122,6 +130,8 @@ The table below gives the following info on builtin reducers:
 | Sum               |         | v      |         | 0       | v          | v                |
 | SumOrNone         |         | v      |         | None    |            | v                |
 | TopK              |         | v      |         | None    | v          |                  |
+| FirstN            |         | v      |         | None    |            | v                |
+| LastN             |         | v      |         | None    |            |                  |
 | Variance          |         | v      |         | None    | v          |                  |
 | StdDev            |         | v      |         | None    | v          |                  |
 | PopulationVariance|         | v      |         | None    | v          |                  |
@@ -138,6 +148,8 @@ The table below gives the following info on builtin reducers:
 | DictMin           |         |        | v       | None    | v          |                  |
 | DictSum           |         |        | v       | None    | v          |                  |
 | DictSumOrNone     |         |        | v       | None    |            |                  |
+| DictFirstN        |         |        | v       | None    |            |                  |
+| DictLastN         |         |        | v       | None    |            |                  |
 
 
 

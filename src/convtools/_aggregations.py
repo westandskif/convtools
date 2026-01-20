@@ -11,7 +11,7 @@ from ast import Name as AstName
 from ast import Pass as AstPass
 from ast import Subscript as AstSubscript
 from ast import parse as ast_parse
-from collections import defaultdict
+from collections import defaultdict, deque
 from decimal import Decimal
 from math import ceil
 from typing import Any, Callable, ClassVar, Dict, Sequence, Tuple, Union, cast
@@ -760,6 +760,55 @@ class LastReducer(SingleExpressionReducer):
     reduce_lines = ("%(result)s = %(value0)s",)
 
 
+class FirstNReducer(SingleExpressionReducer):
+    """Return the first N values."""
+
+    default = NaiveConversion(None)
+    internals_are_public = True
+    works_with_not_none_only = (False,)
+
+    def __init__(self, n: int, expr, *args, **kwargs):
+        if not isinstance(n, int):
+            raise TypeError("n must be an integer")
+        if n < 1:
+            raise ValueError("n must be a positive integer")
+        self.n = n
+        super().__init__(expr, *args, **kwargs)
+
+    def prepare_first_lines(self, _):
+        return ("%(result)s = [%(value0)s]",)
+
+    def reduce_lines(self, _):
+        return (
+            f"if len(%(result)s) < {self.n}: %(result)s.append(%(value0)s)",
+        )
+
+
+class LastNReducer(SingleExpressionReducer):
+    """Return the last N values."""
+
+    default = NaiveConversion(None)
+    internals_are_public = False
+    works_with_not_none_only = (False,)
+
+    def __init__(self, n: int, expr, *args, **kwargs):
+        if not isinstance(n, int):
+            raise TypeError("n must be an integer")
+        if n < 1:
+            raise ValueError("n must be a positive integer")
+        self.n = n
+        super().__init__(expr, *args, **kwargs)
+
+    def prepare_first_lines(self, ctx):
+        ctx["__deque__"] = deque
+        return (f"%(result)s = __deque__([%(value0)s], maxlen={self.n})",)
+
+    def reduce_lines(self, _):
+        return ("%(result)s.append(%(value0)s)",)
+
+    post_conversion = This.as_type(list)
+
+
 class MaxRowReducer(SingleExpressionReducer):
     """Return a row with a max value of an argument."""
 
@@ -1260,6 +1309,71 @@ class DictLastReducer(BaseDictReducer):
         ).or_(self.default)
 
 
+class DictFirstNReducer(BaseDictReducer):
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with FirstN (first N values per key).
+    """
+
+    default = NaiveConversion(None)
+    internals_are_public = False
+    works_with_not_none_only = (False, False)
+
+    def __init__(self, n: int, key_expr, value_expr, *args, **kwargs):
+        if not isinstance(n, int):
+            raise TypeError("n must be an integer")
+        if n < 1:
+            raise ValueError("n must be a positive integer")
+        self.n = n
+        super().__init__(key_expr, value_expr, *args, **kwargs)
+
+    def prepare_first_lines(self, _):
+        return ("%(result)s = { %(value0)s: [%(value1)s] }",)
+
+    def reduce_lines(self, _):
+        return (
+            "if %(value0)s not in %(result)s:",
+            "    %(result)s[%(value0)s] = [%(value1)s]",
+            f"elif len(%(result)s[%(value0)s]) < {self.n}:",
+            "    %(result)s[%(value0)s].append(%(value1)s)",
+        )
+
+
+class DictLastNReducer(BaseDictReducer):
+    """Reduce two values to a dict.
+
+    Keys: defined by the first argument
+    Values: defined by the second argument, reduced with LastN (last N values per key).
+    """
+
+    default = NaiveConversion(None)
+    internals_are_public = False
+    works_with_not_none_only = (False, False)
+
+    def __init__(self, n: int, key_expr, value_expr, *args, **kwargs):
+        if not isinstance(n, int):
+            raise TypeError("n must be an integer")
+        if n < 1:
+            raise ValueError("n must be a positive integer")
+        self.n = n
+        super().__init__(key_expr, value_expr, *args, **kwargs)
+
+    def prepare_first_lines(self, ctx):
+        ctx["__deque__"] = deque
+        return (
+            f"%(result)s = defaultdict(lambda: __deque__(maxlen={self.n}))",
+            "%(result)s[%(value0)s].append(%(value1)s)",
+        )
+
+    def reduce_lines(self, _):
+        return ("%(result)s[%(value0)s].append(%(value1)s)",)
+
+    post_conversion = InlineExpr(
+        "{{k_: list(v_) for k_, v_ in {}.items()}}"
+    ).pass_args(This)
+
+
 class ReducerDispatcher:
     def __call__(self, *args, **kwargs) -> "BaseConversion":
         raise NotImplementedError
@@ -1468,6 +1582,10 @@ class ReduceFuncs:
     First = FirstReducer
     #: Stores the last value per group
     Last = LastReducer
+    #: Stores the first N values per group
+    FirstN = FirstNReducer
+    #: Stores the last N values per group
+    LastN = LastNReducer
 
     #: Calculates the arithmetic mean or weighted mean.
     Average = AverageReducerDispatcher()
@@ -1527,6 +1645,10 @@ class ReduceFuncs:
     DictFirst = DictFirstReducer
     #: Aggregates values into dict; dict values are last values per group
     DictLast = DictLastReducer
+    #: Aggregates values into dict; dict values are first N values per group
+    DictFirstN = DictFirstNReducer
+    #: Aggregates values into dict; dict values are last N values per group
+    DictLastN = DictLastNReducer
 
 
 class GroupBy:

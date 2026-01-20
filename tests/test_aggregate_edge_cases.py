@@ -737,3 +737,179 @@ def test_group_by_dict_reducer_optimization():
         "f11": {11: 23, 35: 47},
     }
     assert code_str.count("row_[0]") == 18 and code_str.count("row_[1]") == 2
+
+
+# FirstN / LastN reducer tests
+
+
+@pytest.mark.parametrize("n", [0, -1, -100])
+def test_firstn_lastn_invalid_n(n):
+    with pytest.raises(ValueError):
+        c.ReduceFuncs.FirstN(n, c.this)
+    with pytest.raises(ValueError):
+        c.ReduceFuncs.LastN(n, c.this)
+
+
+@pytest.mark.parametrize("n", ["abc", 1.5, c.item(0)])
+def test_firstn_lastn_non_integer_n(n):
+    with pytest.raises(TypeError):
+        c.ReduceFuncs.FirstN(n, c.this)
+    with pytest.raises(TypeError):
+        c.ReduceFuncs.LastN(n, c.this)
+
+
+def test_firstn_aggregate():
+    assert c.aggregate(c.ReduceFuncs.FirstN(3, c.this)).execute(range(10)) == [
+        0,
+        1,
+        2,
+    ]
+
+
+def test_lastn_aggregate():
+    assert c.aggregate(c.ReduceFuncs.LastN(3, c.this)).execute(range(10)) == [
+        7,
+        8,
+        9,
+    ]
+
+
+def test_firstn_empty():
+    assert c.aggregate(c.ReduceFuncs.FirstN(5, c.this)).execute([]) is None
+
+
+def test_lastn_empty():
+    assert c.aggregate(c.ReduceFuncs.LastN(5, c.this)).execute([]) is None
+
+
+def test_firstn_n_exceeds_items():
+    assert c.aggregate(c.ReduceFuncs.FirstN(100, c.this)).execute(
+        range(5)
+    ) == [0, 1, 2, 3, 4]
+
+
+def test_lastn_n_exceeds_items():
+    assert c.aggregate(c.ReduceFuncs.LastN(100, c.this)).execute(range(5)) == [
+        0,
+        1,
+        2,
+        3,
+        4,
+    ]
+
+
+def test_firstn_with_default():
+    assert (
+        c.aggregate(c.ReduceFuncs.FirstN(3, c.this, default=[])).execute([])
+        == []
+    )
+
+
+def test_lastn_with_default():
+    assert (
+        c.aggregate(c.ReduceFuncs.LastN(3, c.this, default=[])).execute([])
+        == []
+    )
+
+
+# DictFirstN / DictLastN reducer tests
+
+
+@pytest.mark.parametrize("n", [0, -1, -100])
+def test_dictfirstn_dictlastn_invalid_n(n):
+    with pytest.raises(ValueError):
+        c.ReduceFuncs.DictFirstN(n, c.item(0), c.item(1))
+    with pytest.raises(ValueError):
+        c.ReduceFuncs.DictLastN(n, c.item(0), c.item(1))
+
+
+@pytest.mark.parametrize("n", ["abc", 1.5, c.item(0)])
+def test_dictfirstn_dictlastn_non_integer_n(n):
+    with pytest.raises(TypeError):
+        c.ReduceFuncs.DictFirstN(n, c.item(0), c.item(1))
+    with pytest.raises(TypeError):
+        c.ReduceFuncs.DictLastN(n, c.item(0), c.item(1))
+
+
+def test_dictfirstn_aggregate():
+    data = [("a", 1), ("a", 2), ("a", 3), ("b", 10), ("b", 20)]
+    result = c.aggregate(
+        c.ReduceFuncs.DictFirstN(2, c.item(0), c.item(1))
+    ).execute(data)
+    assert result == {"a": [1, 2], "b": [10, 20]}
+
+
+def test_dictlastn_aggregate():
+    data = [("a", 1), ("a", 2), ("a", 3), ("b", 10), ("b", 20)]
+    result = c.aggregate(
+        c.ReduceFuncs.DictLastN(2, c.item(0), c.item(1))
+    ).execute(data)
+    assert result == {"a": [2, 3], "b": [10, 20]}
+
+
+def test_dictfirstn_empty():
+    assert (
+        c.aggregate(c.ReduceFuncs.DictFirstN(5, c.item(0), c.item(1))).execute(
+            []
+        )
+        is None
+    )
+
+
+def test_dictlastn_empty():
+    assert (
+        c.aggregate(c.ReduceFuncs.DictLastN(5, c.item(0), c.item(1))).execute(
+            []
+        )
+        is None
+    )
+
+
+def test_dictfirstn_n_exceeds_items():
+    data = [("a", 1), ("a", 2), ("b", 10)]
+    result = c.aggregate(
+        c.ReduceFuncs.DictFirstN(100, c.item(0), c.item(1))
+    ).execute(data)
+    assert result == {"a": [1, 2], "b": [10]}
+
+
+def test_dictlastn_n_exceeds_items():
+    data = [("a", 1), ("a", 2), ("b", 10)]
+    result = c.aggregate(
+        c.ReduceFuncs.DictLastN(100, c.item(0), c.item(1))
+    ).execute(data)
+    assert result == {"a": [1, 2], "b": [10]}
+
+
+def test_dictfirstn_with_default():
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.DictFirstN(3, c.item(0), c.item(1), default={})
+        ).execute([])
+        == {}
+    )
+
+
+def test_dictlastn_with_default():
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.DictLastN(3, c.item(0), c.item(1), default={})
+        ).execute([])
+        == {}
+    )
+
+
+def test_dictfirstn_with_where():
+    data = [("a", 1), ("a", 2), ("a", 3), ("a", 4), ("b", 10), ("b", 20)]
+    result = c.aggregate(
+        c.ReduceFuncs.DictFirstN(2, c.item(0), c.item(1), where=c.item(1) > 1)
+    ).execute(data)
+    assert result == {"a": [2, 3], "b": [10, 20]}
+
+
+def test_dictlastn_with_where():
+    data = [("a", 1), ("a", 2), ("a", 3), ("a", 4), ("b", 10), ("b", 20)]
+    result = c.aggregate(
+        c.ReduceFuncs.DictLastN(2, c.item(0), c.item(1), where=c.item(1) < 20)
+    ).execute(data)
+    assert result == {"a": [3, 4], "b": [10]}
