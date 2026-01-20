@@ -215,7 +215,7 @@ class CodeParams:
         self.name_to_uses[name] += 1
         self.params.append(name)
 
-        names_to_check_deps = [name]
+        names_to_check_deps = deque([name])
         visited_deps = set()
         while names_to_check_deps:
             name_ = names_to_check_deps.pop()
@@ -224,7 +224,7 @@ class CodeParams:
                 self.name_to_uses[dep_] += 2
                 if dep_ in visited_deps:
                     raise ValueError("cyclic dependency detected", name, dep_)
-                names_to_check_deps.insert(0, dep_)
+                names_to_check_deps.appendleft(dep_)
 
     def create_and_use_param(self, code, name):
         self.create(code, name)
