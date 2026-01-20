@@ -796,10 +796,58 @@ class BaseConversion(Generic[CT]):
     def is_not(self, arg) -> "InlineExpr":
         return InlineExpr("{0} is not {1}").pass_args(self, arg)
 
-    def in_(self, arg) -> "InlineExpr":
+    def in_(self, arg) -> "BaseConversion":
+        # Use global ensure_conversion to avoid modifying self.contents
+        arg = ensure_conversion(arg)
+
+        # Optimization: x in [a] → x == a
+        if isinstance(arg, (List_, Set_, Tuple_)):
+            if (
+                arg.conversions is not None
+                and len(arg.conversions) == 1
+                and not arg.conditions
+            ):
+                return self == arg.conversions[0]
+        elif isinstance(arg, NaiveConversion):
+            value = arg.value
+            if (
+                isinstance(value, (list, set, tuple, frozenset))
+                and len(value) == 1
+            ):
+                (single_element,) = (
+                    value
+                    if isinstance(value, (list, tuple))
+                    else (next(iter(value)),)
+                )
+                return self == single_element
+
         return InlineExpr("{0} in {1}").pass_args(self, arg)
 
-    def not_in(self, arg) -> "InlineExpr":
+    def not_in(self, arg) -> "BaseConversion":
+        # Use global ensure_conversion to avoid modifying self.contents
+        arg = ensure_conversion(arg)
+
+        # Optimization: x not in [a] → x != a
+        if isinstance(arg, (List_, Set_, Tuple_)):
+            if (
+                arg.conversions is not None
+                and len(arg.conversions) == 1
+                and not arg.conditions
+            ):
+                return self != arg.conversions[0]
+        elif isinstance(arg, NaiveConversion):
+            value = arg.value
+            if (
+                isinstance(value, (list, set, tuple, frozenset))
+                and len(value) == 1
+            ):
+                (single_element,) = (
+                    value
+                    if isinstance(value, (list, tuple))
+                    else (next(iter(value)),)
+                )
+                return self != single_element
+
         return InlineExpr("{0} not in {1}").pass_args(self, arg)
 
     def eq(self, b, *args) -> "Eq":

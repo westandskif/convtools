@@ -1,3 +1,8 @@
+## 1.17.0 (2026-01-21)
+
+- sped up `in_` and `not_in` in cases where static single-item sequence is passed
+- added new c.ReduceFuncs: FirstN, LastN, DictFirstN, DictLastN
+
 ## 1.16.0 (2026-01-20)
 
 **Features**

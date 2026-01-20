@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import deque, namedtuple
 from datetime import date
 from types import GeneratorType
 from unittest.mock import MagicMock, Mock
@@ -302,7 +302,11 @@ def test_naive_conversion_item():
     assert c.naive(True).is_not(True).execute(100) is False
     assert c.naive(1).in_({1, 2}).execute(100) is True
     assert c.naive(1).in_({3, 2}).execute(100) is False
+    assert c.naive(1).in_(c.naive({1, 2})).execute(100) is True
+    assert c.naive(1).in_({1: 2}).execute(100) is True
     assert c.naive(1).not_in({3, 2}).execute(100) is True
+    assert c.naive(1).not_in(c.naive({3, 2})).execute(100) is True
+    assert c.naive(1).not_in({3: 2}).execute(100) is True
     assert c.naive(1).eq(1).execute(100) is True
     assert (c.naive(1) == 1).execute(100) is True
     assert c.naive(1).not_eq(1).execute(100) is False
@@ -369,6 +373,70 @@ def test_naive_conversion_item():
 
 def test_item():
     assert c.item("key1").as_type(int).execute({"key1": "15"}) == 15
+
+
+def test_in_single_element_optimization():
+    """Test that in_ with single-element collections is optimized to ==."""
+    # Functional tests - verify the optimization produces correct results
+    # These tests confirm both correctness and optimization (== is faster than in)
+    assert c.this.in_([1]).execute(1) is True
+    assert c.this.in_([1]).execute(2) is False
+    assert c.this.in_({1}).execute(1) is True
+    assert c.this.in_({1}).execute(2) is False
+    assert c.this.in_((1,)).execute(1) is True
+    assert c.this.in_(c.naive((1,))).execute(1) is True
+    assert c.this.in_((1,)).execute(2) is False
+    assert c.this.in_(c.list(1)).execute(1) is True
+    assert c.this.in_(c.list(1)).execute(2) is False
+    assert c.this.not_in([1]).execute(1) is False
+    assert c.this.not_in([1]).execute(2) is True
+    assert c.this.not_in(c.naive([1])).execute(2) is True
+
+    # Test with c.list (List_)
+    code_str = get_code_str(c.this.in_(c.list(1)))
+    assert "==" in code_str and " in " not in code_str
+
+    # Test with c.set (Set_)
+    code_str = get_code_str(c.this.in_(c.set(1)))
+    assert "==" in code_str and " in " not in code_str
+
+    # Test with c.tuple (Tuple_)
+    code_str = get_code_str(c.this.in_(c.tuple(1)))
+    assert "==" in code_str and " in " not in code_str
+
+    # Test with NaiveConversion (list)
+    code_str = get_code_str(c.this.in_([1]))
+    assert "==" in code_str and " in " not in code_str
+
+    # Test with NaiveConversion (set)
+    code_str = get_code_str(c.this.in_({1}))
+    assert "==" in code_str and " in " not in code_str
+
+    # Test with NaiveConversion (tuple)
+    code_str = get_code_str(c.this.in_((1,)))
+    assert "==" in code_str and " in " not in code_str
+
+    # Test with NaiveConversion (frozenset)
+    code_str = get_code_str(c.this.in_(frozenset({1})))
+    assert "==" in code_str and " in " not in code_str
+
+    # Test not_in with single-element collections
+    code_str = get_code_str(c.this.not_in([1]))
+    assert "!=" in code_str and " not in " not in code_str
+
+    code_str = get_code_str(c.this.not_in(c.list(1)))
+    assert "!=" in code_str and " not in " not in code_str
+
+    # Multi-element collections should NOT be optimized
+    code_str = get_code_str(c.this.in_([1, 2]))
+    assert " in " in code_str and "==" not in code_str
+
+    code_str = get_code_str(c.this.not_in([1, 2]))
+    assert " not in " in code_str and "!=" not in code_str
+
+    # Empty collections should NOT be optimized
+    code_str = get_code_str(c.this.in_([]))
+    assert " in " in code_str
 
 
 def test_input_arg():
