@@ -2,7 +2,7 @@ pytest
 pytest-cov
 pytest-benchmark
 
-black
+black==25.12.0
 isort
 mypy
 pylint
