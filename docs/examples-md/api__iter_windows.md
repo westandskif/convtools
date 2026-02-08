@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 
@@ -17,19 +14,3 @@ assert converter(range(5)) == [
 ]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def _converter(data_, *, __iter_windows=__naive_values__["__iter_windows"]):
-    try:
-        return list(__iter_windows(data_, 3, 1))
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

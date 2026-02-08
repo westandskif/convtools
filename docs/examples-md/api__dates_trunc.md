@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from datetime import date, datetime
 from convtools import conversion as c
@@ -69,39 +66,3 @@ assert converter(
 ]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def _converter(data_, *, __date_trunc_to_month=__naive_values__["__date_trunc_to_month"]):
-    try:
-        return [__date_trunc_to_month(_i, 1, 0, 1) for _i in data_]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_, *, __date_trunc_to_month=__naive_values__["__date_trunc_to_month"]):
-    try:
-        return [__date_trunc_to_month(_i, 1, 0, 3) for _i in data_]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_, *, __datetime_trunc_to_microsecond=__naive_values__["__datetime_trunc_to_microsecond"]):
-    try:
-        return [
-            {
-                "start": __datetime_trunc_to_microsecond(_i, 28800000000, 21600000000, 1),
-                "end_inclusive": __datetime_trunc_to_microsecond(_i, 28800000000, 21600000000, 3),
-            }
-            for _i in data_
-        ]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

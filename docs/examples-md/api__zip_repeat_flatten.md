@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 
@@ -24,19 +21,3 @@ assert converter([{"a": 1, "b": [2, 3]}, {"a": 10, "b": [4, 5]}]) == [
 ]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def _converter(data_, *, __from_iterable=__naive_values__["__from_iterable"], __repeat=__naive_values__["__repeat"]):
-    try:
-        return list(__from_iterable((zip(__repeat(_i["a"]), _i["b"]) for _i in data_)))
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

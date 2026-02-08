@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 
@@ -27,25 +24,3 @@ assert result == [
 ]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def _sorting_key_wrapper():
-    def _sorting_key(data_):
-        return (data_["a"] is not None, ReversedOrdering(data_["a"]), data_["b"])
-
-    return _sorting_key
-
-def _converter(data_):
-    try:
-        return _sorting_key_wrapper()
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from datetime import datetime
 from convtools import conversion as c
@@ -39,61 +36,3 @@ converter_3 = (
 assert converter_3(input_data) == expected_output
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def pipe_(_labels, input_):
-    _labels["a"] = input_["a"]
-    return input_
-
-def _converter(data_):
-    _labels = {}
-    try:
-        return [
-            {
-                "a": _labels["a"],
-                "b": _i,
-            }
-            for _i in pipe_(_labels, data_)["b"]
-        ]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def pipe_(_labels, input_):
-    _labels["a"] = input_["a"]
-    return [
-        {
-            "a": _labels["a"],
-            "b": _i,
-        }
-        for _i in input_["b"]
-    ]
-
-def _converter(data_):
-    _labels = {}
-    try:
-        return pipe_(_labels, data_)
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_, *, __repeat=__naive_values__["__repeat"]):
-    try:
-        return [
-            {
-                "a": _i[0],
-                "b": _i[1],
-            }
-            for _i in zip(__repeat(data_["a"]), data_["b"])
-        ]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

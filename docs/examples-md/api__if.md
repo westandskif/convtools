@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 
@@ -28,35 +25,3 @@ converter = (
 assert converter([-1, 0, 1, 20]) == [-2, 100, 0.5, 2]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def _converter(data_):
-    try:
-        return [(((_i * 2) if (_i < 0) else (_i / 2))) for _i in data_]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def if_multiple_(data_):
-    if data_ < 0:
-        return data_ * 2
-    if data_ == 0:
-        return 100
-    if data_ < 10:
-        return data_ / 2
-    return data_ / 10
-
-def _converter(data_):
-    try:
-        return [if_multiple_(_i) for _i in data_]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

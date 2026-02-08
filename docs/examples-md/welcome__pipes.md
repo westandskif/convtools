@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 
@@ -31,61 +28,3 @@ assert converter(input_data) == [[{"id": "123", "quantity": 123}]]
 conversion.execute(input_data)
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def take_while_q(it_q):
-    for item_q in it_q:
-        if item_q["quantity"] < 1000:
-            yield item_q
-        else:
-            break
-
-def _chunk_by(items_):
-    items_ = iter(items_)
-    try:
-        item_ = next(items_)
-    except StopIteration:
-        return
-    chunk_ = [item_]
-    chunk_item_signature = item_["id"]
-    size_ = 1
-    for item_ in items_:
-        new_item_signature = item_["id"]
-        if chunk_item_signature == new_item_signature and size_ < 1000:
-            chunk_.append(item_)
-            size_ = size_ + 1
-        else:
-            yield chunk_
-            chunk_ = [item_]
-            chunk_item_signature = new_item_signature
-            size_ = 1
-    yield chunk_
-
-def pipe_i_e(input_):
-    return list(_chunk_by(input_))
-
-def pipe_(input_):
-    return pipe_i_e(take_while_q(input_))
-
-def _converter(data_):
-    try:
-        return pipe_(
-            (
-                {
-                    "id": _i["StoreID"].strip(),
-                    "quantity": int(_i["Quantity"]),
-                }
-                for _i in data_
-            )
-        )
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 
@@ -23,68 +20,3 @@ assert converter([0, 1, 2, 3, 4, 5, 6, 7]) == [
 ]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def aggregate_(_none, data_):
-    agg_data__v0 = agg_data__v1 = agg_data__v2 = _none
-
-    checksum_ = 0
-    it_ = iter(data_)
-    for row_ in it_:
-        if agg_data__v0 is _none:
-            agg_data__v2 = row_ or 0
-            checksum_ += 1
-            agg_data__v1 = row_
-            pass
-            agg_data__v0 = row_
-            pass
-        else:
-            agg_data__v2 += row_ or 0
-            agg_data__v1 = row_
-        if checksum_ == 1:
-            globals()["__BROKEN_EARLY__"] = True  # DEBUG ONLY
-            break
-    for row_ in it_:
-        agg_data__v2 += row_ or 0
-        agg_data__v1 = row_
-
-    return {
-        "x": ((None if (agg_data__v0 is _none) else agg_data__v0)),
-        "y": ((None if (agg_data__v1 is _none) else agg_data__v1)),
-        "z": ((0 if (agg_data__v2 is _none) else agg_data__v2)),
-    }
-
-def _chunk_by(items_):
-    items_ = iter(items_)
-    try:
-        item_ = next(items_)
-    except StopIteration:
-        return
-    chunk_ = [item_]
-    size_ = 1
-    for item_ in items_:
-        if size_ < 3:
-            chunk_.append(item_)
-            size_ = size_ + 1
-        else:
-            yield chunk_
-            chunk_ = [item_]
-            size_ = 1
-    yield chunk_
-
-def _converter(data_):
-    global __none__
-    _none = __none__
-    try:
-        return [aggregate_(_none, _i) for _i in _chunk_by(data_)]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

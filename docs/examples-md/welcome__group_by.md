@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 
@@ -30,52 +27,3 @@ assert conv(input_data) == [
 ]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-class AggData_:
-    __slots__ = ["v0", "v1"]
-
-    def __init__(self, _none=__none__):
-        self.v0 = _none
-        self.v1 = _none
-
-def group_by_(_none, data_):
-    signature_to_agg_data_ = defaultdict(AggData_)
-
-    for row_ in data_:
-        _tmp0_ = row_["a"]
-        agg_data_ = signature_to_agg_data_[row_["b"]]
-        if _tmp0_ is not None:
-            if agg_data_.v1 is _none:
-                agg_data_.v1 = _tmp0_
-            elif agg_data_.v1 < _tmp0_:
-                agg_data_.v1 = _tmp0_
-        if _tmp0_ > 5:
-            if agg_data_.v0 is _none:
-                agg_data_.v0 = _tmp0_
-
-    return [
-        {
-            "b": signature_,
-            "a_first": ((None if (agg_data_.v0 is _none) else agg_data_.v0)),
-            "a_max": ((None if (agg_data_.v1 is _none) else agg_data_.v1)),
-        }
-        for signature_, agg_data_ in signature_to_agg_data_.items()
-    ]
-
-def _converter(data_):
-    global __none__
-    _none = __none__
-    try:
-        return group_by_(_none, data_)
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

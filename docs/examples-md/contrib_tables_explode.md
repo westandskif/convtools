@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 from convtools.contrib.tables import Table
@@ -39,68 +36,3 @@ with c.OptionsCtx() as options:
     ]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def _converter(data_):
-    try:
-        return (
-            (
-                _i["a"],
-                _i["b"],
-            )
-            for _i in data_
-        )
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_):
-    try:
-        return (
-            (
-                row_[0],
-                value_,
-            )
-            for row_ in data_
-            for value_ in row_[1]
-        )
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_):
-    try:
-        return (
-            (
-                _i["a"],
-                _i["b"],
-                _i["c"],
-            )
-            for _i in data_
-        )
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_, *, __zip_longest=__naive_values__["__zip_longest"]):
-    try:
-        return (
-            (
-                row_[0],
-                values_[0],
-                values_[1],
-            )
-            for row_ in data_
-            for values_ in __zip_longest(row_[1], row_[2])
-        )
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

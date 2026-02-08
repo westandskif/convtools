@@ -64,3 +64,37 @@ exclude_docs: |
 watch:
   - docs
   - src/convtools
+
+plugins:
+- llmstxt:
+    base_url: https://convtools.readthedocs.io/en/latest/
+    # full_output: llms-full.txt
+    markdown_description: |
+      **convtools** lets you declare data transformations in plain Python, then
+      compiles them into tiny, optimized Python functions at runtime. You keep your
+      data in native iterables (lists, dicts, generators, CSV streams)—no heavy
+      container required.
+    sections:
+      Getting started:
+        - README.md
+        - basics.md
+        - collections.md
+        - conditions_n_pipes.md
+      Core concepts:
+        - conditions_n_pipes.md
+        - aggregations.md
+        - joins.md
+      Advanced:
+        - dates.md
+        - window_funcs.md
+        - exceptions.md
+        - mutations.md
+      Tabular data stream processing:
+        - contrib_tables.md
+      Buffer reading:
+        - contrib_fs.md
+      Changelogs:
+        - changelog.md
+        - breaking_changes.md
+      Benefits:
+        - benefits.md

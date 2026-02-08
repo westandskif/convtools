@@ -45,25 +45,7 @@ def write_md_example(raw_example_path, output):
         ).rsplit(".", 1)[0]
     )
     with open(raw_example_path, "r") as f_in:
-        if output:
-            new_content = f"""/// tab | convtools
-    new: true
-
-```python
-{f_in.read()}
-```
-///
-
-/// tab | debug stdout
-```python
-{output}
-```
-{{ data-search-exclude }}
-///
-
-"""
-        else:
-            new_content = f"""```python
+        new_content = f"""```python
 {f_in.read()}
 ```
 """

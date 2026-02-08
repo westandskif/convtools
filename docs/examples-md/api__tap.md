@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 
@@ -17,25 +14,3 @@ converter = c.list_comp(
 assert converter(input_data, data={"d": 4}) == [{"b": 2, "c": 3, "d": 4}]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def tap__(data, data_):
-    data_["c"] = data_["a"] + data_["b"]
-    data_.pop("a")
-    data_.update(data)
-    return data_
-
-def _converter(data_, *, data):
-    try:
-        return [tap__(data, _i) for _i in data_]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

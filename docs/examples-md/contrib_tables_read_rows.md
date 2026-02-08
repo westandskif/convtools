@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from convtools import conversion as c
 from convtools.contrib.tables import Table
@@ -44,67 +41,3 @@ with c.OptionsCtx() as options:
     ) == [("a", "b"), (1, 2), (2, 3)]
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def _converter(data_):
-    try:
-        return (
-            {
-                "COLUMN_0": _i[0],
-                "COLUMN_1": _i[1],
-                "COLUMN_2": _i[2],
-            }
-            for _i in data_
-        )
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_):
-    try:
-        return (
-            {
-                "a": _i[0],
-                "b": _i[1],
-                "c": _i[2],
-            }
-            for _i in data_
-        )
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_):
-    try:
-        return (
-            {
-                "a": _i[0],
-                "b": _i[1],
-                "c": _i[2],
-            }
-            for _i in data_
-        )
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_):
-    try:
-        return (
-            (
-                _i["a"],
-                _i["b"],
-            )
-            for _i in data_
-        )
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

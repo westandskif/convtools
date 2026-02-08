@@ -1,6 +1,3 @@
-/// tab | convtools
-    new: true
-
 ```python
 from datetime import datetime
 from convtools import conversion as c
@@ -29,33 +26,3 @@ assert (
 ) == datetime(2000, 12, 31)
 
 ```
-///
-
-/// tab | debug stdout
-```python
-def _converter(data_, *, __v=__naive_values__["__v"], __strptime=__naive_values__["__strptime"]):
-    try:
-        return __strptime(data_, __v)
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_, *, __datetime=__naive_values__["__datetime"], __v=__naive_values__["__v"]):
-    try:
-        return __datetime.strptime(data_, __v)
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-def _converter(data_, *, __v=__naive_values__["__v"], __strptime=__naive_values__["__strptime"]):
-    try:
-        return __strptime(data_, __v)
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-
-
-```
-{ data-search-exclude }
-///
-

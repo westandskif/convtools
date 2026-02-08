@@ -15,6 +15,7 @@ mdx-truly-sane-lists
 mkdocs
 mkdocs-exclude
 mkdocs-material
+mkdocs-llmstxt
 pygments
 pymdown-extensions
 
