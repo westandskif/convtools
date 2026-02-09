@@ -67,8 +67,6 @@ watch:
 
 plugins:
 - llmstxt:
-    base_url: https://convtools.readthedocs.io/en/latest/
-    # full_output: llms-full.txt
     markdown_description: |
       **convtools** lets you declare data transformations in plain Python, then
       compiles them into tiny, optimized Python functions at runtime. You keep your
