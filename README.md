@@ -40,7 +40,9 @@ pip install convtools
 
 ## Documentation
 
-**[convtools.readthedocs.io](https://convtools.readthedocs.io/en/latest/)**
+* **[convtools.readthedocs.io](https://convtools.readthedocs.io/en/latest/)**
+
+* 🤖 LLM-friendly docs: [llms.txt](https://convtools.readthedocs.io/en/latest/llms.txt) — a concise, machine-readable overview of convtools for AI assistants and code generators
 
 
 ## Group by example

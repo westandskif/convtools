@@ -123,6 +123,9 @@ the docs and the linked benchmark sources.
 * 🧪 Examples: see ["Basics"](./basics.md), ["Collections"](./collections.md),
 ["Aggregations"](./aggregations.md), ["Joins"](./joins.md) and ["Contrib /
 Tables"](./contrib_tables.md) in the docs.
+* 🤖 LLM-friendly docs:
+[llms.txt](https://convtools.readthedocs.io/en/latest/llms.txt) — a concise,
+machine-readable overview of convtools for AI assistants and code generators
 
 
 ### Contributing
