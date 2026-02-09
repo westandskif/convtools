@@ -66,6 +66,7 @@ watch:
   - src/convtools
 
 plugins:
+- search:
 - llmstxt:
     markdown_description: |
       **convtools** lets you declare data transformations in plain Python, then
