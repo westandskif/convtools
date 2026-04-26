@@ -7,7 +7,7 @@ converter = (
     .as_type(list)
     .gen_converter(debug=True)
 )
-assert converter([-1, 0, 1]) == [-2, 0, 0.5]
+assert converter([-1, 0, 1]) == [-2, 0.0, 0.5]
 
 # No. 2
 converter = (

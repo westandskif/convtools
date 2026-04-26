@@ -11,7 +11,7 @@ converter = c.format_dt("%Y-%m-%d").gen_converter(debug=True)
 assert converter(date(2020, 12, 31)) == "2020-12-31"
 
 # falls back to standard strftime()
-converter = c.format_dt("%c").gen_converter(debug=True)
-assert converter(date(2020, 12, 31)) == "Thu Dec 31 00:00:00 2020"
+converter = c.format_dt("%Y-%j").gen_converter(debug=True)
+assert converter(date(2020, 12, 31)) == "2020-366"
 
 ```
