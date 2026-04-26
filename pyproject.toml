@@ -63,6 +63,7 @@ doc = [
     "mdx-truly-sane-lists",
     "mkdocs",
     "mkdocs-exclude",
+    "mkdocs-llmstxt",
     "mkdocs-material",
     "pygments",
     "pymdown-extensions",

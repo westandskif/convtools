@@ -65,6 +65,9 @@ watch:
   - docs
   - src/convtools
 
+hooks:
+  - docs/hooks.py
+
 plugins:
 - search:
 - llmstxt:
@@ -73,27 +76,99 @@ plugins:
       compiles them into tiny, optimized Python functions at runtime. You keep your
       data in native iterables (lists, dicts, generators, CSV streams)—no heavy
       container required.
+
+      ## LLM quick guide
+
+      Install with:
+
+      ```bash
+      pip install convtools
+      ```
+
+      Current documented version: `{convtools_version}`.
+
+      Main imports:
+
+      ```python
+      from convtools import conversion as c
+      from convtools.contrib.tables import Table
+      ```
+
+      Core model:
+
+      - A conversion is a specification, not an immediate computation.
+      - Build conversion trees with `c.this`, `c.item(...)`, `c.attr(...)`,
+        `c.iter(...)`, `c.filter(...)`, `c.group_by(...)`, `c.aggregate(...)`,
+        `c.join(...)`, and other `c.*` helpers.
+      - Compile reusable functions with `.gen_converter()`; use `.execute(data)`
+        for one-off calls.
+      - `debug=True` prints the generated Python function for inspection.
+
+      Small runnable examples:
+
+      ```python
+      {llms_example_scalar}
+      ```
+
+      ```python
+      {llms_example_iter_filter}
+      ```
+
+      ```python
+      {llms_example_aggregation}
+      ```
+
+      ```python
+      {llms_example_join}
+      ```
+
+      ```python
+      {llms_example_table}
+      ```
+
+      Table notes:
+
+      - `Table` is a streaming helper for CSV-like/tabular data. It is
+        single-pass, so the underlying iterable is consumed once.
+      - `Table.into_iter_rows(...)` returns an iterator.
+      - Terminal writer methods such as `Table.into_csv(...)` and
+        `Table.into_jsonl(...)` consume the pipeline, write output, and return
+        `None`.
+
+      Common gotchas:
+
+      - Use `c.naive(value)` for constants, lookup tables, and helper functions
+        known when the converter is built.
+      - Use `c.input_arg("name")` for values supplied each time the generated
+        function is called.
+      - Inside `c.iter(...)`, `c.this` refers to the current element, not the
+        original outer input.
+      - In joins, use `c.LEFT` and `c.RIGHT` in the join condition. Equi-joins
+        can use hash-join optimization, but joins may still materialize right-side
+        data.
+      - Reducer arguments are evaluated against each input row, and reducers have
+        documented `None`, `default=`, `where=`, and `initial=` behavior.
     sections:
       Getting started:
-        - README.md
-        - basics.md
-        - collections.md
-        - conditions_n_pipes.md
+        - README.md: "Overview, installation, short examples, and when to use convtools."
+        - basics.md: "Core conversion model, placeholders, `c.naive`, `c.input_arg`, and generated-code debugging."
+        - collections.md: "Iteration, filtering, comprehensions, sorting, chunking, uniqueness, windows over iterables, and cumulative transforms."
+        - conditions_n_pipes.md: "Conditional expressions, boolean logic, pipes, labels, expectations, and debugging helpers."
       Core concepts:
-        - conditions_n_pipes.md
-        - aggregations.md
-        - joins.md
+        - conditions_n_pipes.md: "Flow control and reusable pipeline composition."
+        - aggregations.md: "`c.aggregate`, `c.group_by`, reducers, reducer defaults, `None` handling, and custom `c.reduce`."
+        - joins.md: "Sequence joins, `c.LEFT` / `c.RIGHT`, join types, multi-key and non-equi joins, duplicate behavior, and performance notes."
       Advanced:
-        - dates.md
-        - window_funcs.md
-        - exceptions.md
-        - mutations.md
+        - dates.md: "Date parsing, formatting, truncation, grids, and datetime helpers."
+        - window_funcs.md: "PostgreSQL-style window functions over Python iterables."
+        - exceptions.md: "`c.try_`, exception handling, defaults, and conditional re-raise behavior."
+        - mutations.md: "In-place item and attribute mutation helpers."
       Tabular data stream processing:
-        - contrib_tables.md
+        - contrib_tables.md: "Streaming `Table` pipelines for rows, CSV, JSONL, joins, pivots, and terminal writers."
       Buffer reading:
-        - contrib_fs.md
+        - contrib_fs.md: "File and buffer helpers for custom newline splitting."
       Changelogs:
-        - changelog.md
-        - breaking_changes.md
+        - changelog.md: "Release history."
+        - breaking_changes.md: "Compatibility and migration notes."
       Benefits:
-        - benefits.md
+        - benefits.md: "Performance rationale, benchmarks, and generated-code advantages."
