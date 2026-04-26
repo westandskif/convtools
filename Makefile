@@ -12,6 +12,9 @@ dynamic_docs_examples:
 dynamic_docs_performance:
 	python build-docs-performance.py
 
+dynamic_docs_reducers:
+	python build-docs-reducers.py
+
 docs_drop_dynamic_md:
 	rm docs/examples-md/.last_build.csv || true
 

@@ -1558,96 +1558,94 @@ class ReduceFuncs:
 
     # pylint: disable=invalid-name
 
-    #: Calculates the sum, skips false values
+    #: Sums values, skipping `None` and falsy values; default is `0`.
     Sum = SumReducer
-    #: Calculates the sum, any ``None`` makes the total sum ``None``
+    #: Sums values; any `None` makes the result `None`.
     SumOrNone = SumOrNoneReducer
 
-    #: Finds max value, skips ``None``
+    #: Returns the max value, skipping `None`.
     Max = MaxReducer
-    #: Finds a row with max value, skips ``None``
+    #: Returns the row with the max value, skipping `None` comparison values.
     MaxRow = MaxRowReducer
 
-    #: Finds min value, skips ``None``
+    #: Returns the min value, skipping `None`.
     Min = MinReducer
-    #: Finds a row with min value, skips ``None``
+    #: Returns the row with the min value, skipping `None` comparison values.
     MinRow = MinRowReducer
 
-    #: Counts objects
+    #: `Count()` counts rows; `Count(value)` counts non-`None` values.
     Count = CountReducer
-    #: Counts distinct values
+    #: Counts distinct non-`None` values.
     CountDistinct = CountDistinctReducer
 
-    #: Stores the first value per group
+    #: Returns the first encountered value.
     First = FirstReducer
-    #: Stores the last value per group
+    #: Returns the last encountered value.
     Last = LastReducer
-    #: Stores the first N values per group
+    #: Collects the first N encountered values as a list.
     FirstN = FirstNReducer
-    #: Stores the last N values per group
+    #: Collects the last N encountered values as a list.
     LastN = LastNReducer
 
-    #: Calculates the arithmetic mean or weighted mean.
+    #: Calculates the arithmetic mean or weighted mean, skipping `None`.
     Average = AverageReducerDispatcher()
-    #: Calculates the median value.
+    #: Calculates the median value, skipping `None`.
     Median = MedianReducer
-    #: Calculates sample variance using Welford's online algorithm
+    #: Calculates sample variance, skipping `None`.
     Variance = VarianceReducer
-    #: Calculates sample standard deviation
+    #: Calculates sample standard deviation, skipping `None`.
     StdDev = std_dev_reducer
-    #: Calculates population variance
+    #: Calculates population variance, skipping `None`.
     PopulationVariance = PopulationVarianceReducer
-    #: Calculates population standard deviation
+    #: Calculates population standard deviation, skipping `None`.
     PopulationStdDev = population_std_dev_reducer
-    #: Calculates sample covariance between two variables
+    #: Calculates sample covariance between two variables, skipping `None`.
     Covariance = CovarianceReducer
-    #: Calculates Pearson correlation between two variables
+    #: Calculates Pearson correlation between two variables, skipping `None`.
     Correlation = CorrelationReducer
-    #: Calculates percentile: floats in [0, 100]
+    #: Calculates a percentile from floats in `[0, 100]`, skipping `None`.
     Percentile = PercentileReducer
-    #: Calculates the most common value.
-    #: In case of multiple values, returns the last of them.
+    #: Returns the most common non-`None` value, using the last value on ties.
     Mode = ModeReducer
-    #: Returns a list of the most frequent values.
-    #: The resulting list is sorted in descending order of values frequency.
+    #: Returns the most frequent non-`None` values, sorted by descending
+    #: frequency.
     TopK = TopReducer
 
-    #: Aggregates values into array
+    #: Collects values as a list.
     Array = ArrayReducer
-    #: Aggregates distinct values into array, preserves order
+    #: Collects distinct values as a list, preserving order.
     ArrayDistinct = ArrayDistinctReducer
-    #: Aggregates values into array, sorting them in the end
+    #: Collects values as a sorted list.
     ArraySorted = ArraySortedReducer
 
-    #: Aggregates values into dict; dict values are last values per group
+    #: Builds a dict whose values are the last value per key.
     Dict = DictReducer
-    #: Aggregates values into dict; dict values are lists of group values
+    #: Builds a dict whose values are lists of values per key.
     DictArray = DictArrayReducer
-    #: Aggregates values into dict; dict values are lists of unique group
-    #: values preserves order
+    #: Builds a dict whose values are distinct lists per key, preserving order.
     DictArrayDistinct = DictArrayDistinctReducer
-    #: Aggregates values into dict; dict values are sums of group values,
-    #: skipping ``None``
+    #: Builds a dict whose values are sums per key, skipping `None`.
     DictSum = DictSumReducer
-    #: Aggregates values into dict; dict values are sums of group values,
-    #: any ``None`` makes the total sum ``None``
+    #: Builds a dict whose values are sums per key; any `None` makes that
+    #: key's result `None`.
     DictSumOrNone = DictSumOrNoneReducer
-    #: Aggregates values into dict; dict values are max group values
+    #: Builds a dict whose values are max values per key, skipping `None`.
     DictMax = DictMaxReducer
-    #: Aggregates values into dict; dict values are min group values
+    #: Builds a dict whose values are min values per key, skipping `None`.
     DictMin = DictMinReducer
-    #: Aggregates values into dict; dict values are numbers of values in groups
+    #: `DictCount(key)` counts rows per key; `DictCount(key, value)` counts
+    #: non-`None` values per key.
     DictCount = DictCountReducer
-    #: Aggregates values into dict; dict values are numbers of unique values
-    #: in groups
+    #: Builds a dict whose values are counts of distinct non-`None` values
+    #: per key.
     DictCountDistinct = DictCountDistinctReducer
-    #: Aggregates values into dict; dict values are first values per group
+    #: Builds a dict whose values are first encountered values per key.
     DictFirst = DictFirstReducer
-    #: Aggregates values into dict; dict values are last values per group
+    #: Builds a dict whose values are last encountered values per key.
     DictLast = DictLastReducer
-    #: Aggregates values into dict; dict values are first N values per group
+    #: Builds a dict whose values are first N encountered values per key.
     DictFirstN = DictFirstNReducer
-    #: Aggregates values into dict; dict values are last N values per group
+    #: Builds a dict whose values are last N encountered values per key.
     DictLastN = DictLastNReducer
 
 

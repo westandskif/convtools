@@ -30,78 +30,62 @@ for the broader context-reference rules.
 
 ## c.ReduceFuncs
 
-Here is the list of available reducers like `c.ReduceFuncs.Sum`:
+<!-- reducer-inventory:start -->
+The public reducer inventory is generated from `c.ReduceFuncs`:
 
-    * Sum - sums values, treating `None` and other falsy values such as
-      `False` as `0`; default=0
-    * SumOrNone - strict sum OR None if at least one None is encountered;
-      default=None
-    * Max - max value, skips None
-    * MaxRow - row with max value, skips None
-    * Min - min value, skips None
-    * MinRow - row with min value, skips None
-    * Count
-	    - when 0-args: count of rows
-		- when 1-args: count of not None values
-    * CountDistinct - len of resulting set of values
-    * First - first encountered value
-    * Last - last encountered value
-    * Average(value, weight=1) - simple/weighted average, skips None
-    * Median
-    * Percentile(percentile, value, interpolation="linear") - percentile value,
-      skips None;
-		interpolation is one of:
-		  - "linear"
-		  - "lower"
-		  - "higher"
-		  - "midpoint"
-		  - "nearest"
-      e.g.: c.ReduceFuncs.Percentile(95.0, c.item("x"))
-    * Mode - most frequent value, skips None
-    * TopK - top K most frequent values, skips None
-      e.g. top 3 most frequent ones: c.ReduceFuncs.TopK(3, c.item("x"))
-    * FirstN - collect first N values as a list
-      e.g.: c.ReduceFuncs.FirstN(3, c.item("x"))
-    * LastN - collect last N values as a list
-      e.g.: c.ReduceFuncs.LastN(3, c.item("x"))
-    * Variance - sample variance, skips None; returns None for n<2
-    * StdDev - sample standard deviation, skips None; returns None for n<2
-    * PopulationVariance - population variance, skips None
-    * PopulationStdDev - population standard deviation, skips None
-    * Covariance(x, y) - sample covariance between two variables, skips None
-    * Correlation(x, y) - Pearson correlation coefficient, skips None
-    * Array
-    * ArrayDistinct
-    * ArraySorted
-	    c.ReduceFuncs.ArraySorted(c.item("x"), key=lambda v: v, reverse=True)
+##### Value reducers
 
-	DICT REDUCERS ARE IN FACT AGGREGATIONS THEMSELVES, BECAUSE VALUES GET REDUCED:
-    * Dict
-	    c.ReduceFuncs.Dict(c.item("key"), c.item("x"))
-    * DictArray - dict values are lists of encountered values
-    * DictArrayDistinct - dict values are lists of unique group values,
-      preserving order
-    * DictSum - dict values are reduced by Sum
-    * DictSumOrNone
-    * DictMax
-    * DictMin
-    * DictCount
-	    - when 1-args: dict values are counts of reduced rows
-	    - when 2-args: dict values are counts of not None values
-    * DictCountDistinct
-    * DictFirst
-    * DictLast
-    * DictFirstN - dict values are lists of first N encountered values
-      e.g.: c.ReduceFuncs.DictFirstN(3, c.item("key"), c.item("x"))
-    * DictLastN - dict values are lists of last N encountered values
-      e.g.: c.ReduceFuncs.DictLastN(3, c.item("key"), c.item("x"))
+| Reducer | Description |
+| ------- | ----------- |
+| `Array` | Collects values as a list. |
+| `ArrayDistinct` | Collects distinct values as a list, preserving order. |
+| `ArraySorted` | Collects values as a sorted list. |
+| `Average` | Calculates the arithmetic mean or weighted mean, skipping `None`. |
+| `Correlation` | Calculates Pearson correlation between two variables, skipping `None`. |
+| `Count` | `Count()` counts rows; `Count(value)` counts non-`None` values. |
+| `CountDistinct` | Counts distinct non-`None` values. |
+| `Covariance` | Calculates sample covariance between two variables, skipping `None`. |
+| `First` | Returns the first encountered value. |
+| `FirstN` | Collects the first N encountered values as a list. |
+| `Last` | Returns the last encountered value. |
+| `LastN` | Collects the last N encountered values as a list. |
+| `Max` | Returns the max value, skipping `None`. |
+| `MaxRow` | Returns the row with the max value, skipping `None` comparison values. |
+| `Median` | Calculates the median value, skipping `None`. |
+| `Min` | Returns the min value, skipping `None`. |
+| `MinRow` | Returns the row with the min value, skipping `None` comparison values. |
+| `Mode` | Returns the most common non-`None` value, using the last value on ties. |
+| `Percentile` | Calculates a percentile from floats in `[0, 100]`, skipping `None`. |
+| `PopulationStdDev` | Calculates population standard deviation, skipping `None`. |
+| `PopulationVariance` | Calculates population variance, skipping `None`. |
+| `StdDev` | Calculates sample standard deviation, skipping `None`. |
+| `Sum` | Sums values, skipping `None` and falsy values; default is `0`. |
+| `SumOrNone` | Sums values; any `None` makes the result `None`. |
+| `TopK` | Returns the most frequent non-`None` values, sorted by descending frequency. |
+| `Variance` | Calculates sample variance, skipping `None`. |
 
-	AND LASTLY YOU CAN DEFINE YOUR OWN REDUCER BY PASSING ANY REDUCE FUNCTION
-	OF TWO ARGUMENTS TO ``c.reduce`` (it may be slower because of extra
-	function call):
-	  - c.reduce(lambda a, b: a + b, c.item("amount"), initial=0)
+##### Dict reducers
 
+| Reducer | Description |
+| ------- | ----------- |
+| `Dict` | Builds a dict whose values are the last value per key. |
+| `DictArray` | Builds a dict whose values are lists of values per key. |
+| `DictArrayDistinct` | Builds a dict whose values are distinct lists per key, preserving order. |
+| `DictCount` | `DictCount(key)` counts rows per key; `DictCount(key, value)` counts non-`None` values per key. |
+| `DictCountDistinct` | Builds a dict whose values are counts of distinct non-`None` values per key. |
+| `DictFirst` | Builds a dict whose values are first encountered values per key. |
+| `DictFirstN` | Builds a dict whose values are first N encountered values per key. |
+| `DictLast` | Builds a dict whose values are last encountered values per key. |
+| `DictLastN` | Builds a dict whose values are last N encountered values per key. |
+| `DictMax` | Builds a dict whose values are max values per key, skipping `None`. |
+| `DictMin` | Builds a dict whose values are min values per key, skipping `None`. |
+| `DictSum` | Builds a dict whose values are sums per key, skipping `None`. |
+| `DictSumOrNone` | Builds a dict whose values are sums per key; any `None` makes that key's result `None`. |
 
+Dict reducers aggregate into dictionaries whose values are reduced per key. See [Reducers API](#reducers-api) below for argument counts, defaults, `None` handling, `initial=` support, and edge-case notes.
+
+You can also define custom reducers with `c.reduce` by passing any two-argument reduce function, for example `c.reduce(lambda a, b: a + b, c.item("amount"), initial=0)`.
+<!-- reducer-inventory:end -->
 
 #### Reducers API
 

@@ -47,6 +47,7 @@ jobs:
           isort src tests --check
           ruff check src
           mypy --check-untyped-defs src
+          python build-docs-reducers.py --check
           ${{ matrix.os-python-env[2] }} pip install -e .
           pytest --benchmark-skip --no-cov
 

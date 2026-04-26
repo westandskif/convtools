@@ -86,39 +86,17 @@ assert conv(input_data) == {
 ```
 
 ##### Built-in reducers like `c.ReduceFuncs.First`
-    * Sum
-    * SumOrNone
-    * Max
-    * MaxRow
-    * Min
-    * MinRow
-    * Count
-    * CountDistinct
-    * First
-    * Last
-    * Average
-    * Median
-    * Percentile
-    * Mode
-    * TopK
-    * Array
-    * ArrayDistinct
-    * ArraySorted
 
-    DICT REDUCERS ARE IN FACT AGGREGATIONS THEMSELVES, BECAUSE VALUES GET REDUCED.
-    * Dict
-    * DictArray
-    * DictSum
-    * DictSumOrNone
-    * DictMax
-    * DictMin
-    * DictCount
-    * DictCountDistinct
-    * DictFirst
-    * DictLast
+<!-- reducer-inventory:start -->
+Built-in reducers are exposed as `c.ReduceFuncs.*`:
 
-    AND LASTLY YOU CAN DEFINE YOUR OWN REDUCER BY PASSING ANY REDUCE FUNCTION
-    OF TWO ARGUMENTS TO ``c.reduce``.
+* Value reducers: `Array`, `ArrayDistinct`, `ArraySorted`, `Average`, `Correlation`, `Count`, `CountDistinct`, `Covariance`, `First`, `FirstN`, `Last`, `LastN`, `Max`, `MaxRow`, `Median`, `Min`, `MinRow`, `Mode`, `Percentile`, `PopulationStdDev`, `PopulationVariance`, `StdDev`, `Sum`, `SumOrNone`, `TopK`, `Variance`
+* Dict reducers: `Dict`, `DictArray`, `DictArrayDistinct`, `DictCount`, `DictCountDistinct`, `DictFirst`, `DictFirstN`, `DictLast`, `DictLastN`, `DictMax`, `DictMin`, `DictSum`, `DictSumOrNone`
+
+Dict reducers aggregate into dictionaries whose values are reduced per key. For reducer arguments, defaults, `None` handling, and examples, see [Aggregations](https://convtools.readthedocs.io/en/latest/aggregations/#creducefuncs).
+
+You can also define custom reducers with `c.reduce` by passing any two-argument reduce function.
+<!-- reducer-inventory:end -->
 
 ---
 
