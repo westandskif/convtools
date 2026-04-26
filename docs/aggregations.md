@@ -30,9 +30,10 @@ for the broader context-reference rules.
 
 ## c.ReduceFuncs
 
-Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
+Here is the list of available reducers like `c.ReduceFuncs.Sum`:
 
-    * Sum - sums values, skips None, considering false values as 0; default=0
+    * Sum - sums values, treating `None` and other falsy values such as
+      `False` as `0`; default=0
     * SumOrNone - strict sum OR None if at least one None is encountered;
       default=None
     * Max - max value, skips None
@@ -64,7 +65,7 @@ Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
     * LastN - collect last N values as a list
       e.g.: c.ReduceFuncs.LastN(3, c.item("x"))
     * Variance - sample variance, skips None; returns None for n<2
-    * StdDev - sample standard deviation, skips None
+    * StdDev - sample standard deviation, skips None; returns None for n<2
     * PopulationVariance - population variance, skips None
     * PopulationStdDev - population standard deviation, skips None
     * Covariance(x, y) - sample covariance between two variables, skips None
@@ -78,7 +79,8 @@ Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
     * Dict
 	    c.ReduceFuncs.Dict(c.item("key"), c.item("x"))
     * DictArray - dict values are lists of encountered values
-    * DictArrayDistinct - dict values are lists of unique group (values preserves order)
+    * DictArrayDistinct - dict values are lists of unique group values,
+      preserving order
     * DictSum - dict values are reduced by Sum
     * DictSumOrNone
     * DictMax
@@ -103,10 +105,15 @@ Here is the list of available reducers like `c.ReduceFuncs.Sum` with info on:
 
 #### Reducers API
 
-Every reducer keyword arguments:
+Every reducer accepts the following keyword arguments:
 
- * `where` - a condition to filter input values of a reducer
- * `default` - a value in case a reducer hasn't encountered any values
+ * `where` - a condition evaluated for each input row before the reducer sees
+   the row's value.
+ * `default` - a value returned when the reducer hasn't reduced any values.
+ * `initial` - an initial accumulator value for reducers that support it. For
+   reducers that do not support it, passing `initial` is deprecated and v2 will
+   raise `ValueError`; prefer `default=` unless the table marks `initial` as
+   supported.
 
 The table below gives the following info on builtin reducers:
 
@@ -121,7 +128,7 @@ The table below gives the following info on builtin reducers:
 | ArrayDistinct     |         | v      |         | None    |            |                  |
 | ArraySorted       |         | v      |         | None    |            |                  |
 | Average           |         | v      |         | None    | v          |                  |
-| Count             | v       | v      |         | 0       | 1-args     | v                |
+| Count             | v       | v      |         | 0       | note 1     | v                |
 | CountDistinct     |         | v      |         | 0       | v          |                  |
 | First             |         | v      |         | None    |            |                  |
 | Last              |         | v      |         | None    |            |                  |
@@ -145,7 +152,8 @@ The table below gives the following info on builtin reducers:
 | Correlation       |         |        | v       | None    | v          |                  |
 | Dict              |         |        | v       | None    |            |                  |
 | DictArray         |         |        | v       | None    |            |                  |
-| DictCount         |         | v      | v       | None    | 2-args     |                  |
+| DictArrayDistinct |         |        | v       | None    |            |                  |
+| DictCount         |         | v      | v       | None    | note 2     |                  |
 | DictCountDistinct |         |        | v       | None    | v          |                  |
 | DictFirst         |         |        | v       | None    |            |                  |
 | DictLast          |         |        | v       | None    |            |                  |
@@ -156,3 +164,13 @@ The table below gives the following info on builtin reducers:
 | DictFirstN        |         |        | v       | None    |            |                  |
 | DictLastN         |         |        | v       | None    |            |                  |
 
+Notes:
+
+ * note 1: `Count()` counts rows; `Count(value)` counts non-`None` values.
+ * note 2: `DictCount(key)` counts rows per key; `DictCount(key, value)`
+   counts non-`None` values per key.
+
+Statistical reducers follow the usual sample/population edge cases after
+`where` and `None` filtering: `Variance` and `StdDev` return `None` for empty
+input or fewer than two reduced values; `PopulationVariance` and
+`PopulationStdDev` return `None` for empty input and `0` for one reduced value.
