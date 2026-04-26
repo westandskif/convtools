@@ -126,9 +126,10 @@ class AppliedWindow(BaseConversion):
             the same ordering key form a peer group.
 
           frame_mode: one of:
-            - "ROWS" (default): window frame slides over rows
-            - "RANGE": window frames are based on offsets between ordering keys
+            - "RANGE" (default): window frames are based on offsets between
+                ordering keys
                 of the current row and rows around
+            - "ROWS": window frame slides over rows
             - "GROUPS": window frame slides over peer groups
 
           frame_start: one of
