@@ -18,3 +18,5 @@ mkdocs:
 python:
    install:
      - requirements: ci-requirements/requirements3.10.out
+     - method: pip
+       path: .
