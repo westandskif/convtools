@@ -1,9 +1,23 @@
 # Window functions
 
-**Please, make sure you've covered [Basics](./basics.md) first.**
+/// admonition | Prerequisites
+    type: info
 
-This is SQL's `count(*) over (...)` counterpart, its interface should closely follow
+Start with [Basics](./basics.md) for conversion fundamentals,
+[Collections](./collections.md) for iterable helpers, and
+[Aggregations](./aggregations.md) for reducers used over window frames.
+///
+
+/// admonition | See also
+    type: tip
+
+For reducer behavior, see [`c.ReduceFuncs`](./aggregations.md#creducefuncs)
+and [Reducers API](./aggregations.md#reducers-api). For SQL terminology, see
 [PostgreSQL's window functions](https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS).
+///
+
+This is SQL's `count(*) over (...)` counterpart, and its interface closely
+follows PostgreSQL's window functions.
 
 It slides over a sequence with a window frame, applying reducers to each frame
 and returns their results.

@@ -1,6 +1,19 @@
 # Joins
 
-**Please, make sure you've covered [Basics](./basics.md) first.**
+/// admonition | Prerequisites
+    type: info
+
+Start with [Basics](./basics.md) for conversion fundamentals and
+[Collections](./collections.md) for shaping or iterating inputs before joining.
+///
+
+/// admonition | See also
+    type: tip
+
+Join conditions use context-specific references; see
+[Placeholders & Special References](./basics.md#placeholders-special-references).
+For composing join predicates, see [Conditions and Pipes](./conditions_n_pipes.md).
+///
 
 `c.join(left_conversion, right_conversion, condition, how="inner")` defines
 join conversion, which returns an iterator of `(left_element, right_element)`

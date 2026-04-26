@@ -1,6 +1,20 @@
 # Aggregations
 
-**Please, make sure you've covered [Basics](./basics.md) first.**
+/// admonition | Prerequisites
+    type: info
+
+Start with [Basics](./basics.md) for conversion fundamentals and
+[Collections](./collections.md) for iterable helpers used before and inside
+aggregations.
+///
+
+/// admonition | See also
+    type: tip
+
+For reducer details, see [`c.ReduceFuncs`](#creducefuncs) and
+[Reducers API](#reducers-api). For row-wise aggregate calculations over
+windows, see [Window functions](./window_funcs.md).
+///
 
 The syntax to define aggregations is as follows:
 
