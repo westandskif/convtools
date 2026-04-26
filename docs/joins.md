@@ -9,7 +9,9 @@ tuples.
 * `left_conversion` defines the left part of a join
 * `right_conversion` defines the right part of a join
 * `condition` any condition defined as a conversion, where `c.LEFT` and
-  `c.RIGHT` reference elements of the left and right sequences.
+  `c.RIGHT` reference elements of the left and right sequences. See
+  [Placeholders & Special References](./basics.md#placeholders-special-references)
+  for the full list of context-specific references.
 /// admonition
     type: info
 

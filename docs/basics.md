@@ -145,6 +145,28 @@ keyword argument to be passed:
   user-provided configuration, dynamic thresholds).
 
 
+## Placeholders & Special References
+
+Some conversions change what "current input" means. For example, inside
+`c.iter(...)`, `c.this` refers to the current element, while in a join condition
+`c.LEFT` and `c.RIGHT` refer to the current pair of rows being matched.
+
+| Reference | Where to use it | What it points to |
+| --------- | --------------- | ----------------- |
+| `c.this` | Anywhere | The current conversion input. Inside iterable helpers and comprehensions, this is the current item. |
+| `c.naive(value)` | Anywhere | A value or function known when the converter is built and exposed to generated code. |
+| `c.input_arg("name")` | Anywhere | A runtime argument of the generated converter. By default these become keyword-only arguments unless `signature=` is customized. |
+| `c.label("name")` | After labeling data with `add_label`, `label_input`, or `label_output` | The previously saved value for that label. |
+| `c.LEFT` / `c.RIGHT` | `c.join(...)` conditions and table joins | The current left and right rows being compared. |
+| `c.CHUNK` | `c.chunk_by_condition(...)` | The current accumulated chunk while deciding whether the next item belongs to it. |
+| `c.PREV` | `c.cumulative(...)` reduce expressions | The previous cumulative value. |
+
+Reducers and window expressions also use context-specific inputs. Reducer
+arguments such as `c.ReduceFuncs.Sum(c.item("amount"))` are evaluated against
+each input row. Window conversions follow the same pattern for row expressions,
+while window functions themselves are provided by `c.WindowFuncs`.
+
+
 ## Calling functions
 
 One of the most important primitive conversions is the one which calls

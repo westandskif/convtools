@@ -149,7 +149,9 @@ combination of them. Here are two conversions to achieve this:
 
 1. `c.chunk_by(*by, size=None)`
 1. `c.chunk_by_condition(condition)` - it takes the condition as a conversion
-   of an element (`c.this`) and the existing chunk (`c.CHUNK`)
+   of an element (`c.this`) and the existing chunk (`c.CHUNK`). See
+   [Placeholders & Special References](./basics.md#placeholders-special-references)
+   for more context-specific references.
 
 {!examples-md/api__chunk.md!}
 
@@ -215,6 +217,8 @@ define cumulative conversions.
 
  * `prepare_first` defines conversion of the first element
  * `reduce_two` defines conversion of two elements
+ * `c.PREV` references the previous cumulative value; see
+   [Placeholders & Special References](./basics.md#placeholders-special-references)
 
 {!examples-md/api__cumulative.md!}
 

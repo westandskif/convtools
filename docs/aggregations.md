@@ -13,6 +13,11 @@ of:
  * keys - `key1, keys, ...`
  * reducers - e.g. `c.ReduceFuncs.Sum(c.item("abc"))`
 
+Reducer arguments are evaluated against each input row, so `c.this` and
+shortcuts like `c.item(...)` refer to the row currently being reduced. See
+[Placeholders & Special References](./basics.md#placeholders-special-references)
+for the broader context-reference rules.
+
 
 ## c.group_by
 
@@ -150,6 +155,4 @@ The table below gives the following info on builtin reducers:
 | DictSumOrNone     |         |        | v       | None    |            |                  |
 | DictFirstN        |         |        | v       | None    |            |                  |
 | DictLastN         |         |        | v       | None    |            |                  |
-
-
 

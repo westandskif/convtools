@@ -65,6 +65,8 @@ There are two ways to label data for further use:
 1. `add_label` - shortcut to `pipe(c.this, label_input=label_name)`
 
 To reference previously labeled data use `c.label("label_name")`.
+Labels are one of several context-specific references covered in
+[Placeholders & Special References](./basics.md#placeholders-special-references).
 
 {!examples-md/api__pipe_labels.md!}
 
