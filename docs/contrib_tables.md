@@ -254,7 +254,10 @@ Arguments:
 * `columns` - columns to take names of new columns from.
 * `values` - mapping of name to reducer of column value/values.
 * `prepare_column_names` - callable to create column names from column names and
-  reducer name.
+  reducer name. By default, each generated column is named by joining the
+  pivot column value(s) and reducer name with `" - "`, after converting every
+  part to `str`; for example, `columns=["currency"]` and a `"sum"` reducer can
+  produce `"USD - sum"`.
 
 {!examples-md/contrib_tables_pivot.md!}
 

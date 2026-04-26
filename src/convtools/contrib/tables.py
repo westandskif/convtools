@@ -1170,7 +1170,8 @@ class Table:
           columns: columns to take names of new columns from
           values: mapping of name to reducer of column value/values
           prepare_column_names: callable to create column names from column
-            names and reducer name
+            values and reducer name. By default, every part is converted to
+            str and joined with " - ", for example "USD - sum".
 
         """
         name_to_column = self.meta_columns.get_name_to_column()
