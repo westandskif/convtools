@@ -220,32 +220,71 @@ are:
 
 ## Converter signature
 
-Sometimes it's required to adjust automatically generated converter signature,
-there are three parameters of `gen_converter` to achieve that:
+Sometimes it's required to adjust the automatically generated converter
+signature. `gen_converter` accepts several parameters for this:
 
-1. `method` - results in signature like `def converter(self, data_)`
-1. `class_method` - results in signature like `def converter(cls, data_)`
-1. `signature` - uses the provided signature
+1. `method=True` - prepends `self`, producing a signature like
+   `def converter(self, data_)`
+1. `class_method=True` - prepends `cls`, producing a signature like
+   `def converter(cls, data_)`, and returns a `classmethod`
+1. `signature="..."` - uses the provided function signature verbatim
+1. `debug=True` - prints and dumps generated code for this converter
+1. `converter_name="..."` - changes the generated function name prefix
 
-just make sure you include `data_` in case your conversion uses the input.
+The generated converter uses `data_` as the input variable. Include `data_` in
+custom `signature=` values when the conversion reads the input. Also include
+any names referenced with `c.input_arg("name")`; otherwise converter generation
+raises an error before compiling the function.
 
 {!examples-md/getting_started__signature.md!}
 
 
 ## Debug
 
-When you need to debug a conversion, the very first thing is to enable debug
-mode. There are 2 ways:
+When you need to debug a conversion, enable debug mode to inspect the generated
+Python code. There are 2 ways:
 
-1. pass `debug=True` to either `gen_converter` or `execute` methods
-2. set debug options using `c.OptionsCtx` context manager
+1. pass `debug=True` to `gen_converter` or `execute` for one converter build
+1. set `options.debug = True` inside `c.OptionsCtx()` for a scoped block of
+   converter builds
 
-_In both cases it makes sense to install `black` code formatter (`pip install
-black`), it will be used automatically once installed._
+`c.OptionsCtx` is thread-local and restores the previous options when the
+`with` block exits. It currently supports one option:
+
+| Option | Default | Meaning |
+| ------ | ------- | ------- |
+| `debug` | `False` | Print generated code during compilation, format it with `black` when installed, and dump generated source files for debugger tracebacks. |
+
+Passing `debug=True` to `gen_converter` temporarily enables the same debug
+option for that converter and any nested converter functions it generates.
+Passing `debug=True` to `execute` is a shortcut for generating a debug
+converter and immediately calling it.
+
+Generated source files are written to the directory from
+`PY_CONVTOOLS_DEBUG_DIR`, or to `py_convtools_debug` inside Python's temporary
+directory when the environment variable is not set. Sources are also dumped if
+generated code raises an exception, so tracebacks can point to readable files.
 
 {!examples-md/getting_started__debug.md!}
 
-Another way to debug is to use `breakpoint` method:
+Here is a small example of the kind of code `debug=True` prints:
+
+```python
+def _converter(data_):
+    try:
+        return [
+            {
+                "id": _i["id"],
+                "total": (_i["qty"] * _i["price"]),
+            }
+            for _i in data_["orders"]
+        ]
+    except __exceptions_to_dump_sources:
+        __convtools__code_storage.dump_sources()
+        raise
+```
+
+For interactive debugging, use the `breakpoint` conversion:
 
 ```python
 c({"a": c.breakpoint()}).gen_converter(debug=True)
@@ -253,9 +292,11 @@ c({"a": c.breakpoint()}).gen_converter(debug=True)
 c({"a": c.item(0).breakpoint()}).gen_converter(debug=True)
 ```
 
-When triggered, `c.breakpoint()` inserts a `pdb` breakpoint directly into the
-generated code at that point in the conversion. This lets you inspect the
-intermediate value and step through execution interactively.
+`c.breakpoint()` wraps the intermediate value, stops at that point, and returns
+the value unchanged when execution continues. On Python 3.7+ it calls the
+built-in `breakpoint()`, on older Python versions it falls back to
+`pdb.set_trace()`, and when `pydevd` is already loaded it uses `pydevd.settrace()`
+for IDE debuggers.
 
 
 ## Inline expressions
