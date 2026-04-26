@@ -20,7 +20,7 @@ supported mutations:
 | `delattr(obj.a.b, attr)` | `c.Mut.del_attr(attr, of_=c.attr("a", "b"))` |
 | run a custom conversion | `c.Mut.custom(any_conversion)` |
 
-and they cannot be used outside of the below methods.
+These mutations can only be used inside the methods below.
 
 
 ## c.iter_mut

@@ -1,7 +1,7 @@
 ```python
 from convtools import conversion as c
 
-# No. 1
+# Option 1
 converter = (
     c.iter(c.if_(c.this < 0, c.this * 2, c.this / 2))
     .as_type(list)
@@ -9,7 +9,7 @@ converter = (
 )
 assert converter([-1, 0, 1]) == [-2, 0.0, 0.5]
 
-# No. 2
+# Option 2
 converter = (
     c.iter(
         c.if_multiple(

@@ -4,10 +4,11 @@
 
 ## Conditions
 
-There are 2 conversions which allow to define conditions:
+There are 2 conversions which let you define conditions:
 
 1. `c.if_(condition, if_true, if_false)` for a single condition
-1. `c.if_multiple(*condition_to_value_pairs, else_)` obviously for multiple conditions
+1. `c.if_multiple(*condition_to_value_pairs, else_=...)` for multiple
+   conditions; `else_` is passed as a keyword argument
 
 {!examples-md/api__if.md!}
 

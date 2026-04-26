@@ -28,7 +28,7 @@ an ad-hoc converter.
 
 ## Functionality
 
-Since `convtools` is a code-generating layer, it provides you with an extra
+Since `convtools` is a code-generating layer, it provides you with extra
 functionality like group_by, joins, pipes, etc.
 
 

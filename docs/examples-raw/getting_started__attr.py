@@ -1,10 +1,12 @@
 from convtools import conversion as c
 
 class Obj:
-    a = 1
+    def __init__(self, a):
+        self.a = a
 
 class Container:
-    obj = Obj
+    def __init__(self, obj):
+        self.obj = obj
 
-assert c.attr("obj", "a").execute(Container, debug=True) == 1
-assert c.attr("b", default=None).execute(Obj, debug=True) is None
+assert c.attr("obj", "a").execute(Container(Obj(1)), debug=True) == 1
+assert c.attr("b", default=None).execute(Obj(1), debug=True) is None

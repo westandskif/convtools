@@ -90,7 +90,7 @@ The methods above have the parameters:
     * `"start"` returns the beginning of a grid period
 	* `"end_inclusive"` returns the inclusive end of a grid period (_e.g. for a
 	  monthly grid for Jan: it's Jan 31st_)
-	* `"end"` return the exclusive end of a grid period (_e.g. for a monthly
+	* `"end"` returns the exclusive end of a grid period (_e.g. for a monthly
 	  grid for Jan: it's Feb 1st_)
 
 /// admonition
@@ -136,7 +136,7 @@ Arguments are:
     * `"start"` returns the beginning of a grid period
 	* `"end_inclusive"` returns the inclusive end of a grid period (_e.g. for a
 	  monthly grid for Jan: it's Jan 31st_)
-	* `"end"` return the exclusive end of a grid period (_e.g. for a monthly
+	* `"end"` returns the exclusive end of a grid period (_e.g. for a monthly
 	  grid for Jan: it's Feb 1st_)
 
 {!examples-md/api__dates_grid.md!}

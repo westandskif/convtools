@@ -24,7 +24,7 @@ The syntax to define aggregations is as follows:
 where `result` is any conversion (_`dict`, `c.call_func`, whatever_) made up
 of:
 
- * keys - `key1, keys, ...`
+ * keys - `key1, key2, ...`
  * reducers - e.g. `c.ReduceFuncs.Sum(c.item("abc"))`
 
 Reducer arguments are evaluated against each input row, so `c.this` and

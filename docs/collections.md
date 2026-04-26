@@ -106,7 +106,7 @@ none_first/none_last configuration:
 
 ##### sorting_key
 
-`c.sorting_key(*keys)`returns a callable, which can be passed to `sorted` as:
+`c.sorting_key(*keys)` returns a callable, which can be passed to `sorted` as:
 
 {!examples-md/api__sorting_key.md!}
 
