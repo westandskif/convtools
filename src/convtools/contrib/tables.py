@@ -177,7 +177,8 @@ class Table:
           header: specifies header inference mode:
 
              * True: takes either the first tuple/list or keys of the first
-               dict as a header
+               dict as a header. For dict rows, the first row is still emitted
+               as data.
              * False: there's no header in input data, use numbered columns
                instead: COLUMN_0, COLUMN_1, etc.
              * list/tuple of str: there's no header in input data, so this is
@@ -187,7 +188,7 @@ class Table:
                take values of columns from input rows (raises ValueError if
                numbers of columns don't match)
              * None: inspects the first row and if it's a dict, then takes its
-               keys as a header
+               keys as a header and still emits the row as data
 
           duplicate_columns: either of following ("raise" by default):
 
@@ -321,7 +322,8 @@ class Table:
 
           header: specifies header inference mode:
              * True: takes either the first tuple/list or keys of the first
-               dict as a header
+               dict as a header. For dict rows, the first row is still emitted
+               as data.
              * False: there's no header in input data, use numbered columns
                instead: COLUMN_0, COLUMN_1, etc.
              * list/tuple of str: there's no header in input data, so this is
@@ -331,7 +333,7 @@ class Table:
                take values of columns from input rows (raises ValueError if
                numbers of columns don't match)
              * None: inspects the first row and if it's a dict, then takes its
-               keys as a header
+               keys as a header and still emits the row as data
 
           duplicate_columns: either of following ("mangle" by default):
             * "raise": ValueError is raise if a duplicate column is detected
@@ -399,7 +401,8 @@ class Table:
 
           header: specifies header inference mode:
              * True: takes either the first tuple/list or keys of the first
-               dict as a header
+               dict as a header. For dict rows, the first row is still emitted
+               as data.
              * False: there's no header in input data, use numbered columns
                instead: COLUMN_0, COLUMN_1, etc.
              * list/tuple of str: there's no header in input data, so this is
@@ -409,7 +412,7 @@ class Table:
                take values of columns from input rows (raises ValueError if
                numbers of columns don't match)
              * None: inspects the first row and if it's a dict, then takes its
-               keys as a header
+               keys as a header and still emits the row as data
 
           duplicate_columns: either of following ("mangle" by default):
             * "raise": ValueError is raise if a duplicate column is detected

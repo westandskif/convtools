@@ -16,13 +16,15 @@ without loading the entire dataset into memory.
 `header` supports multiple forms:
 
 * `True` - infer a header from the first row. For list/tuple input, the first
-  row becomes the header and is not part of the data. For dict input, keys are
-  used as column names and the row remains part of the data.
+  row becomes the header and is not part of the data. For dict input, the first
+  row's keys become column names, and that first row's values are still emitted
+  as data.
 * `False` - treat input as headerless; columns are numbered (`COLUMN_0`,
   `COLUMN_1`, ...).
 * `list` / `tuple` - explicit column names.
 * `dict` - keys are column names, values are indexes (or keys) used to pull data.
 * `None` - infer only if the first row is a dict; otherwise behave like `False`.
+  When inferred from a dict, the first row is still emitted as data.
 
 `duplicate_columns` controls how repeated column names are handled:
 
