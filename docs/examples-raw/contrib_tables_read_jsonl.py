@@ -1,4 +1,3 @@
-```python
 from io import StringIO
 
 from convtools import conversion as c
@@ -38,5 +37,3 @@ assert list(Table.from_jsonl(transformed).into_iter_rows(dict)) == [
     {"a": 1, "b": 2, "c": 3},
     {"a": 3, "b": 4, "c": 7},
 ]
-
-```

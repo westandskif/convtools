@@ -83,6 +83,9 @@ Arguments:
 
 Write the results to a CSV-like file.
 
+This is a terminal writer method: it consumes the table pipeline, writes rows
+to the target, and returns `None`.
+
 Arguments:
 
 * `filepath_or_buffer` - a filepath or something `csv.writer` can write to.
@@ -113,6 +116,9 @@ Arguments:
 ### `Table.into_jsonl`
 
 Write the results to a JSONL file (one JSON object per line).
+
+This is a terminal writer method: it consumes the table pipeline, writes rows
+to the target, and returns `None`.
 
 Arguments:
 
