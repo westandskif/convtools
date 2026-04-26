@@ -179,8 +179,9 @@ c.unordered_chunk_by(
 
 1. `take_while` reimplements `itertools.takewhile` - terminates once condition
    evaluates to false
-1. `drop_while` reimplements `itertools.dropwhile` - yields elements starting
-   from the first one where condition evaluates to true
+1. `drop_while` reimplements `itertools.dropwhile` - drops elements while the
+   condition evaluates to true, then yields from the first one where it
+   evaluates to false
 
 {!examples-md/api__take_drop_while.md!}
 
