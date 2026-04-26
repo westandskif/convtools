@@ -8,6 +8,12 @@ converter = (
     .gen_converter(debug=True)
 )
 assert converter(range(3)) == [0, 1, 1024]
+try:
+    converter(range(4))
+except c.ExpectException as e:
+    assert str(e) == "too big"
+else:
+    raise AssertionError("expected ExpectException")
 
 # error_msg can be conversion itself
 converter = (
