@@ -8,7 +8,6 @@ from typing import Iterator, List, Mapping, Type, Union
 from ._base import BaseConversion, CallFunc, NaiveConversion, This
 from ._utils import Code, CodeParams
 
-
 date_from_ordinal = date.fromordinal
 datetime_from_ordinal = datetime.fromordinal
 MICROSECOND = timedelta(microseconds=1)

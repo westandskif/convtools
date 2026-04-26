@@ -5,7 +5,6 @@ import sys
 
 from ._base import BaseConversion, ensure_conversion
 
-
 if "pydevd" in sys.modules:  # pragma: no cover
 
     def debug_func(obj):

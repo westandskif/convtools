@@ -25,8 +25,8 @@ from typing import (
     Type,
     TypeVar,
     Union,
-    cast,
 )
+from typing import cast as type_cast
 
 from ._heuristics import Weights
 from ._utils import (
@@ -41,7 +41,6 @@ from ._utils import (
     get_builtins_dict,
     iter_windows,
 )
-
 
 try:
     from ._cext import (  # type: ignore
@@ -1437,7 +1436,7 @@ class BaseMethodConversion(BaseConversion):
         if self_conv is self._none:
             return (code_input, code_input)
         return (
-            cast(BaseConversion, self_conv).gen_code_and_update_ctx(
+            type_cast(BaseConversion, self_conv).gen_code_and_update_ctx(
                 code_input, ctx
             ),
             code_input,

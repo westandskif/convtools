@@ -5,7 +5,6 @@ from typing import Optional, Tuple
 from ._base import BaseConversion, LazyEscapedString, Namespace, This
 from ._utils import Code
 
-
 _none = BaseConversion._none
 
 

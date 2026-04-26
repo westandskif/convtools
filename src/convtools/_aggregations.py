@@ -50,7 +50,6 @@ from ._optimizer import (
 )
 from ._utils import Code
 
-
 # Module-level constants for code generation
 AGG_DATA_PREFIX = "agg_data_"
 REDUCER_VAR_PREFIX = "n_"

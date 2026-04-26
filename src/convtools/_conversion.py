@@ -57,7 +57,6 @@ from ._ordering import SortConversion, SortingKeyConversion
 from ._try import Try
 from ._window import WindowFuncs
 
-
 __all__ = ["conversion", "Conversion"]
 
 _none = BaseConversion._none

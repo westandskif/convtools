@@ -13,7 +13,6 @@ from convtools._base import (
 
 from .utils import get_code_str
 
-
 _none = BaseConversion._none
 
 

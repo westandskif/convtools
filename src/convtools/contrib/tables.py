@@ -45,7 +45,6 @@ from .._base import (
 from .._columns import ColumnChanges, ColumnRef, MetaColumns
 from .._joins import JoinConversion, LeftJoinCondition, RightJoinCondition
 
-
 _none = BaseConversion._none
 
 

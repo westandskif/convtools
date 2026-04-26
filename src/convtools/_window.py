@@ -24,7 +24,6 @@ from ._base import (
 from ._ordering import SortingKeyConversion
 from ._utils import Code
 
-
 _none = BaseConversion._none
 
 

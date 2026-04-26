@@ -2,7 +2,6 @@
 
 from ._base import BaseConversion, ConversionException
 
-
 _none = BaseConversion._none
 
 EXPECT_TEMPLATE = """

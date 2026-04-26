@@ -5,7 +5,6 @@ from typing import Any, Sequence, Tuple, Type, Union
 from ._base import BaseConversion, NaiveConversion, This, ensure_conversion
 from ._utils import Code
 
-
 _none = BaseConversion._none
 
 OneOrManyExceptions = Union[Exception, Tuple[Type[Exception], ...]]

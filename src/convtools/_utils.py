@@ -15,7 +15,6 @@ from importlib import import_module
 from io import StringIO
 from weakref import finalize
 
-
 PY_VERSION = sys.version_info[:2]
 if PY_VERSION == (3, 6):
 

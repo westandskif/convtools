@@ -2,7 +2,6 @@ from reprlib import Repr
 
 from convtools._base import BaseConversion
 
-
 _repr = Repr()
 _repr.maxdict = 1000
 repr = _repr.repr
