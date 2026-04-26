@@ -25,6 +25,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
 )
 
 from ._heuristics import Weights
@@ -1432,10 +1433,13 @@ class BaseMethodConversion(BaseConversion):
     def get_self_and_input_code(
         self, code_input: str, ctx: dict
     ) -> Tuple[str, str]:
-        if self.self_conv is self._none:
+        self_conv = self.self_conv
+        if self_conv is self._none:
             return (code_input, code_input)
         return (
-            self.self_conv.gen_code_and_update_ctx(code_input, ctx),
+            cast(BaseConversion, self_conv).gen_code_and_update_ctx(
+                code_input, ctx
+            ),
             code_input,
         )
 
