@@ -11,3 +11,4 @@ tmp/
 .ccls-cache/
 *.csv
 .venvs/
+site/

@@ -22,7 +22,7 @@ class Expect(BaseConversion):
 
     Args:
       condition: conversion to evaluate as condition
-      error_msg: error message to pass to ExpectException
+      error_msg: string or conversion to pass to ExpectException
     """
 
     def __init__(self, conversion, condition, error_msg):

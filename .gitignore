@@ -57,3 +57,4 @@ tests/csvs/out.csv
 .ccls-cache/
 .notes
 .s.vim
+site/

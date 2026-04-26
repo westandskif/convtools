@@ -17,8 +17,14 @@ There are 2 conversions which allow to define conditions:
 There's a convenient helper, which checks whether a condition is met and
 returns input as is or raises `c.ExpectException` otherwise:
 
-1. `c.expect(condition, error_msg=None)`
+1. `c.expect(condition, error_msg=None)`, where `error_msg` can be a string or
+   a conversion
 2. also as a method: `c.attr("amount").expect(c.this < 10, "too big")`
+
+When `error_msg` is a string, it is passed to `c.ExpectException` directly.
+When it is a conversion, it is evaluated against the failing input and its
+result becomes the exception message. If `error_msg` is omitted or falsey, the
+default message is `"condition is not met"`.
 
 {!examples-md/api__expect.md!}
 
