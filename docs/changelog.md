@@ -1,3 +1,25 @@
+## 1.17.1 (2026-07-15)
+
+**Bugfix**
+
+- fixed `c.try_().except_()` dependency tracking
+- fixed `c.reduce()` crashing when an expression contains `%`
+- fixed Window ROWS mode: `frame_end=(N, "PRECEDING")` crashes
+- fixed `DictComp.filter` ignoring its `cast` argument
+- fixed `TakeWhile.filter` mutating self and dropping `cast` on chaining
+- fixed Options context managers breaking at 3+ nesting levels
+- fixed `CodeParams.use_param` false "cyclic dependency" on diamond graphs
+- fixed `unordered_chunk_by` validation
+- fixed `DatetimeFormat` corrupting literal backslashes/control chars in format strings
+- fixed nested-loop join exhausting sized one-shot iterators
+- reject non-positive steps in `DateGrid` / `DateTimeGrid` / `date_trunc` / `datetime_trunc`
+- fixed `DatetimeParse` breaking converter compilation for valid formats containing quotes/backslashes
+- fixed `in_` / `not_in` single-element rewrite breaking Python `in` semantics for NaN
+- fixed `dispatch(..., default=None)` ignoring literal `None` as a default
+- fixed `ReduceFuncs.Average` crashing when a row weight evaluates to `None`
+- fixed `c.Mut.del_item(..., if_exists=True)` crashing on lists
+- fixed `c.optional(skip_if=..., keep_if=...)` silently dropping `skip_if`
+
 ## 1.17.0 (2026-01-21)
 
 - sped up `in_` and `not_in` in cases where static single-item sequence is passed
