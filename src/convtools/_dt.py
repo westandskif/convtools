@@ -59,6 +59,9 @@ class BaseStep:
     def to_us(self):
         raise TypeError("cannot be interpreted as us")
 
+    def validate_positive(self):
+        raise NotImplementedError
+
 
 class MonthStep(BaseStep):
     """Defines steps as number of months."""
@@ -74,6 +77,11 @@ class MonthStep(BaseStep):
 
     def to_months(self):
         return self.months
+
+    def validate_positive(self):
+        if self.months <= 0:
+            raise ValueError("step must be positive")
+        return self
 
 
 class DayOfWeekStep(BaseStep):
@@ -100,6 +108,11 @@ class DayOfWeekStep(BaseStep):
 
     def to_days(self):
         return self.days
+
+    def validate_positive(self):
+        if self.days <= 0:
+            raise ValueError("step must be positive")
+        return self
 
 
 class MicroSecondStep(BaseStep):
@@ -135,6 +148,11 @@ class MicroSecondStep(BaseStep):
 
     def to_us(self):
         return self.us
+
+    def validate_positive(self):
+        if self.us <= 0:
+            raise ValueError("step must be positive")
+        return self
 
 
 def date_trunc_to_month(dt, to_months, offset_months, mode):
@@ -520,7 +538,7 @@ class DateGrid:
     def __init__(self, step, offset=None, mode="start"):
         self.mode = TruncModes.to_internal(mode)
 
-        step = to_step(step)
+        step = to_step(step).validate_positive()
         offset = None if offset is None else to_step(offset)
 
         if isinstance(step, MonthStep):
@@ -616,7 +634,7 @@ class DateTimeGrid:
     def __init__(self, step, offset=None, mode="start"):
         self.mode = TruncModes.to_internal(mode)
 
-        step = to_step(step)
+        step = to_step(step).validate_positive()
         offset = None if offset is None else to_step(offset)
 
         if isinstance(step, MonthStep):

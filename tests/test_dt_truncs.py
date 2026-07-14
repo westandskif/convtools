@@ -130,6 +130,32 @@ def test_date_trunc():
     with pytest.raises(ValueError):
         c.datetime_trunc("1mon", "1d")
 
+    for bad_step in (
+        "0d",
+        "-1d",
+        "0mo",
+        "-2mo",
+        "0tue",
+        timedelta(0),
+        timedelta(days=-1),
+    ):
+        with pytest.raises(ValueError):
+            c.this.date_trunc(bad_step)
+        with pytest.raises(ValueError):
+            c.this.datetime_trunc(bad_step)
+    with pytest.raises(ValueError):
+        c.this.datetime_trunc("-1h")
+    with pytest.raises(ValueError):
+        c.this.datetime_trunc("0h")
+    with pytest.raises(ValueError):
+        c.this.date_trunc("0d")
+
+    # Negative offsets remain valid; validation applies only to steps.
+    result = c.this.datetime_trunc("1d", "-2h").execute(
+        utc(2000, 1, 2, 1, 30)
+    )
+    assert result == utc(2000, 1, 1, 22)
+
     results = (
         c.iter(
             {

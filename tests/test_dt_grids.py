@@ -571,3 +571,34 @@ def test_grid_exceptions():
         DateGrid("sun", "1d")
     with pytest.raises(ValueError):
         DateTimeGrid("sun", "1s")
+
+    for bad_step in (
+        "0d",
+        "-1d",
+        "0mo",
+        "-2mo",
+        "0tue",
+        timedelta(0),
+        timedelta(days=-1),
+    ):
+        with pytest.raises(ValueError):
+            DateGrid(bad_step)
+        with pytest.raises(ValueError):
+            DateTimeGrid(bad_step)
+    with pytest.raises(ValueError):
+        DateTimeGrid("-2h")
+    with pytest.raises(ValueError):
+        DateTimeGrid("0h")
+
+
+def test_grid_negative_offset():
+    result = list(
+        DateTimeGrid("8h", "-1h").around(
+            utc(2000, 1, 1, 0), utc(2000, 1, 1, 16)
+        )
+    )
+    assert result == [
+        utc(1999, 12, 31, 23),
+        utc(2000, 1, 1, 7),
+        utc(2000, 1, 1, 15),
+    ]

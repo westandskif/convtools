@@ -1209,7 +1209,7 @@ class BaseConversion(Generic[CT]):
         """
         from convtools import _dt
 
-        step = _dt.to_step(step)
+        step = _dt.to_step(step).validate_positive()
         mode = _dt.TruncModes.to_internal(mode)
         if offset is not None:
             offset = _dt.to_step(offset)
@@ -1288,7 +1288,7 @@ class BaseConversion(Generic[CT]):
         """
         from convtools import _dt
 
-        step = _dt.to_step(step)
+        step = _dt.to_step(step).validate_positive()
         mode = _dt.TruncModes.to_internal(mode)
         if offset is not None:
             offset = _dt.to_step(offset)
