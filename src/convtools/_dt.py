@@ -855,7 +855,7 @@ class DatetimeFormat(BaseConversion):
             elif ch == '"':
                 result.append(r"\"")
             else:
-                result.append(ch)
+                result.append(ch.encode("unicode_escape").decode("ascii"))
 
         if match:
             return None

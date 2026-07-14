@@ -79,6 +79,29 @@ def test_datetime_format_delimiter_wide(all_delimiters):
         assert result_2 == expected
 
 
+def test_datetime_format_literal_escapes():
+    """Literal backslashes/control chars must match strftime, not be
+    reinterpreted by the generated f-string compiler."""
+    dt = datetime(2024, 1, 2, 3, 4, 5)
+    formats = [
+        r"\n%Y",
+        r"\t%Y",
+        r"\x41%Y",
+        r"\\%Y",
+        r"\N%Y",
+        "\n%Y",
+        "\t%Y",
+        r"\"%Y",
+        "\\",
+        '"%Y"',
+        "{%Y}",
+    ]
+    for fmt in formats:
+        result = c.format_dt(fmt).execute(dt)
+        expected = dt.strftime(fmt)
+        assert result == expected, repr(fmt)
+
+
 def test_datetime_format_exceptions():
     for bad_fmt in (123,):
         with pytest.raises(ValueError):
