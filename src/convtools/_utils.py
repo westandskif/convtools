@@ -216,16 +216,26 @@ class CodeParams:
         self.name_to_uses[name] += 1
         self.params.append(name)
 
-        names_to_check_deps = deque([name])
-        visited_deps = set()
-        while names_to_check_deps:
-            name_ = names_to_check_deps.pop()
-            visited_deps.add(name_)
-            for dep_ in self.name_to_deps[name_]:
-                self.name_to_uses[dep_] += 2
-                if dep_ in visited_deps:
-                    raise ValueError("cyclic dependency detected", name, dep_)
-                names_to_check_deps.appendleft(dep_)
+        # Iterative DFS with path-based cycle detection (gray/black).
+        # Reaching a node already on the current path is a true cycle;
+        # re-reaching a fully visited node (diamond DAG) is fine.
+        stack = [(name, iter(self.name_to_deps[name]))]
+        on_path = {name}
+        visited = set()
+        while stack:
+            node, deps_iter = stack[-1]
+            for dep in deps_iter:
+                self.name_to_uses[dep] += 2
+                if dep in on_path:
+                    raise ValueError("cyclic dependency detected", name, dep)
+                if dep not in visited:
+                    stack.append((dep, iter(self.name_to_deps[dep])))
+                    on_path.add(dep)
+                    break
+            else:
+                stack.pop()
+                on_path.discard(node)
+                visited.add(node)
 
     def create_and_use_param(self, code, name):
         self.create(code, name)

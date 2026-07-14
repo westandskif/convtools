@@ -177,6 +177,23 @@ def test_code_params():
     with pytest.raises(ValueError):
         params.use_param("z")
 
+    # Diamond DAG: a → b, a → c → b (shared dep, no cycle)
+    params = CodeParams()
+    params.create("1", "b")
+    params.create("2", "c", used_names=["b"])
+    params.create("3", "a", used_names=["b", "c"])
+    params.use_param("a")
+    assert params.get_format_args() == ("3",)
+    assert list(params.iter_assignments()) == ["b = 1", "c = 2"]
+
+    # Longer true cycle: a → b → c → a
+    params = CodeParams()
+    params.create("1", "a", used_names=["b"])
+    params.create("2", "b", used_names=["c"])
+    params.create("3", "c", used_names=["a"])
+    with pytest.raises(ValueError):
+        params.use_param("a")
+
 
 def fuzzy_cmp(x, y, _same=("a", "b")):
     if (
