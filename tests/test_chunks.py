@@ -32,6 +32,13 @@ def test_chunks_exceptions():
         c.unordered_chunk_by(c.item(0), size=-1)
     with pytest.raises(ValueError):
         c.unordered_chunk_by(c.item(0), max_items_in_memory=-1)
+    for bad_value in (0, -0.5, 1.5):
+        with pytest.raises(ValueError):
+            c.unordered_chunk_by(
+                c.item(0),
+                max_items_in_memory=10,
+                portion_to_pop_on_max_memory_hit=bad_value,
+            )
 
 
 def test_chunks_by_condition(data_for_chunking):

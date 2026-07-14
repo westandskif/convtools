@@ -238,6 +238,10 @@ class UnorderedChunkBy(BaseChunkBy):
             raise ValueError("size has to be positive or None")
         if not (max_items_in_memory is None or max_items_in_memory > 0):
             raise ValueError("max_items_in_memory has to be positive or None")
+        if not 0 < portion_to_pop_on_max_memory_hit <= 1:
+            raise ValueError(
+                "portion_to_pop_on_max_memory_hit has to be in (0, 1]"
+            )
         if not by:
             raise ValueError(
                 "provide one or more 'by' params or consider using c.chunk_by"
