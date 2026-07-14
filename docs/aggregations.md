@@ -54,7 +54,7 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `Array` | Collects values as a list. |
 | `ArrayDistinct` | Collects distinct values as a list, preserving order. |
 | `ArraySorted` | Collects values as a sorted list; optional `key=` / `reverse=` like `sorted`. |
-| `Average` | `Average(value)` or `Average(value, weight)`: arithmetic or weighted mean, skipping `None`. |
+| `Average` | `Average(value)` or `Average(value, weight)`: arithmetic or weighted mean; `None` handling differs between the two forms. |
 | `Correlation` | Calculates Pearson correlation between two variables, skipping `None`. |
 | `Count` | `Count()` counts rows; `Count(value)` counts non-`None` values. |
 | `CountDistinct` | Counts distinct non-`None` values. |
@@ -103,15 +103,15 @@ You can also define custom reducers with `c.reduce` by passing any two-argument 
 
 #### Reducers API
 
-Every reducer accepts the following keyword arguments:
+Reducers accept the following keyword arguments:
 
  * `where` - a condition evaluated for each input row before the reducer sees
    the row's value.
  * `default` - a value returned when the reducer hasn't reduced any values.
- * `initial` - an initial accumulator value for reducers that support it. For
-   reducers that do not support it, passing `initial` is deprecated and v2 will
-   raise `ValueError`; prefer `default=` unless the table marks `initial` as
-   supported.
+ * `initial` - an initial accumulator value for reducers that support it.
+   `Average` does not accept this argument. For other reducers that do not
+   support it, passing `initial` is deprecated and v2 will raise `ValueError`;
+   prefer `default=` unless the table marks `initial` as supported.
 
 The table below gives the following info on builtin reducers:
 
@@ -125,7 +125,7 @@ The table below gives the following info on builtin reducers:
 | Array             |         | v      |         |         | None    |            | v                |
 | ArrayDistinct     |         | v      |         |         | None    |            |                  |
 | ArraySorted       |         | v      |         |         | None    |            |                  |
-| Average           |         | v      | note 7  |         | None    | v          |                  |
+| Average           |         | v      | note 7  |         | None    | note 7     |                  |
 | Count             | v       | v      |         |         | 0       | note 1     | v                |
 | CountDistinct     |         | v      |         |         | 0       | v          |                  |
 | First             |         | v      |         |         | None    |            |                  |
@@ -177,8 +177,11 @@ Notes:
    `n` (positive int), second is the value conversion.
  * note 6: `DictFirstN(n, key, value)` / `DictLastN(n, key, value)` — first
    positional arg is `n` (positive int); key and value are row conversions.
- * note 7: `Average(value)` or `Average(value, weight)` — weight defaults to
-   `1`; `None` values and weights are skipped.
+ * note 7: `Average(value)` skips `None` values. In
+   `Average(value, weight)`, falsey values and weights are treated as zero: a
+   `None` weight contributes nothing, while a `None` value with a nonzero
+   weight still contributes that weight to the denominator. A zero total
+   weight returns `default`.
  * note 8: `Sum` / `DictSum` do not skip `None`; they treat `None` (and other
    falsy values) as `0`.
 

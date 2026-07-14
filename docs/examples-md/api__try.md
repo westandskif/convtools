@@ -8,7 +8,7 @@ converter = (
         .except_(TypeError, None)
     )
     .as_type(list)
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 
 assert converter([(1, 2), (3, 0), (4, "abc")]) == [0.5, (3, 0), None]

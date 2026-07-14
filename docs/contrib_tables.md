@@ -2,7 +2,7 @@
 
 `Table` is a streaming helper for tabular data. It builds a pipeline of
 convtools conversions so you can reshape, enrich, filter, and combine rows
-without loading the entire dataset into memory.
+while keeping row-wise work incremental where possible.
 
 /// admonition
     type: warning
@@ -10,6 +10,26 @@ without loading the entire dataset into memory.
 * **`Table` is single-pass: the underlying iterable is consumed once. If you need to reuse data, materialize it or reopen the source.**
 * **If you want to use `Table` inside conversions, [read this first](./contrib_tables.md#using-tables-inside-conversions).**
 ///
+
+Single-pass does not mean that every operation uses constant memory. The
+pipeline is consumed once, but some operations must retain state:
+
+| Operation shape | Execution behavior |
+| --------------- | ------------------ |
+| Row-wise `filter`, `update`, `update_all`, `rename`, `take`, and `drop` | Process rows incrementally. |
+| `join` | Builds matching state for right-side rows; memory grows with that side of the join. |
+| `pivot` | Consumes and aggregates the input before it can determine the output columns. |
+| `into_iter_rows`, `into_csv`, and `into_jsonl` | Terminal operations which consume the pipeline; only `into_iter_rows` returns an iterator. |
+
+Materialize a result yourself only when it needs to be reused. Otherwise, pass
+the iterator returned by `into_iter_rows` onward or write directly to a file.
+
+## End-to-end pipeline
+
+This example reads tabular inputs, transforms and filters one side, joins the
+tables, rearranges the result columns, and returns a row iterator:
+
+{!examples-md/welcome__tables.md!}
 
 ## Header handling and duplicate columns
 

@@ -29,28 +29,38 @@ container required.
   code‑generation layer. Use it when you want lean, composable transforms over
   native Python data.
 
-### Installation
+## Installation
+
 ```
 pip install convtools
 ```
 
+## How it works
 
-### 60-second tour
+Convtools separates describing a transformation from running it:
 
-#### 1) Build & run a converter
+1. Build a **conversion** such as `c.item("name").pipe(str.title)`. This is a
+   reusable specification; it does not process data yet.
+2. Call `.gen_converter()` once to compile the conversion into a normal Python
+   function.
+3. Call that function with as many inputs as needed. For a one-off operation,
+   `.execute(data)` combines the compile and run steps.
 
 {!examples-md/welcome_1.md!}
 
-Under the hood `gen_converter()` compiles your expression into an ad‑hoc Python
-function. Want a one‑off call? Use `.execute(data)` instead.
+The examples below build on this model. Methods such as `c.iter(...)` change
+what `c.this` refers to, while terminal operations decide whether a result is a
+lazy iterator or a concrete collection.
 
-#### 2) Transform a collection
+## 60-second tour
+
+### 1) Transform a collection
 
 {!examples-md/welcome_2.md!}
 
 Uses `c.iter` to express a per‑row transform and `.as_type(list)` to collect. 
 
-#### 3) Group & aggregate
+### 2) Group & aggregate
 
 {!examples-md/welcome_3.md!}
 
@@ -58,7 +68,7 @@ Reducers support `where` filters and sensible defaults.
 `c.group_by(...).aggregate(...)` returns a list you can sort, filter, or map
 further.
 
-#### 4) Join two sequences
+### 3) Join two sequences
 
 {!examples-md/welcome_4.md!}
 
@@ -67,17 +77,18 @@ conditions. Hash‑join optimization kicks in on equi‑joins.
 
 ---
 
-### Streaming CSVs with `Table`
+### 4) Process CSV rows with `Table`
 
 {!examples-md/welcome_5.md!}
 
-`Table` is optimized for streaming transformations: rename/take/drop/update
-columns, joins, explode, pivot, and more. Note: `Table` consumes its input once
-(it’s an iterator).
+`Table` consumes its input once. Row-wise operations such as filtering,
+updating, and selecting columns can stream; operations which need global state,
+such as joins and pivots, retain data while processing. See
+[Contrib / Tables](./contrib_tables.md) for the execution model.
 
 ---
 
-### Debugging & generated code
+## Debugging generated code
 
 Pass `debug=True` to `.gen_converter(...)` or `.execute(...)` to print the
 compiled function for inspection. You can also set global debug options with
@@ -87,7 +98,18 @@ compiled function for inspection. You can also set global debug options with
 
 ---
 
-### When should I reach for convtools?
+## Where to go next
+
+| If you want to... | Read... |
+| ----------------- | ------- |
+| Understand inputs, lookups, calls, and converter reuse | [Basics](./basics.md) |
+| Map, filter, sort, chunk, or materialize iterables | [Collections](./collections.md) |
+| Compose branches and reusable pipelines | [Conditions and Pipes](./conditions_n_pipes.md) |
+| Group rows and calculate reducers | [Aggregations](./aggregations.md) |
+| Match two sequences | [Joins](./joins.md) |
+| Process CSV, JSONL, or row streams | [Contrib / Tables](./contrib_tables.md) |
+
+## When should I reach for convtools?
 
 * You need **composable transforms** over native Python data
 (lists/dicts/generators/CSV), not a DataFrame.
@@ -105,17 +127,7 @@ the docs and the linked benchmark sources.
 
 ---
 
-### Install & use in 3 steps
-
-1. `pip install convtools`
-
-1. `from convtools import conversion as c`
-
-1. Build an expression → `gen_converter()` → call it wherever you need. 
-
----
-
-### Links
+## Links
 
 * 📚 Docs: [https://convtools.readthedocs.io/](https://convtools.readthedocs.io/) *<-- You are here*
 * 📦 PyPI: [https://pypi.org/project/convtools/](https://pypi.org/project/convtools/)
@@ -127,7 +139,7 @@ Tables"](./contrib_tables.md) in the docs.
 machine-readable overview of convtools for AI assistants and code generators
 
 
-### Contributing
+## Contributing
 
 * Star the repo and share use‑cases in Discussions -- it really helps.
 
@@ -140,16 +152,6 @@ policy](https://github.com/westandskif/convtools/security/policy).
 
 ---
 
-### What’s included in the box?
-
-* `from convtools import conversion as c` — the main interface.
-
-* `from convtools.contrib.tables import Table` — stream processing of CSV‑like/tabular data.
-
-* `from convtools.contrib import fs` — tiny helpers for splitting buffers with custom newlines.
-
----
-
-### License
+## License
 
 MIT License (see `LICENSE.txt`).

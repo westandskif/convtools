@@ -3,7 +3,7 @@ from datetime import date, datetime
 from convtools import conversion as c
 
 # TRUNCATE TO MONTHS
-converter = c.iter(c.date_trunc("mo")).as_type(list).gen_converter(debug=True)
+converter = c.iter(c.date_trunc("mo")).as_type(list).gen_converter()
 assert converter(
     [
         date(1999, 12, 31),
@@ -16,7 +16,7 @@ assert converter(
 converter = (
     c.iter(c.date_trunc("mo", mode="end_inclusive"))
     .as_type(list)
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 assert converter(
     [
@@ -37,7 +37,7 @@ converter = (
         }
     )
     .as_type(list)
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 assert converter(
     [

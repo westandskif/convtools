@@ -58,6 +58,22 @@ optimizations.
 
 ## Iterators & Comprehensions
 
+Collection conversions differ in whether they return a lazy iterator or build
+a concrete container immediately:
+
+| Operation | Result | Use it when |
+| --------- | ------ | ----------- |
+| `c.iter(element, where=...)` | Lazy iterator | Each input item needs to be transformed, optionally with a filter. |
+| `c.filter(condition)` | Lazy iterator | Input items should be kept unchanged when they match. |
+| `c.generator_comp(element, where=...)` | Lazy iterator | Generator-comprehension syntax is preferable to `c.iter`. |
+| `c.list_comp(...)`, `c.tuple_comp(...)`, `c.set_comp(...)` | Concrete container | The complete result is needed immediately in that container type. |
+| `c.dict_comp(key, value, where=...)` | Concrete dictionary | Input items should become key/value pairs. |
+| `.as_type(list)` and similar casts | Concrete value of that type | A lazy result should be explicitly collected or converted. |
+
+Lazy conversions are still executed only when the compiled converter is
+called. If the caller needs a list, make the materialization visible with
+`.as_type(list)` rather than relying on the caller to consume the iterator.
+
 #### Process
 
 To iterate an input, there are the following conversions:

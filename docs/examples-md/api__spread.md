@@ -5,7 +5,7 @@ from convtools import conversion as c
 conv = c.dict(
     ("id", c.item("id")),
     c.spread(c.item("metadata")),
-).gen_converter(debug=True)
+).gen_converter()
 
 assert conv({"id": 1, "metadata": {"name": "Alice", "age": 30}}) == {
     "id": 1,

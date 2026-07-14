@@ -11,7 +11,7 @@ converter = (
         }
     )
     .as_type(list)
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 assert converter([0, 1, 2, 3, 4, 5, 6, 7]) == [
     {"x": 0, "y": 2, "z": 3},

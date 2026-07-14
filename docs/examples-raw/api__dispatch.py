@@ -1,6 +1,5 @@
 from convtools import conversion as c
 
-
 input_data = [
     {"version": "v1", "field1": 10},
     {"version": "v2", "field2": 20},
@@ -19,7 +18,7 @@ converter = (
         )
     )
     .as_type(list)
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 
 assert converter(input_data) == [10, 20, 30]

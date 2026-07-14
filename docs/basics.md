@@ -20,17 +20,16 @@ If we called `data` as `c.this`, then this data transform would look like:
 
 So the steps of getting a converter function are:
 
-1. you define data transforms using its building blocks (_conversions_)
-1. you call ``gen_converter`` conversion method to generate ad-hoc code and
-   compile a function, which implements the transform you just defined
-1. you use the resulting function as many times as needed
+1. Define the transform using convtools building blocks. The resulting
+   **conversion** is a specification and has not processed any data yet.
+1. Call `.gen_converter()` once to generate and compile the Python function
+   implementing that specification.
+1. Reuse the resulting **converter** function with as many inputs as needed.
 
 {!examples-md/getting_started__this.md!}
 
-Many examples will contain `debug=True` just so the generated code is visible
-for those who are curious, not because it's required :)
-
-If we need a converter function to run it only once, then we can shorten it to:
+If a converter is needed only once, `.execute(data)` is a shortcut for
+generating it and immediately calling it:
 
 {!examples-md/getting_started__this_execute.md!}
 

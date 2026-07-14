@@ -19,7 +19,7 @@ conversion = (
 )
 
 # compile the conversion into an ad hoc function and run it
-converter = conversion.gen_converter(debug=True)
+converter = conversion.gen_converter()
 
 # run it as any function
 assert converter(input_data) == [[{"id": "123", "quantity": 123}]]

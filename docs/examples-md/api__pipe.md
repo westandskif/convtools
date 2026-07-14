@@ -8,7 +8,7 @@ converter = (
         )
     )
     .as_type(list)
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 assert converter([{"value": -4}, {"value": 2}]) == [9, 6]
 

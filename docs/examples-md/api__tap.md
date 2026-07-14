@@ -9,7 +9,7 @@ converter = c.list_comp(
         c.Mut.del_item("a"),
         c.Mut.custom(c.this.call_method("update", c.input_arg("data"))),
     )
-).gen_converter(debug=True)
+).gen_converter()
 
 assert converter(input_data, data={"d": 4}) == [{"b": 2, "c": 3, "d": 4}]
 

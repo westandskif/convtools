@@ -17,7 +17,7 @@ conv = (
             "a_max": c.ReduceFuncs.Max(c.item("a")),
         }
     )
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 
 assert conv(input_data) == [

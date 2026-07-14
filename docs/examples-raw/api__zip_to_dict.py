@@ -9,7 +9,7 @@ converter = (
     )
     .flatten()
     .as_type(list)
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 
 assert converter([{"a": 1, "b": [2, 3]}, {"a": 10, "b": [4, 5]}]) == [

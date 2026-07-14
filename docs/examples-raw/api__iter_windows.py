@@ -1,6 +1,6 @@
 from convtools import conversion as c
 
-converter = c.iter_windows(3, step=1).as_type(list).gen_converter(debug=True)
+converter = c.iter_windows(3, step=1).as_type(list).gen_converter()
 
 assert converter(range(5)) == [
     (0,),

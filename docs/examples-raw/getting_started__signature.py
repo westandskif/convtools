@@ -2,11 +2,11 @@ from convtools import conversion as c
 
 
 class A:
-    get_one = c.naive(1).gen_converter(class_method=True, debug=True)
+    get_one = c.naive(1).gen_converter(class_method=True)
 
-    get_two = c.naive(2).gen_converter(method=True, debug=True)
+    get_two = c.naive(2).gen_converter(method=True)
 
-    get_self = c.input_arg("self").gen_converter(signature="self", debug=True)
+    get_self = c.input_arg("self").gen_converter(signature="self")
 
 
 a = A()

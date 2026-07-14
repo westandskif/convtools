@@ -1593,7 +1593,7 @@ class ReduceFuncs:
     LastN = LastNReducer
 
     #: `Average(value)` or `Average(value, weight)`: arithmetic or weighted
-    #: mean, skipping `None`.
+    #: mean; `None` handling differs between the two forms.
     Average = AverageReducerDispatcher()
     #: Calculates the median value, skipping `None`.
     Median = MedianReducer

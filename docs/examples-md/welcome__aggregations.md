@@ -18,7 +18,7 @@ conv = c.aggregate(
             c.item("a"),
         ).item("b", default=None),
     }
-).gen_converter(debug=True)
+).gen_converter()
 
 assert conv(input_data) == {"a": [10, 10, 20], "b": "bar"}
 

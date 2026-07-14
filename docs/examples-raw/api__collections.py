@@ -8,9 +8,9 @@ converter = c(
         # keys are dynamic too
         c.call_func("d{}".format, c.item(0)): "key is dynamic",
     }
-).gen_converter(debug=True)
+).gen_converter()
 
 assert converter((1, 2)) == {"a": 1, "b": 2, "c": 3, "d1": "key is dynamic"}
 
 
-assert c([1, c.this, 2]).execute(None, debug=True) == [1, None, 2]
+assert c([1, c.this, 2]).execute(None) == [1, None, 2]

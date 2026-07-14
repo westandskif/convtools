@@ -6,14 +6,14 @@ converter = (
     .item("b")
     .iter({"a": c.label("a"), "b": c.this})
     .as_type(list)
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 # SAME
 converter_2 = (
     c.this.pipe(c.item("b"), label_input={"a": c.item("a")})
     .iter({"a": c.label("a"), "b": c.this})
     .as_type(list)
-    .gen_converter(debug=True)
+    .gen_converter()
 )
 input_data = {
     "a": 1,
@@ -28,8 +28,6 @@ assert (
 
 # BETTER WITHOUT LABELS (HERE IT'S POSSIBLE)
 converter_3 = (
-    c.zip(a=c.repeat(c.item("a")), b=c.item("b"))
-    .as_type(list)
-    .gen_converter(debug=True)
+    c.zip(a=c.repeat(c.item("a")), b=c.item("b")).as_type(list).gen_converter()
 )
 assert converter_3(input_data) == expected_output

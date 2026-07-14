@@ -8,7 +8,7 @@ assert (
         .as_type(list)
     )
     .as_type(list)
-    .execute([[0, 1, 2], [3, 4]], debug=True)
+    .execute([[0, 1, 2], [3, 4]])
 ) == [[0, 1, 3], [3, 7]]
 
 ```

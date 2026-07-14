@@ -1,6 +1,5 @@
 from datetime import date, datetime
 from convtools import DateGrid, DateTimeGrid
-from convtools import conversion as c
 
 # MONTHS
 assert list(DateGrid("mo").around(date(1999, 12, 20), date(2000, 1, 3))) == [
