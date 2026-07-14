@@ -991,7 +991,7 @@ class DatetimeParse(BaseConversion):
                         )
                     )
                     code_params.create(
-                        f"12 if groups_[{group_index}].lower() == '''{LOCALE_BASED_MAPS.hour_to_pct_lower_p[1].lower()}''' else 0",
+                        f"12 if groups_[{group_index}].lower() == {LOCALE_BASED_MAPS.hour_to_pct_lower_p[1].lower()!r} else 0",
                         "ampm_h_delay",
                     )
                     group_index += 1
@@ -1067,7 +1067,7 @@ class DatetimeParse(BaseConversion):
         )
         code.add_line("if not match:", 1)
         code.add_line(
-            f"raise ValueError('time data %r does not match format %r' % ({code_input}, '''{self.fmt}'''))",
+            f"raise ValueError('time data %r does not match format %r' % ({code_input}, {self.fmt!r}))",
             -1,
         )
         code.add_line(f"if len({code_input}) != match.end():", 1)

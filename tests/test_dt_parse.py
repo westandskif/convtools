@@ -205,6 +205,23 @@ def test_datetime_parse__unsupported(dt, fmt):
     assert expected == result
 
 
+def test_datetime_parse_fmt_with_quotes_and_backslashes():
+    # formats stdlib strptime accepts but which previously broke codegen
+    for fmt, ok_input in [
+        ("%Y'''", "2024'''"),
+        ("%Y'", "2024'"),
+        ('%Y"""', '2024"""'),
+        ("%Y\\", "2024\\"),
+        ("%Y\n", "2024\n"),
+    ]:
+        assert datetime.strptime(ok_input, fmt) == datetime(2024, 1, 1)
+        assert c.datetime_parse(fmt).execute(ok_input) == datetime(2024, 1, 1)
+        # error path must still raise ValueError mentioning the format, not SyntaxError
+        with pytest.raises(ValueError) as exc_info:
+            c.datetime_parse(fmt).execute("bad")
+        assert repr(fmt) in str(exc_info.value)
+
+
 def test_datetime_parse_exceptions():
     for bad_fmt in (123,):
         with pytest.raises(ValueError):
