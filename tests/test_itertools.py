@@ -30,6 +30,55 @@ def test_take_while():
     result = c.take_while(c.this < 0).as_type(list).execute(range(10))
     assert result == []
 
+    # cast set on an earlier filter survives chaining
+    result = (
+        c.take_while(c.this < 10)
+        .filter(c.this > 0, cast=list)
+        .filter(c.this < 5)
+        .execute(range(20))
+    )
+    assert result == [1, 2, 3, 4]
+
+    # filter doesn't mutate the original conversion
+    take_while_ = c.take_while(c.this < 10)
+    filtered = take_while_.filter(c.this > 5)
+    assert filtered is not take_while_
+    assert list(filtered.execute(range(20))) == [6, 7, 8, 9]
+    assert list(take_while_.filter(c.this % 2 == 0).execute(range(20))) == [
+        0,
+        2,
+        4,
+        6,
+        8,
+    ]
+
+    # an explicit later cast overrides an earlier one
+    result = (
+        c.take_while(c.this < 10)
+        .filter(c.this > 0, cast=list)
+        .filter(c.this < 5, cast=tuple)
+        .execute(range(20))
+    )
+    assert result == (1, 2, 3, 4)
+
+    # cast=None means "default", same as omitting it
+    result = (
+        c.take_while(c.this < 10)
+        .filter(c.this > 0, cast=None)
+        .execute(range(20))
+    )
+    assert isinstance(result, GeneratorType)
+    assert list(result) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    # ... including after an earlier explicit cast (sticky)
+    result = (
+        c.take_while(c.this < 10)
+        .filter(c.this > 0, cast=list)
+        .filter(c.this < 5, cast=None)
+        .execute(range(20))
+    )
+    assert result == [1, 2, 3, 4]
+
 
 def test_drop_while():
     result = c.drop_while(c.this < 3).as_type(list).execute(range(5))

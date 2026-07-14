@@ -3079,15 +3079,18 @@ class TakeWhile(BaseConversion):
         self.cast = self._none
 
     def filter(self, condition_conv, cast=BaseConversion._none):
-        conditions = self.filter_results_conditions
-        if conditions is None:
-            conditions = self.filter_results_conditions = [
-                self.ensure_conversion(condition_conv)
-            ]
-        else:
-            conditions.append(self.ensure_conversion(condition_conv))
-        self.cast = cast
-        return self
+        if cast is None:
+            cast = self._none
+        new = TakeWhile(self.condition)
+        new.filter_results_conditions = [
+            new.ensure_conversion(condition)
+            for condition in (self.filter_results_conditions or ())
+        ]
+        new.filter_results_conditions.append(
+            new.ensure_conversion(condition_conv)
+        )
+        new.cast = cast if cast is not self._none else self.cast
+        return new
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_random_name("_", ctx)
