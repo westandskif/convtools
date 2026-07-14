@@ -73,7 +73,7 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `PopulationStdDev` | Calculates population standard deviation, skipping `None`. |
 | `PopulationVariance` | Calculates population variance, skipping `None`. |
 | `StdDev` | Calculates sample standard deviation, skipping `None`. |
-| `Sum` | Sums values, skipping `None` and falsy values; default is `0`. |
+| `Sum` | Sums values, treating `None` (and other falsy values) as `0`; default is `0`. |
 | `SumOrNone` | Sums values; any `None` makes the result `None`. |
 | `TopK` | Returns the most frequent non-`None` values, sorted by descending frequency. |
 | `Variance` | Calculates sample variance, skipping `None`. |
@@ -93,7 +93,7 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `DictLastN` | Builds a dict whose values are last N encountered values per key. |
 | `DictMax` | Builds a dict whose values are max values per key, skipping `None`. |
 | `DictMin` | Builds a dict whose values are min values per key, skipping `None`. |
-| `DictSum` | Builds a dict whose values are sums per key, skipping `None`. |
+| `DictSum` | Builds a dict whose values are sums per key, treating `None` as `0`. |
 | `DictSumOrNone` | Builds a dict whose values are sums per key; any `None` makes that key's result `None`. |
 
 Dict reducers aggregate into dictionaries whose values are reduced per key. See [Reducers API](#reducers-api) below for argument counts, defaults, `None` handling, `initial=` support, and edge-case notes.
