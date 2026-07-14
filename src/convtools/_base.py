@@ -2949,9 +2949,11 @@ class OptionalCollectionItem(BaseConversion):
             raise ValueError("both condition and skip_value are passed")
         self.conversion = self.ensure_conversion(conversion)
         if condition_is_passed:
+            if skip_if is not self._none and keep_if is not self._none:
+                raise ValueError("both skip_if and keep_if are passed")
             if skip_if is not self._none:
                 self.condition = Not(self.ensure_conversion(skip_if))
-            if keep_if is not self._none:
+            else:
                 self.condition = self.ensure_conversion(keep_if)
         elif skip_value is None:
             self.condition = self.conversion.is_not(None)
