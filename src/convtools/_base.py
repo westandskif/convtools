@@ -2729,7 +2729,7 @@ class DictComp(BaseMethodConversion):
     def filter(self, condition_conv, cast=BaseConversion._none):
         if cast is self._none:
             cast = dict
-        return self.call_method("items").filter(condition_conv, cast=dict)
+        return self.call_method("items").filter(condition_conv, cast=cast)
 
     def sort(self, key=None, reverse=False) -> "BaseConversion":
         return self.call_method("items").sort(key, reverse).as_type(dict)

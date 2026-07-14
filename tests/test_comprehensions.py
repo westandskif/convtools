@@ -150,6 +150,14 @@ def test_comprehension_filter_cast_assumptions():
         1: 1,
         2: 2,
     }
+    assert c.dict_comp(c.this, c.this).filter(c.item(0), cast=list).execute(
+        range(3)
+    ) == [(1, 1), (2, 2)]
+    assert list(
+        c.dict_comp(c.this, c.this).filter(c.item(0), cast=None).execute(
+            range(3)
+        )
+    ) == [(1, 1), (2, 2)]
 
 
 def test_comprehension_filter_concats():
