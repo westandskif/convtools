@@ -3141,8 +3141,6 @@ class DropWhile(BaseConversion):
     def __init__(self, condition):
         super().__init__()
         self.condition = self.ensure_conversion(condition)
-        self.filter_results_conditions = None
-        self.cast = self._none
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         suffix = self.gen_random_name("_", ctx)

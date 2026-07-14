@@ -99,6 +99,14 @@ def test_drop_while():
     )
     assert result == []
 
+    # filter on drop_while goes through the generic filter path
+    result = (
+        c.drop_while(c.this < 3)
+        .filter(c.this % 2 == 0, cast=list)
+        .execute(range(8))
+    )
+    assert result == [4, 6]
+
 
 def test_iter_unique():
     assert c.this.iter_unique().as_type(list).execute([1, 1, 2]) == [1, 2]
