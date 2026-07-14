@@ -1402,7 +1402,7 @@ class AverageReducerDispatcher(ReducerDispatcher):
         return If(
             SumReducer(weight, where=where),
             (
-                SumReducer(Or(value, 0) * weight, where=where)
+                SumReducer(Or(value, 0) * Or(weight, 0), where=where)
                 / SumReducer(weight, where=where)
             ),
             default,

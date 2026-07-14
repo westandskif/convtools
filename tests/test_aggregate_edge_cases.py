@@ -178,6 +178,70 @@ def test_weighted_average_with_group_by(series):
     )
 
 
+def test_weighted_average_none_weight():
+    """None weights are treated as 0 (row effectively excluded from numerator)."""
+    data = [
+        {"v": 10, "w": None},
+        {"v": 20, "w": 1},
+    ]
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Average(c.item("v"), weight=c.item("w"))
+        ).execute(data)
+        == 20.0
+    )
+
+    # None weight combined with where= filter still works
+    data_where = [
+        {"v": 10, "w": None, "ok": True},
+        {"v": 30, "w": 1, "ok": False},
+        {"v": 20, "w": 1, "ok": True},
+    ]
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Average(
+                c.item("v"), weight=c.item("w"), where=c.item("ok")
+            )
+        ).execute(data_where)
+        == 20.0
+    )
+
+    # group_by path uses different reducer codegen
+    data_grouped = [
+        {"g": "a", "v": 10, "w": None},
+        {"g": "a", "v": 20, "w": 1},
+        {"g": "b", "v": 5, "w": None},
+        {"g": "b", "v": 15, "w": 2},
+    ]
+    result = (
+        c.group_by(c.item("g"))
+        .aggregate(
+            {
+                "g": c.item("g"),
+                "avg": c.ReduceFuncs.Average(c.item("v"), weight=c.item("w")),
+            }
+        )
+        .execute(data_grouped)
+    )
+    assert {row["g"]: row["avg"] for row in result} == {"a": 20.0, "b": 15.0}
+
+    # All weights None → weight sum is 0, returns default
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Average(c.item("v"), weight=c.item("w"))
+        ).execute([{"v": 1, "w": None}, {"v": 2, "w": None}])
+        is None
+    )
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Average(
+                c.item("v"), weight=c.item("w"), default=-1
+            )
+        ).execute([{"v": 1, "w": None}, {"v": 2, "w": None}])
+        == -1
+    )
+
+
 def test_mode(series):
     assert eq(
         c.aggregate(c.ReduceFuncs.Mode(c.item(0))).execute(series),
