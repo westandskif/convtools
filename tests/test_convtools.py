@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from convtools import conversion as c
-from convtools._base import LazyEscapedString, Namespace
+from convtools._base import Eq, LazyEscapedString, Namespace
 from convtools._utils import Code
 
 from .utils import get_code_str
@@ -437,6 +437,29 @@ def test_in_single_element_optimization():
     # Empty collections should NOT be optimized
     code_str = get_code_str(c.this.in_([]))
     assert " in " in code_str
+
+
+def test_in_not_in_nan_single_element():
+    nan = float("nan")
+    # naive containers
+    assert c.this.in_([nan]).execute(nan) is True
+    assert c.this.in_((nan,)).execute(nan) is True
+    assert c.this.in_({nan}).execute(nan) is True
+    assert c.this.in_(frozenset({nan})).execute(nan) is True
+    assert c.this.not_in([nan]).execute(nan) is False
+    assert c.this.not_in({nan}).execute(nan) is False
+    assert c.this.not_in(frozenset({nan})).execute(nan) is False
+    # literal container conversions
+    assert c.this.in_(c.list(c.naive(nan))).execute(nan) is True
+    assert c.this.not_in(c.list(c.naive(nan))).execute(nan) is False
+    # dynamic single element must not be rewritten to ==
+    assert c.item(0).in_([c.item(1)]).execute([nan, nan]) is True
+    assert c.item(0).not_in([c.item(1)]).execute([nan, nan]) is False
+    # safe types still optimized; NaN is not
+    assert isinstance(c.this.in_([1]), Eq)
+    assert not isinstance(c.this.in_([nan]), Eq)
+    assert not isinstance(c.this.in_({nan}), Eq)
+    assert not isinstance(c.this.in_(frozenset({nan})), Eq)
 
 
 def test_input_arg():
