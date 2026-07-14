@@ -1140,9 +1140,15 @@ def test_generator_exception_handling():
         list(conv([1, 2]))
 
 
-def test_call_like_methods():
-    assert c.inline_expr("1").is_itself_callable_like()
-    assert c.item(1).is_itself_callable_like() is None
+def test_inline_expr_pass_args_rebinding():
+    bound = c.inline_expr("{0} + {1}").pass_args(c.this, 1)
+    assert bound.execute(10) == 11
+
+    # Already-bound expressions cannot be rebound (would discard args)
+    with pytest.raises(ValueError, match="already has bound arguments"):
+        bound.pass_args(c.this, 2)
+    with pytest.raises(ValueError, match="already has bound arguments"):
+        (c.this % 3).pass_args()
 
 
 class CustomConversion(c.BaseConversion):

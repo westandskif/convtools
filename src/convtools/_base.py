@@ -718,19 +718,8 @@ class BaseConversion(Generic[CT]):
     def attr(self, *attrs, **kwargs) -> "GetAttr":
         return GetAttr(*attrs, self_conv=self, **kwargs)
 
-    def is_itself_callable_like(self) -> Optional[bool]:
-        pass
-
-    def is_itself_callable(self) -> Optional[bool]:
-        pass
-
     def ignores_input(self) -> Optional[bool]:
         return self.contents & 64 == 0  # self.ContentTypes.FUNCTION_OF_INPUT
-
-    def call_like(self, *args, **kwargs):
-        if self.is_itself_callable_like():
-            return self.call(*args, **kwargs)
-        raise AssertionError("unexpected callable", self)
 
     def call(self, *args, **kwargs) -> "Call":
         """Call __call__ on input, taking args & kwargs as conversions."""
@@ -1531,12 +1520,6 @@ class NaiveConversion(BaseConversion):
         ctx["__naive_values__"][value_name] = self.value
         return f'__naive_values__["{value_name}"]'
 
-    def is_itself_callable_like(self) -> Optional[bool]:
-        return callable(self.value)
-
-    def is_itself_callable(self) -> Optional[bool]:
-        return callable(self.value)
-
     def call(self, *args, **kwargs) -> "Call":
         conv = super().call(*args, **kwargs)
         try:
@@ -1622,7 +1605,10 @@ class ThisConversion(BaseConversion):
             and label_output is None
             and not args
             and not kwargs
-            and not next_conversion.is_itself_callable()
+            and not (
+                isinstance(next_conversion, NaiveConversion)
+                and callable(next_conversion.value)
+            )
         ):
             return next_conversion
 
@@ -2199,7 +2185,17 @@ class InlineExpr(BaseConversion):
             with `ensure_conversion`
         Returns:
           InlineExpr: Clone of the conversion after arguments are passed.
+
+        Raises:
+          ValueError: if this expression already has bound args/kwargs.
+            Rebinding would discard them (use a fresh ``inline_expr``).
         """
+        if self.args or self.kwargs:
+            raise ValueError(
+                "InlineExpr already has bound arguments; "
+                "cannot rebind via pass_args "
+                "(use a fresh inline_expr template instead)"
+            )
         return InlineExpr(self.code_str, self.weight, args, kwargs)
 
     def gen_code_and_update_ctx(self, code_input, ctx):
@@ -2214,12 +2210,6 @@ class InlineExpr(BaseConversion):
             },
         )
         return f"({code})"
-
-    def is_itself_callable_like(self) -> Optional[bool]:
-        return True
-
-    def call_like(self, *args, **kwargs):
-        return self.pass_args(*args, **kwargs)
 
 
 GET_ITEM_OR_DEFAULT_TEMPLATE = """
@@ -3345,7 +3335,7 @@ class PipeConversion(BaseConversion):
         what = ensure_conversion(what)
         where = ensure_conversion(where)
 
-        if where.is_itself_callable():
+        if isinstance(where, NaiveConversion) and callable(where.value):
             where = where.call(This(), *args, **kwargs)
 
         elif args or kwargs:

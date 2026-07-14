@@ -913,3 +913,92 @@ def test_dictlastn_with_where():
         c.ReduceFuncs.DictLastN(2, c.item(0), c.item(1), where=c.item(1) < 20)
     ).execute(data)
     assert result == {"a": [3, 4], "b": [10]}
+
+
+def test_reducer_percent_in_generated_code():
+    """Literal % in generated expressions must not break template % kwargs."""
+    data = [1, 2, 3, 4]
+
+    # Bug A: % inside an expression arg
+    assert (
+        c.aggregate(
+            c.reduce(lambda a, b: a + b, c.this % 3, initial=0)
+        ).execute(data)
+        == 4
+    )
+
+    # Bug A: % inside the reduce InlineExpr itself
+    assert (
+        c.aggregate(
+            c.reduce(c.inline_expr("({0} + {1}) % 100"), c.this, initial=0)
+        ).execute(data)
+        == 10
+    )
+
+    # Bug B: % inside initial (via call_func so it is not an InlineExpr)
+    assert (
+        c.aggregate(
+            c.reduce(
+                lambda a, b: a + b,
+                c.this,
+                initial=c.call_func(lambda x: x, c.this % 3),
+                default=0,
+            )
+        ).execute(data)
+        == 11
+    )
+
+    # Bug B: built-in reducer initial with % via group_by
+    # (bare c.aggregate(Sum(...)) shortcut ignores row-dependent initial)
+    assert c.group_by(c.item(0)).aggregate(
+        c.ReduceFuncs.Sum(
+            c.item(1),
+            initial=c.call_func(lambda x: x, c.item(1) % 3),
+            default=0,
+        )
+    ).execute([(1, 1), (1, 2), (2, 5)]) == [4, 7]
+
+    # Bug C: operator-built InlineExpr as initial must keep its args
+    # (depends on input → default is required; auto-calling it would wipe args)
+    assert (
+        c.aggregate(
+            c.reduce(
+                lambda a, b: a + b,
+                c.this,
+                initial=c.this % 3,
+                default=0,
+            )
+        ).execute(data)
+        == 11
+    )
+    with pytest.raises(ValueError):
+        c.reduce(lambda a, b: a + b, c.this, initial=c.this % 3)
+
+    # Emitted code should contain a single % (not escaped %%)
+    code_str = get_code_str(
+        c.aggregate(
+            c.reduce(lambda a, b: a + b, c.this % 3, initial=0)
+        ).gen_converter()
+    )
+    assert " % 3" in code_str
+    assert " %% 3" not in code_str
+
+
+def test_reducer_callable_initial_and_default():
+    """Plain Python callables used as initial/default still get auto-called."""
+    assert (
+        c.aggregate(
+            c.reduce(lambda a, b: a + b, c.this, initial=lambda: 0)
+        ).execute([1, 2, 3])
+        == 6
+    )
+    assert (
+        c.aggregate(
+            c.reduce(lambda a, b: a + b, c.this, initial=int, default=0)
+        ).execute([1, 2, 3])
+        == 6
+    )
+    assert (
+        c.aggregate(c.ReduceFuncs.Array(c.this, default=list)).execute([])
+        == []
+    )

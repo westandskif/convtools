@@ -460,8 +460,12 @@ class BaseReducer(BaseConversion):
 
         if initial is not _none:
             initial = self.ensure_conversion(initial)
-            if initial.is_itself_callable_like():
-                initial = initial.call_like()
+            # Only auto-call naive Python callables (e.g. list, lambda: 0);
+            # calling a bound InlineExpr (e.g. c.this % 3) would be wrong.
+            if isinstance(initial, NaiveConversion) and callable(
+                initial.value
+            ):
+                initial = initial.call()
 
             if default is _none and initial.ignores_input():
                 default = initial
@@ -470,8 +474,8 @@ class BaseReducer(BaseConversion):
             raise ValueError("default is not provided")
 
         default = self.ensure_conversion(default)
-        if default.is_itself_callable_like():
-            default = default.call_like()
+        if isinstance(default, NaiveConversion) and callable(default.value):
+            default = default.call()
 
         return default, initial
 
@@ -522,8 +526,10 @@ class BaseReducer(BaseConversion):
             line_ = reduce_manager.code_optimizer.use_expression(
                 self.initial.gen_code_and_update_ctx(var_row, ctx)
             )
+            # Escape % so literal modulos in initial code survive line % kwargs.
+            # Optimizer still sees the unescaped form above.
             prepare_first_lines = (
-                f"%(result)s = {line_}",
+                f"%(result)s = {line_.replace('%', '%%')}",
                 *reduce_lines,
             )
         else:
@@ -1956,8 +1962,26 @@ class Reduce(BaseReducer):
         return (False,) * len(self.expressions)
 
     def reduce_lines(self, ctx):
-        _ = self.to_call_with_2_args.call_like(
-            EscapedString("%(result)s"),
-            *self.expressions,
-        ).gen_code_and_update_ctx("%(row)s", ctx)
-        return (f"%(result)s = {_}",)
+        # Generate against %-free sentinels so expression code containing
+        # literal % (e.g. c.this % 3, InlineExpr with %) can be escaped
+        # without corrupting intentional %(result)s / %(row)s placeholders.
+        result_sentinel = "__reduce_result_sentinel__"
+        row_sentinel = "__reduce_row_sentinel__"
+        to_call = self.to_call_with_2_args
+        if isinstance(to_call, InlineExpr):
+            conv = to_call.pass_args(
+                EscapedString(result_sentinel), *self.expressions
+            )
+        elif isinstance(to_call, NaiveConversion) and callable(to_call.value):
+            conv = to_call.call(
+                EscapedString(result_sentinel), *self.expressions
+            )
+        else:
+            raise AssertionError("unexpected callable", to_call)
+        code = conv.gen_code_and_update_ctx(row_sentinel, ctx)
+        code = (
+            code.replace("%", "%%")
+            .replace(result_sentinel, "%(result)s")
+            .replace(row_sentinel, "%(row)s")
+        )
+        return (f"%(result)s = {code}",)
