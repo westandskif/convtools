@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime, timedelta, timezone
 from time import time
 
@@ -581,13 +582,13 @@ def test_grid_exceptions():
         timedelta(0),
         timedelta(days=-1),
     ):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=re.escape(repr(bad_step))):
             DateGrid(bad_step)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=re.escape(repr(bad_step))):
             DateTimeGrid(bad_step)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(repr("-2h"))):
         DateTimeGrid("-2h")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(repr("0h"))):
         DateTimeGrid("0h")
 
 

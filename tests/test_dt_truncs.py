@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
@@ -139,15 +140,15 @@ def test_date_trunc():
         timedelta(0),
         timedelta(days=-1),
     ):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=re.escape(repr(bad_step))):
             c.this.date_trunc(bad_step)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=re.escape(repr(bad_step))):
             c.this.datetime_trunc(bad_step)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(repr("-1h"))):
         c.this.datetime_trunc("-1h")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(repr("0h"))):
         c.this.datetime_trunc("0h")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(repr("0d"))):
         c.this.date_trunc("0d")
 
     # Negative offsets remain valid; validation applies only to steps.
