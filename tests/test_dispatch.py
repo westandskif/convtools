@@ -62,3 +62,21 @@ def test_dispatch():
         .gen_converter()
     )
     assert converter3(data2, v2_field="field2") == [10, 20, -1]
+
+
+def test_dispatch_default_none():
+    """Literal None must be a valid default, not treated as omitted."""
+    assert (
+        c.this.dispatch(c.item("v"), {"a": 1}, default=None).execute(
+            {"v": "x"}
+        )
+        is None
+    )
+    assert (
+        c.this.dispatch(c.item("v"), {"a": 1}, default=None).execute(
+            {"v": "a"}
+        )
+        == 1
+    )
+    with pytest.raises(KeyError):
+        c.this.dispatch(c.item("v"), {"a": 1}).execute({"v": "x"})

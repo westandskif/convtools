@@ -1100,13 +1100,7 @@ class BaseConversion(Generic[CT]):
         >>>     c.item("field")
         >>> ).gen_converter()
         """
-        return self.pipe(
-            Dispatcher(
-                key,
-                key_to_conv,
-                default=None if default is _none else default,
-            )
-        )
+        return self.pipe(Dispatcher(key, key_to_conv, default=default))
 
     def cumulative(self, prepare_first, reduce_two, label_name=None):
         """Calculate cumulative values within iterables.
@@ -3217,7 +3211,7 @@ class Dispatcher(BaseConversion):
         self,
         key: "Any",
         key_to_conv: dict,
-        default: "Optional[Any]" = None,
+        default: "Any" = _none,
     ):
         super().__init__()
         self.key_getter = self.ensure_conversion(key)
@@ -3225,7 +3219,7 @@ class Dispatcher(BaseConversion):
             k: self.ensure_conversion(v) for k, v in key_to_conv.items()
         }
         self.default_conversion = (
-            None if default is None else self.ensure_conversion(default)
+            None if default is _none else self.ensure_conversion(default)
         )
         self.number_of_input_uses = 2
 
