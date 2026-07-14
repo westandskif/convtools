@@ -111,16 +111,18 @@ class BaseCtx(
     _ctx: threading.local
 
     def __enter__(self) -> OT:
-        self._ctx.prev_options = getattr(self._ctx, "options", None)
-        if self._ctx.prev_options:
-            self._ctx.options = self._ctx.prev_options.clone()
+        if not hasattr(self._ctx, "options_stack"):
+            self._ctx.options_stack = []
+        prev_options = getattr(self._ctx, "options", None)
+        self._ctx.options_stack.append(prev_options)
+        if prev_options:
+            self._ctx.options = prev_options.clone()
         else:
             self._ctx.options = self.options_cls()
         return self._ctx.options
 
     def __exit__(self, exc_type, exc_value, tb):
-        self._ctx.options = self._ctx.prev_options
-        self._ctx.prev_options = None
+        self._ctx.options = self._ctx.options_stack.pop()
 
     @classmethod
     def get_option_value(cls, option_name):

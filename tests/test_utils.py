@@ -53,6 +53,37 @@ def test_code_generation_ctx():
     assert ConverterOptionsCtx.get_option_value("debug") is False
 
 
+def test_code_generation_ctx_deep_nesting():
+    with ConverterOptionsCtx() as options:
+        options.debug = True
+        assert ConverterOptionsCtx.get_option_value("debug") is True
+
+        with ConverterOptionsCtx():
+            with ConverterOptionsCtx():
+                pass
+            assert ConverterOptionsCtx.get_option_value("debug") is True
+
+        assert ConverterOptionsCtx.get_option_value("debug") is True
+
+        with ConverterOptionsCtx() as options2:
+            assert options2.debug is True
+            options2.debug = False
+            assert ConverterOptionsCtx.get_option_value("debug") is False
+
+        assert ConverterOptionsCtx.get_option_value("debug") is True
+
+        try:
+            with ConverterOptionsCtx():
+                with ConverterOptionsCtx():
+                    raise ValueError("boom")
+        except ValueError:
+            pass
+
+        assert ConverterOptionsCtx.get_option_value("debug") is True
+
+    assert ConverterOptionsCtx.get_option_value("debug") is False
+
+
 def test_replace_word():
     cases = [
         ("abc", "abc", "cde", "cde"),
