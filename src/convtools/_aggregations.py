@@ -1385,7 +1385,7 @@ class ReducerDispatcher:
 
 
 class AverageReducerDispatcher(ReducerDispatcher):
-    """Calculates weighted average (default weight is 0)."""
+    """Calculates weighted average (default weight is 1)."""
 
     def __call__(
         self, value, weight=1, default=None, where=None
@@ -1563,7 +1563,7 @@ class ReduceFuncs:
 
     # pylint: disable=invalid-name
 
-    #: Sums values, skipping `None` and falsy values; default is `0`.
+    #: Sums values, treating `None` (and other falsy values) as `0`; default is `0`.
     Sum = SumReducer
     #: Sums values; any `None` makes the result `None`.
     SumOrNone = SumOrNoneReducer
@@ -1629,7 +1629,7 @@ class ReduceFuncs:
     DictArray = DictArrayReducer
     #: Builds a dict whose values are distinct lists per key, preserving order.
     DictArrayDistinct = DictArrayDistinctReducer
-    #: Builds a dict whose values are sums per key, skipping `None`.
+    #: Builds a dict whose values are sums per key, treating `None` as `0`.
     DictSum = DictSumReducer
     #: Builds a dict whose values are sums per key; any `None` makes that
     #: key's result `None`.

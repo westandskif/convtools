@@ -152,9 +152,7 @@ def test_date_trunc():
         c.this.date_trunc("0d")
 
     # Negative offsets remain valid; validation applies only to steps.
-    result = c.this.datetime_trunc("1d", "-2h").execute(
-        utc(2000, 1, 2, 1, 30)
-    )
+    result = c.this.datetime_trunc("1d", "-2h").execute(utc(2000, 1, 2, 1, 30))
     assert result == utc(2000, 1, 1, 22)
 
     results = (

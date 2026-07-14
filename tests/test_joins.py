@@ -763,4 +763,3 @@ def test_nested_loop_join_with_sized_one_shot_iterator():
 
     # containers must still not be copied unnecessarily / must keep working
     assert list(inner(([0, 1], [2, 3]))) == expected
-

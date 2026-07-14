@@ -234,9 +234,7 @@ def test_weighted_average_none_weight():
     )
     assert (
         c.aggregate(
-            c.ReduceFuncs.Average(
-                c.item("v"), weight=c.item("w"), default=-1
-            )
+            c.ReduceFuncs.Average(c.item("v"), weight=c.item("w"), default=-1)
         ).execute([{"v": 1, "w": None}, {"v": 2, "w": None}])
         == -1
     )

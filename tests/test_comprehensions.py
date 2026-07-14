@@ -154,9 +154,9 @@ def test_comprehension_filter_cast_assumptions():
         range(3)
     ) == [(1, 1), (2, 2)]
     assert list(
-        c.dict_comp(c.this, c.this).filter(c.item(0), cast=None).execute(
-            range(3)
-        )
+        c.dict_comp(c.this, c.this)
+        .filter(c.item(0), cast=None)
+        .execute(range(3))
     ) == [(1, 1), (2, 2)]
 
 
