@@ -1,6 +1,6 @@
 """Join conversions."""
 
-from collections.abc import Sized
+from collections.abc import Iterator, Sized
 from itertools import chain, repeat
 from typing import Set
 
@@ -16,6 +16,7 @@ from ._base import (
     ListComp,
     NaiveConversion,
     Namespace,
+    Not,
     This,
     Tuple_,
 )
@@ -405,7 +406,10 @@ class JoinConversion(BaseConversion):
             code.add_line(
                 "right_ = %s"
                 % If(
-                    CallFunc(isinstance, This, Sized),
+                    And(
+                        CallFunc(isinstance, This, Sized),
+                        Not(CallFunc(isinstance, This, Iterator)),
+                    ),
                     This,
                     This.pipe(list),
                 ).gen_code_and_update_ctx("right_", ctx),

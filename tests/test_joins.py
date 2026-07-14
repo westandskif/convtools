@@ -730,3 +730,37 @@ def test_full_join_duplicate_object_references_nested_loop_unmatched():
         (None, {"id": 1}),
         (None, {"id": 1}),
     ]
+
+
+def test_nested_loop_join_with_sized_one_shot_iterator():
+    class SizedIterator:
+        """Iterator that also implements __len__ (one-shot despite being Sized)."""
+
+        def __init__(self, data):
+            self._it = iter(data)
+            self._length = len(data)
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            return next(self._it)
+
+        def __len__(self):
+            return self._length
+
+    expected = [(0, 2), (0, 3), (1, 2), (1, 3)]
+
+    inner = c.join(
+        c.item(0), c.item(1), c.LEFT < c.RIGHT, how="inner"
+    ).gen_converter()
+    assert list(inner(([0, 1], SizedIterator([2, 3])))) == expected
+
+    left = c.join(
+        c.item(0), c.item(1), c.LEFT < c.RIGHT, how="left"
+    ).gen_converter()
+    assert list(left(([0, 1], SizedIterator([2, 3])))) == expected
+
+    # containers must still not be copied unnecessarily / must keep working
+    assert list(inner(([0, 1], [2, 3]))) == expected
+
