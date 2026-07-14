@@ -49,3 +49,35 @@ def test_try():
         .execute(10, debug=True)
         == 10
     )
+
+
+def test_try_except_tracks_input_arg_dependencies():
+    # Mode 1: deps from the new except_ clause must land on the returned Try
+    converter = (
+        c.try_(c.item("a"))
+        .except_(KeyError, c.input_arg("fallback"))
+        .gen_converter()
+    )
+    assert converter({}, fallback=-1) == -1
+    assert converter({"a": 5}, fallback=-1) == 5
+
+    # Mode 2: chained except_ must re-register prior clause deps
+    conv = (
+        c.try_(c.item("a"))
+        .except_(KeyError, c.input_arg("fb1"))
+        .except_(TypeError, c.input_arg("fb2"))
+        .gen_converter()
+    )
+    assert conv({}, fb1=-1, fb2=-2) == -1
+    assert conv(None, fb1=-1, fb2=-2) == -2
+    assert conv({"a": 5}, fb1=-1, fb2=-2) == 5
+
+    # re_raise_if with an input arg must also be tracked
+    strict_conv = (
+        c.try_(c.item("a"))
+        .except_(KeyError, -1, re_raise_if=c.input_arg("strict"))
+        .gen_converter()
+    )
+    assert strict_conv({}, strict=False) == -1
+    with pytest.raises(KeyError):
+        strict_conv({}, strict=True)

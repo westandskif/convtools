@@ -41,11 +41,18 @@ class Try(BaseConversion):
         reference the caught exception as c.EXCEPTION.
         """
         new_self = Try(self._conv)
+        # Re-register prior except-clause deps on the new instance (copy-on-write
+        # would otherwise drop them; only self._conv is tracked via __init__).
+        new_self.depends_on(
+            *self._exc_def,
+            *self._value,
+            *(r for r in self._re_raise_if if r is not None),
+        )
         new_self._exc_def = (  # pylint: disable=protected-access
-            self._exc_def + (self.ensure_conversion(exc_def),)
+            self._exc_def + (new_self.ensure_conversion(exc_def),)
         )
         new_self._value = self._value + (  # pylint: disable=protected-access
-            self.ensure_conversion(
+            new_self.ensure_conversion(
                 Namespace(
                     value,
                     {self.EXCEPTION.name: "exc_"},
@@ -58,7 +65,7 @@ class Try(BaseConversion):
                 (
                     None
                     if re_raise_if is None
-                    else self.ensure_conversion(
+                    else new_self.ensure_conversion(
                         Namespace(
                             re_raise_if,
                             {self.EXCEPTION.name: "exc_"},
