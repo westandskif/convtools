@@ -68,14 +68,14 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `Median` | Calculates the median value, skipping `None`. |
 | `Min` | Returns the min value, skipping `None`. |
 | `MinRow` | Returns the row with the min value, skipping `None` comparison values. |
-| `Mode` | Returns the most common non-`None` value, using the last value on ties. |
-| `Percentile` | Calculates a percentile from floats in `[0, 100]`, skipping `None`. |
+| `Mode` | Returns the most common non-`None` value; on ties, the first encountered value wins. |
+| `Percentile` | `Percentile(percentile, value)`: calculates a percentile (`percentile` in `[0, 100]`), skipping `None`. |
 | `PopulationStdDev` | Calculates population standard deviation, skipping `None`. |
 | `PopulationVariance` | Calculates population variance, skipping `None`. |
 | `StdDev` | Calculates sample standard deviation, skipping `None`. |
 | `Sum` | Sums values, treating `None` (and other falsy values) as `0`; default is `0`. |
 | `SumOrNone` | Sums values; any `None` makes the result `None`. |
-| `TopK` | Returns the most frequent non-`None` values, sorted by descending frequency. |
+| `TopK` | `TopK(k, value)`: returns a list of the `k` most frequent non-`None` values, sorted by descending frequency. |
 | `Variance` | Calculates sample variance, skipping `None`. |
 
 ##### Dict reducers
@@ -136,10 +136,10 @@ The table below gives the following info on builtin reducers:
 | Min               |         | v      |         | None    | v          | v                |
 | MinRow            |         | v      |         | None    | v          |                  |
 | Mode              |         | v      |         | None    | v          |                  |
-| Percentile        |         | v      |         | None    | v          |                  |
+| Percentile        |         |        | note 3  | None    | v          |                  |
 | Sum               |         | v      |         | 0       | v          | v                |
 | SumOrNone         |         | v      |         | None    |            | v                |
-| TopK              |         | v      |         | None    | v          |                  |
+| TopK              |         |        | note 4  | None    | v          |                  |
 | FirstN            |         | v      |         | None    |            | v                |
 | LastN             |         | v      |         | None    |            |                  |
 | Variance          |         | v      |         | None    | v          |                  |
@@ -167,6 +167,10 @@ Notes:
  * note 1: `Count()` counts rows; `Count(value)` counts non-`None` values.
  * note 2: `DictCount(key)` counts rows per key; `DictCount(key, value)`
    counts non-`None` values per key.
+ * note 3: `Percentile(percentile, value)` — first positional arg is the
+   percentile in `[0, 100]`, not the reduced value.
+ * note 4: `TopK(k, value)` — first positional arg is `k` (positive int),
+   second is the value conversion.
 
 Statistical reducers follow the usual sample/population edge cases after
 `where` and `None` filtering: `Variance` and `StdDev` return `None` for empty

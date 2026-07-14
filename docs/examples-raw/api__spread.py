@@ -1,4 +1,3 @@
-```python
 from convtools import conversion as c
 
 # Basic spread: merge nested dict into parent
@@ -42,5 +41,3 @@ assert conv({"extra": {"x": 10}, "key": "b", "val": 2}) == {
     "b": 2,
 }
 assert conv({"extra": {}, "key": None, "val": 2}) == {"a": 1}
-
-```

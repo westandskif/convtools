@@ -19,7 +19,7 @@ Let's build a dict from a tuple of two integers:
 
 #### Optional items
 
-It's possible to mark a particular item as optional, so it disappears from an
+It's possible to mark a particular item as optional, so it disappears from a
 `dict`/`list`/`tuple`/`set` in certain cases:
 
 {!examples-md/api__collections_optional.md!}

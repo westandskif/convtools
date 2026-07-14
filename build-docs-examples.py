@@ -37,13 +37,21 @@ def indent_lines(s, indent):
     return "\n".join(f"{indent}{line}" for line in s.splitlines())
 
 
-def write_md_example(raw_example_path, output):
-    md_example_path = (
+def get_md_example_path(raw_example_path):
+    return (
         "%s.md"
         % raw_example_path.replace(
             RAW_EXAMPLES_DIR, MD_EXAMPLES_DIRNAME
         ).rsplit(".", 1)[0]
     )
+
+
+def is_llms_example(path):
+    return os.path.basename(path).startswith("llms__")
+
+
+def write_md_example(raw_example_path, output):
+    md_example_path = get_md_example_path(raw_example_path)
     with open(raw_example_path, "r") as f_in:
         new_content = f"""```python
 {f_in.read()}
@@ -74,6 +82,9 @@ def build_example(path):
     result = subprocess.run(["python", path], capture_output=True)
     if result.returncode != 0:
         raise AssertionError(f"failed for {path}")
+    if is_llms_example(path):
+        print(f"CHECKED LLMS EXAMPLE (no md): {path}")
+        return
     write_md_example(
         raw_example_path=path, output=result.stdout.decode("utf-8")
     )
@@ -94,9 +105,11 @@ def build_examples():
     for path in get_raw_examples():
         mtime = os.path.getmtime(path)
         logs.append({"path": path, "mtime": mtime})
+        md_path = get_md_example_path(path)
         if (
             path in path_to_last_build_time
             and mtime <= path_to_last_build_time[path]
+            and (is_llms_example(path) or os.path.exists(md_path))
         ):
             print(f"UP TO DATE: {path}")
             continue

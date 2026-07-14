@@ -1608,12 +1608,14 @@ class ReduceFuncs:
     Covariance = CovarianceReducer
     #: Calculates Pearson correlation between two variables, skipping `None`.
     Correlation = CorrelationReducer
-    #: Calculates a percentile from floats in `[0, 100]`, skipping `None`.
+    #: `Percentile(percentile, value)`: calculates a percentile (`percentile`
+    #: in `[0, 100]`), skipping `None`.
     Percentile = PercentileReducer
-    #: Returns the most common non-`None` value, using the last value on ties.
+    #: Returns the most common non-`None` value; on ties, the first encountered
+    #: value wins.
     Mode = ModeReducer
-    #: Returns the most frequent non-`None` values, sorted by descending
-    #: frequency.
+    #: `TopK(k, value)`: returns a list of the `k` most frequent non-`None`
+    #: values, sorted by descending frequency.
     TopK = TopReducer
 
     #: Collects values as a list.

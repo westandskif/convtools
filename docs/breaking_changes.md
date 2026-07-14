@@ -3,23 +3,36 @@
 - make the following reducers raise `ValueError` if `initial` is passed:
 ```
    * ArrayDistinct
-   * CountDistinct
-   * First
-   * Last
-   * MaxRow
-   * MinRow
    * ArraySorted
+   * Correlation
+   * CountDistinct
+   * Covariance
    * Dict
    * DictArray
    * DictArrayDistinct
    * DictCount
    * DictCountDistinct
    * DictFirst
+   * DictFirstN
    * DictLast
+   * DictLastN
    * DictMax
    * DictMin
    * DictSum
    * DictSumOrNone
+   * First
+   * Last
+   * LastN
+   * MaxRow
+   * Median
+   * MinRow
+   * Mode
+   * Percentile
+   * PopulationStdDev
+   * PopulationVariance
+   * StdDev
+   * TopK
+   * Variance
 ```
 
 ## 1.0.0 (2023-03-23)
