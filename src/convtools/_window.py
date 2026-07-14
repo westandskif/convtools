@@ -634,6 +634,8 @@ class AppliedWindow(BaseConversion):
                 )
                 if self.frame_end.offset_sign_as_str == "+":
                     frame_end_code = f"min(data_len_, {frame_end_code})"
+                elif self.frame_end.offset_sign_as_str == "-":
+                    frame_end_code = f"max(0, {frame_end_code})"
 
             extra_results_code, frame_conv, name_to_index = (
                 self._init_frame_data(

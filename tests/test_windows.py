@@ -312,6 +312,33 @@ def test_window_func_inside_agg():
     assert result == [45, 45, 45, 45, 45, 45, 45, 45, 45, 45]
 
 
+def test_rows_frame_end_preceding_early_rows():
+    # frame_end N PRECEDING (N>=2) must not pass a negative stop to islice.
+    # Empty frames yield Sum default 0 (PostgreSQL would use NULL here).
+    result = (
+        c.this.window(c.ReduceFuncs.Sum(c.this))
+        .over(
+            frame_mode="ROWS",
+            frame_start="UNBOUNDED PRECEDING",
+            frame_end=(2, "PRECEDING"),
+        )
+        .execute([1, 2, 3, 4])
+    )
+    assert result == [0, 0, 1, 3]
+
+    # both bounds preceding: start and end clamped together on early rows
+    result = (
+        c.this.window(c.ReduceFuncs.Sum(c.this))
+        .over(
+            frame_mode="ROWS",
+            frame_start=(3, "PRECEDING"),
+            frame_end=(2, "PRECEDING"),
+        )
+        .execute([1, 2, 3, 4])
+    )
+    assert result == [0, 0, 1, 3]
+
+
 def test_window_func_exceptions():
     with pytest.raises(ValueError):
         c.this.window(1).over(frame_start=-1)
