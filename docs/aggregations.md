@@ -53,23 +53,23 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | ------- | ----------- |
 | `Array` | Collects values as a list. |
 | `ArrayDistinct` | Collects distinct values as a list, preserving order. |
-| `ArraySorted` | Collects values as a sorted list. |
-| `Average` | Calculates the arithmetic mean or weighted mean, skipping `None`. |
+| `ArraySorted` | Collects values as a sorted list; optional `key=` / `reverse=` like `sorted`. |
+| `Average` | `Average(value)` or `Average(value, weight)`: arithmetic or weighted mean, skipping `None`. |
 | `Correlation` | Calculates Pearson correlation between two variables, skipping `None`. |
 | `Count` | `Count()` counts rows; `Count(value)` counts non-`None` values. |
 | `CountDistinct` | Counts distinct non-`None` values. |
 | `Covariance` | Calculates sample covariance between two variables, skipping `None`. |
 | `First` | Returns the first encountered value. |
-| `FirstN` | Collects the first N encountered values as a list. |
+| `FirstN` | `FirstN(n, value)`: collects the first `n` encountered values as a list. |
 | `Last` | Returns the last encountered value. |
-| `LastN` | Collects the last N encountered values as a list. |
+| `LastN` | `LastN(n, value)`: collects the last `n` encountered values as a list. |
 | `Max` | Returns the max value, skipping `None`. |
 | `MaxRow` | Returns the row with the max value, skipping `None` comparison values. |
 | `Median` | Calculates the median value, skipping `None`. |
 | `Min` | Returns the min value, skipping `None`. |
 | `MinRow` | Returns the row with the min value, skipping `None` comparison values. |
 | `Mode` | Returns the most common non-`None` value; on ties, the first encountered value wins. |
-| `Percentile` | `Percentile(percentile, value)`: calculates a percentile (`percentile` in `[0, 100]`), skipping `None`. |
+| `Percentile` | `Percentile(percentile, value, interpolation="linear")`: calculates a percentile (`percentile` in `[0, 100]`), skipping `None`. |
 | `PopulationStdDev` | Calculates population standard deviation, skipping `None`. |
 | `PopulationVariance` | Calculates population variance, skipping `None`. |
 | `StdDev` | Calculates sample standard deviation, skipping `None`. |
@@ -88,9 +88,9 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `DictCount` | `DictCount(key)` counts rows per key; `DictCount(key, value)` counts non-`None` values per key. |
 | `DictCountDistinct` | Builds a dict whose values are counts of distinct non-`None` values per key. |
 | `DictFirst` | Builds a dict whose values are first encountered values per key. |
-| `DictFirstN` | Builds a dict whose values are first N encountered values per key. |
+| `DictFirstN` | `DictFirstN(n, key, value)`: builds a dict whose values are the first `n` encountered values per key. |
 | `DictLast` | Builds a dict whose values are last encountered values per key. |
-| `DictLastN` | Builds a dict whose values are last N encountered values per key. |
+| `DictLastN` | `DictLastN(n, key, value)`: builds a dict whose values are the last `n` encountered values per key. |
 | `DictMax` | Builds a dict whose values are max values per key, skipping `None`. |
 | `DictMin` | Builds a dict whose values are min values per key, skipping `None`. |
 | `DictSum` | Builds a dict whose values are sums per key, treating `None` as `0`. |
@@ -120,47 +120,47 @@ The table below gives the following info on builtin reducers:
  * whether they skip `None` during reducing
  * whether they support `initial` keyword argument.
 
-| Reducer           | 0-args  | 1-args | 2-args  | default | skips None | supports initial |
-| ----------------- | ------- | ------ | ------- | ------- | ---------- | ---------------- |
-| Array             |         | v      |         | None    |            | v                |
-| ArrayDistinct     |         | v      |         | None    |            |                  |
-| ArraySorted       |         | v      |         | None    |            |                  |
-| Average           |         | v      |         | None    | v          |                  |
-| Count             | v       | v      |         | 0       | note 1     | v                |
-| CountDistinct     |         | v      |         | 0       | v          |                  |
-| First             |         | v      |         | None    |            |                  |
-| Last              |         | v      |         | None    |            |                  |
-| Max               |         | v      |         | None    | v          | v                |
-| MaxRow            |         | v      |         | None    | v          |                  |
-| Median            |         | v      |         | None    | v          |                  |
-| Min               |         | v      |         | None    | v          | v                |
-| MinRow            |         | v      |         | None    | v          |                  |
-| Mode              |         | v      |         | None    | v          |                  |
-| Percentile        |         |        | note 3  | None    | v          |                  |
-| Sum               |         | v      |         | 0       | v          | v                |
-| SumOrNone         |         | v      |         | None    |            | v                |
-| TopK              |         |        | note 4  | None    | v          |                  |
-| FirstN            |         | v      |         | None    |            | v                |
-| LastN             |         | v      |         | None    |            |                  |
-| Variance          |         | v      |         | None    | v          |                  |
-| StdDev            |         | v      |         | None    | v          |                  |
-| PopulationVariance|         | v      |         | None    | v          |                  |
-| PopulationStdDev  |         | v      |         | None    | v          |                  |
-| Covariance        |         |        | v       | None    | v          |                  |
-| Correlation       |         |        | v       | None    | v          |                  |
-| Dict              |         |        | v       | None    |            |                  |
-| DictArray         |         |        | v       | None    |            |                  |
-| DictArrayDistinct |         |        | v       | None    |            |                  |
-| DictCount         |         | v      | v       | None    | note 2     |                  |
-| DictCountDistinct |         |        | v       | None    | v          |                  |
-| DictFirst         |         |        | v       | None    |            |                  |
-| DictLast          |         |        | v       | None    |            |                  |
-| DictMax           |         |        | v       | None    | v          |                  |
-| DictMin           |         |        | v       | None    | v          |                  |
-| DictSum           |         |        | v       | None    | v          |                  |
-| DictSumOrNone     |         |        | v       | None    |            |                  |
-| DictFirstN        |         |        | v       | None    |            |                  |
-| DictLastN         |         |        | v       | None    |            |                  |
+| Reducer           | 0-args  | 1-args | 2-args  | 3-args  | default | skips None | supports initial |
+| ----------------- | ------- | ------ | ------- | ------- | ------- | ---------- | ---------------- |
+| Array             |         | v      |         |         | None    |            | v                |
+| ArrayDistinct     |         | v      |         |         | None    |            |                  |
+| ArraySorted       |         | v      |         |         | None    |            |                  |
+| Average           |         | v      | note 7  |         | None    | v          |                  |
+| Count             | v       | v      |         |         | 0       | note 1     | v                |
+| CountDistinct     |         | v      |         |         | 0       | v          |                  |
+| First             |         | v      |         |         | None    |            |                  |
+| Last              |         | v      |         |         | None    |            |                  |
+| Max               |         | v      |         |         | None    | v          | v                |
+| MaxRow            |         | v      |         |         | None    | v          |                  |
+| Median            |         | v      |         |         | None    | v          |                  |
+| Min               |         | v      |         |         | None    | v          | v                |
+| MinRow            |         | v      |         |         | None    | v          |                  |
+| Mode              |         | v      |         |         | None    | v          |                  |
+| Percentile        |         |        | note 3  |         | None    | v          |                  |
+| Sum               |         | v      |         |         | 0       | note 8     | v                |
+| SumOrNone         |         | v      |         |         | None    |            | v                |
+| TopK              |         |        | note 4  |         | None    | v          |                  |
+| FirstN            |         |        | note 5  |         | None    |            | v                |
+| LastN             |         |        | note 5  |         | None    |            |                  |
+| Variance          |         | v      |         |         | None    | v          |                  |
+| StdDev            |         | v      |         |         | None    | v          |                  |
+| PopulationVariance|         | v      |         |         | None    | v          |                  |
+| PopulationStdDev  |         | v      |         |         | None    | v          |                  |
+| Covariance        |         |        | v       |         | None    | v          |                  |
+| Correlation       |         |        | v       |         | None    | v          |                  |
+| Dict              |         |        | v       |         | None    |            |                  |
+| DictArray         |         |        | v       |         | None    |            |                  |
+| DictArrayDistinct |         |        | v       |         | None    |            |                  |
+| DictCount         |         | v      | v       |         | None    | note 2     |                  |
+| DictCountDistinct |         |        | v       |         | None    | v          |                  |
+| DictFirst         |         |        | v       |         | None    |            |                  |
+| DictLast          |         |        | v       |         | None    |            |                  |
+| DictMax           |         |        | v       |         | None    | v          |                  |
+| DictMin           |         |        | v       |         | None    | v          |                  |
+| DictSum           |         |        | v       |         | None    | note 8     |                  |
+| DictSumOrNone     |         |        | v       |         | None    |            |                  |
+| DictFirstN        |         |        |         | note 6  | None    |            |                  |
+| DictLastN         |         |        |         | note 6  | None    |            |                  |
 
 Notes:
 
@@ -168,9 +168,24 @@ Notes:
  * note 2: `DictCount(key)` counts rows per key; `DictCount(key, value)`
    counts non-`None` values per key.
  * note 3: `Percentile(percentile, value)` — first positional arg is the
-   percentile in `[0, 100]`, not the reduced value.
+   percentile in `[0, 100]`, not the reduced value. Optional
+   `interpolation=` is one of `"linear"` (default), `"lower"`, `"higher"`,
+   `"midpoint"`, `"nearest"`.
  * note 4: `TopK(k, value)` — first positional arg is `k` (positive int),
    second is the value conversion.
+ * note 5: `FirstN(n, value)` / `LastN(n, value)` — first positional arg is
+   `n` (positive int), second is the value conversion.
+ * note 6: `DictFirstN(n, key, value)` / `DictLastN(n, key, value)` — first
+   positional arg is `n` (positive int); key and value are row conversions.
+ * note 7: `Average(value)` or `Average(value, weight)` — weight defaults to
+   `1`; `None` values and weights are skipped.
+ * note 8: `Sum` / `DictSum` do not skip `None`; they treat `None` (and other
+   falsy values) as `0`.
+
+Special parameters:
+
+ * `ArraySorted(value, key=None, reverse=False)` — `key` and `reverse` have
+   the same meaning as in Python's `sorted`.
 
 Statistical reducers follow the usual sample/population edge cases after
 `where` and `None` filtering: `Variance` and `StdDev` return `None` for empty

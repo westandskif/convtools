@@ -1587,12 +1587,13 @@ class ReduceFuncs:
     First = FirstReducer
     #: Returns the last encountered value.
     Last = LastReducer
-    #: Collects the first N encountered values as a list.
+    #: `FirstN(n, value)`: collects the first `n` encountered values as a list.
     FirstN = FirstNReducer
-    #: Collects the last N encountered values as a list.
+    #: `LastN(n, value)`: collects the last `n` encountered values as a list.
     LastN = LastNReducer
 
-    #: Calculates the arithmetic mean or weighted mean, skipping `None`.
+    #: `Average(value)` or `Average(value, weight)`: arithmetic or weighted
+    #: mean, skipping `None`.
     Average = AverageReducerDispatcher()
     #: Calculates the median value, skipping `None`.
     Median = MedianReducer
@@ -1608,8 +1609,8 @@ class ReduceFuncs:
     Covariance = CovarianceReducer
     #: Calculates Pearson correlation between two variables, skipping `None`.
     Correlation = CorrelationReducer
-    #: `Percentile(percentile, value)`: calculates a percentile (`percentile`
-    #: in `[0, 100]`), skipping `None`.
+    #: `Percentile(percentile, value, interpolation="linear")`: calculates a
+    #: percentile (`percentile` in `[0, 100]`), skipping `None`.
     Percentile = PercentileReducer
     #: Returns the most common non-`None` value; on ties, the first encountered
     #: value wins.
@@ -1622,7 +1623,8 @@ class ReduceFuncs:
     Array = ArrayReducer
     #: Collects distinct values as a list, preserving order.
     ArrayDistinct = ArrayDistinctReducer
-    #: Collects values as a sorted list.
+    #: Collects values as a sorted list; optional `key=` / `reverse=` like
+    #: `sorted`.
     ArraySorted = ArraySortedReducer
 
     #: Builds a dict whose values are the last value per key.
@@ -1650,9 +1652,11 @@ class ReduceFuncs:
     DictFirst = DictFirstReducer
     #: Builds a dict whose values are last encountered values per key.
     DictLast = DictLastReducer
-    #: Builds a dict whose values are first N encountered values per key.
+    #: `DictFirstN(n, key, value)`: builds a dict whose values are the first
+    #: `n` encountered values per key.
     DictFirstN = DictFirstNReducer
-    #: Builds a dict whose values are last N encountered values per key.
+    #: `DictLastN(n, key, value)`: builds a dict whose values are the last
+    #: `n` encountered values per key.
     DictLastN = DictLastNReducer
 
 
