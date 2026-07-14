@@ -64,6 +64,25 @@ def test_mutation_item():
     with pytest.raises(KeyError):
         c.this.tap(c.Mut.del_item("a")).execute({})
 
+    # in-range index is removed
+    assert c.this.tap(c.Mut.del_item(1, if_exists=True)).execute(
+        [10, 20, 30]
+    ) == [10, 30]
+    # out-of-range index is a no-op
+    assert c.this.tap(c.Mut.del_item(5, if_exists=True)).execute(
+        [10, 20, 30]
+    ) == [10, 20, 30]
+    # negative indices work like list.pop
+    assert c.this.tap(c.Mut.del_item(-1, if_exists=True)).execute(
+        [10, 20, 30]
+    ) == [10, 20]
+    assert c.this.tap(c.Mut.del_item(-5, if_exists=True)).execute(
+        [10, 20, 30]
+    ) == [10, 20, 30]
+    # without if_exists, out-of-range still raises
+    with pytest.raises(IndexError):
+        c.this.tap(c.Mut.del_item(5)).execute([10, 20, 30])
+
     result = (
         c.item(0)
         .tap(

@@ -1,8 +1,15 @@
 """In-place mutations."""
 
-from ._base import BaseConversion, BaseMutation, This
+from ._base import BaseConversion, BaseMutation, NaiveConversion, This
 from ._heuristics import Weights
 from ._utils import Code
+
+
+def _del_item_if_exists(obj, index):
+    try:
+        obj.pop(index)
+    except (KeyError, IndexError):
+        pass
 
 
 class BaseNameValueMutation(BaseMutation):
@@ -63,7 +70,10 @@ class DelItem(BaseIndexMutation):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
         of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
         if self.if_exists:
-            return f"{of_code}.pop({index_code}, None)"
+            helper_code = NaiveConversion(
+                _del_item_if_exists
+            ).gen_code_and_update_ctx(None, ctx)
+            return f"{helper_code}({of_code}, {index_code})"
         return f"{of_code}.pop({index_code})"
 
 
