@@ -2,8 +2,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
+
 from convtools import conversion as c
 from convtools._base import PipeConversion
+
+from .utils import get_code_str
 
 
 def test_pipes_base():
@@ -342,3 +346,152 @@ def test_and_then():
     assert conv(-1) == 0
     assert conv(0) == 0
     assert conv(1) == 2
+
+
+def test_pipe_keeps_left_side_effects():
+    with pytest.raises(KeyError):
+        c.iter(c.item("a")).iter(c.naive(1)).as_type(list).execute([{}])
+    assert c.iter(c.item("a")).iter(c.naive(1)).as_type(list).execute(
+        [{"a": 7}]
+    ) == [1]
+
+    with pytest.raises(KeyError):
+        c.item("a").pipe(c.naive(1), label_output="x").execute({})
+    assert (
+        c.item("a")
+        .pipe(c.naive(1), label_output="x")
+        .pipe(c.label("x"))
+        .execute({"a": 0})
+        == 1
+    )
+
+    calls = []
+
+    def counting(value):
+        calls.append(value)
+        return value
+
+    assert c.call_func(counting, c.this).pipe(c.naive(1)).execute(10) == 1
+    assert calls == [10]
+
+
+def test_pipe_identifier_rule_no_tuple_wrapper():
+    conv = c.if_(c.input_arg("m"), c.naive(1), c.naive(2))
+    assert ")[1]" not in get_code_str(conv.gen_converter())
+    assert conv.execute(None, m=True) == 1
+    assert conv.execute(None, m=False) == 2
+
+    conv_iter = c.iter(
+        c.if_(c.input_arg("m"), c.naive(1), c.naive(2))
+    ).as_type(list)
+    assert ")[1]" not in get_code_str(conv_iter.gen_converter())
+    assert conv_iter.execute([0], m=True) == [1]
+
+    for spec in (
+        c.naive(5).pipe(c.naive(1)),
+        c.input_arg("a").pipe(c.naive(1)),
+        c.label("a").pipe(c.naive(1)),
+        c.iter(c.this).iter(c.naive(1)).as_type(list),
+    ):
+        assert ")[1]" not in get_code_str(spec.gen_converter())
+
+    assert c.naive(5).pipe(c.naive(1)).execute(None) == 1
+    assert c.input_arg("a").pipe(c.naive(1)).execute(None, a=7) == 1
+    assert c.iter(c.this).iter(c.naive(1)).as_type(list).execute([0, 0]) == [
+        1,
+        1,
+    ]
+
+
+def test_pipe_hidden_input_usage_once():
+    calls = []
+
+    def counting(value):
+        calls.append(value)
+        return value
+
+    left = c.call_func(counting, c.this)
+
+    assert (
+        left.pipe(
+            c.if_multiple((c.naive(True), c.naive("A")), else_=c.naive("B"))
+        ).execute(10)
+        == "A"
+    )
+    assert calls == [10]
+
+    calls.clear()
+    assert (
+        left.dispatch(
+            c.naive(1), {1: c.naive("A")}, default=c.naive("B")
+        ).execute(10)
+        == "A"
+    )
+    assert calls == [10]
+
+    calls.clear()
+    assert left.pipe(
+        c.dict((1, c.optional(c.naive(1), skip_if=c.input_arg("m"))))
+    ).execute(10, m=False) == {1: 1}
+    assert calls == [10]
+
+
+def test_pipe_into_dict_spread_once():
+    calls = []
+
+    def counting(value):
+        calls.append(value)
+        return {"v": value}
+
+    assert c.call_func(counting, c.this).pipe(
+        c.dict(c.spread(c.this))
+    ).execute(10) == {"v": 10}
+    assert calls == [10]
+    assert ")[1]" not in get_code_str(
+        c.call_func(counting, c.this)
+        .pipe(c.dict(c.spread(c.this)))
+        .gen_converter()
+    )
+
+    calls.clear()
+    assert c.call_func(counting, c.this).pipe(
+        c.dict(c.spread(c.naive({"a": 1})))
+    ).execute(10) == {"a": 1}
+    assert calls == [10]
+
+
+def test_pipe_join_lazy_string_propagated_bit():
+    calls = []
+
+    def counting(value):
+        calls.append(value)
+        return True
+
+    converter = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.call_func(counting, c.LEFT).pipe(c.RIGHT),
+            how="full",
+        )
+        .as_type(list)
+        .gen_converter()
+    )
+    converter(([1, 2], [10]))
+    assert calls == [1, 2]
+    assert ")[1]" not in get_code_str(converter)
+
+
+def test_pipe_reducer_initial_if_multiple_shortcut():
+    assert (
+        c.aggregate(
+            c.reduce(
+                lambda a, b: a + b,
+                c.this,
+                initial=c.if_multiple(
+                    (c.naive(True), c.naive(0)), else_=c.naive(100)
+                ),
+            )
+        ).execute([1, 2, 3])
+        == 6
+    )

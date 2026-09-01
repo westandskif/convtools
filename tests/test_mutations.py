@@ -97,6 +97,24 @@ def test_mutation_item():
     assert result == {"a": {"b": 1}, "c": {"e": {"f": 2}}}
 
 
+def test_tap_piped_into_constant():
+    data = {}
+    assert (
+        c.this.tap(c.Mut.set_item("k", 1)).pipe(c.naive(None)).execute(data)
+        is None
+    )
+    assert data["k"] == 1
+
+    data = {}
+    assert (
+        c.this.tap(c.Mut.set_item("k", 1))
+        .pipe(c.if_(c.input_arg("m"), c.naive("A"), c.naive("B")))
+        .execute(data, m=True)
+        == "A"
+    )
+    assert data["k"] == 1
+
+
 def test_mutation_attr():
     class A:
         pass

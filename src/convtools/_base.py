@@ -197,6 +197,9 @@ class BaseConversion(Generic[CT]):
     valid_pipe_output = True
     used_in_narrow_context = False
     trackable_dependency = False
+    # generated code is a constant / arg name / label lookup; it may be
+    # omitted when its value is unused
+    droppable_when_unused = False
 
     class ContentTypes:
         """Defines types of conversion content for bitmask calculations."""
@@ -209,6 +212,8 @@ class BaseConversion(Generic[CT]):
         BREAKPOINT = 32
         FUNCTION_OF_INPUT = 64
         NONE_USAGE = 128
+        # renders code_input even though FUNCTION_OF_INPUT may be clear
+        HIDDEN_INPUT_USAGE = 256
 
     self_content_type = ContentTypes.FUNCTION_OF_INPUT
 
@@ -1477,6 +1482,7 @@ class NaiveConversion(BaseConversion):
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     )
+    droppable_when_unused = True
 
     types_to_repr = {type(None), bool, int}
     weight = Weights.STEP
@@ -1653,6 +1659,7 @@ class InputArg(BaseConversion):
         BaseConversion.self_content_type
         | BaseConversion.ContentTypes.ARG_USAGE
     ) & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    droppable_when_unused = True
     trackable_dependency = True
     weight = Weights.STEP
 
@@ -1671,6 +1678,7 @@ class LabelConversion(BaseConversion):
         BaseConversion.self_content_type
         | BaseConversion.ContentTypes.LABEL_USAGE
     ) & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    droppable_when_unused = True
     weight = Weights.DICT_LOOKUP
 
     labels_code_name = "_labels"
@@ -1890,6 +1898,7 @@ class LazyEscapedString(BaseConversion):
     self_content_type = (
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+        | BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
     )
     trackable_dependency = True
     weight = Weights.STEP
@@ -2071,6 +2080,7 @@ class IfMultiple(BaseConversion):
     self_content_type = (
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+        | BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
     )
 
     def __init__(self, *condition_to_value_pairs, else_):
@@ -2972,6 +2982,10 @@ class Spread(BaseConversion):
     """Spread/unpack a dict into another dict definition."""
 
     valid_pipe_output = False
+    self_content_type = (
+        BaseConversion.self_content_type
+        & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
 
     def __init__(self, conversion):
         super().__init__()
@@ -3036,7 +3050,7 @@ class Dict_(BaseCollectionConversion):
         for item in items:
             # Handle Spread items
             if isinstance(item, Spread):
-                pairs.append(item)
+                pairs.append(self.ensure_conversion(item))
                 continue
 
             # Handle (key, value) tuples
@@ -3206,6 +3220,7 @@ class Dispatcher(BaseConversion):
     self_content_type = (
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+        | BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
     )
     weight = Weights.FUNCTION_CALL
 
@@ -3414,9 +3429,6 @@ class PipeConversion(BaseConversion):
         )
 
         if not self.to_be_inlined:
-            if where.ignores_input() and input_has_no_side_effects:
-                what, where = where, This()
-
             self.input_args_container.ensure_conversion(where)
             self.total_weight += Weights.FUNCTION_CALL
             self.number_of_input_uses = 1
@@ -3518,9 +3530,24 @@ class PipeConversion(BaseConversion):
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         if self.to_be_inlined:
-            return self.where.gen_code_and_update_ctx(
-                self.what.gen_code_and_update_ctx(code_input, ctx), ctx
-            )
+            what_code = self.what.gen_code_and_update_ctx(code_input, ctx)
+            where_code = self.where.gen_code_and_update_ctx(what_code, ctx)
+            if (
+                self.where.contents
+                & (
+                    self.ContentTypes.FUNCTION_OF_INPUT
+                    | self.ContentTypes.HIDDEN_INPUT_USAGE
+                )
+                == 0
+                and not self.what.droppable_when_unused
+                and what_code is not None
+                and not (
+                    isinstance(what_code, str) and what_code.isidentifier()
+                )
+                and not (self.where.contents & 1)  # REDUCER
+            ):
+                return f"({what_code}, {where_code})[1]"
+            return where_code
 
         suffix = self.gen_random_name("_", ctx)
         converter_name = f"pipe{suffix}"

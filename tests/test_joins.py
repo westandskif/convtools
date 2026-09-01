@@ -4,6 +4,8 @@ from convtools import conversion as c
 from convtools._base import Eq
 from convtools._conversion import _JoinConditions
 
+from .utils import get_code_str
+
 
 def test_join_conditions():
     join_conditions = _JoinConditions.from_condition(c.LEFT == c.RIGHT)
@@ -573,6 +575,9 @@ def test_outer_join():
         ({"id": 0}, None),
         (None, {"ID": 0}),
     ]
+    assert ")[1]" not in get_code_str(join1)
+    assert ")[1]" not in get_code_str(join2)
+    assert ")[1]" not in get_code_str(join)
 
 
 def test_cross_join():

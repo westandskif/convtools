@@ -47,3 +47,25 @@ def test_expect():
 
     with pytest.raises(c.ExpectException, match="val is too short"):
         converter([{"a": "val"}])
+
+
+def test_expect_piped_into_constant():
+    with pytest.raises(c.ExpectException):
+        c.this.expect(c.this > 100, "bad").pipe(c.naive("ok")).execute(10)
+
+    assert (
+        c.this.expect(c.this > 100, "bad").pipe(c.naive("ok")).execute(101)
+        == "ok"
+    )
+
+    with pytest.raises(c.ExpectException):
+        c.this.expect(c.this > 100, "bad").pipe(
+            c.if_(c.input_arg("m"), c.naive("A"), c.naive("B"))
+        ).execute(10, m=True)
+
+    assert (
+        c.this.expect(c.this > 100, "bad")
+        .pipe(c.if_(c.input_arg("m"), c.naive("A"), c.naive("B")))
+        .execute(101, m=True)
+        == "A"
+    )
