@@ -258,6 +258,30 @@ def test_naive_conversion_item():
     assert c.item(10, c.item(1)).gen_converter()(d) == 777
     assert c.item(10).item(2).gen_converter()(d) == 777
 
+    assert (
+        c.item("k", default=c.input_arg("fb").item("k") + 1).execute(
+            {"k": 1}, fb={}
+        )
+        == 1
+    )
+    assert (
+        c.item("k", default=c.input_arg("fb").item("k") + 1).execute(
+            {}, fb={"k": 1}
+        )
+        == 2
+    )
+    assert (
+        c.item("k", default=c.list(c.naive({}).item("x"))).execute({"k": 1})
+        == 1
+    )
+    assert c.item(c.input_arg("d").item("k"), default=0).execute({}, d={}) == 0
+    assert (
+        c.item("k", default=c.input_arg("fb").item("k")).execute(
+            {}, fb={"k": 7}
+        )
+        == 7
+    )
+
     converter = c.item(0, 0, 0, default=1).gen_converter()
     assert converter([[[2]]]) == 2
     assert converter([[[]]]) == 1

@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from convtools import conversion as c
-from convtools._base import PipeConversion
+from convtools._base import BaseConversion, PipeConversion
 
 from .utils import get_code_str
 
@@ -373,6 +373,119 @@ def test_pipe_keeps_left_side_effects():
 
     assert c.call_func(counting, c.this).pipe(c.naive(1)).execute(10) == 1
     assert calls == [10]
+
+
+def test_pipe_method_conv_non_input_source_side_effects():
+    data = {"a": 0}
+    assert (
+        c.this.tap(c.Mut.set_item("a", 1))
+        .pipe(c.input_arg("d").item("k"))
+        .execute(data, d={"k": 7})
+        == 7
+    )
+    assert data == {"a": 1}
+
+    calls = []
+
+    def f(value):
+        calls.append(value)
+        return value
+
+    obj = type("O", (), {"x": 9})()
+    assert c.call_func(f, c.this).pipe(c.naive(obj).attr("x")).execute(3) == 9
+    assert calls == [3]
+
+    calls.clear()
+    assert (
+        c.call_func(f, c.this)
+        .pipe(c.naive("s").call_method("upper"))
+        .execute(3)
+        == "S"
+    )
+    assert calls == [3]
+
+    with pytest.raises(c.ExpectException, match="positive"):
+        c.expect(c.this > 0, "positive").pipe(
+            c.input_arg("d").item("k")
+        ).execute(0, d={"k": 1})
+
+    calls.clear()
+    assert (
+        c.call_func(f, c.this)
+        .pipe(c.input_arg("d").item("k", default=c.input_arg("fb").item("z")))
+        .execute({"a": 1}, d={"k": 5}, fb={})
+        == 5
+    )
+    assert calls == [{"a": 1}]
+
+    calls.clear()
+    assert (
+        c.call_func(f, c.this)
+        .pipe(c.input_arg("d").item(c.input_arg("e").item("x"), default=0))
+        .execute({"a": 1}, d={"k": 5}, e={"x": "k"})
+        == 5
+    )
+    assert calls == [{"a": 1}]
+
+    calls.clear()
+    assert (
+        c.call_func(f, c.this)
+        .pipe(
+            c.this
+            + c.input_arg("d").item("k", default=c.input_arg("fb").item("z"))
+        )
+        .execute(10, d={"k": 5}, fb={})
+        == 15
+    )
+    assert calls == [10]
+
+    calls.clear()
+    assert (
+        c.call_func(f, c.this)
+        .pipe(c.item("a").item("k", default=c.input_arg("fb").item("z")))
+        .execute({"a": {"k": 5}}, fb={})
+        == 5
+    )
+    assert calls == [{"a": {"k": 5}}]
+
+
+@pytest.mark.parametrize(
+    "conv, expected",
+    [
+        (c.input_arg("d").item("k"), True),
+        (c.naive(type("O", (), {"x": 1})()).attr("x"), True),
+        (c.naive("s").call_method("upper"), True),
+        (c.input_arg("d").iter(c.naive(1)), True),
+        (c.item("k"), False),
+        (c.attr("a"), False),
+        (c.this.item("k"), False),
+        (c.item(c.input_arg("i")), False),
+        (c.input_arg("d").item(c.this), False),
+        (c.input_arg("d").item("k", default=c.this), False),
+        (c.iter(c.naive(1)), False),
+    ],
+)
+def test_method_conversion_ignores_input(conv, expected):
+    assert conv.ignores_input() is expected
+
+
+def test_left_item_propagates_hidden_input_usage():
+    assert (
+        c.LEFT.item("k").contents
+        & BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
+    )
+
+
+def test_reducer_initial_input_arg_item_shortcut():
+    conv = c.aggregate(
+        c.reduce(
+            lambda a, b: a + b,
+            c.this,
+            initial=c.input_arg("x").item(0),
+        )
+    )
+    assert conv.execute([1, 2], x=[10]) == 13
+    assert conv.execute([], x=[10]) == 10
 
 
 def test_pipe_identifier_rule_no_tuple_wrapper():

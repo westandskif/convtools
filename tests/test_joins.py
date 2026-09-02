@@ -768,3 +768,23 @@ def test_nested_loop_join_with_sized_one_shot_iterator():
 
     # containers must still not be copied unnecessarily / must keep working
     assert list(inner(([0, 1], [2, 3]))) == expected
+
+
+def test_join_pipe_operator_lazy_right():
+    assert c.join(
+        c.item(0),
+        c.item(1),
+        c.LEFT.item("b").pipe(c.this - 9).gt(c.RIGHT.item("a") - 1),
+        how="inner",
+    ).as_type(list).execute([[{"a": 1, "b": 10}], [{"a": 1, "b": 20}]]) == [
+        ({"a": 1, "b": 10}, {"a": 1, "b": 20})
+    ]
+    assert c.join(
+        c.item(0),
+        c.item(1),
+        c.LEFT.item("b").pipe(c.this - 9).lt(c.RIGHT),
+        how="inner",
+    ).as_type(list).execute([[{"b": 10}], [5, 0, 2]]) == [
+        ({"b": 10}, 5),
+        ({"b": 10}, 2),
+    ]

@@ -214,6 +214,9 @@ class BaseConversion(Generic[CT]):
         NONE_USAGE = 128
         # renders code_input even though FUNCTION_OF_INPUT may be clear
         HIDDEN_INPUT_USAGE = 256
+        # subtree contains an item/attr lookup or a comprehension; GetItem
+        # keeps such indexes/defaults inside its try/except
+        LOOKUP_USAGE = 512
 
     self_content_type = ContentTypes.FUNCTION_OF_INPUT
 
@@ -1432,13 +1435,19 @@ class BaseMethodConversion(BaseConversion):
     e.g. like obj['key'] OR obj.func() OR obj.attr1
     """
 
+    self_content_type = (
+        BaseConversion.self_content_type
+        & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
+
     def __init__(self, self_conv):
         super().__init__()
-        self.self_conv = (
-            self_conv
-            if self_conv is self._none
-            else self.ensure_conversion(self_conv)
-        )
+        if self_conv is self._none:
+            self.self_conv = self_conv
+            self.contents |= self.ContentTypes.FUNCTION_OF_INPUT
+            self.number_of_input_uses = 1
+        else:
+            self.self_conv = self.ensure_conversion(self_conv)
 
     def get_self_and_input_code(
         self, code_input: str, ctx: dict
@@ -2263,6 +2272,10 @@ class GetItem(BaseMethodConversion):
     against an input.
     """
 
+    self_content_type = (
+        BaseMethodConversion.self_content_type
+        | BaseConversion.ContentTypes.LOOKUP_USAGE
+    )
     prefix = "item_or_default"
     weight = Weights.DICT_LOOKUP
     caching_is_possible = True
@@ -2296,19 +2309,29 @@ class GetItem(BaseMethodConversion):
             0 if self.default is None else Weights.FUNCTION_CALL
         )
 
-        self.indexes_are_simple = not any(
-            # self.ContentTypes.FUNCTION_OF_INPUT
-            index.contents & 64
-            for index in self.indexes
+        _simple_mask = (
+            self.ContentTypes.FUNCTION_OF_INPUT
+            | self.ContentTypes.LOOKUP_USAGE
         )
-        # self.ContentTypes.FUNCTION_OF_INPUT
+        self.indexes_are_simple = not any(
+            index.contents & _simple_mask for index in self.indexes
+        )
         self.default_is_simple = (
-            self.default is None or self.default.contents & 64 == 0
+            self.default is None or self.default.contents & _simple_mask == 0
         )
         self.hardcoded_version = self.get_hardcoded_version()
         if self.hardcoded_version:
             self.total_weight = self.hardcoded_version.total_weight
             self.contents = self.hardcoded_version.contents
+        elif self.default is not None and (
+            not self.indexes_are_simple or not self.default_is_simple
+        ):
+            # helper always add_arg("data_", This()); mark so a pipe does not
+            # also tuple-wrap the left side. When self_ is distinct from
+            # data_, that This() is an extra input use.
+            self.contents |= self.ContentTypes.HIDDEN_INPUT_USAGE
+            if self.self_conv is not self._none:
+                self.number_of_input_uses += 1
 
     def get_hardcoded_version(self):
         indexes_length = len(self.indexes)
@@ -2447,11 +2470,6 @@ class Call(BaseMethodConversion):
     It takes both positional and keyword arguments to be passed.
     """
 
-    self_content_type = (
-        BaseConversion.self_content_type
-        & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
-    )
-
     def __init__(self, *args, self_conv=BaseConversion._none, **kwargs):
         super().__init__(self_conv)
         self.args = [self.ensure_conversion(arg) for arg in args]
@@ -2521,6 +2539,11 @@ class GeneratorItem:
 
 class BaseComp(BaseMethodConversion):
     """Base non-dict comprehension."""
+
+    self_content_type = (
+        BaseMethodConversion.self_content_type
+        | BaseConversion.ContentTypes.LOOKUP_USAGE
+    )
 
     def __init__(
         self,
@@ -2716,6 +2739,11 @@ class TupleComp(BaseComp):
 
 class DictComp(BaseMethodConversion):
     """Dict comprehension."""
+
+    self_content_type = (
+        BaseMethodConversion.self_content_type
+        | BaseConversion.ContentTypes.LOOKUP_USAGE
+    )
 
     def __init__(self, key, value, where, self_conv):
         """Initialize self.
@@ -3305,7 +3333,12 @@ def delegate_simple_1_arg(name):
     def method(self, arg):
         if self.label_output is None and (
             self.what is This
-            or ensure_conversion(arg).number_of_input_uses == 0
+            or ensure_conversion(arg).contents
+            & (
+                BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+                | BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
+            )
+            == 0
         ):
             return self._replace(getattr(self.where, name)(arg))
         return getattr(super(self.__class__, self), name)(arg)

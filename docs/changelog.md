@@ -1,3 +1,10 @@
+## Unreleased
+
+**Bugfix**
+
+- fixed `pipe` silently dropping the left conversion (and its side effects: `expect`, `tap`, function calls) when the right conversion ignores its input
+- `item`/`attr`/`call`/comprehensions on a non-input source (`c.input_arg(...)`, `c.naive(...)`, ...) no longer report using the pipe input, so a preceding side-effecting `pipe` left side is evaluated; and a `c.LEFT`/`c.RIGHT`-style lazy name passed to a pipe's operator method is no longer rendered against the pipe output
+
 ## 1.17.1 (2026-07-15)
 
 **Bugfix**

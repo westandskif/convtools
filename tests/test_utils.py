@@ -144,7 +144,7 @@ def test_ignores_input():
     assert c({"a": c.input_arg("key")}).ignores_input()
     assert not c.iter({"a": 1}).ignores_input()
     assert not c.this.ignores_input()
-    assert not c({"a": 1}).item("a").ignores_input()
+    assert c({"a": 1}).item("a").ignores_input()
     assert not c({"a": 1}).item(c.item("a")).ignores_input()
     assert not c.inline_expr("{}()").pass_args(c.this).ignores_input()
     assert not c.aggregate({"a": 1}).ignores_input()
