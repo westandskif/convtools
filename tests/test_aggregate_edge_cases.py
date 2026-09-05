@@ -1149,3 +1149,49 @@ def test_reducer_callable_initial_and_default():
         c.aggregate(c.ReduceFuncs.Array(c.this, default=list)).execute([])
         == []
     )
+
+
+def test_piped_reducer_where_initial_and_maxrow():
+    R = c.ReduceFuncs
+    data = [{"a": 1}, {"a": 2}, {"a": 3}]
+    assert c.aggregate(
+        c.item("a").pipe(R.Array(c.this, where=c.this > 1))
+    ).execute(data) == [2, 3]
+    assert (
+        c.aggregate(c.item("a").pipe(R.Sum(c.this, where=c.this > 1))).execute(
+            data
+        )
+        == 5
+    )
+    assert c.group_by(c.item("g")).aggregate(
+        c.item("a").pipe(R.Array(c.this, where=c.this > 1))
+    ).execute([{"g": 0, "a": 1}, {"g": 0, "a": 2}, {"g": 0, "a": 3}]) == [
+        [2, 3]
+    ]
+    assert c.group_by(c.item("g")).aggregate(
+        c.item("a").pipe(R.Sum(c.this, where=c.this > 1))
+    ).execute([{"g": 0, "a": 1}, {"g": 0, "a": 2}, {"g": 0, "a": 3}]) == [5]
+    assert (
+        c.aggregate(
+            c.item("a").pipe(
+                c.reduce(lambda a, b: a + b, c.this, initial=0, default=0)
+            )
+        ).execute([{"a": 1}, {"a": 2}])
+        == 3
+    )
+    assert (
+        c.aggregate(
+            c.item("a").pipe(
+                c.reduce(
+                    lambda a, b: a + b,
+                    c.this,
+                    initial=c.this * 10,
+                    default=0,
+                )
+            )
+        ).execute([{"a": 1}, {"a": 2}])
+        == 13
+    )
+    assert c.aggregate(c.item("a").pipe(R.MaxRow(c.item("x")))).execute(
+        [{"a": {"x": 1}}, {"a": {"x": 5}}]
+    ) == {"x": 5}

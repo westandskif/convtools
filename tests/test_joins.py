@@ -882,3 +882,107 @@ def test_full_hash_join_right_guard_rejects_row():
         .execute([[{"id": 1}], [{"id": 1}, {"id": 2}]])
     )
     assert result == [({"id": 1}, {"id": 1}), (None, {"id": 2})]
+
+
+@pytest.mark.parametrize("how", ["inner", "left", "right", "full"])
+@pytest.mark.parametrize(
+    "condition",
+    [
+        c.LEFT.item("id") == c.this.item(2).item("k"),
+        c.RIGHT.item("id") == c.this.item(2).item("k"),
+        (c.LEFT.item("id") + c.this) == c.RIGHT.item("id"),
+        c.LEFT.item("id") == (c.RIGHT.item("id") + c.this),
+        c.LEFT.item("id") < c.RIGHT.item("id") + c.this,
+    ],
+)
+def test_join_this_in_row_bound_term_raises(how, condition):
+    with pytest.raises(c.ConversionException):
+        c.join(c.item(0), c.item(1), condition, how=how).gen_converter()
+
+
+def test_join_try_except_next_to_left_raises_pipe_works():
+    with pytest.raises(c.ConversionException):
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.LEFT.item("id")
+            == c.try_(c.input_arg("f").item(0)).except_(Exception, value=0),
+        ).gen_converter()
+    assert c.join(
+        c.item(0),
+        c.item(1),
+        c.LEFT.item("b").pipe(
+            c.try_(c.this.item(0)).except_(Exception, value=0)
+        )
+        == c.RIGHT.item("a"),
+    ).as_type(list).execute([[{"b": [1]}], [{"a": 1}]]) == [
+        ({"b": [1]}, {"a": 1})
+    ]
+
+
+def test_join_if_multiple_input_arg_still_works():
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.LEFT.item("x") == c.if_multiple((c.input_arg("f"), 1), else_=2),
+        )
+        .as_type(list)
+        .execute(([{"x": 1}, {"x": 2}], [{"x": 9}]), f=True)
+    )
+    assert result == [({"x": 1}, {"x": 9})]
+
+
+def test_join_sentinel_literal_in_bit_carrying_term_compiles():
+    c.join(
+        c.item(0),
+        c.item(1),
+        c.LEFT.item("b").pipe(c.this - 9)
+        < c.RIGHT.item("__join_input_sentinel_a__"),
+    ).gen_converter()
+
+
+def test_join_inside_cumulative_reduce_with_prev_compiles():
+    c.cumulative(
+        c.this,
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.LEFT.pipe(c.this + c.PREV) == c.RIGHT,
+        ),
+    ).gen_converter()
+
+
+def test_join_pre_filter_this_binds_to_join_input():
+    left = [{"id": 1}, {"id": 2}]
+    right = [{"id": 2}, {"id": 3}]
+    cond = (c.LEFT.item("id") == c.RIGHT.item("id")) & (
+        c.this.item(2) == True  # noqa: E712
+    )
+    inner_true = [({"id": 2}, {"id": 2})]
+    left_true = [({"id": 1}, None), ({"id": 2}, {"id": 2})]
+    left_false = [({"id": 1}, None), ({"id": 2}, None)]
+    assert (
+        c.join(c.item(0), c.item(1), cond, how="inner")
+        .as_type(list)
+        .execute((left, right, True))
+        == inner_true
+    )
+    assert (
+        c.join(c.item(0), c.item(1), cond, how="inner")
+        .as_type(list)
+        .execute((left, right, False))
+        == []
+    )
+    assert (
+        c.join(c.item(0), c.item(1), cond, how="left")
+        .as_type(list)
+        .execute((left, right, True))
+        == left_true
+    )
+    assert (
+        c.join(c.item(0), c.item(1), cond, how="left")
+        .as_type(list)
+        .execute((left, right, False))
+        == left_false
+    )

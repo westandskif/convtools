@@ -9,6 +9,7 @@ from ._base import (
     And,
     BaseConversion,
     CallFunc,
+    ConversionException,
     Eq,
     EscapedString,
     If,
@@ -16,6 +17,7 @@ from ._base import (
     ListComp,
     NaiveConversion,
     Namespace,
+    NamespaceCtx,
     Not,
     This,
     Tuple_,
@@ -214,6 +216,8 @@ class JoinConversion(BaseConversion):
         BaseConversion.self_content_type
         | BaseConversion.ContentTypes.NONE_USAGE
     )
+    _JOIN_INPUT_SENTINEL_A = "__join_input_sentinel_a__"
+    _JOIN_INPUT_SENTINEL_B = "__join_input_sentinel_b__"
 
     def __init__(
         self,
@@ -511,10 +515,52 @@ class JoinConversion(BaseConversion):
             code.add_line("for right_item in right_items:", 1)
             code.add_line(self._yield_pair(join_conditions.swapped), -2)
 
+    @classmethod
+    def _reject_join_input_in_row_bound_terms(cls, join_conditions, ctx):
+        """Raise if row-bound join terms still see the join input (`c.this`)."""
+        terms = []
+        for attr in (
+            "left_collection_filters",
+            "right_collection_filters",
+            "left_row_hashers",
+            "right_row_hashers",
+            "inner_loop_conditions",
+        ):
+            for term in getattr(join_conditions, attr):
+                if term.contents & cls.ContentTypes.FUNCTION_OF_INPUT:
+                    terms.append(term)
+        if not terms:
+            return
+
+        probe = Namespace(
+            And(*terms) if len(terms) > 1 else terms[0],
+            {
+                _JoinConditions.LEFT_NAME: "left_row",
+                _JoinConditions.RIGHT_NAME: "right_row",
+            },
+        )
+        for sentinel in (
+            cls._JOIN_INPUT_SENTINEL_A,
+            cls._JOIN_INPUT_SENTINEL_B,
+        ):
+            ctx_tmp = cls._init_ctx()
+            ctx_tmp[cls.INPUT_ARG_RENAME_MAP] = ctx[cls.INPUT_ARG_RENAME_MAP]
+            ctx_tmp[cls.NAMESPACES] = [dict(NamespaceCtx.name_to_code(ctx))]
+            code = probe.gen_code_and_update_ctx(sentinel, ctx_tmp)
+            if sentinel not in code:
+                return
+        raise ConversionException(
+            "join condition terms referencing c.LEFT/c.RIGHT cannot use "
+            "the join input (c.this); pass it in via c.input_arg(...) or "
+            "a label, or attach the expression to c.LEFT/c.RIGHT with "
+            ".pipe(...)"
+        )
+
     def gen_code_and_update_ctx(self, code_input, ctx):
         join_conditions = _JoinConditions.from_condition(
             self.condition, how=self.how
         )
+        self._reject_join_input_in_row_bound_terms(join_conditions, ctx)
 
         suffix = self.gen_random_name("", ctx)
         converter_name = f"join{suffix}"

@@ -64,10 +64,10 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `Last` | Returns the last encountered value. |
 | `LastN` | `LastN(n, value)`: collects the last `n` encountered values as a list. |
 | `Max` | Returns the max value, skipping `None`. |
-| `MaxRow` | Returns the row with the max value, skipping `None` comparison values. |
+| `MaxRow` | Returns the row with the max value, skipping `None` comparison values. When a conversion is piped into the reducer, the returned row is the piped value. |
 | `Median` | Calculates the median value, skipping `None`. |
 | `Min` | Returns the min value, skipping `None`. |
-| `MinRow` | Returns the row with the min value, skipping `None` comparison values. |
+| `MinRow` | Returns the row with the min value, skipping `None` comparison values. When a conversion is piped into the reducer, the returned row is the piped value. |
 | `Mode` | Returns the most common non-`None` value; on ties, the first encountered value wins. |
 | `Percentile` | `Percentile(percentile, value, interpolation="linear")`: calculates a percentile (`percentile` in `[0, 100]`), skipping `None`. |
 | `PopulationStdDev` | Calculates population standard deviation, skipping `None`. |
@@ -106,13 +106,16 @@ You can also define custom reducers with `c.reduce` by passing any two-argument 
 Reducers accept the following keyword arguments:
 
  * `where` - a condition evaluated for each input row before the reducer sees
-   the row's value.
+   the row's value. Evaluated against the same input as the reducer's value
+   expressions (the piped value when a conversion is piped into the reducer).
  * `default` - a value returned when the reducer hasn't reduced any values.
    A conversion passed as `default` is evaluated like any other aggregate
    output expression: it may reference group-by keys, `c.input_arg(...)`,
    `c.label(...)` and naive values, but not the input rows (that raises at
    compile time).
  * `initial` - an initial accumulator value for reducers that support it.
+   Evaluated against the same input as the reducer's value expressions (the
+   piped value when a conversion is piped into the reducer).
    `Average` does not accept this argument. For other reducers that do not
    support it, passing `initial` is deprecated and v2 will raise `ValueError`;
    prefer `default=` unless the table marks `initial` as supported.

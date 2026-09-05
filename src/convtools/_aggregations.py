@@ -497,12 +497,12 @@ class BaseReducer(BaseConversion):
         code = Code()
         if not isinstance(self.where, _None):
             line_ = reduce_manager.code_optimizer.use_expression(
-                self.where.gen_code_and_update_ctx(var_row, ctx)
+                self.where.gen_code_and_update_ctx(code_input, ctx)
             )
             code.add_line(f"if {line_}:", 1)
         kwargs = {
             "result": var_agg_data_value,
-            "row": var_row,
+            "row": code_input,
             # "value0", "value1", etc.
         }
         works_with_not_none_only = self.get_option(
@@ -524,7 +524,7 @@ class BaseReducer(BaseConversion):
         reduce_lines = self.get_option("reduce_lines", ctx)
         if not isinstance(self.initial, _None) and self.internals_are_public:
             line_ = reduce_manager.code_optimizer.use_expression(
-                self.initial.gen_code_and_update_ctx(var_row, ctx)
+                self.initial.gen_code_and_update_ctx(code_input, ctx)
             )
             # Escape % so literal modulos in initial code survive line % kwargs.
             # Optimizer still sees the unescaped form above.

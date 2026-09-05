@@ -44,6 +44,12 @@ conditions use nested-loop matching and can be much slower on large inputs.
 They behave like normal conversions, so you can use `item`, `attr`,
 `call_method`, operators, and type conversions on them.
 
+A condition term that does not reference `c.LEFT` or `c.RIGHT` is evaluated
+once against the join's input, so `c.this` there is the join input. Terms that
+reference `c.LEFT` or `c.RIGHT` cannot use the join input (`c.this`) and raise
+at compile time; pass such values via `c.input_arg(...)` or a label, or attach
+the expression to `c.LEFT`/`c.RIGHT` with `.pipe(...)`.
+
 The example below joins two collections from a tuple input. The right-side IDs
 are strings, so the condition casts them with `.as_type(int)` before comparing.
 It also keeps only right-side rows where `age >= 18`.
