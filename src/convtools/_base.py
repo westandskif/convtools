@@ -1769,9 +1769,15 @@ class Namespace(BaseConversion):
         super().__init__()
         self.name_to_code = name_to_code
         self.conversion = self.ensure_conversion(conversion)
+        if any(value is True for value in name_to_code.values()):
+            self.contents |= self.ContentTypes.HIDDEN_INPUT_USAGE
 
     def gen_code_and_update_ctx(self, code_input, ctx):
-        with NamespaceCtx(self.name_to_code, ctx):
+        name_to_code = {
+            name: code_input if code is True else code
+            for name, code in self.name_to_code.items()
+        }
+        with NamespaceCtx(name_to_code, ctx):
             return self.conversion.gen_code_and_update_ctx(code_input, ctx)
 
     def is_dependency_trackable(self, dependency: "BaseConversion"):
@@ -1963,7 +1969,6 @@ class LazyEscapedString(BaseConversion):
     self_content_type = (
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
-        | BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
     )
     trackable_dependency = True
     weight = Weights.STEP
@@ -1976,8 +1981,6 @@ class LazyEscapedString(BaseConversion):
         name_to_code = NamespaceCtx.name_to_code(ctx)
         if self.name in name_to_code:
             code = name_to_code[self.name]
-            if code is True:
-                return code_input
             if code:
                 return code
             raise AssertionError("it's a bug")
@@ -3425,14 +3428,20 @@ def delegate_simple_0_args(name):
 
 def delegate_simple_1_arg(name):
     def method(self, arg):
+        converted_arg = ensure_conversion(arg)
         if self.label_output is None and (
             self.what is This
-            or ensure_conversion(arg).contents
-            & (
-                BaseConversion.ContentTypes.FUNCTION_OF_INPUT
-                | BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
+            or (
+                converted_arg.contents
+                & (
+                    BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+                    | BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
+                )
+                == 0
+                and not any(
+                    converted_arg.get_dependencies(types=LazyEscapedString)
+                )
             )
-            == 0
         ):
             return self._replace(getattr(self.where, name)(arg))
         return getattr(super(self.__class__, self), name)(arg)

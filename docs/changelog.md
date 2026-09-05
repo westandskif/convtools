@@ -2,6 +2,7 @@
 
 **Bugfix**
 
+- `c.LEFT` / `c.RIGHT` inside a `.pipe(...)`, helper function or comprehension within a join condition now always refer to the current rows instead of the pipe's own input (previously a `TypeError` or one side silently ignored); a side-effecting pipe input feeding a bare `c.LEFT`/`c.RIGHT`/`c.CHUNK` reference is now evaluated instead of dropped
 - `Table` `duplicate_columns="keep"`: name references, `take(...)`, `zip`, and dict row output now use the first duplicate, matching the docs
 - `Table.from_csv` / `Table.into_csv` open files with `newline=""` so quoted CR/LF is preserved
 - `Table.chain` of dict/list rows no longer yields raw tuples and no longer mixes row types on the fast path

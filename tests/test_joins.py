@@ -953,6 +953,129 @@ def test_join_inside_cumulative_reduce_with_prev_compiles():
     ).gen_converter()
 
 
+@pytest.mark.parametrize("how", ["inner", "left", "full"])
+def test_join_lazy_refs_inside_pipes(how):
+    L, R = c.LEFT, c.RIGHT
+    data = (
+        [{"x": 1, "y": 5}, {"x": 2, "y": 1}],
+        [{"y": 1}, {"y": 3}],
+    )
+    a, b = data[0]
+    p, q = data[1]
+
+    def run(cond, expected):
+        result = (
+            c.join(c.item(0), c.item(1), cond, how=how)
+            .as_type(list)
+            .execute(data)
+        )
+        assert result == expected[how]
+
+    run(
+        L.item("x").pipe(c.this + L.item("y")) > 5,
+        {
+            "inner": [(a, p), (a, q)],
+            "left": [(a, p), (a, q), (b, None)],
+            "full": [(a, p), (a, q), (b, None)],
+        },
+    )
+    run(
+        R.item("y").pipe(c.this + R.item("y")) > 5,
+        {
+            "inner": [(a, q), (b, q)],
+            "left": [(a, q), (b, q)],
+            "full": [(a, q), (b, q), (None, p)],
+        },
+    )
+    run(
+        L.item("x").pipe(c.this * L.item("y")) == R.item("y"),
+        {
+            "inner": [],
+            "left": [(a, None), (b, None)],
+            "full": [(a, None), (b, None), (None, p), (None, q)],
+        },
+    )
+    run(
+        R.item("y").pipe(c.this * R.item("y")) == L.item("x"),
+        {
+            "inner": [(a, p)],
+            "left": [(a, p), (b, None)],
+            "full": [(a, p), (b, None), (None, q)],
+        },
+    )
+    inner_loop_expected = {
+        "inner": [(b, p)],
+        "left": [(a, None), (b, p)],
+        "full": [(a, None), (b, p), (None, q)],
+    }
+    run(L.item("x").pipe(c.this - R.item("y")) > 0, inner_loop_expected)
+    run(
+        L.item("x").pipe(c.this - R.item("y"), label_output="z") > 0,
+        inner_loop_expected,
+    )
+    run(
+        L.item("x").pipe(c.this).pipe(c.this - R.item("y")) > 0,
+        inner_loop_expected,
+    )
+    run(
+        R.item("y").pipe(c.this - L.item("x")) > 0,
+        {
+            "inner": [(a, q), (b, q)],
+            "left": [(a, q), (b, q)],
+            "full": [(a, q), (b, q), (None, p)],
+        },
+    )
+
+    comp_data = ([{"xs": [1, 5]}, {"xs": [2]}], [{"y": 1}, {"y": 3}])
+    left1, left2 = comp_data[0]
+    right1, right2 = comp_data[1]
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            L.item("xs")
+            .pipe(c.list_comp(c.this - R.item("y")))
+            .pipe(c.call_func(max, c.this))
+            > 0,
+            how=how,
+        )
+        .as_type(list)
+        .execute(comp_data)
+    )
+    expected = {
+        "inner": [
+            (left1, right1),
+            (left1, right2),
+            (left2, right1),
+        ],
+        "left": [
+            (left1, right1),
+            (left1, right2),
+            (left2, right1),
+        ],
+        "full": [
+            (left1, right1),
+            (left1, right2),
+            (left2, right1),
+        ],
+    }
+    assert result == expected[how]
+
+
+def test_join_pipe_hasher_classification():
+    L, R = c.LEFT, c.RIGHT
+    conditions = (
+        L.item("x").pipe(c.this * L.item("y")) == R.item("y"),
+        L.item("b").pipe(c.this - 9) == R.item("a"),
+        L.item("b").pipe(c.try_(c.this.item(0)).except_(Exception, value=0))
+        == R.item("a"),
+    )
+    for cond in conditions:
+        join_conditions = _JoinConditions.from_condition(cond)
+        assert len(join_conditions.left_row_hashers) == 1
+        assert join_conditions.inner_loop_conditions == []
+
+
 def test_join_pre_filter_this_binds_to_join_input():
     left = [{"id": 1}, {"id": 2}]
     right = [{"id": 2}, {"id": 3}]

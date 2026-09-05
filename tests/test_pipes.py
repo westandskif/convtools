@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from convtools import conversion as c
-from convtools._base import BaseConversion, PipeConversion
+from convtools._base import BaseConversion, Namespace, PipeConversion
 
 from .utils import get_code_str
 
@@ -480,9 +480,13 @@ def test_method_conversion_ignores_input(conv, expected):
 
 
 def test_left_item_propagates_hidden_input_usage():
+    hidden = BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
+    assert c.LEFT.item("k").contents & hidden == 0
+    assert Namespace(c.LEFT.item("k"), {c.LEFT.name: True}).contents & hidden
     assert (
-        c.LEFT.item("k").contents
-        & BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
+        Namespace(c.LEFT.item("k"), {c.LEFT.name: "left_item"}).contents
+        & hidden
+        == 0
     )
 
 
@@ -600,9 +604,26 @@ def test_pipe_join_lazy_string_propagated_bit():
         .as_type(list)
         .gen_converter()
     )
-    converter(([1, 2], [10]))
-    assert calls == [1, 2]
-    assert ")[1]" not in get_code_str(converter)
+    assert converter(([1, 2], [10, 0])) == [(1, 10), (2, 10), (None, 0)]
+    assert calls == [1, 1, 2, 2]
+
+
+def test_pipe_chunk_lazy_string_side_effect():
+    calls = []
+
+    def counting(value):
+        calls.append(value)
+        return value
+
+    result = (
+        c.chunk_by_condition(
+            c.call_func(counting, c.this).pipe(c.CHUNK).len() > 1
+        )
+        .as_type(list)
+        .execute([1, 2, 3])
+    )
+    assert result == [[1], [2], [3]]
+    assert calls == [2, 3]
 
 
 def test_pipe_reducer_initial_if_multiple_shortcut():
