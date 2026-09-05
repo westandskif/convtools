@@ -2,6 +2,8 @@
 
 **Bugfix**
 
+- `and_then(condition=<conversion>)` no longer crashes for conversions that define `__call__` (e.g. `c.this`)
+- `datetime_parse` / `date_parse`: whitespace in the format now matches any run of whitespace in the input, like `datetime.strptime`
 - `c.attr` / `call` kwargs with Python keywords or non-identifier names no longer generate invalid code
 - `datetime_trunc` / `DateTimeGrid` with a whole-day step and a sub-day offset were anchored one day off relative to the day-only grid; now consistent. Note that steps not dividing a day (e.g. `7h`) shift accordingly
 - fixed `pipe` silently dropping the left conversion (and its side effects: `expect`, `tap`, function calls) when the right conversion ignores its input

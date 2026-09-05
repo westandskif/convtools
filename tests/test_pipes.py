@@ -347,6 +347,16 @@ def test_and_then():
     assert conv(0) == 0
     assert conv(1) == 2
 
+    conv = c.this.and_then(c.this + 1, condition=c.this).gen_converter()
+    assert conv(0) == 0
+    assert conv(1) == 2
+    assert conv(None) is None
+
+    conv = c.and_then(c.this + 1, condition=c.this).gen_converter()
+    assert conv(0) == 0
+    assert conv(1) == 2
+    assert conv(None) is None
+
 
 def test_pipe_keeps_left_side_effects():
     with pytest.raises(KeyError):

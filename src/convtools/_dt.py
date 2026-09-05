@@ -958,8 +958,10 @@ class DatetimeParse(BaseConversion):
         code_params.create("0", "microsecond")
 
         match = False
+        prev_literal_ws = False
         for ch in fmt:
             if match:
+                prev_literal_ws = False
                 if ch == "%":
                     re_pieces.append("%")
                 elif ch == "Y":
@@ -1019,8 +1021,14 @@ class DatetimeParse(BaseConversion):
                 match = False
             elif ch == "%":
                 match = True
+                prev_literal_ws = False
+            elif ch.isspace():
+                if not prev_literal_ws:
+                    re_pieces.append(r"\s+")
+                    prev_literal_ws = True
             else:
                 re_pieces.append(re.escape(ch))
+                prev_literal_ws = False
 
         if match:
             raise UnsupportedFormatCode("trailing %")

@@ -1076,16 +1076,14 @@ class BaseConversion(Generic[CT]):
         if condition is bool:
             return self.pipe(And(This(), conversion))
 
-        return self.pipe(
-            If(
-                (
-                    CallFunc(condition, This())
-                    if callable(condition)
-                    else condition
-                ),
-                conversion,
-            )
-        )
+        if isinstance(condition, BaseConversion):
+            resolved_condition = condition
+        elif callable(condition):
+            resolved_condition = CallFunc(condition, This())
+        else:
+            resolved_condition = condition
+
+        return self.pipe(If(resolved_condition, conversion))
 
     def dispatch(
         self,

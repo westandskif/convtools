@@ -3,6 +3,7 @@ from datetime import date, datetime
 import pytest
 
 from convtools import conversion as c
+from convtools._dt import DatetimeParse
 from convtools._utils import PY_VERSION
 
 from .test_dt_utils import (
@@ -248,3 +249,40 @@ def test_datetime_parse_exceptions():
             exc_2 = e
 
         assert exc_1.__class__ is exc_2.__class__
+
+
+@pytest.mark.parametrize(
+    "fmt, data",
+    [
+        ("%Y-%m-%d %H:%M", "2020-01-01  10:00"),
+        ("%Y-%m-%d %H:%M", "2020-01-01\t10:00"),
+        ("%Y-%m-%d  %H:%M", "2020-01-01 10:00"),
+        (" %Y", "  2020"),
+        ("%Y ", "2020"),
+        ("%d %Y", " 1 2020"),
+        ("%Y-%m-%d %H:%M", "2020-01-01 \n 10:00"),
+    ],
+)
+def test_datetime_parse_whitespace_matches_strptime(fmt, data):
+    try:
+        expected = datetime.strptime(data, fmt)
+        expected_exc = None
+    except Exception as e:
+        expected_exc = type(e)
+
+    if expected_exc is not None:
+        with pytest.raises(expected_exc):
+            c.datetime_parse(fmt).execute(data)
+    else:
+        assert c.datetime_parse(fmt).execute(data) == expected
+
+
+def test_date_parse_whitespace_tab():
+    assert c.date_parse("%Y-%m-%d %H:%M").execute("2020-01-01\t10:00") == date(
+        2020, 1, 1
+    )
+
+
+def test_datetime_parse_whitespace_regex_codegen():
+    assert "\\s" not in DatetimeParse("%Y-%m-%d").re_pattern.pattern
+    assert DatetimeParse("%Y %m").re_pattern.pattern.count(r"\s+") == 1
