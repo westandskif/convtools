@@ -572,6 +572,10 @@ def test_grid_exceptions():
         DateGrid("sun", "1d")
     with pytest.raises(ValueError):
         DateTimeGrid("sun", "1s")
+    with pytest.raises(ValueError):
+        DateTimeGrid("mon", "1d")
+    with pytest.raises(TypeError):
+        DateTimeGrid("1d", "1mo")
 
     for bad_step in (
         "0d",

@@ -486,7 +486,10 @@ class Table:
         This method adds a new processing stage to a pipeline and exposes all
         "cheap" columns to further conversions.
         """
-        if any(column.conversion for column in self.meta_columns.columns):
+        if any(column.conversion for column in self.meta_columns.columns) or (
+            self.row_type is not dict
+            and self.pending_changes & ColumnChanges.REARRANGE
+        ):
             column_conversions = []
             for index, column in enumerate(self.meta_columns.columns):
                 if column.index is None:
@@ -506,6 +509,12 @@ class Table:
             self.pending_changes = 0
             self.row_type = tuple
 
+        return self
+
+    def _align_indexes_to_rows(self) -> "Table":
+        """Make ColumnDef.index valid for into_iter_rows(self.row_type)."""
+        self.embed_conversions()
+        self.pending_changes = 0
         return self
 
     def _set_col_indexes(self, name_to_column, conversions):
@@ -811,16 +820,8 @@ class Table:
             an iterable of strings, these columns are excluded from suffixing.
         """
         how = JoinConversion.validate_how(how)
-        left = self.embed_conversions()
-        right = table.embed_conversions()
-
-        for table_ in (left, right):
-            # after embedding there are no conversions, only indexes.
-            # indexes can be used as is except for dict-based data after
-            # renamings, but if we skip rebuilding it from scratch by
-            # into_list_of_iterables we can continue using indexes
-            if table_.row_type is dict and table_.pending_changes:
-                table_.pending_changes = 0
+        left = self._align_indexes_to_rows()
+        right = table._align_indexes_to_rows()
 
         left_join_conversion = LeftJoinCondition()
         right_join_conversion = RightJoinCondition()
@@ -870,12 +871,22 @@ class Table:
                     if only_left_values_matter:
                         after_join_conversions.append(GetItem(0, index))
                     elif how == "right":
-                        after_join_conversions.append(GetItem(1, index))
+                        after_join_conversions.append(
+                            GetItem(
+                                1,
+                                right_column_name_to_column[column_name].index,
+                            )
+                        )
                     else:  # full
                         after_join_conversions.append(
                             If(
                                 GetItem(0).is_(None),
-                                GetItem(1, index),
+                                GetItem(
+                                    1,
+                                    right_column_name_to_column[
+                                        column_name
+                                    ].index,
+                                ),
                                 GetItem(0, index),
                             )
                         )
@@ -1186,6 +1197,8 @@ class Table:
             str and joined with " - ", for example "USD - sum".
 
         """
+        self._align_indexes_to_rows()
+
         name_to_column = self.meta_columns.get_name_to_column()
         name_to_index_cols = {
             col_name: ColumnRef(col_name) for col_name in rows

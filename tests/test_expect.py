@@ -19,6 +19,17 @@ def test_expect():
     with pytest.raises(c.ExpectException, match="custom msg"):
         assert c.item("a").expect(c.this > 10, "custom msg").execute(data)
 
+    with pytest.raises(c.ExpectException) as exc_info:
+        c.this.expect(c.this > 100, "").execute(10)
+    assert exc_info.value.args == ("",)
+
+    with pytest.raises(c.ExpectException) as exc_info:
+        c.this.expect(c.this > 100, 0).execute(10)
+    assert exc_info.value.args == (0,)
+
+    with pytest.raises(c.ExpectException, match="condition is not met"):
+        c.this.expect(c.this > 100).execute(10)
+
     with pytest.raises(c.ExpectException, match="11"):
         assert (
             c.item("a")

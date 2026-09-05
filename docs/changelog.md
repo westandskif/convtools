@@ -2,6 +2,8 @@
 
 **Bugfix**
 
+- `Table.join` / `Table.pivot` after a pure `take` / `drop` (and `pivot` after `rename` on dict rows) no longer read stale column positions; `how="full"` / `"right"` no longer read a shared join key from the right row using the left column's index
+- `to_step(timedelta)` is exact for large deltas; `DateTimeGrid("1d", "1mo")` raises `TypeError` instead of `AttributeError`; `expect(..., error_msg="")` / falsy messages are no longer replaced by the default
 - optimizer: common sub-expression elimination no longer descends into lambda bodies, fixing `NameError` on aggregate/group_by reducers that contain lambdas repeating a parameter-based expression
 - inputs are no longer evaluated twice by `c.optional(...)` (default and `skip_value=` forms), by comprehensions whose iterable uses the input more than once, and by `format_dt("%Y-%m-%d")`
 - piped reducers: `where=` and `initial=` (and `c.reduce` row expressions) now see the piped value, matching the reducer's value expressions. `MaxRow`/`MinRow` piped into now return the piped value rather than the raw row

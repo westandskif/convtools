@@ -1186,3 +1186,224 @@ def test_table_pivot():
         (0, 2, 1, 1, None),
         (1, 2, 1, None, 1),
     ]
+
+
+def test_join_after_take_drop():
+    expected = [{"c": 3, "a": 1, "d": 4}]
+
+    result = list(
+        Table.from_rows([("a", "b", "c"), (1, 2, 3)], header=True)
+        .take("c", "a")
+        .join(
+            Table.from_rows([("a", "d"), (1, 4)], header=True),
+            on=["a"],
+            how="inner",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == expected
+
+    result = list(
+        Table.from_rows([["a", "b", "c"], [1, 2, 3]], header=True)
+        .take("c", "a")
+        .join(
+            Table.from_rows([["a", "d"], [1, 4]], header=True),
+            on=["a"],
+            how="inner",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == expected
+
+    result = list(
+        Table.from_rows([("x", "a", "b"), (0, 1, 2)], header=True)
+        .drop("x")
+        .join(
+            Table.from_rows([("a", "d"), (1, 4)], header=True),
+            on=["a"],
+            how="inner",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "b": 2, "d": 4}]
+
+    result = list(
+        Table.from_rows([("a", "b", "c"), (1, 2, 3)], header=True)
+        .take("c", "a")
+        .join(
+            Table.from_rows([("a", "d"), (1, 4)], header=True),
+            on=c.LEFT.col("a") == c.RIGHT.col("a"),
+            how="inner",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"c": 3, "a_LEFT": 1, "a_RIGHT": 1, "d": 4}]
+
+    result = list(
+        Table.from_rows([("a", "c"), (1, 3)], header=True)
+        .join(
+            Table.from_rows([("a", "b", "d"), (1, 2, 4)], header=True).take(
+                "a", "d"
+            ),
+            on=["a"],
+            how="inner",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "c": 3, "d": 4}]
+
+    result = list(
+        Table.from_rows([], header=["x", "k"])
+        .drop("x")
+        .join(
+            Table.from_rows([(9, 2)], header=["v", "k"]),
+            on=["k"],
+            how="full",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"k": 2, "v": 9}]
+
+    result = list(
+        Table.from_rows([], header=["k"])
+        .join(
+            Table.from_rows([(9, 2)], header=["v", "k"]),
+            on=["k"],
+            how="full",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"k": 2, "v": 9}]
+
+    result = list(
+        Table.from_rows([("x", "k"), (1, 2)], header=True)
+        .drop("x")
+        .join(
+            Table.from_rows([("v", "k"), (9, 3)], header=True),
+            on=["k"],
+            how="right",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"k": 3, "v": 9}]
+
+    result = list(
+        Table.from_rows([("x", "k"), (1, 2)], header=True)
+        .drop("x")
+        .join(
+            Table.from_rows([("v", "k"), (9, 2), (8, 3)], header=True),
+            on=["k"],
+            how="full",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"k": 2, "v": 9}, {"k": 3, "v": 8}]
+
+
+def test_join_full_take_trimmed_right_spy():
+    consumed = []
+
+    def spy(rows):
+        for row in rows:
+            consumed.append(row)
+            yield row
+
+    result = list(
+        Table.from_rows([("a", "c"), (1, 3)], header=True)
+        .join(
+            Table.from_rows(
+                spy([("x", "a", "d"), (0, 1, 4)]), header=True
+            ).take("a", "d"),
+            on=["a"],
+            how="full",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "c": 3, "d": 4}]
+    assert consumed == [("x", "a", "d"), (0, 1, 4)]
+
+
+def test_join_pivot_no_extra_pipeline_stage():
+    rearranged = Table.from_rows(
+        [("a", "b", "c"), (1, 2, 3)], header=True
+    ).take("c", "a")
+    rearranged.embed_conversions()
+    assert rearranged.pipeline is not None
+    assert [col.index for col in rearranged.meta_columns.columns] == [0, 1]
+
+    renamed = Table.from_rows([("a", "b"), (1, 2)], header=True).rename(
+        {"a": "A"}
+    )
+    renamed.embed_conversions()
+    assert renamed.pipeline is None
+
+    fresh = Table.from_rows([("a", "b"), (1, 2)], header=True)
+    fresh.embed_conversions()
+    assert fresh.pipeline is None
+
+
+def test_join_dict_and_fresh_regressions():
+    result = list(
+        Table.from_rows([{"a": 1, "b": 2, "c": 3}])
+        .take("c", "a")
+        .join(
+            Table.from_rows([{"a": 1, "d": 4}]),
+            on=["a"],
+            how="inner",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"c": 3, "a": 1, "d": 4}]
+
+    result = list(
+        Table.from_rows([{"a": 1, "b": 2}])
+        .rename({"b": "c"})
+        .join(
+            Table.from_rows([{"a": 1, "d": 4}]),
+            on=["a"],
+            how="inner",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "c": 2, "d": 4}]
+
+    result = list(
+        Table.from_rows([("a", "b"), (1, 2)], header=True)
+        .join(
+            Table.from_rows([("a", "c"), (1, 3)], header=True),
+            on=["a"],
+            how="inner",
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "b": 2, "c": 3}]
+
+
+def test_pivot_after_take_and_rename():
+    result = list(
+        Table.from_rows(
+            [("k", "v", "n"), ("x", "p", 1), ("x", "q", 2)], header=True
+        )
+        .take("n", "v", "k")
+        .pivot(
+            rows=["k"],
+            columns=["v"],
+            values={"n": c.ReduceFuncs.Sum(c.col("n"))},
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"k": "x", "p - n": 1, "q - n": 2}]
+
+    result = list(
+        Table.from_rows(
+            [{"k": "x", "v": "p", "n": 1}, {"k": "x", "v": "q", "n": 2}]
+        )
+        .rename({"n": "num"})
+        .pivot(
+            rows=["k"],
+            columns=["v"],
+            values={"n": c.ReduceFuncs.Sum(c.col("num"))},
+        )
+        .into_iter_rows(dict)
+    )
+    assert result == [{"k": "x", "p - n": 1, "q - n": 2}]

@@ -29,7 +29,7 @@ class Expect(BaseConversion):
         self.conversion = self.ensure_conversion(conversion)
         self.condition = self.ensure_conversion(condition)
         self.error_msg = self.ensure_conversion(
-            error_msg or "condition is not met"
+            "condition is not met" if error_msg is None else error_msg
         )
 
     def gen_code_and_update_ctx(self, code_input, ctx):

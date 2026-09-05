@@ -120,6 +120,13 @@ def test_date_steps():
             sign = -1 if negative else 1
             assert to_step(delta * sign).to_us() == us * sign
 
+    for td in (
+        timedelta(days=106751, microseconds=1),
+        timedelta(days=999999999, microseconds=1),
+        -timedelta(days=106751, microseconds=1),
+    ):
+        assert to_step(td).to_us() == td // timedelta(microseconds=1)
+
 
 def test_date_trunc():
     with pytest.raises(TypeError):

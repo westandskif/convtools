@@ -315,7 +315,7 @@ def to_step(in_) -> "Union[MonthStep, DayOfWeekStep, MicroSecondStep]":
         return step_cls(params)
 
     elif isinstance(in_, timedelta):
-        return MicroSecondStep({"us": round(in_.total_seconds() * 1000000)})
+        return MicroSecondStep({"us": in_ // MICROSECOND})
 
     raise ValueError("unsupported definition of grid")
 
@@ -652,7 +652,11 @@ class DateTimeGrid:
             self.offset = step.day_of_week_offset
 
         elif step.can_be_cast_to_days() and (
-            offset is None or offset.can_be_cast_to_days()
+            offset is None
+            or (
+                isinstance(offset, MicroSecondStep)
+                and offset.can_be_cast_to_days()
+            )
         ):
             self.f = gen_datetimes__day
             self.step = step.to_days()
