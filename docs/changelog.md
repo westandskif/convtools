@@ -2,6 +2,8 @@
 
 **Bugfix**
 
+- `Table.chain` of dict/list rows no longer yields raw tuples and no longer mixes row types on the fast path
+- a `c.col()` reference (or expression containing one) can be reused across tables, stages and join sides
 - `Table.join` / `Table.pivot` after a pure `take` / `drop` (and `pivot` after `rename` on dict rows) no longer read stale column positions; `how="full"` / `"right"` no longer read a shared join key from the right row using the left column's index
 - `to_step(timedelta)` is exact for large deltas; `DateTimeGrid("1d", "1mo")` raises `TypeError` instead of `AttributeError`; `expect(..., error_msg="")` / falsy messages are no longer replaced by the default
 - optimizer: common sub-expression elimination no longer descends into lambda bodies, fixing `NameError` on aggregate/group_by reducers that contain lambdas repeating a parameter-based expression

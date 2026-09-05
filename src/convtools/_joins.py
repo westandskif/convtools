@@ -546,6 +546,7 @@ class JoinConversion(BaseConversion):
             ctx_tmp = cls._init_ctx()
             ctx_tmp[cls.INPUT_ARG_RENAME_MAP] = ctx[cls.INPUT_ARG_RENAME_MAP]
             ctx_tmp[cls.NAMESPACES] = [dict(NamespaceCtx.name_to_code(ctx))]
+            ctx_tmp[ColumnRef.SCOPES] = ctx.get(ColumnRef.SCOPES, [])
             code = probe.gen_code_and_update_ctx(sentinel, ctx_tmp)
             if sentinel not in code:
                 return

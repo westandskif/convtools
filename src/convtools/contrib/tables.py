@@ -42,7 +42,7 @@ from .._base import (
     Tuple_,
     ensure_conversion,
 )
-from .._columns import ColumnChanges, ColumnRef, MetaColumns
+from .._columns import ColumnChanges, ColumnRef, ColumnScope, MetaColumns
 from .._joins import JoinConversion, LeftJoinCondition, RightJoinCondition
 
 _none = BaseConversion._none
@@ -518,30 +518,31 @@ class Table:
         return self
 
     def _set_col_indexes(self, name_to_column, conversions):
-        d = {"needs_embedding": False}
-        refs = [
-            d.__setitem__(  # type: ignore
-                "needs_embedding",
-                d["needs_embedding"]
-                or name_to_column[ref.name].conversion is not None,
-            )
-            or ref
-            for conversion in conversions
-            for ref in conversion.get_dependencies(types=ColumnRef)
-        ]
-        if d["needs_embedding"]:
+        refs = []
+        needs_embedding = False
+        for conversion in conversions:
+            for ref in conversion.get_dependencies(types=ColumnRef):
+                needs_embedding = (
+                    needs_embedding
+                    or name_to_column[ref.name].conversion is not None
+                )
+                refs.append(ref)
+        if needs_embedding:
             self.embed_conversions()
 
-        for ref in refs:
-            ref.set_index(name_to_column[ref.name].index)
+        return {
+            (ref.id_, ref.name): name_to_column[ref.name].index for ref in refs
+        }
 
     def filter(self, condition: "BaseConversion") -> "Table":
         """Keep rows where ``condition`` resolves to `True`."""
         condition = ensure_conversion(condition)
-        self._set_col_indexes(
+        mapping = self._set_col_indexes(
             self.meta_columns.get_name_to_column(),
             (condition,),
         )
+        if mapping:
+            condition = ColumnScope(condition, mapping)
         self.pipeline = (self.pipeline or This()).filter(condition)
         return self
 
@@ -556,12 +557,14 @@ class Table:
         column_to_conversion = {
             k: ensure_conversion(v) for k, v in column_to_conversion.items()
         }
-        self._set_col_indexes(
+        mapping = self._set_col_indexes(
             column_name_to_column,
             column_to_conversion.values(),
         )
 
         for column_name, conversion in column_to_conversion.items():
+            if mapping and any(conversion.get_dependencies(types=ColumnRef)):
+                conversion = ColumnScope(conversion, mapping)
             if column_name in column_name_to_column:
                 column = column_name_to_column[column_name]
                 column.conversion = conversion
@@ -744,6 +747,7 @@ class Table:
             and not self.pipeline
             and not table.pending_changes
             and not table.pipeline
+            and self.row_type is table.row_type
         ):
             self.rows_objects.extend(table.move_rows_objects())
             return self
@@ -786,12 +790,11 @@ class Table:
             table.pending_changes |= ColumnChanges.MUTATE
         table.meta_columns = second_columns
 
-        row_type = self.row_type or tuple
         rows_objects = (
             self.into_list_of_iterables() + table.into_list_of_iterables()
         )
         return Table(
-            row_type=row_type,
+            row_type=tuple,
             rows_objects=rows_objects,
             meta_columns=new_columns,
             pending_changes=0,
@@ -835,6 +838,7 @@ class Table:
             # intentionally left blank to force suffixing
             join_columns = set()
             join_condition = on
+            mapping = {}
             for ref in join_condition.get_dependencies(types=ColumnRef):
                 if ref.id_ == left_join_conversion.NAME:
                     column = left_column_name_to_column[ref.name]
@@ -842,8 +846,9 @@ class Table:
                     column = right_column_name_to_column[ref.name]
                 else:
                     raise ValueError("ambiguous column", ref.name)
-                ref.set_index(column.index)
+                mapping[(ref.id_, ref.name)] = column.index
         else:
+            mapping = {}
             on = [on] if isinstance(on, str) else list(on)
             join_columns = set(on)
             join_condition = And(
@@ -931,12 +936,15 @@ class Table:
                     else GetItem(1, index)
                 )
 
-        new_rows = JoinConversion(
+        join_conversion: "BaseConversion" = JoinConversion(
             This(),
             InputArg("right"),
             join_condition,
             how,
-        ).execute(
+        )
+        if mapping:
+            join_conversion = ColumnScope(join_conversion, mapping)
+        new_rows = join_conversion.execute(
             left.into_iter_rows(left.row_type),
             right=right.into_iter_rows(right.row_type),
             debug=ConverterOptionsCtx.get_option_value("debug"),
@@ -1208,7 +1216,7 @@ class Table:
 
         values = {k: ensure_conversion(v) for k, v in values.items()}
 
-        self._set_col_indexes(
+        mapping = self._set_col_indexes(
             name_to_column,
             chain(
                 name_to_index_cols.values(),
@@ -1217,16 +1225,15 @@ class Table:
             ),
         )
 
-        aggregated_data = (
-            GroupBy(*name_to_index_cols.values())
-            .aggregate(
+        aggregated_data = ColumnScope(
+            GroupBy(*name_to_index_cols.values()).aggregate(
                 (
                     *name_to_index_cols.values(),
                     ReduceFuncs.DictArray(tuple(column_refs), This()),
                 )
-            )
-            .execute(self.into_iter_rows(self.row_type))
-        )
+            ),
+            mapping,
+        ).execute(self.into_iter_rows(self.row_type))
 
         index_ = len(name_to_index_cols)
         new_col_keys = list(
@@ -1235,7 +1242,7 @@ class Table:
 
         agg_data_col = "7b51817c-c2d2-4f9c-a708-65d776ed2ddd"
         value_name_to_aggregator = {
-            key: Aggregate(value).gen_converter()
+            key: ColumnScope(Aggregate(value), mapping).gen_converter()
             for key, value in values.items()
         }
         return (

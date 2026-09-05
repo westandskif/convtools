@@ -1,7 +1,7 @@
 """Base conversions to reference/define columns for tables."""
 
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from ._base import BaseConversion, ConversionException, GetItem
 
@@ -10,30 +10,48 @@ class ColumnRef(BaseConversion):
     """Table column reference."""
 
     trackable_dependency = True
+    SCOPES = "__column_ref_scopes"
 
     def __init__(self, name: str, id_=None):
         if not isinstance(name, str):
             raise ValueError("name should be str")
         super().__init__()
         self.name = name
-        self.index: "Optional[Union[str, int]]" = None
         self.id_ = id_
 
-    def set_index(self, index: Union[str, int]):
-        if not isinstance(index, (str, int)):
-            raise AssertionError("bad index")
-        self.index = index
-        return self
+    def gen_code_and_update_ctx(self, code_input, ctx):
+        key = (self.id_, self.name)
+        for mapping in reversed(ctx.get(self.SCOPES, ())):
+            if key in mapping:
+                return GetItem(mapping[key]).gen_code_and_update_ctx(
+                    code_input, ctx
+                )
+        raise ConversionException(
+            "column index is not initialized, " "possible use outside of Table"
+        )
+
+
+class ColumnScope(BaseConversion):
+    """Push column-ref bindings for one conversion's render."""
+
+    weight = 0
+    self_content_type = (
+        BaseConversion.self_content_type
+        & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+    )
+
+    def __init__(self, conversion, name_to_index):
+        super().__init__()
+        self.name_to_index = name_to_index
+        self.conversion = self.ensure_conversion(conversion)
 
     def gen_code_and_update_ctx(self, code_input, ctx):
-        if self.index is None:
-            raise ConversionException(
-                "column index is not initialized, "
-                "possible use outside of Table"
-            )
-        return GetItem(
-            self.index if self.index is not None else -1
-        ).gen_code_and_update_ctx(code_input, ctx)
+        scopes = ctx.setdefault(ColumnRef.SCOPES, [])
+        scopes.append(self.name_to_index)
+        try:
+            return self.conversion.gen_code_and_update_ctx(code_input, ctx)
+        finally:
+            scopes.pop()
 
 
 class ColumnDef:

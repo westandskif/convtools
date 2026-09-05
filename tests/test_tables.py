@@ -3,8 +3,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from convtools import conversion as c
-from convtools._columns import ColumnDef, MetaColumns
+from convtools._base import BaseConversion
+from convtools._columns import ColumnDef, ColumnScope, MetaColumns
 from convtools.contrib.tables import CloseFileIterator, Table
+from tests.utils import get_code_str
 
 
 def test_table_base_init():
@@ -1407,3 +1409,217 @@ def test_pivot_after_take_and_rename():
         .into_iter_rows(dict)
     )
     assert result == [{"k": "x", "p - n": 1, "q - n": 2}]
+
+
+def _capture_converter_codes(build):
+    codes = []
+    orig = BaseConversion.gen_converter
+
+    def wrapped(self, *args, **kwargs):
+        fn = orig(self, *args, **kwargs)
+        codes.append(get_code_str(fn))
+        return fn
+
+    BaseConversion.gen_converter = wrapped
+    try:
+        build()
+    finally:
+        BaseConversion.gen_converter = orig
+    return codes
+
+
+def test_table_chain_row_types():
+    result = list(
+        Table.from_rows([{"a": 1}])
+        .chain(Table.from_rows([("a",), (2,)], header=True))
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1}, {"a": 2}]
+
+    result = list(
+        Table.from_rows([{"a": 1}])
+        .chain(Table.from_rows([{"b": 2}]))
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "b": None}, {"a": None, "b": 2}]
+
+    result = list(
+        Table.from_rows([{"a": 1}])
+        .chain(Table.from_rows([{"b": 2}]))
+        .into_iter_rows(tuple)
+    )
+    assert result == [(1, None), (None, 2)]
+
+    result = list(
+        Table.from_rows([["a"], [1]], header=True)
+        .chain(Table.from_rows([("a",), (2,)], header=True))
+        .into_iter_rows(list)
+    )
+    assert result == [[1], [2]]
+    assert all(isinstance(row, list) for row in result)
+
+    left = Table.from_rows([("a",), (1,)], header=True)
+    right = Table.from_rows([("a",), (2,)], header=True)
+    chained = left.chain(right)
+    assert chained is left
+    assert chained.pipeline is None
+    assert list(chained.into_iter_rows(tuple)) == [(1,), (2,)]
+
+    result = list(
+        Table.from_rows([{"a": 1}])
+        .chain(Table.from_rows([{"a": 2}]))
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1}, {"a": 2}]
+
+    result = list(
+        Table.from_rows([{"a": 1}])
+        .chain(Table.from_rows([{"a": 2}]))
+        .into_iter_rows(tuple)
+    )
+    assert result == [(1,), (2,)]
+
+
+def test_col_ref_reuse_across_tables():
+    col = c.col("a")
+    t1 = Table.from_rows([("x", "a"), (1, 2)], header=True).update(b=col + 1)
+    t2 = Table.from_rows([("a", "x"), (3, 4)], header=True).update(b=col + 1)
+    assert list(t2.into_iter_rows(dict)) == [{"a": 3, "x": 4, "b": 4}]
+    assert list(t1.into_iter_rows(dict)) == [{"x": 1, "a": 2, "b": 3}]
+
+
+def test_col_ref_reuse_across_stages():
+    col = c.col("a")
+    t = (
+        Table.from_rows([("x", "a"), (1, 2)], header=True)
+        .update(b=col + 1)
+        .take("a", "x", "b")
+        .update(d=c.col("b") + col)
+    )
+    assert list(t.into_iter_rows(dict)) == [{"a": 2, "x": 1, "b": 3, "d": 5}]
+
+
+def test_col_ref_reuse_across_join_sides():
+    col = c.col("a")
+    t = (
+        Table.from_rows([("x", "a"), (1, 2)], header=True)
+        .update(y=col)
+        .join(
+            Table.from_rows([("a", "z"), (3, 4)], header=True).update(w=col),
+            on=c.LEFT.col("y") == c.RIGHT.col("z") - 2,
+            how="inner",
+        )
+    )
+    assert list(t.into_iter_rows(dict)) == [
+        {
+            "x": 1,
+            "a_LEFT": 2,
+            "y": 2,
+            "a_RIGHT": 3,
+            "z": 4,
+            "w": 3,
+        }
+    ]
+
+
+def test_join_condition_reuse_different_positions():
+    on = c.LEFT.col("k") == c.RIGHT.col("k")
+    t1 = Table.from_rows([("k", "a"), (1, 2)], header=True).join(
+        Table.from_rows([("k", "b"), (1, 3)], header=True),
+        on=on,
+        how="inner",
+    )
+    t2 = Table.from_rows([("x", "k"), (9, 1)], header=True).join(
+        Table.from_rows([("z", "k"), (8, 1)], header=True),
+        on=on,
+        how="inner",
+    )
+    assert list(t1.into_iter_rows(dict)) == [
+        {"k_LEFT": 1, "a": 2, "k_RIGHT": 1, "b": 3}
+    ]
+    assert list(t2.into_iter_rows(dict)) == [
+        {"x": 9, "k_LEFT": 1, "z": 8, "k_RIGHT": 1}
+    ]
+
+
+def test_col_ref_outside_table_raises():
+    with pytest.raises(c.ConversionException):
+        c.col("a").execute({"a": 1})
+
+
+def test_column_scope_tracks_inner():
+    conv = c.col("a") + 1
+    scoped = ColumnScope(conv, {(None, "a"): 0})
+    assert scoped.number_of_input_uses == conv.number_of_input_uses
+    assert scoped.contents == conv.contents
+    assert scoped.total_weight == conv.total_weight
+    assert list(scoped.get_dependencies(types=c.col)) == list(
+        conv.get_dependencies(types=c.col)
+    )
+
+
+def test_col_ref_generated_code_unchanged():
+    update_codes = _capture_converter_codes(
+        lambda: list(
+            Table.from_rows([("a",), (1,)], header=True)
+            .update(b=c.col("a") + 1)
+            .into_iter_rows(tuple)
+        )
+    )
+    assert update_codes == [
+        "def _converter(data_):\n"
+        "    try:\n"
+        "        return ((_i[(0)],(_i[(0)] + (1)),) for _i in data_)\n"
+        "    except __exceptions_to_dump_sources:\n"
+        "        __convtools__code_storage.dump_sources()\n"
+        "        raise\n"
+    ]
+
+    filter_codes = _capture_converter_codes(
+        lambda: list(
+            Table.from_rows([("a",), (1,)], header=True)
+            .filter(c.col("a") > 0)
+            .into_iter_rows(tuple)
+        )
+    )
+    assert filter_codes == [
+        "def _converter(data_):\n"
+        "    try:\n"
+        "        return (_i for _i in data_ if ((_i[(0)] > (0))))\n"
+        "    except __exceptions_to_dump_sources:\n"
+        "        __convtools__code_storage.dump_sources()\n"
+        "        raise\n"
+    ]
+
+    fusion_codes = _capture_converter_codes(
+        lambda: list(
+            Table.from_rows([("a",), (1,)], header=True)
+            .update(a=c.col("a"))
+            .update(a=c.col("a"))
+            .into_iter_rows(tuple)
+        )
+    )
+    assert fusion_codes == [
+        "def _converter(data_):\n"
+        "    try:\n"
+        "        return (((_i[(0)],)[(0)],) for _i in data_)\n"
+        "    except __exceptions_to_dump_sources:\n"
+        "        __convtools__code_storage.dump_sources()\n"
+        "        raise\n"
+    ]
+
+    pivot_codes = _capture_converter_codes(
+        lambda: list(
+            Table.from_rows([("k", "p", "v"), ("x", "u", 1)], header=True)
+            .pivot(
+                rows=["k"],
+                columns=["p"],
+                values={"sum": c.ReduceFuncs.Sum(c.col("v"))},
+            )
+            .into_iter_rows(dict)
+        )
+    )
+    assert any(
+        "return sum(((_i[(2)] or (0)) for _i in data_))" in code
+        for code in pivot_codes
+    )
