@@ -565,6 +565,13 @@ def test_optimizer():
     _("agg_data_11 = Obj({'a': 0})", 0)
     _(f"agg_data_10.v['a'] += {e}", 0)
     _(f"agg_data_11.v['a'] += {e}", 0)
+    _("def f_lambda(data):", 1)
+    e = expr("sorted(data['xs'], key=lambda x: x['a'] + x['a'])")
+    _(f"a = {e}", 0)
+    _(f"b = {e}", 0)
+    _("c = {}".format(expr("data['z']")), 0)
+    _("d = {}".format(expr("(lambda x, d=data['z']: x + d)(1)")), 0)
+    _("return a, b, c, d", -1)
 
     # fmt: on
     _("", 0)
@@ -579,6 +586,10 @@ def test_optimizer():
     _("except NameError:", 1)
     _("RESULTS.append(True)", -1)
     _("RESULTS.append(f1({'x': 10, 'y': 100}))", 0)
+    _(
+        "RESULTS.append(f_lambda({'xs': [{'a': 1}, {'a': 2}], 'z': 10}))",
+        0,
+    )
     _("RESULTS.append(d)", 0)
     _("RESULTS.append(agg_data_0)", 0)
     _("RESULTS.append(agg_data_1)", 0)
@@ -626,3 +637,9 @@ def test_optimizer():
         assert optimized_code_str.count("v + 3") == 2
     assert optimized_code_str.count("l + 4") == 4
     assert optimized_code_str.count("l + 5") == 1
+    assert not any(
+        "=" in line
+        and "_tmp" in line.split("=", 1)[0]
+        and "x[" in line.split("=", 1)[1]
+        for line in optimized_code_str.splitlines()
+    )

@@ -1382,10 +1382,13 @@ class BaseConversion(Generic[CT]):
     def format_dt(self, fmt: str):
         """datetime.strftime with certain cases optimized for speed."""
         if fmt == "%Y-%m-%d":
-            return If(
-                CallFunc(isinstance, self, datetime),
-                self.call_method("date").call_method("isoformat"),
-                self.call_method("isoformat"),
+            return self.pipe(
+                If(
+                    CallFunc(isinstance, This, datetime),
+                    This.call_method("date").call_method("isoformat"),
+                    This.call_method("isoformat"),
+                    no_input_caching=True,
+                )
             )
         from convtools import _dt
 
@@ -2645,7 +2648,11 @@ class BaseComp(BaseMethodConversion):
             if (where is None or where is _none)
             else self.ensure_conversion(where)
         )
-        self.number_of_input_uses = 1
+        self.number_of_input_uses = (
+            1
+            if self.self_conv is _none
+            else self.self_conv.number_of_input_uses
+        )
 
     def get_item_n_param_codes(self, ctx):
         if self.generator_item.custom_for_params:
@@ -2837,7 +2844,11 @@ class DictComp(BaseMethodConversion):
             if (where is None or where is _none)
             else self.ensure_conversion(where)
         )
-        self.number_of_input_uses = 1
+        self.number_of_input_uses = (
+            1
+            if self.self_conv is _none
+            else self.self_conv.number_of_input_uses
+        )
 
     def get_iterable_code(self, code_input, ctx):
         code_self, _ = self.get_self_and_input_code(code_input, ctx)
@@ -2874,7 +2885,7 @@ class BaseCollectionConversion(BaseConversion):
     pairs: (
         "Optional[List[Union[Tuple[BaseConversion, BaseConversion], Spread]]]"
     ) = None
-    conditions: Optional[Mapping[int, BaseConversion]] = None
+    conditions: Optional[dict] = None
 
     JOINED_ITEMS_PREFIX: str
     JOINED_ITEMS_SUFFIX: str
@@ -2900,13 +2911,40 @@ class BaseCollectionConversion(BaseConversion):
                 if conditions is None:
                     conditions = {}
 
-                conditions[len(conversions)] = conv.condition
+                conditions[len(conversions)] = conv
                 conversions.append(conv.conversion)
             else:
                 conversions.append(conv)
 
         self.conversions = conversions
         self.conditions = conditions
+
+    def _emit_optional_part_step(
+        self, code, opt_item, conv, inner_code_input, ctx
+    ):
+        """Emit bind/if for one optional part; return yield code and indent."""
+        if opt_item is None:
+            return (
+                conv.gen_code_and_update_ctx(inner_code_input, ctx),
+                0,
+            )
+        if opt_item.input_conditioned:
+            condition_code = opt_item.gen_condition_code(
+                "", inner_code_input, ctx
+            )
+            code.add_line(f"if {condition_code}:", 1)
+            return (
+                conv.gen_code_and_update_ctx(inner_code_input, ctx),
+                1,
+            )
+        var = self.gen_random_name("v", ctx)
+        conv_code = conv.gen_code_and_update_ctx(inner_code_input, ctx)
+        code.add_line(f"{var} = {conv_code}", 0)
+        condition_code = opt_item.gen_condition_code(
+            var, inner_code_input, ctx
+        )
+        code.add_line(f"if {condition_code}:", 1)
+        return var, 1
 
     def gen_optional_items_generator_code(self, code_input, ctx):
         inner_code_input = "data_"
@@ -2918,70 +2956,40 @@ class BaseCollectionConversion(BaseConversion):
             code.add_line("def placeholder", 1)
 
             if self.conversions is not None:
-                conv_code_to_condition_code = [
-                    (
-                        conv.gen_code_and_update_ctx(inner_code_input, ctx),
-                        (
-                            self.conditions[index].gen_code_and_update_ctx(
-                                inner_code_input, ctx
-                            )
-                            if self.conditions and index in self.conditions
-                            else None
-                        ),
-                        False,
+                for index, conv in enumerate(self.conversions):
+                    opt_item = (
+                        self.conditions.get(index) if self.conditions else None
                     )
-                    for index, conv in enumerate(self.conversions)
-                ]
+                    yield_code, indent_steps = self._emit_optional_part_step(
+                        code, opt_item, conv, inner_code_input, ctx
+                    )
+                    code.add_line(f"yield {yield_code}", -indent_steps)
             elif self.pairs is not None:
-                conv_code_to_condition_code = []
                 for index, item in enumerate(self.pairs):
                     if isinstance(item, Spread):
-                        # Spread items: (code, condition, is_spread)
-                        conv_code_to_condition_code.append(
-                            (
-                                item.conversion.gen_code_and_update_ctx(
-                                    inner_code_input, ctx
-                                ),
-                                None,
-                                True,
-                            )
+                        conv_code = item.conversion.gen_code_and_update_ctx(
+                            inner_code_input, ctx
                         )
-                    else:
-                        key, value = item
-                        conv_code_to_condition_code.append(
-                            (
-                                (
-                                    f"({key.gen_code_and_update_ctx(inner_code_input, ctx)}, "
-                                    f"{value.gen_code_and_update_ctx(inner_code_input, ctx)})"
-                                ),
-                                (
-                                    self.conditions[
-                                        index
-                                    ].gen_code_and_update_ctx(
-                                        inner_code_input, ctx
-                                    )
-                                    if self.conditions
-                                    and index in self.conditions
-                                    else None
-                                ),
-                                False,
-                            )
-                        )
+                        code.add_line(f"yield from {conv_code}.items()", 0)
+                        continue
+                    key, value = item
+                    key_opt, value_opt = (
+                        self.conditions[index]
+                        if self.conditions and index in self.conditions
+                        else (None, None)
+                    )
+                    key_code, key_indent = self._emit_optional_part_step(
+                        code, key_opt, key, inner_code_input, ctx
+                    )
+                    value_code, value_indent = self._emit_optional_part_step(
+                        code, value_opt, value, inner_code_input, ctx
+                    )
+                    code.add_line(
+                        f"yield ({key_code}, {value_code})",
+                        -(key_indent + value_indent),
+                    )
             else:
                 raise AssertionError
-
-            for (
-                conv_code,
-                condition_code,
-                is_spread,
-            ) in conv_code_to_condition_code:
-                if is_spread:
-                    code.add_line(f"yield from {conv_code}.items()", 0)
-                elif condition_code:
-                    code.add_line(f"if {condition_code}:", 1)
-                    code.add_line(f"yield {conv_code}", -1)
-                else:
-                    code.add_line(f"yield {conv_code}", 0)
 
             code.lines_info[0] = (
                 0,
@@ -3031,8 +3039,9 @@ class OptionalCollectionItem(BaseConversion):
 
     valid_pipe_output = False
 
-    condition: BaseConversion
     conversion: BaseConversion
+    condition: Optional[BaseConversion]
+    input_conditioned: bool
 
     def __init__(
         self,
@@ -3062,16 +3071,30 @@ class OptionalCollectionItem(BaseConversion):
         if condition_is_passed:
             if skip_if is not self._none and keep_if is not self._none:
                 raise ValueError("both skip_if and keep_if are passed")
+            self.input_conditioned = True
+            self.skip_value = self._none
             if skip_if is not self._none:
                 self.condition = Not(self.ensure_conversion(skip_if))
             else:
                 self.condition = self.ensure_conversion(keep_if)
-        elif skip_value is None:
-            self.condition = self.conversion.is_not(None)
         else:
-            self.condition = self.conversion != self.ensure_conversion(
-                skip_value
-            )
+            self.input_conditioned = False
+            self.condition = None
+            if skip_value is None:
+                self.skip_value = None
+            else:
+                self.skip_value = self.ensure_conversion(skip_value)
+
+    def gen_condition_code(self, bound_var, code_input, ctx):
+        if self.input_conditioned:
+            if self.condition is None:
+                raise AssertionError
+            return self.condition.gen_code_and_update_ctx(code_input, ctx)
+        if self.skip_value is None:
+            return f"{bound_var} is not None"
+        return (
+            EscapedString(bound_var) != self.skip_value
+        ).gen_code_and_update_ctx(code_input, ctx)
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         raise AssertionError(
@@ -3158,23 +3181,21 @@ class Dict_(BaseCollectionConversion):
             raw_key, raw_value = item
             key = self.ensure_conversion(raw_key)
             value = self.ensure_conversion(raw_value)
-            condition = None
+            key_item = None
+            value_item = None
 
             if isinstance(key, OptionalCollectionItem):
-                condition = key.condition
+                key_item = key
                 key = key.conversion
 
             if isinstance(value, OptionalCollectionItem):
-                if condition is None:
-                    condition = value.condition
-                else:
-                    condition = condition.and_(value.condition)
+                value_item = value
                 value = value.conversion
 
-            if condition is not None:
+            if key_item is not None or value_item is not None:
                 if conditions is None:
                     conditions = {}
-                conditions[len(pairs)] = condition
+                conditions[len(pairs)] = (key_item, value_item)
 
             pairs.append((key, value))
 

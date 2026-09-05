@@ -1220,6 +1220,43 @@ def test_aggregate_reducers_reuse():
     assert f([None, 1, 2, 3, 4]) == 3.0
 
 
+def _assert_no_hoisted_lambda_param(code_str):
+    for line in code_str.splitlines():
+        if "=" not in line:
+            continue
+        lhs, rhs = line.split("=", 1)
+        if "_tmp" in lhs and re.search(r"\bx\b", rhs):
+            raise AssertionError(
+                "optimizer hoisted a lambda-parameter expression", line
+            )
+
+
+def test_group_by_and_aggregate_lambda_cse_scope():
+    R = c.ReduceFuncs
+    key = c.inline_expr("lambda x: x['a'] + x['a']")
+    data = [{"k": 1, "xs": [{"a": 1}]}]
+
+    group_by_conv = c.group_by(c.item("k")).aggregate(
+        {
+            "s": R.Sum(c.call_func(sum, c.call_func(map, key, c.item("xs")))),
+            "n": R.Count(),
+        }
+    )
+    group_by_converter = group_by_conv.gen_converter(debug=True)
+    assert group_by_converter(data) == [{"s": 2, "n": 1}]
+    _assert_no_hoisted_lambda_param(get_code_str(group_by_converter))
+
+    aggregate_conv = c.aggregate(
+        {
+            "s": R.Sum(c.call_func(sum, c.call_func(map, key, c.item("xs")))),
+            "n": R.Count(),
+        }
+    )
+    aggregate_converter = aggregate_conv.gen_converter(debug=True)
+    assert aggregate_converter(data) == {"s": 2, "n": 1}
+    _assert_no_hoisted_lambda_param(get_code_str(aggregate_converter))
+
+
 def test_aggregate_single_reducer_reduction():
     converter = c.aggregate(c.ReduceFuncs.Sum(c.this)).gen_converter()
     result = converter(range(10))

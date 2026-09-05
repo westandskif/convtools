@@ -603,6 +603,7 @@ class OptimizationStage1(ast.NodeVisitor):
                 "GeneratorExp",
                 "Call",
                 "NamedExpr",
+                "Lambda",
             ]
         ),
     ):
@@ -682,6 +683,10 @@ class OptimizationStage1(ast.NodeVisitor):
     def _custom_expr_visit_comp(self, node):
         self.visit_by_attr(node.generators[0], "iter")
 
+    def _custom_expr_visit_lambda(self, node):
+        self.visit_by_attr(node.args, "defaults")
+        self.visit_by_attr(node.args, "kw_defaults")
+
     def _custom_expr_visit_ifexp(self, node):
         self.visit_by_attr(node, "test")
         with NoTrackNumbersCtx(self):
@@ -707,6 +712,7 @@ class OptimizationStage1(ast.NodeVisitor):
         "SetComp": _custom_expr_visit_comp,
         "DictComp": _custom_expr_visit_comp,
         "GeneratorExp": _custom_expr_visit_comp,
+        "Lambda": _custom_expr_visit_lambda,
         "IfExp": _custom_expr_visit_ifexp,
         "NamedExpr": _custom_expr_visit_named_expr,
         "BoolOp": _custom_expr_visit_bool_op,

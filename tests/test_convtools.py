@@ -1144,6 +1144,49 @@ def test_dict_comprehension():
     assert c.dict_comp(c.this, c.this, where=None).execute(range(1)) == {0: 0}
 
 
+def test_comprehension_pipe_evaluates_iterable_once():
+    def run(spec, data, expected):
+        calls = []
+
+        def heavy(x):
+            calls.append(1)
+            return x
+
+        result = c.call_func(heavy, c.this).pipe(spec).execute(data)
+        if isinstance(result, GeneratorType):
+            result = list(result)
+        assert result == expected
+        assert calls == [1]
+
+    iterable = c.if_(c.this.is_(None), [], c.this)
+    run(iterable.iter(c.this + 1).as_type(list), [1, 2], [2, 3])
+    run(iterable.pipe(c.list_comp(c.this + 1)), [1, 2], [2, 3])
+    run(iterable.pipe(c.tuple_comp(c.this + 1)), [1, 2], (2, 3))
+    run(iterable.pipe(c.set_comp(c.this + 1)), [1, 2], {2, 3})
+    run(iterable.pipe(c.generator_comp(c.this + 1)), [1, 2], [2, 3])
+    run(iterable.pipe(c.dict_comp(c.this, c.this + 1)), [1, 2], {1: 2, 2: 3})
+
+
+def test_format_dt_fast_path_evaluates_input_once():
+    from datetime import datetime
+
+    def run(value, expected):
+        calls = []
+
+        def heavy(x):
+            calls.append(1)
+            return x
+
+        assert (
+            c.call_func(heavy, c.this).format_dt("%Y-%m-%d").execute(value)
+            == expected
+        )
+        assert calls == [1]
+
+    run(datetime(2020, 1, 2, 3, 4, 5), "2020-01-02")
+    run(date(2020, 1, 2), "2020-01-02")
+
+
 def test_filter():
     assert list(c.naive([1, 2, 3]).filter(c.this.gt(2)).execute(None)) == [3]
     assert c.filter(c.this.gt(1), cast=list).execute([1, 2, 3]) == [2, 3]
