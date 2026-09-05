@@ -40,6 +40,34 @@ def test_labels():
     assert conversion.execute(4) == 6
 
 
+def test_label_output_on_pipe_into_reducer():
+    with pytest.raises(ValueError):
+        c.this.pipe(c.ReduceFuncs.Sum(c.this), label_output="x")
+    with pytest.raises(ValueError):
+        c.this.pipe(c.ReduceFuncs.Sum(c.this), label_output="")
+    with pytest.raises(ValueError):
+        c.this.pipe(c.ReduceFuncs.Count(), label_input="")
+
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Sum(c.this).pipe(c.this + 1, label_output="s")
+        )
+        .pipe(c.this + c.label("s"))
+        .execute([1, 2])
+        == 8
+    )
+    assert (
+        c.aggregate(
+            c.this.pipe(c.ReduceFuncs.Sum(c.this)).pipe(
+                c.this * 2, label_output="s"
+            )
+        )
+        .pipe(c.label("s"))
+        .execute([1, 2])
+        == 6
+    )
+
+
 @pytest.mark.parametrize("name", ["a'b", 'a"b', "a\\b", "a\nb"])
 def test_label_names_with_quotes_and_escapes(name):
     assert (

@@ -10,6 +10,8 @@
 - `datetime_trunc` / `DateTimeGrid` with a whole-day step and a sub-day offset were anchored one day off relative to the day-only grid; now consistent. Note that steps not dividing a day (e.g. `7h`) shift accordingly
 - fixed `pipe` silently dropping the left conversion (and its side effects: `expect`, `tap`, function calls) when the right conversion ignores its input
 - `item`/`attr`/`call`/comprehensions on a non-input source (`c.input_arg(...)`, `c.naive(...)`, ...) no longer report using the pipe input, so a preceding side-effecting `pipe` left side is evaluated; and a `c.LEFT`/`c.RIGHT`-style lazy name passed to a pipe's operator method is no longer rendered against the pipe output
+- `c.input_arg` now rejects reserved and invalid names (`data_`, `_none`, keywords, non-identifiers); valid names that collide with builtins or generated helpers no longer shadow them
+- `label_output` on a pipe into a reducer now raises `ValueError` (same as `label_input`); label the reducer result via `reducer.pipe(c.this, label_output=...)`
 
 ## 1.17.1 (2026-07-15)
 

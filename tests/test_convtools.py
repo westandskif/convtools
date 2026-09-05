@@ -539,6 +539,113 @@ def test_input_arg():
     )({"value": 123}) == "int_123"
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "data_",
+        "_none",
+        "_labels",
+        "_naive",
+        "__none__",
+        "__exceptions_to_dump_sources",
+        "__convtools__code_storage",
+        "a b",
+        "class",
+        "1x",
+    ],
+)
+def test_input_arg_rejects_invalid_and_reserved_names(name):
+    with pytest.raises(ValueError) as exc_info:
+        c.input_arg(name)
+    assert name in str(exc_info.value)
+
+
+def test_input_arg_builtin_and_helper_name_collisions():
+    assert (c.this.len() + c.input_arg("len")).execute([1], len=1) == 2
+    assert c.tuple_comp(c.this + c.input_arg("tuple")).execute(
+        [1], tuple=1
+    ) == (2,)
+
+    assert (
+        c.this.pipe(c.this + c.input_arg("len"), label_output="x").execute(
+            1, len=2
+        )
+        == 3
+    )
+    assert (
+        c.aggregate(c.ReduceFuncs.Sum(c.this + c.input_arg("len"))).execute(
+            [1, 2], len=10
+        )
+        == 23
+    )
+    assert c.list_comp(c.this + c.input_arg("len")).execute(
+        [1, 2], len=10
+    ) == [11, 12]
+    assert c.group_by(c.item(0)).aggregate(
+        {
+            "k": c.item(0),
+            "s": c.ReduceFuncs.Sum(c.item(1) + c.input_arg("len")),
+        }
+    ).execute([(1, 2), (1, 3)], len=10) == [{"k": 1, "s": 25}]
+
+    conv_with_data = (c.this.len() + c.input_arg("len")).gen_converter(
+        signature="data_, len"
+    )
+    assert conv_with_data([1, 2], 3) == 5
+    conv_no_data = c.input_arg("len").gen_converter(signature="len")
+    assert conv_no_data(4) == 4
+
+    class A:
+        def __init__(self):
+            self.offset = 10
+
+        conv = (
+            c.this.len()
+            + c.input_arg("self").attr("offset")
+            + c.input_arg("len")
+        ).gen_converter(method=True)
+
+    assert A().conv([1, 2], len=1) == 13
+
+    assert c.group_by(c.item(0)).aggregate(
+        {
+            "k": c.item(0),
+            "s": c.ReduceFuncs.Sum(c.item(1) + c.input_arg("defaultdict")),
+        }
+    ).execute([(1, 2), (1, 3)], defaultdict=10) == [{"k": 1, "s": 25}]
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Sum(c.this + c.input_arg("aggregate_"))
+        ).execute([1, 2], aggregate_=10)
+        == 23
+    )
+
+    assert (
+        c.aggregate(c.ReduceFuncs.Sum(c.this + c.input_arg("none"))).execute(
+            [1, 2], none=10
+        )
+        == 23
+    )
+    assert (
+        c.this.pipe(
+            c.aggregate(c.ReduceFuncs.Sum(c.this + c.input_arg("labels"))),
+            label_input="unused",
+        ).execute([1, 2], labels=10)
+        == 23
+    )
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Sum(c.item(*range(50))) + c.input_arg("tmp0_")
+        ).execute([], tmp0_=7)
+        == 7
+    )
+
+    assert c.group_by(c.item(0)).aggregate(
+        {"k": c.item(0), "s": c.input_arg("signature")}
+    ).execute([(1,)], signature=7) == [{"k": 1, "s": 7}]
+    assert Namespace(c.input_arg("x"), {"x": "123"}).execute(None, x=5) == 5
+
+
 def test_naive_conversion_attr():
     TestType = namedtuple("TestType", ["field_a", "field_b"])
     obj = TestType(1, 2)

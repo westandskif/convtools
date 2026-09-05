@@ -383,7 +383,9 @@ def test_group_by_key_edge_case():
         )
     ).gen_converter(debug=False)(data) == [11, 12]
     assert c.group_by(c.item(0)).aggregate(
-        c.item(1).pipe(c.ReduceFuncs.Sum(c.this), label_output="count")
+        c.item(1)
+        .pipe(c.ReduceFuncs.Sum(c.this))
+        .pipe(c.this, label_output="count")
     ).gen_converter(debug=False)(data) == [1, 2]
     assert c.group_by().aggregate(1).execute([0]) == 1
 
