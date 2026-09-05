@@ -2,6 +2,7 @@ import random
 import statistics
 from collections import Counter
 from datetime import date
+from fractions import Fraction
 from itertools import chain, cycle
 from operator import eq
 from typing import List, Tuple
@@ -600,6 +601,72 @@ def test_aggregate_percentile():
     f = c.aggregate(c.ReduceFuncs.Percentile(50, c.this)).gen_converter()
     assert f([4, 2, 3, 1]) == 2.5
     assert f([None, 4, 2, 3, 1]) == 2.5
+
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Percentile(70, c.this, interpolation="higher")
+        ).execute(list(range(11)))
+        == 7
+    )
+
+
+def _percentile_index_fraction(n, p):
+    return Fraction((n - 1) * p, 100)
+
+
+def _ref_percentile_lower(data, p):
+    return data[int(_percentile_index_fraction(len(data), p))]
+
+
+def _ref_percentile_higher(data, p):
+    index = _percentile_index_fraction(len(data), p)
+    left_index = int(index)
+    if Fraction(left_index) == index:
+        return data[left_index]
+    return data[left_index + 1]
+
+
+def _ref_percentile_nearest(data, p):
+    index = _percentile_index_fraction(len(data), p)
+    left_index = int(index)
+    if index - left_index > Fraction(1, 2):
+        return data[left_index + 1]
+    return data[left_index]
+
+
+def _ref_percentile_midpoint(data, p):
+    index = _percentile_index_fraction(len(data), p)
+    left_index = int(index)
+    if Fraction(left_index) == index:
+        return data[left_index]
+    left_value = data[left_index]
+    return left_value + (data[left_index + 1] - left_value) / 2
+
+
+def test_percentile_integer_index_matches_fraction():
+    interpolations = (
+        ("lower", _ref_percentile_lower),
+        ("higher", _ref_percentile_higher),
+        ("nearest", _ref_percentile_nearest),
+        ("midpoint", _ref_percentile_midpoint),
+    )
+    converters = {
+        (interpolation, p): c.aggregate(
+            c.ReduceFuncs.Percentile(p, c.this, interpolation=interpolation)
+        ).gen_converter()
+        for interpolation, _ in interpolations
+        for p in range(101)
+    }
+    for n in range(1, 151):
+        data = list(range(n))
+        for interpolation, reference in interpolations:
+            for p in range(101):
+                got = converters[(interpolation, p)](data)
+                expected = reference(data, p)
+                if interpolation == "midpoint":
+                    assert got == pytest.approx(expected)
+                else:
+                    assert got == expected
 
 
 def test_group_by_percentile():

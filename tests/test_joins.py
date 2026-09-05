@@ -47,8 +47,8 @@ def test_join_conditions():
     )
     assert (
         True
-        and join_conditions.inner_loop_conditions == [c13]
-        and join_conditions.left_collection_filters == []
+        and join_conditions.inner_loop_conditions == []
+        and join_conditions.left_collection_filters == [c13]
         and join_conditions.left_row_hashers == [c11, c21]
         and join_conditions.pre_filter == [c01]
         and join_conditions.right_collection_filters == [c23]
@@ -61,11 +61,11 @@ def test_join_conditions():
         True
         and join_conditions.swapped
         and join_conditions.how == "left"
-        and join_conditions.inner_loop_conditions == [c23]
+        and join_conditions.inner_loop_conditions == []
         and join_conditions.right_collection_filters == [c13]
         and join_conditions.right_row_hashers == [c11, c21]
         and join_conditions.pre_filter == [c01]
-        and join_conditions.left_collection_filters == []
+        and join_conditions.left_collection_filters == [c23]
         and join_conditions.left_row_hashers == [c12, c22]
     )
     join_conditions = _JoinConditions.from_condition(
@@ -73,11 +73,11 @@ def test_join_conditions():
     )
     assert (
         True
-        and join_conditions.inner_loop_conditions == [c13, c23]
-        and join_conditions.left_collection_filters == []
+        and join_conditions.inner_loop_conditions == []
+        and join_conditions.left_collection_filters == [c13]
         and join_conditions.left_row_hashers == [c11, c21]
         and join_conditions.pre_filter == [c01]
-        and join_conditions.right_collection_filters == []
+        and join_conditions.right_collection_filters == [c23]
         and join_conditions.right_row_hashers == [c12, c22]
     )
     with pytest.raises(AssertionError):
@@ -115,11 +115,11 @@ def test_join_conditions():
     )
     assert (
         True
-        and join_conditions.inner_loop_conditions == [c1, c2]
-        and join_conditions.left_collection_filters == []
+        and join_conditions.inner_loop_conditions == []
+        and join_conditions.left_collection_filters == [c1]
         and join_conditions.left_row_hashers == []
         and join_conditions.pre_filter == [c3]
-        and join_conditions.right_collection_filters == []
+        and join_conditions.right_collection_filters == [c2]
         and join_conditions.right_row_hashers == []
     )
 
@@ -788,3 +788,97 @@ def test_join_pipe_operator_lazy_right():
         ({"b": 10}, 5),
         ({"b": 10}, 2),
     ]
+
+
+def test_outer_join_guards_before_hashers():
+    L, R = c.LEFT, c.RIGHT
+    cond = c.and_(L.is_not(None), R.is_not(None), L.item("id") == R.item("id"))
+    data = [None, {"id": 1}]
+    pair = [data, data]
+    expected_left_right = [(None, None), ({"id": 1}, {"id": 1})]
+    expected_full = [
+        (None, None),
+        ({"id": 1}, {"id": 1}),
+        (None, None),
+    ]
+    assert c.join(c.item(0), c.item(1), cond, how="inner").as_type(
+        list
+    ).execute(pair) == [({"id": 1}, {"id": 1})]
+    assert (
+        c.join(c.item(0), c.item(1), cond, how="left")
+        .as_type(list)
+        .execute(pair)
+        == expected_left_right
+    )
+    assert (
+        c.join(c.item(0), c.item(1), cond, how="right")
+        .as_type(list)
+        .execute(pair)
+        == expected_left_right
+    )
+    assert (
+        c.join(c.item(0), c.item(1), cond, how="full")
+        .as_type(list)
+        .execute(pair)
+        == expected_full
+    )
+
+
+def test_outer_join_guards_nested_loop():
+    L, R = c.LEFT, c.RIGHT
+    cond = c.and_(L.is_not(None), R.is_not(None), L.item("id") < R.item("id"))
+    data = [None, {"id": 1}, {"id": 2}]
+    pair = [data, data]
+    assert c.join(c.item(0), c.item(1), cond, how="left").as_type(
+        list
+    ).execute(pair) == [
+        (None, None),
+        ({"id": 1}, {"id": 2}),
+        ({"id": 2}, None),
+    ]
+    assert c.join(c.item(0), c.item(1), cond, how="right").as_type(
+        list
+    ).execute(pair) == [
+        (None, None),
+        (None, {"id": 1}),
+        ({"id": 1}, {"id": 2}),
+    ]
+    assert c.join(c.item(0), c.item(1), cond, how="full").as_type(
+        list
+    ).execute(pair) == [
+        (None, None),
+        ({"id": 1}, {"id": 2}),
+        ({"id": 2}, None),
+        (None, None),
+        (None, {"id": 1}),
+    ]
+
+
+def test_full_nested_loop_join_guard_only():
+    L, R = c.LEFT, c.RIGHT
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.and_(L.is_not(None), R.is_not(None)),
+            how="full",
+        )
+        .as_type(list)
+        .execute([[None, 1], [None, 2]])
+    )
+    assert result == [(None, None), (1, 2), (None, None)]
+
+
+def test_full_hash_join_right_guard_rejects_row():
+    L, R = c.LEFT, c.RIGHT
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.and_(R.item("id") != 2, L.item("id") == R.item("id")),
+            how="full",
+        )
+        .as_type(list)
+        .execute([[{"id": 1}], [{"id": 1}, {"id": 2}]])
+    )
+    assert result == [({"id": 1}, {"id": 1}), (None, {"id": 2})]

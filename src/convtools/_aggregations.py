@@ -1494,9 +1494,13 @@ class PercentileReducer(ArraySortedReducer):
             )
 
     @staticmethod
-    def percentile_linear(data, quantile):
+    def _percentile_index(data, percentile):
+        return (len(data) - 1) * percentile / 100
+
+    @staticmethod
+    def percentile_linear(data, percentile):
         max_index = len(data) - 1
-        index = max_index * quantile
+        index = PercentileReducer._percentile_index(data, percentile)
         left_index = int(index)
         left_value = data[left_index]
         if left_index == max_index:
@@ -1507,16 +1511,18 @@ class PercentileReducer(ArraySortedReducer):
         )
 
     @staticmethod
-    def percentile_lower(data, quantile):
-        return data[int((len(data) - 1) * quantile)]
+    def percentile_lower(data, percentile):
+        return data[int(PercentileReducer._percentile_index(data, percentile))]
 
     @staticmethod
-    def percentile_higher(data, quantile):
-        return data[ceil((len(data) - 1) * quantile)]
+    def percentile_higher(data, percentile):
+        return data[
+            ceil(PercentileReducer._percentile_index(data, percentile))
+        ]
 
     @staticmethod
-    def percentile_midpoint(data, quantile):
-        index = (len(data) - 1) * quantile
+    def percentile_midpoint(data, percentile):
+        index = PercentileReducer._percentile_index(data, percentile)
         left_index = int(index)
         if left_index == index:
             return data[left_index]
@@ -1527,8 +1533,8 @@ class PercentileReducer(ArraySortedReducer):
         )
 
     @staticmethod
-    def percentile_nearest(data, quantile):
-        index = (len(data) - 1) * quantile
+    def percentile_nearest(data, percentile):
+        index = PercentileReducer._percentile_index(data, percentile)
         left_index = int(index)
         if index - left_index > 0.5:
             return data[left_index + 1]
@@ -1539,7 +1545,7 @@ class PercentileReducer(ArraySortedReducer):
         return CallFunc(
             self.method,
             This.call_method("get"),
-            self.percentile * 0.01,
+            self.percentile,
         )
 
 

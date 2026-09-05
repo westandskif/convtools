@@ -90,19 +90,13 @@ class _JoinConditions:
         if self.swapped and external_call:
             return self._add_right_filter(filter_conv, external_call=False)
 
-        if self.left_join:
-            self.inner_loop_conditions.append(filter_conv)
-        else:
-            self.left_collection_filters.append(filter_conv)
+        self.left_collection_filters.append(filter_conv)
 
     def _add_right_filter(self, filter_conv, external_call=True):
         if self.swapped and external_call:
             return self._add_left_filter(filter_conv, external_call=False)
 
-        if self.full_join:
-            self.inner_loop_conditions.append(filter_conv)
-        else:
-            self.right_collection_filters.append(filter_conv)
+        self.right_collection_filters.append(filter_conv)
 
     @classmethod
     def from_condition(cls, condition, how="inner") -> "_JoinConditions":
@@ -285,16 +279,43 @@ class JoinConversion(BaseConversion):
         return wrapped
 
     @classmethod
-    def _build_inner_loop_filter(cls, join_conditions):
+    def _build_inner_loop_filter(cls, join_conditions, extra_conditions=None):
         """Build filter for inner loop conditions, handling full join tuples."""
-        if not join_conditions.inner_loop_conditions:
+        conditions = []
+        if extra_conditions:
+            conditions.extend(extra_conditions)
+        conditions.extend(join_conditions.inner_loop_conditions)
+        if not conditions:
             return None
         return cls._wrap_for_full_join(
-            And(*join_conditions.inner_loop_conditions),
+            And(*conditions),
             join_conditions,
             left="left_item",
             right=True,
         )
+
+    def _for_each_left_item(self, code, ctx, join_conditions, emit_lookup):
+        """Loop left rows; on outer joins, skip hasher/lookup when left guards fail."""
+        code.add_line("for left_item in left_:", 1)
+        if (
+            join_conditions.left_join
+            and join_conditions.left_collection_filters
+        ):
+            left_guard = join_conditions.wrap_with_namespace(
+                And(*join_conditions.left_collection_filters),
+                left=True,
+            )
+            code.add_line(
+                "if %s:"
+                % left_guard.gen_code_and_update_ctx("left_item", ctx),
+                1,
+            )
+            emit_lookup()
+            code.incr_indent_level(-1)
+            code.add_line("else:", 1)
+            code.add_line("right_items = iter(())", -1)
+        else:
+            emit_lookup()
 
     @staticmethod
     def _maybe_track_right_index(code, join_conditions):
@@ -354,42 +375,45 @@ class JoinConversion(BaseConversion):
         )
         code.add_line("del right_", 0)
         if join_conditions.full_join:
-            code.add_line("del right_enumerated_", 0)
-            initial_right = "(enum_item for items in hash_to_right_items.values() for enum_item in items)"
+            initial_right = "right_enumerated_"
         else:
             initial_right = "(item for items in hash_to_right_items.values() for item in items)"
 
-        code.add_line("for left_item in left_:", 1)
-        code.add_line(
-            "left_key = %s"
-            % c_left_key_to_hash.gen_code_and_update_ctx("left_item", ctx),
-            0,
-        )
-
         c_left_key = EscapedString("left_key")
         c_hash_to_right_items = EscapedString("hash_to_right_items")
-
         inner_loop_filter = self._build_inner_loop_filter(join_conditions)
-        code.add_line(
-            "right_items = %s"
-            % If(
-                c_left_key.in_(c_hash_to_right_items),
-                c_hash_to_right_items.item(c_left_key).pipe(
-                    This.filter(inner_loop_filter)
-                    if inner_loop_filter
-                    else This
-                ),
-                Tuple_(),
+
+        def emit_lookup():
+            code.add_line(
+                "left_key = %s"
+                % c_left_key_to_hash.gen_code_and_update_ctx("left_item", ctx),
+                0,
             )
-            .pipe(iter if join_conditions.left_join else This)
-            .gen_code_and_update_ctx(None, ctx),
-            0,
-        )
+            code.add_line(
+                "right_items = %s"
+                % If(
+                    c_left_key.in_(c_hash_to_right_items),
+                    c_hash_to_right_items.item(c_left_key).pipe(
+                        This.filter(inner_loop_filter)
+                        if inner_loop_filter
+                        else This
+                    ),
+                    Tuple_(),
+                )
+                .pipe(iter if join_conditions.left_join else This)
+                .gen_code_and_update_ctx(None, ctx),
+                0,
+            )
+
+        self._for_each_left_item(code, ctx, join_conditions, emit_lookup)
         return initial_right
 
     def _gen_nested_loop_join_code(self, code, ctx, join_conditions):
         """Generate nested loop join code. Returns initial_right for full join yield."""
-        if join_conditions.right_collection_filters:
+        if (
+            join_conditions.right_collection_filters
+            and not join_conditions.full_join
+        ):
             code.add_line(
                 "right_ = %s"
                 % ListComp(
@@ -424,16 +448,29 @@ class JoinConversion(BaseConversion):
         else:
             initial_right = "right_"
             right_input_var = "right_"
-        inner_loop_filter = self._build_inner_loop_filter(join_conditions)
-
-        code.add_line("for left_item in left_:", 1)
-        code.add_line(
-            "right_items = %s"
-            % (This.filter(inner_loop_filter) if inner_loop_filter else This)
-            .pipe(iter if join_conditions.left_join else This)
-            .gen_code_and_update_ctx(right_input_var, ctx),
-            0,
+        inner_loop_filter = self._build_inner_loop_filter(
+            join_conditions,
+            extra_conditions=(
+                join_conditions.right_collection_filters
+                if join_conditions.full_join
+                else None
+            ),
         )
+
+        def emit_lookup():
+            code.add_line(
+                "right_items = %s"
+                % (
+                    This.filter(inner_loop_filter)
+                    if inner_loop_filter
+                    else This
+                )
+                .pipe(iter if join_conditions.left_join else This)
+                .gen_code_and_update_ctx(right_input_var, ctx),
+                0,
+            )
+
+        self._for_each_left_item(code, ctx, join_conditions, emit_lookup)
         return initial_right
 
     def _gen_yield_statements(self, code, join_conditions):
@@ -496,7 +533,10 @@ class JoinConversion(BaseConversion):
         with function_ctx:
             code.add_line("def placeholder", 1)
 
-            if join_conditions.left_collection_filters:
+            if (
+                join_conditions.inner_join
+                and join_conditions.left_collection_filters
+            ):
                 code.add_line(
                     "left_ = %s"
                     % This.filter(
