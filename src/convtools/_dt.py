@@ -221,7 +221,7 @@ def datetime_trunc_to_day(dt, to_days, offset_days, mode):
 
 def datetime_trunc_to_microsecond(dt, to_us, offset_us, mode):
     us = (
-        (dt.toordinal() - 1) * 86400000000
+        dt.toordinal() * 86400000000
         + dt.hour * 3600000000
         + dt.minute * 60000000
         + dt.second * 1000000
@@ -236,7 +236,7 @@ def datetime_trunc_to_microsecond(dt, to_us, offset_us, mode):
     else:
         us += to_us - 1
 
-    new_dt = datetime_from_ordinal(us // 86400000000 + 1)
+    new_dt = datetime_from_ordinal(us // 86400000000)
     left_microseconds = us % 86400000000
     return new_dt.replace(
         hour=left_microseconds // 3600000000,
@@ -417,14 +417,14 @@ def gen_datetimes__day(dt_start, dt_end, to_days, offset_days, mode):
 def gen_datetimes__microsecond(dt_start, dt_end, to_us, offset_us, mode):
     tzinfo = dt_start.tzinfo
     start_us = (
-        (dt_start.toordinal() - 1) * 86400000000
+        dt_start.toordinal() * 86400000000
         + dt_start.hour * 3600000000
         + dt_start.minute * 60000000
         + dt_start.second * 1000000
         + dt_start.microsecond
     )
     end_us = (
-        (dt_end.toordinal() - 1) * 86400000000
+        dt_end.toordinal() * 86400000000
         + dt_end.hour * 3600000000
         + dt_end.minute * 60000000
         + dt_end.second * 1000000
@@ -435,7 +435,7 @@ def gen_datetimes__microsecond(dt_start, dt_end, to_us, offset_us, mode):
 
     if mode == 1:
         while us <= end_us:
-            new_dt = datetime_from_ordinal(us // 86400000000 + 1)
+            new_dt = datetime_from_ordinal(us // 86400000000)
             left_microseconds = us % 86400000000
             yield new_dt.replace(
                 hour=left_microseconds // 3600000000,
@@ -450,7 +450,7 @@ def gen_datetimes__microsecond(dt_start, dt_end, to_us, offset_us, mode):
         while us <= end_us:
             us += to_us
 
-            new_dt = datetime_from_ordinal(us // 86400000000 + 1)
+            new_dt = datetime_from_ordinal(us // 86400000000)
             left_microseconds = us % 86400000000
             yield new_dt.replace(
                 hour=left_microseconds // 3600000000,
@@ -464,7 +464,7 @@ def gen_datetimes__microsecond(dt_start, dt_end, to_us, offset_us, mode):
         while us <= end_us:
             us += to_us
 
-            new_dt = datetime_from_ordinal((us - 1) // 86400000000 + 1)
+            new_dt = datetime_from_ordinal((us - 1) // 86400000000)
             left_microseconds = (us - 1) % 86400000000
             yield new_dt.replace(
                 hour=left_microseconds // 3600000000,

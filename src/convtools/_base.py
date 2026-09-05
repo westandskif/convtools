@@ -2449,6 +2449,16 @@ class GetItem(BaseMethodConversion):
         ).gen_code_and_update_ctx(code_input, ctx)
 
 
+_PLAIN_PYTHON_IDENT_RE = re.compile(r"^[A-Za-z_][a-zA-Z0-9_]*\Z")
+
+
+def _is_plain_python_ident(name):
+    """ASCII identifier safe as `.name` / `k=` (not a keyword; not NFKC)."""
+    return _PLAIN_PYTHON_IDENT_RE.match(name) is not None and not iskeyword(
+        name
+    )
+
+
 class GetAttr(GetItem):
     """Any number of attr lookups.
 
@@ -2467,7 +2477,9 @@ class GetAttr(GetItem):
     getter_default_callable = get_attr_deep_default_callable
 
     def wrap_path_item(self, code_input, path_item):
-        if self.valid_attr.match(path_item):
+        if self.valid_attr.match(path_item) and _is_plain_python_ident(
+            path_item[1:-1]
+        ):
             return f"{code_input}.{path_item[1:-1]}"
         return f"getattr({code_input}, {path_item})"
 
@@ -2490,16 +2502,22 @@ class Call(BaseMethodConversion):
     def gen_code_and_update_ctx(self, code_input, ctx):
         code_self, code_input = self.get_self_and_input_code(code_input, ctx)
 
-        params = chain(
-            (
-                param.gen_code_and_update_ctx(code_input, ctx)
-                for param in self.args
-            ),
-            (
-                f"{k}={v.gen_code_and_update_ctx(code_input, ctx)}"
-                for k, v in self.kwargs.items()
-            ),
-        )
+        params = [
+            param.gen_code_and_update_ctx(code_input, ctx)
+            for param in self.args
+        ]
+        if self.kwargs:
+            if all(_is_plain_python_ident(k) for k in self.kwargs):
+                params.extend(
+                    f"{k}={v.gen_code_and_update_ctx(code_input, ctx)}"
+                    for k, v in self.kwargs.items()
+                )
+            else:
+                kwargs_items = ",".join(
+                    f"{repr(k)}: {v.gen_code_and_update_ctx(code_input, ctx)}"
+                    for k, v in self.kwargs.items()
+                )
+                params.append(f"**{{{kwargs_items}}}")
         return f"{code_self}({','.join(params)})"
 
 

@@ -563,6 +563,42 @@ def test_naive_conversion_attr():
     assert c.attr(c.naive(["field_a"]).item(0)).gen_converter()(obj) == 1
 
 
+def test_attr_and_call_keyword_and_non_identifier_names():
+    assert c.attr("class").execute(SimpleNamespace(**{"class": 1})) == 1
+    assert (
+        c.attr("a", "class").execute(
+            SimpleNamespace(a=SimpleNamespace(**{"class": 3}))
+        )
+        == 3
+    )
+    assert c.this.call(**{"class": 1}).execute(lambda **kw: kw) == {"class": 1}
+    assert c.call_func(lambda **kw: kw, **{"from": 1}).execute(None) == {
+        "from": 1
+    }
+    assert c.this.call_method("m", **{"class": 1}).execute(
+        SimpleNamespace(m=lambda **kw: kw)
+    ) == {"class": 1}
+    assert c.call_func(lambda **kw: kw, **{"a-b": 1}).execute(None) == {
+        "a-b": 1
+    }
+
+    def f(x=0):
+        return x
+
+    assert ".a" in get_code_str(c.attr("a"))
+    assert "x=" in get_code_str(c.call_func(f, x=1))
+
+    obj = SimpleNamespace()
+    setattr(obj, "ﬁ", "ligature")
+    setattr(obj, "fi", "ascii")
+    assert c.attr("ﬁ").execute(obj) == "ligature"
+    assert c.attr("fi").execute(obj) == "ascii"
+    assert c.call_func(lambda **kw: kw, **{"ﬁ": 1}).execute(None) == {"ﬁ": 1}
+    assert c.call_func(lambda **kw: kw, **{"a\n": 1}).execute(None) == {
+        "a\n": 1
+    }
+
+
 def test_item_attr_caching():
     result = c(
         {

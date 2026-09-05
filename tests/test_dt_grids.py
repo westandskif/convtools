@@ -603,3 +603,32 @@ def test_grid_negative_offset():
         utc(2000, 1, 1, 7),
         utc(2000, 1, 1, 15),
     ]
+
+
+def test_datetime_grid_2d_1h_repro():
+    start = datetime(2020, 1, 1)
+    end = datetime(2020, 1, 5)
+    assert list(DateTimeGrid("2d", "1h").around(start, end)) == [
+        datetime(2019, 12, 31, 1),
+        datetime(2020, 1, 2, 1),
+        datetime(2020, 1, 4, 1),
+    ]
+    assert (
+        len(
+            list(
+                DateTimeGrid("2d", "1h").around(start, datetime(2020, 1, 4, 0))
+            )
+        )
+        == 2
+    )
+
+    off = timedelta(hours=1)
+    for mode in ("start", "end", "end_inclusive"):
+        got = list(DateTimeGrid("2d", "1h", mode=mode).around(start, end))
+        ref = [
+            point + off
+            for point in DateTimeGrid("2d", mode=mode).around(
+                start - off, end - off
+            )
+        ]
+        assert got == ref

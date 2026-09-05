@@ -2,6 +2,8 @@
 
 **Bugfix**
 
+- `c.attr` / `call` kwargs with Python keywords or non-identifier names no longer generate invalid code
+- `datetime_trunc` / `DateTimeGrid` with a whole-day step and a sub-day offset were anchored one day off relative to the day-only grid; now consistent. Note that steps not dividing a day (e.g. `7h`) shift accordingly
 - fixed `pipe` silently dropping the left conversion (and its side effects: `expect`, `tap`, function calls) when the right conversion ignores its input
 - `item`/`attr`/`call`/comprehensions on a non-input source (`c.input_arg(...)`, `c.naive(...)`, ...) no longer report using the pipe input, so a preceding side-effecting `pipe` left side is evaluated; and a `c.LEFT`/`c.RIGHT`-style lazy name passed to a pipe's operator method is no longer rendered against the pipe output
 

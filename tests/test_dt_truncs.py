@@ -1526,3 +1526,36 @@ def test_datetime_trunc():
             "start": datetime(2000, 1, 1, 0, 0, 0, 25),
         },
     ]
+
+
+@pytest.mark.parametrize("mode", ("start", "end", "end_inclusive"))
+@pytest.mark.parametrize(
+    "off, td",
+    (
+        ("1h", timedelta(hours=1)),
+        ("-2h", timedelta(hours=-2)),
+        ("90m", timedelta(minutes=90)),
+    ),
+)
+@pytest.mark.parametrize("step", ("2d", "3d"))
+@pytest.mark.parametrize(
+    "dt",
+    (
+        datetime(2020, 1, 1, 3, 15, 1),
+        datetime(2020, 1, 2, 12, 0, 0, 1),
+        datetime(2019, 12, 31, 23, 59, 59),
+        datetime(1970, 1, 1, 0, 0, 1),
+    ),
+)
+def test_datetime_trunc_subday_offset_matches_day_path(
+    mode, off, td, step, dt
+):
+    got = c.datetime_trunc(step, off, mode=mode).execute(dt)
+    expected = c.datetime_trunc(step, mode=mode).execute(dt - td) + td
+    assert got == expected
+
+
+def test_datetime_trunc_2d_1h_repro():
+    assert c.datetime_trunc("2d", "1h").execute(datetime(2020, 1, 1)) == (
+        datetime(2019, 12, 31, 1, 0)
+    )
