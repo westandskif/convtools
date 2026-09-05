@@ -364,4 +364,28 @@ def test_window_func_exceptions():
         c.this.window(1).gen_converter()
 
 
+def test_window_chained_order_by():
+    result = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(order_by=c.item("a").item("b"))
+        .execute([{"a": {"b": 1}, "b": 2}, {"a": {"b": 1}, "b": 3}])
+    )
+    assert result == [2, 2]
+
+    result = (
+        c.this.window(
+            {
+                "idx": c.WindowFuncs.RowIndex(),
+                "count": c.ReduceFuncs.Count(),
+            }
+        )
+        .over(order_by=c.item("a").item("b"))
+        .execute([{"a": {"b": 2}, "b": 1}, {"a": {"b": 1}, "b": 1}])
+    )
+    assert result == [
+        {"idx": 1, "count": 2},
+        {"idx": 0, "count": 1},
+    ]
+
+
 # TODO: ordering

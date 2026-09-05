@@ -1,5 +1,7 @@
+import math
 from collections import deque, namedtuple
 from datetime import date
+from decimal import Decimal
 from types import GeneratorType
 from unittest.mock import MagicMock, Mock
 
@@ -41,6 +43,22 @@ def test_naive_conversion():
         c.naive(f1, name_prefix="prefix").call(1).gen_converter()
     )
     assert "f1" not in code_str and "prefix" in code_str
+
+
+def test_naive_equal_but_distinct_values_keep_identity():
+    r = c.tuple(c.naive(1.0), c.naive(Decimal("1"))).execute(None)
+    assert type(r[0]) is float and type(r[1]) is Decimal
+    assert r[0] == 1.0 and r[1] == Decimal("1")
+
+    r = c.tuple(c.naive((1, 2)), c.naive((True, 2))).execute(None)
+    assert type(r[0][0]) is int and type(r[1][0]) is bool
+    assert r[0] == (1, 2) and r[1] == (True, 2)
+
+    r = c.tuple(c.naive(-0.0), c.naive(0.0)).execute(None)
+    assert math.copysign(1, r[0]) == -1.0 and math.copysign(1, r[1]) == 1.0
+
+    r = c.tuple(c.item("k", default=1.0), c.naive(Decimal("1"))).execute({})
+    assert type(r[0]) is float and type(r[1]) is Decimal
 
 
 def test_gen_converter():
@@ -1158,10 +1176,14 @@ def test_name_generation():
         item.gen_name("abc", ctx, i)
     c.BaseConversion.allowed_symbols = prev_allowed_symbols
 
-    assert item.gen_name("_", ctx, (1, 2)) == item.gen_name("_", ctx, (1, 2))
+    same_tuple = (1, 2)
+    assert item.gen_name("_", ctx, same_tuple) == item.gen_name(
+        "_", ctx, same_tuple
+    )
     obj = object()
-    assert item.gen_name("_", ctx, (1, obj)) == item.gen_name(
-        "_", ctx, (1, obj)
+    same_pair = (1, obj)
+    assert item.gen_name("_", ctx, same_pair) == item.gen_name(
+        "_", ctx, same_pair
     )
     obj = (1, [])
     assert item.gen_name("_", ctx, obj) == item.gen_name(

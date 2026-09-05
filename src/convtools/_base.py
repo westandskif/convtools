@@ -328,21 +328,19 @@ class BaseConversion(Generic[CT]):
     def gen_name(self, prefix, ctx, item_to_hash) -> str:
         """Generates name of variable to be used in the generated code.
 
-        This also ensures that items with same items_to_hash get same names.
+        Same object (by identity) under the same prefix reuses one name.
+        Distinct objects never share a slot, even if they compare equal.
+
+        ``item_to_hash`` must stay alive for the duration of code generation
+        (true for NaiveConversion, which holds ``self.value``, and
+        ``ctx["__naive_values__"]`` retains it afterwards), so ``id`` reuse
+        cannot alias two values.
         """
         prefixed_hash_to_name = ctx[self.PREFIXED_HASH_TO_NAME]
-        prefixed_hash = (prefix, item_to_hash)
-        try:
-            if prefixed_hash in prefixed_hash_to_name:
-                return prefixed_hash_to_name[prefixed_hash]
-            name = self.gen_random_name(prefix, ctx)
-
-        except TypeError:
-            prefixed_hash = (prefix, id(item_to_hash))
-            if prefixed_hash in prefixed_hash_to_name:
-                return prefixed_hash_to_name[prefixed_hash]
-            name = self.gen_random_name(prefix, ctx)
-
+        prefixed_hash = (prefix, id(item_to_hash))
+        if prefixed_hash in prefixed_hash_to_name:
+            return prefixed_hash_to_name[prefixed_hash]
+        name = self.gen_random_name(prefix, ctx)
         prefixed_hash_to_name[prefixed_hash] = name
         return name
 

@@ -1,6 +1,9 @@
+from types import SimpleNamespace
+
 import pytest
 
 from convtools import conversion as c
+from convtools._ordering import SortingKeyConversion
 
 from .utils import get_code_str
 
@@ -167,3 +170,41 @@ def test_ordering_callable_key():
     # Lambda function as key (should still work)
     converter = c.this.sort(key=lambda x: -x).gen_converter()
     assert converter([3, 1, 2]) == [3, 2, 1]
+
+
+def test_sort_chained_lookup_key():
+    data = [{"a": {"b": 2}, "b": 0}, {"a": {"b": 1}, "b": 9}]
+    result = c.this.sort(key=c.item("a").item("b")).execute(data)
+    assert result == [{"a": {"b": 1}, "b": 9}, {"a": {"b": 2}, "b": 0}]
+
+    attr_data = [
+        SimpleNamespace(a=SimpleNamespace(b=2), b=0),
+        SimpleNamespace(a=SimpleNamespace(b=1), b=9),
+    ]
+    result = c.this.sort(key=c.attr("a").attr("b")).execute(attr_data)
+    assert [row.a.b for row in result] == [1, 2]
+
+    mixed = [
+        SimpleNamespace(a={"b": 2}),
+        SimpleNamespace(a={"b": 1}),
+    ]
+    result = c.this.sort(key=c.attr("a").item("b")).execute(mixed)
+    assert [row.a["b"] for row in result] == [1, 2]
+
+    direct_key = c.item("a")
+    sk_direct = SortingKeyConversion((direct_key,))
+    assert sk_direct.try_get_key_or_index(sk_direct.keys[0]) is not None
+    assert "operator_itemgetter" in get_code_str(
+        c.this.sort(key=direct_key).gen_converter()
+    )
+
+    this_item = c.this.item("a")
+    sk_this = SortingKeyConversion((this_item,))
+    assert sk_this.try_get_key_or_index(sk_this.keys[0]) is not None
+
+    chained_key = c.item("a").item("b")
+    sk_chained = SortingKeyConversion((chained_key,))
+    assert sk_chained.try_get_key_or_index(sk_chained.keys[0]) is None
+    chained_code = get_code_str(c.this.sort(key=chained_key).gen_converter())
+    assert "operator_itemgetter" not in chained_code
+    assert "sorting_key" in chained_code

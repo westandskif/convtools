@@ -10,6 +10,7 @@ from ._base import (
     GetItem,
     InputArg,
     NaiveConversion,
+    ThisConversion,
 )
 from ._utils import Code
 
@@ -72,7 +73,11 @@ class SortingKeyConversion(BaseConversion):
             return None
 
         if (
-            key.default is not None
+            (
+                key.self_conv is not BaseConversion._none
+                and not isinstance(key.self_conv, ThisConversion)
+            )
+            or key.default is not None
             or len(key.indexes) != 1
             or not key.indexes_are_simple
             or key.has_hint(self._any_ordering_hints)
