@@ -209,6 +209,72 @@ def test_table_take():
     ]
 
 
+def test_table_keep_duplicate_first_wins():
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), (1, 2, 3)],
+            header=True,
+            duplicate_columns="keep",
+        ).into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "b": 3}]
+
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), (1, 2, 3)],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .update(c=c.col("a"))
+        .into_iter_rows(tuple)
+    )
+    assert result == [(1, 2, 3, 1)]
+
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), (1, 2, 3)],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .update(a=c.col("b"))
+        .into_iter_rows(tuple)
+    )
+    assert result == [(3, 2, 3)]
+
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), (1, 2, 3)],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .take("a")
+        .into_iter_rows(tuple)
+    )
+    assert result == [(1,)]
+
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), (1, 2, 3)],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .take("b", ...)
+        .into_iter_rows(tuple)
+    )
+    assert result == [(3, 1, 2)]
+
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), (1, 2, 3)],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .filter(c.col("a") == 1)
+        .into_iter_rows(tuple)
+    )
+    assert result == [(1, 2, 3)]
+
+
 def test_table_drop():
     result = list(
         Table.from_rows([(1, 2, 3), (2, 3, 4)], ["a", "b", "c"])
@@ -556,6 +622,25 @@ def test_table_csv():
         Table.from_rows([{"a": 1}]).into_csv(f_out, include_header=False)
     result = list(Table.from_csv("tests/csvs/out.csv").into_iter_rows())
     assert result == [("1",)]
+
+
+def test_from_csv_preserves_crlf_in_quoted_field(tmp_path):
+    path = tmp_path / "crlf.csv"
+    path.write_bytes(b'a,b\r\n"x\r\ny",2\r\n')
+    result = list(Table.from_csv(str(path), header=True).into_iter_rows(dict))
+    assert result == [{"a": "x\r\ny", "b": "2"}]
+
+
+def test_into_csv_embedded_crlf_roundtrip(tmp_path):
+    path = tmp_path / "out.csv"
+    Table.from_rows([("a", "b"), ("x\r\ny", "2")], header=True).into_csv(
+        str(path)
+    )
+    raw = path.read_bytes()
+    assert raw == b'a,b\r\n"x\r\ny",2\r\n'
+    assert b"\r\r\n" not in raw
+    result = list(Table.from_csv(str(path), header=True).into_iter_rows(dict))
+    assert result == [{"a": "x\r\ny", "b": "2"}]
 
 
 def test_table_jsonl():
@@ -908,6 +993,64 @@ def test_table_zip():
         (2, None),
         (3, None),
     ]
+
+    keep = Table.from_rows(
+        [("a", "a", "b"), (1, 2, 3)], header=True, duplicate_columns="keep"
+    )
+    result = list(
+        keep.zip(Table.from_rows([("c",), (9,)], header=True)).into_iter_rows(
+            tuple, include_header=True
+        )
+    )
+    assert result == [
+        ("a", "a", "b", "c"),
+        (1, 2, 3, 9),
+    ]
+
+    keep = Table.from_rows(
+        [("a", "a", "b"), (1, 2, 3)], header=True, duplicate_columns="keep"
+    )
+    result = list(
+        Table.from_rows([("c",), (9,)], header=True)
+        .zip(keep)
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("c", "a", "a", "b"),
+        (9, 1, 2, 3),
+    ]
+
+
+def test_table_update_all_keep_duplicates():
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), ("1", "2", "3")],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .update_all(int)
+        .into_iter_rows(tuple)
+    )
+    assert result == [(1, 2, 3)]
+
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), ("1", "2", "3")],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .update(b=c.col("b").pipe(int))
+        .update_all(c.this.pipe(str))
+        .into_iter_rows(tuple)
+    )
+    assert result == [("1", "2", "3")]
+
+    result = list(
+        Table.from_rows([([1, 2], [3, 4])], header=["a", "b"])
+        .update_all(c.col("b"))
+        .into_iter_rows(tuple)
+    )
+    assert result == [(2, 4)]
 
 
 def test_table_explode():

@@ -46,6 +46,7 @@ from .._columns import ColumnChanges, ColumnRef, ColumnScope, MetaColumns
 from .._joins import JoinConversion, LeftJoinCondition, RightJoinCondition
 
 _none = BaseConversion._none
+_UPDATE_ALL = "__update_all"
 
 
 class CloseFileIterator:
@@ -361,6 +362,7 @@ class Table:
                     filepath_or_buffer,
                     "r",
                     encoding=encoding,
+                    newline="",
                 )
             )
         else:
@@ -589,11 +591,22 @@ class Table:
         conversion: "BaseConversion" = This()
         for conversion_ in conversions:
             conversion = conversion.pipe(conversion_)
-        column_to_conversion = {
-            column.name: ColumnRef(column.name).pipe(conversion)
-            for column in self.meta_columns.columns
-        }
-        return self.update(**column_to_conversion)
+
+        if any(column.conversion for column in self.meta_columns.columns):
+            self.embed_conversions()
+
+        name_to_column = self.meta_columns.get_name_to_column()
+        mapping = self._set_col_indexes(name_to_column, (conversion,))
+
+        for column in self.meta_columns.columns:
+            column.conversion = ColumnScope(
+                ColumnRef(column.name, id_=_UPDATE_ALL).pipe(conversion),
+                {**mapping, (_UPDATE_ALL, column.name): column.index},
+            )
+            column.index = None
+
+        self.pending_changes |= ColumnChanges.MUTATE
+        return self
 
     def rename(
         self, columns: "Union[Tuple[str], List[str], Mapping[str, str]]"
@@ -687,16 +700,16 @@ class Table:
           fill_value: value to use for filling gaps
         """
         new_columns = MetaColumns(duplicate_columns="keep")
-        left_columns = self.meta_columns.get_name_to_column()
-        right_columns = table.meta_columns.get_name_to_column()
+        left_columns = self.meta_columns.columns
+        right_columns = table.meta_columns.columns
 
         left_fill_value = tuple(fill_value for _ in range(len(left_columns)))
         right_fill_value = tuple(fill_value for _ in range(len(right_columns)))
 
-        for index, name in enumerate(left_columns):
-            new_columns.add(name, None, GetItem(0, index))
-        for index, name in enumerate(right_columns):
-            new_columns.add(name, None, GetItem(1, index))
+        for index, column in enumerate(left_columns):
+            new_columns.add(column.name, None, GetItem(0, index))
+        for index, column in enumerate(right_columns):
+            new_columns.add(column.name, None, GetItem(1, index))
 
         new_rows = (
             (
@@ -1298,14 +1311,15 @@ class Table:
         else:
             row_conversion: "Union[dict, tuple, list]"
             if type_ is dict:
-                row_conversion = {
-                    column.name: (
+                row_conversion = {}
+                for column in self.meta_columns.columns:
+                    if column.name in row_conversion:
+                        continue
+                    row_conversion[column.name] = (
                         column.conversion
                         if column.index is None
                         else GetItem(column.index)
                     )
-                    for column in self.meta_columns.columns
-                }
                 include_header = False
             else:
                 row_conversion = type_(
@@ -1378,7 +1392,10 @@ class Table:
         if isinstance(filepath_or_buffer, str):
             f = f_to_close = (
                 open(  # pylint:disable=consider-using-with  # noqa: SIM115
-                    filepath_or_buffer, "w", encoding=encoding
+                    filepath_or_buffer,
+                    "w",
+                    encoding=encoding,
+                    newline="",
                 )
             )
         else:

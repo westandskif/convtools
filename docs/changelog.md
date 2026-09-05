@@ -2,6 +2,8 @@
 
 **Bugfix**
 
+- `Table` `duplicate_columns="keep"`: name references, `take(...)`, `zip`, and dict row output now use the first duplicate, matching the docs
+- `Table.from_csv` / `Table.into_csv` open files with `newline=""` so quoted CR/LF is preserved
 - `Table.chain` of dict/list rows no longer yields raw tuples and no longer mixes row types on the fast path
 - a `c.col()` reference (or expression containing one) can be reused across tables, stages and join sides
 - `Table.join` / `Table.pivot` after a pure `take` / `drop` (and `pivot` after `rename` on dict rows) no longer read stale column positions; `how="full"` / `"right"` no longer read a shared join key from the right row using the left column's index

@@ -160,8 +160,8 @@ class MetaColumns:
 
         for column_name in column_names:
             if column_name is ellipsis_:
-                for name_, column_ in name_to_column.items():
-                    if name_ not in column_names_set:
+                for column_ in self.columns:
+                    if column_.name not in column_names_set:
                         new_columns.add(
                             column_.name, column_.index, column_.conversion
                         )
@@ -188,4 +188,8 @@ class MetaColumns:
         return new_columns
 
     def get_name_to_column(self) -> "Dict[str, ColumnDef]":
-        return {column.name: column for column in self.columns}
+        result: "Dict[str, ColumnDef]" = {}
+        for column in self.columns:
+            if column.name not in result:
+                result[column.name] = column
+        return result
