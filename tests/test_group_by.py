@@ -1251,6 +1251,58 @@ def test_aggregate_single_reducer_reduction():
     )
 
 
+def test_reducer_default_evaluated_like_output_expression():
+    R = c.ReduceFuncs
+    assert c.group_by(c.item(0)).aggregate(
+        R.Max(c.item(1), where=c.item(1) > 10, default=c.item(0))
+    ).execute([(1, 2)]) == [1]
+    assert c.group_by(c.item(0), c.item(1)).aggregate(
+        R.Max(c.item(2), where=c.item(2) > 10, default=c.item(1))
+    ).execute([(1, 2, 3)]) == [2]
+
+    with pytest.raises(c.ConversionException):
+        c.aggregate(R.Max(c.this, default=c.this)).gen_converter()
+    with pytest.raises(c.ConversionException):
+        c.aggregate(R.Array(c.this, default=c.this)).gen_converter()
+
+    assert (
+        c.aggregate(R.Max(c.this, default=c.input_arg("d").item(0))).execute(
+            [], d=[5]
+        )
+        == 5
+    )
+    assert c.aggregate(R.Max(c.this, default=list)).execute([]) == []
+    assert (
+        c.this.pipe(
+            c.item("rows").pipe(
+                c.aggregate(R.Max(c.this, default=c.label("d")))
+            ),
+            label_input={"d": c.item("d")},
+        ).execute({"rows": [], "d": 99})
+        == 99
+    )
+
+    hidden_if_multiple = c.if_multiple((c.input_arg("flag"), 1), else_=2)
+    hidden_item = c.input_arg("d").item(
+        "k", default=c.input_arg("fb").item("k")
+    )
+    for reducer in (
+        R.Max(c.this, default=hidden_if_multiple),
+        R.Array(c.this, default=hidden_if_multiple),
+        R.DictLast(c.this, c.this, default=hidden_if_multiple),
+        R.Max(c.this, default=hidden_item),
+        R.Array(c.this, default=hidden_item),
+        R.DictLast(c.this, c.this, default=hidden_item),
+    ):
+        with pytest.raises(c.ConversionException):
+            c.aggregate(reducer).gen_converter()
+
+    code_str = get_code_str(
+        c.aggregate(R.Max(c.this, default=-1)).gen_converter()
+    )
+    assert "is _none" in code_str
+
+
 def test_variance_and_stddev():
     import statistics
     from math import isclose

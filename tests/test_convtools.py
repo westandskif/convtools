@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from convtools import conversion as c
-from convtools._base import Eq, LazyEscapedString, Namespace
+from convtools._base import LazyEscapedString, Namespace
 from convtools._utils import Code
 
 from .utils import get_code_str
@@ -443,10 +443,7 @@ def test_item():
     assert c.item("key1").as_type(int).execute({"key1": "15"}) == 15
 
 
-def test_in_single_element_optimization():
-    """Test that in_ with single-element collections is optimized to ==."""
-    # Functional tests - verify the optimization produces correct results
-    # These tests confirm both correctness and optimization (== is faster than in)
+def test_in_semantics():
     assert c.this.in_([1]).execute(1) is True
     assert c.this.in_([1]).execute(2) is False
     assert c.this.in_({1}).execute(1) is True
@@ -460,49 +457,47 @@ def test_in_single_element_optimization():
     assert c.this.not_in([1]).execute(2) is True
     assert c.this.not_in(c.naive([1])).execute(2) is True
 
-    # Test with c.list (List_)
-    code_str = get_code_str(c.this.in_(c.list(1)))
-    assert "==" in code_str and " in " not in code_str
+    class W:
+        def __eq__(self, o):
+            return "weird"
 
-    # Test with c.set (Set_)
-    code_str = get_code_str(c.this.in_(c.set(1)))
-    assert "==" in code_str and " in " not in code_str
+        __hash__ = object.__hash__
 
-    # Test with c.tuple (Tuple_)
-    code_str = get_code_str(c.this.in_(c.tuple(1)))
-    assert "==" in code_str and " in " not in code_str
+    assert c.this.in_({1}).execute(W()) is False
+    assert c.this.in_([1]).execute(W()) is True
+    with pytest.raises(TypeError):
+        c.this.in_({1}).execute([1])
+    assert c.this.not_in({1}).execute(W()) is True
+    assert c.this.not_in([1]).execute(W()) is False
+    with pytest.raises(TypeError):
+        c.this.not_in({1}).execute([1])
 
-    # Test with NaiveConversion (list)
+    nan = float("nan")
+    assert c.this.in_([nan]).execute(nan) is True
+    assert (nan in [nan]) is True
+
     code_str = get_code_str(c.this.in_([1]))
-    assert "==" in code_str and " in " not in code_str
-
-    # Test with NaiveConversion (set)
+    assert " in " in code_str
+    code_str = get_code_str(c.this.in_(c.list(1)))
+    assert " in " in code_str
+    code_str = get_code_str(c.this.in_(c.set(1)))
+    assert " in " in code_str
+    code_str = get_code_str(c.this.in_(c.tuple(1)))
+    assert " in " in code_str
     code_str = get_code_str(c.this.in_({1}))
-    assert "==" in code_str and " in " not in code_str
-
-    # Test with NaiveConversion (tuple)
+    assert " in " in code_str
     code_str = get_code_str(c.this.in_((1,)))
-    assert "==" in code_str and " in " not in code_str
-
-    # Test with NaiveConversion (frozenset)
+    assert " in " in code_str
     code_str = get_code_str(c.this.in_(frozenset({1})))
-    assert "==" in code_str and " in " not in code_str
-
-    # Test not_in with single-element collections
+    assert " in " in code_str
     code_str = get_code_str(c.this.not_in([1]))
-    assert "!=" in code_str and " not in " not in code_str
-
+    assert " not in " in code_str
     code_str = get_code_str(c.this.not_in(c.list(1)))
-    assert "!=" in code_str and " not in " not in code_str
-
-    # Multi-element collections should NOT be optimized
+    assert " not in " in code_str
     code_str = get_code_str(c.this.in_([1, 2]))
-    assert " in " in code_str and "==" not in code_str
-
+    assert " in " in code_str
     code_str = get_code_str(c.this.not_in([1, 2]))
-    assert " not in " in code_str and "!=" not in code_str
-
-    # Empty collections should NOT be optimized
+    assert " not in " in code_str
     code_str = get_code_str(c.this.in_([]))
     assert " in " in code_str
 
@@ -520,14 +515,9 @@ def test_in_not_in_nan_single_element():
     # literal container conversions
     assert c.this.in_(c.list(c.naive(nan))).execute(nan) is True
     assert c.this.not_in(c.list(c.naive(nan))).execute(nan) is False
-    # dynamic single element must not be rewritten to ==
+    # dynamic single element
     assert c.item(0).in_([c.item(1)]).execute([nan, nan]) is True
     assert c.item(0).not_in([c.item(1)]).execute([nan, nan]) is False
-    # safe types still optimized; NaN is not
-    assert isinstance(c.this.in_([1]), Eq)
-    assert not isinstance(c.this.in_([nan]), Eq)
-    assert not isinstance(c.this.in_({nan}), Eq)
-    assert not isinstance(c.this.in_(frozenset({nan})), Eq)
 
 
 def test_input_arg():

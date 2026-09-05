@@ -108,6 +108,10 @@ Reducers accept the following keyword arguments:
  * `where` - a condition evaluated for each input row before the reducer sees
    the row's value.
  * `default` - a value returned when the reducer hasn't reduced any values.
+   A conversion passed as `default` is evaluated like any other aggregate
+   output expression: it may reference group-by keys, `c.input_arg(...)`,
+   `c.label(...)` and naive values, but not the input rows (that raises at
+   compile time).
  * `initial` - an initial accumulator value for reducers that support it.
    `Average` does not accept this argument. For other reducers that do not
    support it, passing `initial` is deprecated and v2 will raise `ValueError`;

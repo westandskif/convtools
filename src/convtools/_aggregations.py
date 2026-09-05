@@ -563,9 +563,12 @@ class BaseReducer(BaseConversion):
         )
 
         post_conversion = self.get_option("post_conversion", ctx, None)
+        default_code = cast(
+            BaseConversion, self.default
+        ).gen_code_and_update_ctx(var_row, ctx)
         return If(
             This.is_(EscapedString("_none")),
-            self.default,
+            EscapedString(default_code),
             (This if post_conversion is None else post_conversion),
         ).gen_code_and_update_ctx(new_code_input, ctx)
 
@@ -860,9 +863,17 @@ class ArrayReducer(SingleExpressionReducer):
     reduce_lines = ("%(result)s.append(%(value0)s)",)
 
     def get_single_agg_reduction(self):
-        return ListComp(self.expressions[0], self.where, This).or_(
-            self.default
-        )
+        if (
+            self.default.contents
+            & (
+                BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+                | BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
+            )
+            == 0
+        ):
+            return ListComp(self.expressions[0], self.where, This).or_(
+                self.default
+            )
 
 
 class ListSortedOnceWrapper:
@@ -1309,9 +1320,17 @@ class DictLastReducer(BaseDictReducer):
     reduce_lines = ("%(result)s[%(value0)s] = %(value1)s",)
 
     def get_single_agg_reduction(self):
-        return DictComp(
-            self.expressions[0], self.expressions[1], self.where, This
-        ).or_(self.default)
+        if (
+            self.default.contents
+            & (
+                BaseConversion.ContentTypes.FUNCTION_OF_INPUT
+                | BaseConversion.ContentTypes.HIDDEN_INPUT_USAGE
+            )
+            == 0
+        ):
+            return DictComp(
+                self.expressions[0], self.expressions[1], self.where, This
+            ).or_(self.default)
 
 
 class DictFirstNReducer(BaseDictReducer):

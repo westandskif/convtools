@@ -1,7 +1,6 @@
 """Base and basic conversions are defined here."""
 
 import builtins
-import math
 import re
 import string
 import sys
@@ -163,18 +162,6 @@ CT = TypeVar("CT", bound="BaseConversion")
 
 _random = Random(1)
 choice = _random.choice
-
-
-def _is_safe_for_in_optimization(value):
-    """Whether `x in [value]` can be rewritten as `x == value`.
-
-    Python's `in` means `x is value or x == value`; the rewrite is only
-    valid for values with reflexive equality (excludes NaN) and a
-    bool-returning __eq__.
-    """
-    if isinstance(value, float):
-        return not math.isnan(value)
-    return value is None or isinstance(value, (bool, int, str, bytes))
 
 
 class BaseConversion(Generic[CT]):
@@ -898,65 +885,11 @@ class BaseConversion(Generic[CT]):
     def in_(self, arg) -> "BaseConversion":
         # Use global ensure_conversion to avoid modifying self.contents
         arg = ensure_conversion(arg)
-
-        # Optimization: x in [a] → x == a (only when equality is safe)
-        if isinstance(arg, (List_, Set_, Tuple_)):
-            if (
-                arg.conversions is not None
-                and len(arg.conversions) == 1
-                and not arg.conditions
-            ):
-                single = arg.conversions[0]
-                if isinstance(
-                    single, NaiveConversion
-                ) and _is_safe_for_in_optimization(single.value):
-                    return self == single
-        elif isinstance(arg, NaiveConversion):
-            value = arg.value
-            if (
-                isinstance(value, (list, set, tuple, frozenset))
-                and len(value) == 1
-            ):
-                (single_element,) = (
-                    value
-                    if isinstance(value, (list, tuple))
-                    else (next(iter(value)),)
-                )
-                if _is_safe_for_in_optimization(single_element):
-                    return self == single_element
-
         return InlineExpr("{0} in {1}").pass_args(self, arg)
 
     def not_in(self, arg) -> "BaseConversion":
         # Use global ensure_conversion to avoid modifying self.contents
         arg = ensure_conversion(arg)
-
-        # Optimization: x not in [a] → x != a (only when equality is safe)
-        if isinstance(arg, (List_, Set_, Tuple_)):
-            if (
-                arg.conversions is not None
-                and len(arg.conversions) == 1
-                and not arg.conditions
-            ):
-                single = arg.conversions[0]
-                if isinstance(
-                    single, NaiveConversion
-                ) and _is_safe_for_in_optimization(single.value):
-                    return self != single
-        elif isinstance(arg, NaiveConversion):
-            value = arg.value
-            if (
-                isinstance(value, (list, set, tuple, frozenset))
-                and len(value) == 1
-            ):
-                (single_element,) = (
-                    value
-                    if isinstance(value, (list, tuple))
-                    else (next(iter(value)),)
-                )
-                if _is_safe_for_in_optimization(single_element):
-                    return self != single_element
-
         return InlineExpr("{0} not in {1}").pass_args(self, arg)
 
     def eq(self, b, *args) -> "Eq":

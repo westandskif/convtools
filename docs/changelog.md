@@ -2,6 +2,8 @@
 
 **Bugfix**
 
+- reducer `default=` conversions are now evaluated like other aggregate output expressions (group-by keys resolve; row-dependent defaults raise at compile time instead of returning an internal sentinel). Defaults that carry hidden input usage — e.g. `c.if_multiple(...)`, `c.dispatch(...)`, or `c.input_arg("d").item("k", default=c.input_arg("fb").item("k"))`, including an `initial=` of that shape that doubles as the default — now raise; hoist the complete lookup-and-fallback out of the reducer (compute it before the aggregate and pass it in as a naive value, `c.input_arg(...)`, or `c.label(...)`). Do not substitute the fallback alone — that drops the primary lookup
+- removed the `in_` / `not_in` single-element rewrite to `==` / `!=`: it diverged from Python `in` semantics for inputs with non-bool `__eq__` and for unhashable inputs checked against sets
 - label names containing quotes, backslashes or newlines no longer produce invalid generated code or `KeyError`
 - `Table.from_csv` / `Table.from_jsonl` close the file they opened when reader setup or header processing fails
 - `and_then(condition=<conversion>)` no longer crashes for conversions that define `__call__` (e.g. `c.this`)

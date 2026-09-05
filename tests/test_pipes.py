@@ -614,6 +614,7 @@ def test_pipe_reducer_initial_if_multiple_shortcut():
                 initial=c.if_multiple(
                     (c.naive(True), c.naive(0)), else_=c.naive(100)
                 ),
+                default=0,
             )
         ).execute([1, 2, 3])
         == 6
