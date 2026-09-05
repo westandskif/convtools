@@ -265,7 +265,7 @@ class Table:
             if header is True:
                 for index, column_name in enumerate(first_row):
                     pending_changes |= columns.add(column_name, index, None)[1]
-                first_row = None
+                first_row = _none
 
             else:
                 for index in range(len(first_row)):
@@ -279,14 +279,14 @@ class Table:
                     )
                 else:
                     pending_changes |= columns.add(first_row, None, This())[1]
-                    first_row = None
+                    first_row = _none
             else:
                 pending_changes |= columns.add(None, None, This())[1]
 
             pending_changes |= ColumnChanges.MUTATE
 
         rows_objects: "List[Iterable]" = [rows]
-        if first_row is not None and first_row is not _none:
+        if first_row is not _none:
             rows_objects.insert(0, (first_row,))
 
         return cls(

@@ -2,7 +2,7 @@ import math
 from collections import deque, namedtuple
 from datetime import date
 from decimal import Decimal
-from types import GeneratorType
+from types import GeneratorType, SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -424,6 +424,19 @@ def test_naive_conversion_item():
 
     with pytest.raises(NotImplementedError):
         c.attr("a", default=-1).execute(A())
+
+
+def test_item_attr_zero_indexes_with_default():
+    assert c.item("a").item(default=1).execute({"a": 5}) == 5
+    assert c.attr("a").attr(default=1).execute(SimpleNamespace(a=5)) == 5
+    with pytest.raises(KeyError):
+        c.item("a").item(default=1).execute({"b": 5})
+    obj = object()
+    assert c.this.item(default=1).execute(obj) is obj
+    converter = (
+        c.input_arg("x").item(default=1).gen_converter(signature="data_, x")
+    )
+    assert converter(None, 7) == 7
 
 
 def test_item():

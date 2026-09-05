@@ -147,6 +147,21 @@ def test_table_base_init():
         Table.from_rows((), header=True)
 
 
+def test_from_rows_preserves_leading_none():
+    assert list(
+        Table.from_rows([None, 1], header=["value"]).into_iter_rows(dict)
+    ) == [{"value": None}, {"value": 1}]
+    assert list(
+        Table.from_rows([None, None], header=["value"]).into_iter_rows(dict)
+    ) == [{"value": None}, {"value": None}]
+    assert list(
+        Table.from_rows([None, 1], header=False).into_iter_rows(dict)
+    ) == [{"COLUMN_0": None}, {"COLUMN_0": 1}]
+    assert list(
+        Table.from_rows([None], header=["value"]).into_iter_rows(dict)
+    ) == [{"value": None}]
+
+
 def test_table_take():
     result = list(
         Table.from_rows(

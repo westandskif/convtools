@@ -2336,6 +2336,8 @@ class GetItem(BaseMethodConversion):
     def get_hardcoded_version(self):
         indexes_length = len(self.indexes)
         if indexes_length == 0:
+            if self.default is not None and self.self_conv is not self._none:
+                return self.self_conv
             return This
 
         if (
