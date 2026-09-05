@@ -1689,7 +1689,11 @@ class GroupBy:
     def aggregate(
         self, reducer: Union[dict, list, set, tuple, BaseConversion]
     ) -> "Grouper":
-        if not self.by and isinstance(reducer, BaseReducer):
+        if (
+            not self.by
+            and isinstance(reducer, BaseReducer)
+            and isinstance(reducer.initial, _None)
+        ):
             conv = reducer.get_single_agg_reduction()
             if conv is not None:
                 return conv

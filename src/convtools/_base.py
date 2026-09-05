@@ -1528,7 +1528,9 @@ class NaiveConversion(BaseConversion):
                 and "%" not in value
                 and "{" not in value
             ):
-                self.code_str = repr(value)
+                self.code_str = (
+                    f"({value!r})" if value_type is int else repr(value)
+                )
 
         if not self.code_str:
             self.total_weight = Weights.DICT_LOOKUP

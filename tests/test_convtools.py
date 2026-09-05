@@ -45,6 +45,19 @@ def test_naive_conversion():
     assert "f1" not in code_str and "prefix" in code_str
 
 
+def test_naive_int_literals_are_parenthesized():
+    """Bare ints break ** precedence, attr/method access, and inline_expr."""
+    assert (c.naive(-2) ** 2).execute(None) == 4
+    assert c.naive(5).call_method("bit_length").execute(None) == 3
+    assert c.naive(-5).call_method("bit_length").execute(None) == 3
+    assert c.naive(5).attr("real").execute(None) == 5
+    assert c.inline_expr("{0}.bit_length()").pass_args(5).execute(None) == 3
+    assert "True" in get_code_str(c.naive(True).gen_converter())
+    assert "(True)" not in get_code_str(c.naive(True).gen_converter())
+    assert "None" in get_code_str(c.naive(None).gen_converter())
+    assert "(None)" not in get_code_str(c.naive(None).gen_converter())
+
+
 def test_naive_equal_but_distinct_values_keep_identity():
     r = c.tuple(c.naive(1.0), c.naive(Decimal("1"))).execute(None)
     assert type(r[0]) is float and type(r[1]) is Decimal

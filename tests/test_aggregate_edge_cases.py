@@ -1046,6 +1046,22 @@ def test_reducer_percent_in_generated_code():
     assert " %% 3" not in code_str
 
 
+def test_single_reducer_aggregate_honors_initial():
+    """Bare reducer shortcut must not drop initial= (tuple form already works)."""
+    R = c.ReduceFuncs
+    data = [1, 2]
+    assert c.aggregate(R.Sum(c.this, initial=100)).execute(data) == 103
+    assert c.aggregate((R.Sum(c.this, initial=100),)).execute(data) == (103,)
+    assert c.aggregate(R.Array(c.this, initial=lambda: [100])).execute(
+        data
+    ) == [100, 1, 2]
+    assert (
+        c.group_by().aggregate(R.Sum(c.this, initial=100)).execute(data) == 103
+    )
+    code_str = get_code_str(c.aggregate(R.Sum(c.this)).gen_converter())
+    assert "sum(" in code_str
+
+
 def test_reducer_callable_initial_and_default():
     """Plain Python callables used as initial/default still get auto-called."""
     assert (
