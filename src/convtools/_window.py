@@ -141,7 +141,7 @@ class AppliedWindow(BaseConversion):
                 * "RANGE" mode: offset is added to / subtracted from an
                   ordering key of the current row and looked for within the
                   sorted partition; the first matching row is used as a frame
-                  boundary
+                  boundary. Requires a single order_by key.
                 * "GROUPS" mode: offset as a number of peer groups
 
           frame_end: one of
@@ -154,7 +154,7 @@ class AppliedWindow(BaseConversion):
                 * "RANGE" mode: offset is added to / subtracted from an
                   ordering key of the current row and looked for within the
                   sorted partition; the last matching row is used as a frame
-                  boundary
+                  boundary. Requires a single order_by key.
                 * "GROUPS" mode: offset as a number of peer groups
 
           frame_exclusion: one of
@@ -198,6 +198,7 @@ class AppliedWindow(BaseConversion):
 
         self._label_next = None
         self._label_sorting_key = None
+        self._label_range_value = None
 
         self.frame_mode = FrameMode(frame_mode)
         self.frame_start = Offset(frame_start)
@@ -220,15 +221,18 @@ class AppliedWindow(BaseConversion):
                 "frame_start/frame_end offsets should be non-negative int"
             )
 
-        if (
-            self.frame_mode == FrameMode.RANGE
-            and (
-                self.frame_start.offset is not None
-                or self.frame_end.offset is not None
-            )
-            and self.order_by is None
+        if self.frame_mode == FrameMode.RANGE and (
+            self.frame_start.offset is not None
+            or self.frame_end.offset is not None
         ):
-            raise ValueError("RANGE mode offsets require 'order_by' to be set")
+            if self.order_by is None:
+                raise ValueError(
+                    "RANGE mode offsets require 'order_by' to be set"
+                )
+            if len(self.order_by) != 1:
+                raise ValueError(
+                    "RANGE mode offsets require a single 'order_by' key"
+                )
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         labels: "MutableMapping[str, BaseConversion]" = {}
@@ -237,6 +241,16 @@ class AppliedWindow(BaseConversion):
             labels[self._label_sorting_key] = SortingKeyConversion(
                 self.order_by
             )
+            if self.frame_mode == FrameMode.RANGE and (
+                self.frame_start.offset is not None
+                or self.frame_end.offset is not None
+            ):
+                self._label_range_value = self.gen_random_name(
+                    "range_value", ctx
+                )
+                labels[self._label_range_value] = SortingKeyConversion(
+                    (self.order_by[0],), ignore_hints=True
+                )
         self._label_next = self.gen_random_name("next_", ctx)
         labels[self._label_next] = CallFunc(count).attr("__next__")
 
@@ -667,6 +681,52 @@ class AppliedWindow(BaseConversion):
             name_to_index,
         )
 
+    def _add_range_offset_bound(
+        self, code, ctx, bound, bound_name, none_index
+    ):
+        order_key = self.order_by[0]
+        descending = order_key.has_hint(self.OutputHints.ORDERING_DESC)
+        nones_first = order_key.has_hint(self.OutputHints.ORDERING_NONE_FIRST)
+        nones_last = order_key.has_hint(self.OutputHints.ORDERING_NONE_LAST)
+        sign = bound.offset_sign_as_str
+        if descending:
+            sign = "+" if sign == "-" else "-"
+        if bound_name == "frame_start":
+            cmp_op = "<=" if descending else ">="
+        else:
+            cmp_op = "<" if descending else ">"
+
+        range_value = LabelConversion(cast(str, self._label_range_value)).call(
+            This
+        )
+        cur_value_code = range_value.gen_code_and_update_ctx(
+            "data_[index_start]", ctx
+        )
+        value_code = range_value.gen_code_and_update_ctx("data_[index]", ctx)
+        offset_code = NaiveConversion(bound.offset).gen_code_and_update_ctx(
+            None, ctx
+        )
+
+        if nones_first:
+            cond = f"value is not None and value {cmp_op} stop_value"
+        elif nones_last:
+            cond = f"value is None or value {cmp_op} stop_value"
+        else:
+            cond = f"value {cmp_op} stop_value"
+
+        code.add_line(f"cur_value = {cur_value_code}", 0)
+        code.add_line("if cur_value is None:", 1)
+        code.add_line(f"{bound_name} = {none_index}", -1)
+        code.add_line("else:", 1)
+        code.add_line(f"stop_value = cur_value {sign} {offset_code}", 0)
+        code.add_line(f"for index in range({bound_name}, data_len_):", 1)
+        code.add_line(f"value = {value_code}", 0)
+        code.add_line(f"if {cond}:", 1)
+        code.add_line(f"{bound_name} = index", 0)
+        code.add_line("break", -2)
+        code.add_line("else:", 1)
+        code.add_line(f"{bound_name} = data_len_", -2)
+
     def _gen_range_frames_finder(self, ctx):
         ctx["itertools_islice"] = islice
         ctx["itertools_chain"] = chain
@@ -683,64 +743,26 @@ class AppliedWindow(BaseConversion):
             elif self.frame_start.current_row:
                 code.add_line("frame_start = index_start", 0)
             else:
-                label_sorting_key = cast(str, self._label_sorting_key)
-                code.add_line(
-                    "stop_value = {} {} {}".format(
-                        LabelConversion(label_sorting_key)
-                        .call(This)
-                        .gen_code_and_update_ctx("data_[index_start]", ctx),
-                        self.frame_start.offset_sign_as_str,
-                        NaiveConversion(
-                            self.frame_start.offset
-                        ).gen_code_and_update_ctx(None, ctx),
-                    ),
-                    0,
+                self._add_range_offset_bound(
+                    code,
+                    ctx,
+                    self.frame_start,
+                    "frame_start",
+                    "index_start",
                 )
-                code.add_line("for index in range(frame_start, data_len_):", 1)
-                code.add_line(
-                    "if {} >= stop_value:".format(
-                        LabelConversion(label_sorting_key)
-                        .call(This)
-                        .gen_code_and_update_ctx("data_[index]", ctx),
-                    ),
-                    1,
-                )
-                code.add_line("frame_start = index", 0)
-                code.add_line("break", -2)
-                code.add_line("else:", 1)
-                code.add_line("frame_start = data_len_", -1)
 
             if self.frame_end.unbounded_following:
                 code.add_line("frame_end = data_len_", 0)
             elif self.frame_end.current_row:
                 code.add_line("frame_end = index_end", 0)
             else:
-                label_sorting_key = cast(str, self._label_sorting_key)
-                code.add_line(
-                    "stop_value = {} {} {}".format(
-                        LabelConversion(label_sorting_key)
-                        .call(This)
-                        .gen_code_and_update_ctx("data_[index_start]", ctx),
-                        self.frame_end.offset_sign_as_str,
-                        NaiveConversion(
-                            self.frame_end.offset
-                        ).gen_code_and_update_ctx(None, ctx),
-                    ),
-                    0,
+                self._add_range_offset_bound(
+                    code,
+                    ctx,
+                    self.frame_end,
+                    "frame_end",
+                    "index_end",
                 )
-                code.add_line("for index in range(frame_end, data_len_):", 1)
-                code.add_line(
-                    "if {} > stop_value:".format(
-                        LabelConversion(label_sorting_key)
-                        .call(This)
-                        .gen_code_and_update_ctx("data_[index]", ctx),
-                    ),
-                    1,
-                )
-                code.add_line("frame_end = index", 0)
-                code.add_line("break", -2)
-                code.add_line("else:", 1)
-                code.add_line("frame_end = data_len_", -1)
 
             code.add_line("for index_cur in range(index_start, index_end):", 1)
 

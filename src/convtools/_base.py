@@ -5,6 +5,7 @@ import re
 import string
 import sys
 from collections import deque
+from copy import copy
 from datetime import datetime
 from decimal import Decimal
 from io import StringIO
@@ -1385,6 +1386,11 @@ class BaseConversion(Generic[CT]):
 
         return _window.Window(self, *args, **kwargs)
 
+    def _copy_for_ordering_hint(self):
+        result = copy(self)
+        result._depends_on = dict(self._depends_on)
+        return result
+
     def asc(self, *, none_last=None, none_first=None):
         """Sets ascending ordering hint, to be used by conversion sort method.
 
@@ -1397,7 +1403,7 @@ class BaseConversion(Generic[CT]):
         """
         if none_last and none_first:
             raise ValueError("pass either none_last or none_first")
-        result = self
+        result = self._copy_for_ordering_hint()
         if none_last:
             result = result.add_hint(self.OutputHints.ORDERING_NONE_LAST)
         if none_first:
@@ -1413,7 +1419,7 @@ class BaseConversion(Generic[CT]):
         """
         if none_last and none_first:
             raise ValueError("pass either none_last or none_first")
-        result = self
+        result = self._copy_for_ordering_hint()
         if none_last:
             result = result.add_hint(self.OutputHints.ORDERING_NONE_LAST)
         if none_first:

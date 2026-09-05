@@ -231,6 +231,13 @@ def con(window_in_1):
         (("id",), (c.item("id"),), "ROWS"),
         (("id",), (c.item("id"),), "GROUPS"),
         (("id",), (c.item("id"),), "RANGE"),
+        (("id desc",), (c.item("id").desc(),), "ROWS"),
+        (("id desc",), (c.item("id").desc(),), "RANGE"),
+        (
+            ("b desc nulls last",),
+            (c.item("b").desc(none_last=True),),
+            "RANGE",
+        ),
         (("dt",), (c.item("dt"),), "ROWS"),
         (
             ("dt desc nulls last",),
@@ -238,6 +245,7 @@ def con(window_in_1):
             "ROWS",
         ),
         (("dt",), (c.item("dt"),), "GROUPS"),
+        (("dt",), (c.item("dt"),), "RANGE"),
         (("a", "dt"), (c.item("a"), c.item("dt")), "ROWS"),
         (("dt", "a"), (c.item("dt"), c.item("a")), "ROWS"),
     ],
@@ -253,6 +261,8 @@ def con(window_in_1):
         ("between 0 preceding and 0 following", {"frame_start": (0, "PRECEDING"), "frame_end": (0, "FOLLOWING")}),
         ("between 1 preceding and 1 following", {"frame_start": (1, "PRECEDING"), "frame_end": (1, "FOLLOWING")}),
         ("between 1 following and 2 following", {"frame_start": (1, "FOLLOWING"), "frame_end": (2, "FOLLOWING")}),
+        ("between 1 preceding and unbounded following", {"frame_start": (1, "PRECEDING"), "frame_end": "UNBOUNDED FOLLOWING"}),
+        ("between unbounded preceding and 1 following", {"frame_start": "UNBOUNDED PRECEDING", "frame_end": (1, "FOLLOWING")}),
         # fmt: on
     ],
 )
@@ -267,7 +277,12 @@ def test_window_funcs_with_sqlite(
         isinstance(frame[1][key], tuple)
         for key in ("frame_start", "frame_end")
     ):
-        return
+        if (
+            not order_by
+            or len(order_by) != 1
+            or any("dt" in part for part in order_by)
+        ):
+            return
 
     over_parts = ["over ("]
     over_kwargs = {"frame_mode": mode}
@@ -362,6 +377,157 @@ def test_window_func_exceptions():
 
     with pytest.raises(ValueError):
         c.this.window(1).gen_converter()
+
+
+@pytest.mark.parametrize(
+    "data, order_by, frame_start, frame_end, expected",
+    [
+        (
+            [1, 2, 3, 5],
+            c.this.desc(),
+            (1, "PRECEDING"),
+            "CURRENT ROW",
+            [2, 2, 1, 1],
+        ),
+        (
+            [1, 2, 3, 5],
+            c.this.desc(),
+            "CURRENT ROW",
+            (1, "FOLLOWING"),
+            [1, 2, 2, 1],
+        ),
+        (
+            [1, 2, 3, 5, 5],
+            c.this.desc(),
+            (1, "PRECEDING"),
+            (1, "FOLLOWING"),
+            [2, 3, 2, 2, 2],
+        ),
+        (
+            [3, None, 1, 2, None],
+            c.this.asc(none_last=True),
+            (1, "PRECEDING"),
+            "CURRENT ROW",
+            [2, 2, 1, 2, 2],
+        ),
+        (
+            [3, None, 1, 2, None],
+            c.this.asc(none_first=True),
+            (1, "PRECEDING"),
+            (1, "FOLLOWING"),
+            [2, 2, 2, 3, 2],
+        ),
+        (
+            [3, None, 1, 2, None, 5],
+            c.this.desc(none_last=True),
+            "CURRENT ROW",
+            (2, "FOLLOWING"),
+            [3, 2, 1, 2, 2, 2],
+        ),
+        (
+            [3, None, 1, 2, None, 5],
+            c.this.desc(none_first=True),
+            (1, "PRECEDING"),
+            "CURRENT ROW",
+            [1, 2, 2, 2, 2, 1],
+        ),
+        (
+            [10, 11, None, None],
+            c.this.asc(none_last=True),
+            (1, "FOLLOWING"),
+            "UNBOUNDED FOLLOWING",
+            [3, 2, 2, 2],
+        ),
+        (
+            [10, 11, None, None],
+            c.this.asc(none_last=True),
+            (1, "PRECEDING"),
+            "UNBOUNDED FOLLOWING",
+            [4, 4, 2, 2],
+        ),
+        (
+            [10, 11, None, None],
+            c.this.asc(none_last=True),
+            (1, "FOLLOWING"),
+            (2, "FOLLOWING"),
+            [1, 0, 2, 2],
+        ),
+        (
+            [10, 11, None, None],
+            c.this.asc(none_last=True),
+            "UNBOUNDED PRECEDING",
+            (1, "FOLLOWING"),
+            [2, 2, 4, 4],
+        ),
+        (
+            [None, None, 10, 11],
+            c.this.asc(none_first=True),
+            "UNBOUNDED PRECEDING",
+            (1, "PRECEDING"),
+            [2, 2, 2, 3],
+        ),
+        (
+            [None, None, 10, 11],
+            c.this.asc(none_first=True),
+            (1, "PRECEDING"),
+            "UNBOUNDED FOLLOWING",
+            [4, 4, 2, 2],
+        ),
+        (
+            [10, 11, None, None],
+            c.this.desc(none_first=True),
+            (1, "FOLLOWING"),
+            "UNBOUNDED FOLLOWING",
+            [0, 1, 4, 4],
+        ),
+    ],
+)
+def test_range_offsets_honor_ordering_hints(
+    data, order_by, frame_start, frame_end, expected
+):
+    result = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(
+            order_by=order_by,
+            frame_start=frame_start,
+            frame_end=frame_end,
+        )
+        .execute(data)
+    )
+    assert result == expected
+
+
+def test_range_offsets_pipe_shaped_desc_key():
+    data = [{"v": v} for v in [1, 2, 3, 5]]
+    expected = [2, 2, 1, 1]
+    via_desc = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(
+            order_by=c.item("v").desc(),
+            frame_start=(1, "PRECEDING"),
+            frame_end="CURRENT ROW",
+        )
+        .execute(data)
+    )
+    via_pipe = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(
+            order_by=c.item("v").pipe(c.this.desc()),
+            frame_start=(1, "PRECEDING"),
+            frame_end="CURRENT ROW",
+        )
+        .execute(data)
+    )
+    assert via_desc == expected
+    assert via_pipe == expected
+
+
+def test_range_offsets_require_single_order_by_key():
+    with pytest.raises(ValueError):
+        c.this.window(c.ReduceFuncs.Count()).over(
+            order_by=(c.this, c.this),
+            frame_start=(1, "PRECEDING"),
+        )
 
 
 def test_window_chained_order_by():

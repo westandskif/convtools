@@ -45,8 +45,9 @@ class ReversedOrdering:
 class SortingKeyConversion(BaseConversion):
     """Generates sorting key lambda."""
 
-    def __init__(self, keys, common_conv=None):
+    def __init__(self, keys, common_conv=None, *, ignore_hints=False):
         super().__init__()
+        self.ignore_hints = ignore_hints
         if common_conv is not None and len(keys) == 1:
             self.keys = [self.ensure_conversion(common_conv).pipe(keys[0])]
             self.common_conv = None
@@ -80,7 +81,10 @@ class SortingKeyConversion(BaseConversion):
             or key.default is not None
             or len(key.indexes) != 1
             or not key.indexes_are_simple
-            or key.has_hint(self._any_ordering_hints)
+            or (
+                not self.ignore_hints
+                and key.has_hint(self._any_ordering_hints)
+            )
         ):
             return None
 
@@ -122,7 +126,8 @@ class SortingKeyConversion(BaseConversion):
                     .gen_code_and_update_ctx(code_input, ctx)
                 )
 
-        ctx["ReversedOrdering"] = ReversedOrdering
+        if not self.ignore_hints:
+            ctx["ReversedOrdering"] = ReversedOrdering
         wrapper_name = self.gen_random_name("sorting_key_wrapper", ctx)
         converter_name = self.gen_random_name("sorting_key", ctx)
         function_ctx = self.as_function_ctx(ctx)
@@ -143,13 +148,19 @@ class SortingKeyConversion(BaseConversion):
             for key in self.keys:
                 item_code = key.gen_code_and_update_ctx("data_", ctx)
 
-                if key.has_hint(self.OutputHints.ORDERING_NONE_FIRST):
+                if not self.ignore_hints and key.has_hint(
+                    self.OutputHints.ORDERING_NONE_FIRST
+                ):
                     code_pieces.append(f"{item_code} is not None")
 
-                if key.has_hint(self.OutputHints.ORDERING_NONE_LAST):
+                if not self.ignore_hints and key.has_hint(
+                    self.OutputHints.ORDERING_NONE_LAST
+                ):
                     code_pieces.append(f"{item_code} is None")
 
-                if key.has_hint(self.OutputHints.ORDERING_DESC):
+                if not self.ignore_hints and key.has_hint(
+                    self.OutputHints.ORDERING_DESC
+                ):
                     code_pieces.append(f"ReversedOrdering({item_code})")
                 else:
                     code_pieces.append(f"{item_code}")

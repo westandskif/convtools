@@ -154,6 +154,28 @@ def test_ordering():
     assert result == [A(1), A(2), A(3)]
 
 
+def test_asc_desc_do_not_mutate():
+    k = c.item("a")
+    k2 = k.desc()
+    assert k2 is not k
+    assert k.output_hints == 0
+    data = [{"a": 1}, {"a": 2}]
+    assert c.this.sort(key=k).execute(data) == [{"a": 1}, {"a": 2}]
+    assert c.this.sort(key=k2).execute(data) == [{"a": 2}, {"a": 1}]
+
+    k3 = k.asc(none_last=True)
+    assert k3 is not k
+    assert k.output_hints == 0
+    assert c.this.sort(key=k).execute(data) == [{"a": 1}, {"a": 2}]
+
+    this_desc = c.this.desc()
+    assert this_desc is not c.this
+    assert c.this.output_hints == 0
+
+    sk = SortingKeyConversion((k,))
+    assert sk.try_get_key_or_index(k) is not None
+
+
 def test_ordering_exceptions():
     with pytest.raises(ValueError):
         c.this.asc(none_first=True, none_last=True)
