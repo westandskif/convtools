@@ -367,18 +367,23 @@ class Table:
             buffer = filepath_or_buffer
             file_to_close = None
 
-        rows = map(
-            tuple,  # type: ignore
-            csv.reader(buffer, dialect=dialect),
-        )
+        try:
+            rows = map(
+                tuple,  # type: ignore
+                csv.reader(buffer, dialect=dialect),
+            )
 
-        return cls.from_rows(
-            rows,
-            header,
-            duplicate_columns,
-            skip_rows=skip_rows,
-            file_to_close=file_to_close,
-        )
+            return cls.from_rows(
+                rows,
+                header,
+                duplicate_columns,
+                skip_rows=skip_rows,
+                file_to_close=file_to_close,
+            )
+        except BaseException:
+            if file_to_close is not None:
+                file_to_close.close()
+            raise
 
     @classmethod
     def from_jsonl(
@@ -447,15 +452,20 @@ class Table:
                 if trimmed_line:
                     yield json.loads(trimmed_line)
 
-        rows = parse_jsonl(buffer)
+        try:
+            rows = parse_jsonl(buffer)
 
-        return cls.from_rows(
-            rows,
-            header,
-            duplicate_columns,
-            skip_rows=skip_rows,
-            file_to_close=file_to_close,
-        )
+            return cls.from_rows(
+                rows,
+                header,
+                duplicate_columns,
+                skip_rows=skip_rows,
+                file_to_close=file_to_close,
+            )
+        except BaseException:
+            if file_to_close is not None:
+                file_to_close.close()
+            raise
 
     def embed_conversions(self) -> "Table":
         """For internal use only.

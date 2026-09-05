@@ -3625,7 +3625,7 @@ class PipeConversion(BaseConversion):
             if self.label_input:
                 for label_name, label_c in self.label_input.items():
                     code.add_line(
-                        f"{LabelConversion.labels_code_name}['{label_name}'] = "
+                        f"{LabelConversion.labels_code_name}[{repr(label_name)}] = "
                         f"{label_c.gen_code_and_update_ctx(var_input, ctx)}",
                         0,
                     )
@@ -3633,7 +3633,7 @@ class PipeConversion(BaseConversion):
                 code.add_line(f"{var_result} = {where_code}", 0)
                 for label_name, label_c in self.label_output.items():
                     code.add_line(
-                        f"{LabelConversion.labels_code_name}['{label_name}'] = "
+                        f"{LabelConversion.labels_code_name}[{repr(label_name)}] = "
                         f"{label_c.gen_code_and_update_ctx(var_result, ctx)}",
                         0,
                     )

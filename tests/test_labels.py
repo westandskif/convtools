@@ -38,3 +38,26 @@ def test_labels():
         .pipe(sum)
     )
     assert conversion.execute(4) == 6
+
+
+@pytest.mark.parametrize("name", ["a'b", 'a"b', "a\\b", "a\nb"])
+def test_label_names_with_quotes_and_escapes(name):
+    assert (
+        c.this.pipe(c.this + 1, label_output=name)
+        .pipe(c.label(name) * 2)
+        .execute(1)
+        == 4
+    )
+    assert (
+        c.this.pipe(c.this + 1, label_input=name)
+        .pipe(c.label(name) + c.this + 1)
+        .execute(1)
+        == 4
+    )
+    assert c.this.add_label(name).pipe(c.label(name) * 4).execute(1) == 4
+    assert (
+        c.this.pipe(c.this + 1, label_output={name: c.this})
+        .pipe(c.label(name) * 2)
+        .execute(1)
+        == 4
+    )

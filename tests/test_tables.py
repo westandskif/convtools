@@ -718,6 +718,74 @@ def test_table_edge_cases():
     mock.close.assert_called_once()
 
 
+def _patch_open_tracking(monkeypatch):
+    import convtools.contrib.tables as tables_module
+
+    closed = []
+    builtin_open = open
+
+    def tracking_open(*args, **kwargs):
+        f = builtin_open(*args, **kwargs)
+        orig_close = f.close
+
+        def close():
+            closed.append(True)
+            orig_close()
+
+        f.close = close
+        return f
+
+    monkeypatch.setattr(tables_module, "open", tracking_open, raising=False)
+    return closed
+
+
+def test_from_csv_closes_opened_file_on_header_mismatch(monkeypatch):
+    closed = _patch_open_tracking(monkeypatch)
+    with pytest.raises(ValueError, match="non-matching number of columns"):
+        Table.from_csv("tests/csvs/ab.csv", header=["x", "y", "z"])
+    assert closed
+
+
+def test_from_csv_closes_opened_file_on_bad_dialect(monkeypatch):
+    import csv
+
+    closed = _patch_open_tracking(monkeypatch)
+    with pytest.raises(csv.Error):
+        Table.from_csv("tests/csvs/ab.csv", dialect="nope")
+    assert closed
+
+
+def test_from_jsonl_closes_opened_file_on_skip_past_end(monkeypatch, tmp_path):
+    path = tmp_path / "one.jsonl"
+    path.write_text('{"a": 1}\n', encoding="utf-8")
+    closed = _patch_open_tracking(monkeypatch)
+    with pytest.raises(StopIteration):
+        Table.from_jsonl(str(path), skip_rows=5)
+    assert closed
+
+
+def test_from_jsonl_closes_opened_file_on_invalid_first_line(
+    monkeypatch, tmp_path
+):
+    import json
+
+    path = tmp_path / "bad.jsonl"
+    path.write_text("{not json\n", encoding="utf-8")
+    closed = _patch_open_tracking(monkeypatch)
+    with pytest.raises(json.JSONDecodeError):
+        Table.from_jsonl(str(path))
+    assert closed
+
+
+def test_from_csv_leaves_caller_buffer_open_on_header_mismatch():
+    import io
+
+    buf = io.StringIO("1,2\n3,4\n")
+    with pytest.raises(ValueError, match="non-matching number of columns"):
+        Table.from_csv(buf, header=["x", "y", "z"])
+    assert buf.closed is False
+
+
 def test_table_integration():
     input_data = [["a", "b"], [1, 2], [3, 4]]
     conversion = c.this.pipe(

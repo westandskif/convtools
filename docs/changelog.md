@@ -2,6 +2,8 @@
 
 **Bugfix**
 
+- label names containing quotes, backslashes or newlines no longer produce invalid generated code or `KeyError`
+- `Table.from_csv` / `Table.from_jsonl` close the file they opened when reader setup or header processing fails
 - `and_then(condition=<conversion>)` no longer crashes for conversions that define `__call__` (e.g. `c.this`)
 - `datetime_parse` / `date_parse`: whitespace in the format now matches any run of whitespace in the input, like `datetime.strptime`
 - `c.attr` / `call` kwargs with Python keywords or non-identifier names no longer generate invalid code
