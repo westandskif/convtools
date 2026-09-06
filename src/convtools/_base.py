@@ -560,7 +560,7 @@ class BaseConversion(Generic[CT]):
             for name in input_arg_rename_map
         )
 
-        args_to_skip = frozenset({"self", "cls"}) | InputArg.RESERVED_NAMES
+        args_to_skip = InputArg.TOP_LEVEL_ARGS_TO_SKIP
         if signature is not None:
             function_ctx = self.as_function_ctx(
                 ctx, args_to_skip=args_to_skip, for_top_level_converter=True
@@ -1712,6 +1712,7 @@ class InputArg(BaseConversion):
             "__convtools__code_storage",
         }
     )
+    TOP_LEVEL_ARGS_TO_SKIP = RESERVED_NAMES | {"self", "cls"}
 
     def __init__(self, name: str):
         super().__init__()
