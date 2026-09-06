@@ -856,6 +856,8 @@ class MinRowReducer(SingleExpressionReducer):
 
 
 class ArrayReducer(SingleExpressionReducer):
+    """Collect values into an array."""
+
     default = NaiveConversion(None)
     internals_are_public = True
     works_with_not_none_only = (False,)

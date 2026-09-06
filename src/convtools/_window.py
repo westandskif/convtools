@@ -684,6 +684,8 @@ class AppliedWindow(BaseConversion):
     def _add_range_offset_bound(
         self, code, ctx, bound, bound_name, none_index
     ):
+        if self.order_by is None:
+            raise AssertionError("RANGE offsets require order_by")
         order_key = self.order_by[0]
         descending = order_key.has_hint(self.OutputHints.ORDERING_DESC)
         nones_first = order_key.has_hint(self.OutputHints.ORDERING_NONE_FIRST)

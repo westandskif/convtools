@@ -566,14 +566,16 @@ class Table:
 
         for column_name, conversion in column_to_conversion.items():
             if mapping and any(conversion.get_dependencies(types=ColumnRef)):
-                conversion = ColumnScope(conversion, mapping)
+                col_conv = ColumnScope(conversion, mapping)
+            else:
+                col_conv = conversion
             if column_name in column_name_to_column:
                 column = column_name_to_column[column_name]
-                column.conversion = conversion
+                column.conversion = col_conv
                 column.index = None
             else:
                 column, state = self.meta_columns.add(
-                    column_name, None, conversion
+                    column_name, None, col_conv
                 )
                 self.pending_changes |= state
                 column_name_to_column[column.name] = column
@@ -837,6 +839,7 @@ class Table:
         """
         how = JoinConversion.validate_how(how)
         left = self._align_indexes_to_rows()
+        # pylint: disable-next=protected-access
         right = table._align_indexes_to_rows()
 
         left_join_conversion = LeftJoinCondition()

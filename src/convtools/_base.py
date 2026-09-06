@@ -192,6 +192,9 @@ class _StrictCtx(dict):
     def update(self, *args, **kwargs):
         raise AssertionError("ctx.update is not allowed")
 
+    def __or__(self, other):
+        raise AssertionError("ctx | is not allowed")
+
     def __ior__(self, other):
         raise AssertionError("ctx |= is not allowed")
 
@@ -1474,6 +1477,7 @@ class BaseConversion(Generic[CT]):
 
     def _copy_for_ordering_hint(self):
         result = copy(self)
+        # pylint: disable-next=protected-access
         result._depends_on = dict(self._depends_on)
         return result
 
@@ -1529,6 +1533,7 @@ class BaseMethodConversion(BaseConversion):
         BaseConversion.self_content_type
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     )
+    self_conv: "Union[_None, BaseConversion]"
 
     def __init__(self, self_conv):
         super().__init__()
@@ -2431,15 +2436,15 @@ class GetItem(BaseMethodConversion):
             0 if self.default is None else Weights.FUNCTION_CALL
         )
 
-        _simple_mask = (
+        simple_mask = (
             self.ContentTypes.FUNCTION_OF_INPUT
             | self.ContentTypes.LOOKUP_USAGE
         )
         self.indexes_are_simple = not any(
-            index.contents & _simple_mask for index in self.indexes
+            index.contents & simple_mask for index in self.indexes
         )
         self.default_is_simple = (
-            self.default is None or self.default.contents & _simple_mask == 0
+            self.default is None or self.default.contents & simple_mask == 0
         )
         self.hardcoded_version = self.get_hardcoded_version()
         if self.hardcoded_version:
@@ -2715,10 +2720,11 @@ class BaseComp(BaseMethodConversion):
             if (where is None or where is _none)
             else self.ensure_conversion(where)
         )
+        self_conv = self.self_conv
         self.number_of_input_uses = (
             1
-            if self.self_conv is _none
-            else self.self_conv.number_of_input_uses
+            if isinstance(self_conv, _None)
+            else self_conv.number_of_input_uses
         )
 
     def get_item_n_param_codes(self, ctx):
@@ -2911,10 +2917,11 @@ class DictComp(BaseMethodConversion):
             if (where is None or where is _none)
             else self.ensure_conversion(where)
         )
+        self_conv = self.self_conv
         self.number_of_input_uses = (
             1
-            if self.self_conv is _none
-            else self.self_conv.number_of_input_uses
+            if isinstance(self_conv, _None)
+            else self_conv.number_of_input_uses
         )
 
     def get_iterable_code(self, code_input, ctx):
@@ -3241,7 +3248,8 @@ class Dict_(BaseCollectionConversion):
         for item in items:
             # Handle Spread items
             if isinstance(item, Spread):
-                pairs.append(self.ensure_conversion(item))
+                self.ensure_conversion(item)
+                pairs.append(item)
                 continue
 
             # Handle (key, value) tuples
@@ -3748,7 +3756,7 @@ class PipeConversion(BaseConversion):
                 and not (
                     isinstance(what_code, str) and what_code.isidentifier()
                 )
-                and not (self.where.contents & 1)  # REDUCER
+                and not self.where.contents & self.ContentTypes.REDUCER
             ):
                 return f"({what_code}, {where_code})[1]"
             return where_code
