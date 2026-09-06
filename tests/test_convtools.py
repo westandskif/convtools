@@ -1431,3 +1431,4 @@ class CustomConversion(c.BaseConversion):
 
 def test_to_code():
     assert CustomConversion().execute(None) == 1
+    assert CustomConversion().gen_converter(_force_delegate=True)(None) == 1

@@ -310,6 +310,12 @@ def test_table_update():
         {"a": 1, "c": 4, "d": -4},
         {"a": 2, "c": 6, "d": -6},
     ]
+    result = list(
+        Table.from_rows([(1,), (2,)], ["a"])
+        .update(b=c.item(0) + 10)
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "b": 11}, {"a": 2, "b": 12}]
 
 
 def test_table_rename():
@@ -354,6 +360,12 @@ def test_table_filter():
         .update(c=c.col("a") * 100)
         .filter(c.col("c") > 0)
         .drop("c")
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
+    result = list(
+        Table.from_rows([(-1, 0), (1, 2), (3, 4)], ["a", "b"])
+        .filter(c.item(0) > 0)
         .into_iter_rows(dict)
     )
     assert result == [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
@@ -870,6 +882,15 @@ def test_from_csv_leaves_caller_buffer_open_on_header_mismatch():
     buf = io.StringIO("1,2\n3,4\n")
     with pytest.raises(ValueError, match="non-matching number of columns"):
         Table.from_csv(buf, header=["x", "y", "z"])
+    assert buf.closed is False
+
+
+def test_from_jsonl_leaves_caller_buffer_open_on_header_mismatch():
+    import io
+
+    buf = io.StringIO("[1, 2]\n")
+    with pytest.raises(ValueError, match="non-matching number of columns"):
+        Table.from_jsonl(buf, header=["x", "y", "z"])
     assert buf.closed is False
 
 
@@ -1699,6 +1720,12 @@ def test_column_scope_tracks_inner():
     assert list(scoped.get_dependencies(types=c.col)) == list(
         conv.get_dependencies(types=c.col)
     )
+
+
+def test_column_ref_falls_back_to_outer_scope():
+    inner = ColumnScope(c.col("a"), {(None, "missing"): 1})
+    outer = ColumnScope(inner, {(None, "a"): 0})
+    assert outer.execute((10, 20)) == 10
 
 
 def test_col_ref_generated_code_unchanged():

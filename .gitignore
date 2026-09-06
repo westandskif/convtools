@@ -53,6 +53,7 @@ MANIFEST
 src/convtools/mergers.p
 tmp/
 tests/csvs/out.csv
+tests/csvs/out.jsonl
 
 .ccls-cache/
 .notes
