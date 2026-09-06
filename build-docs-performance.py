@@ -52,6 +52,7 @@ def gen_md(results: List[BenchmarkResult], indent="    "):
         .sort(
             key=(
                 c.item("py_version_tup").desc(),
+                c.item("convtools_version").desc(),
                 c.item("diff"),
             )
         )
@@ -69,7 +70,7 @@ def gen_md(results: List[BenchmarkResult], indent="    "):
         .pivot(
             rows=["name"],
             columns=["py_version"],
-            values={"speed_up": c.ReduceFuncs.Min(c.item("speed_up"))},
+            values={"speed_up": c.ReduceFuncs.Min(c.col("speed_up"))},
             prepare_column_names=lambda l: l[0],
         )
         .into_iter_rows(tuple, include_header=True)

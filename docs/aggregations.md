@@ -64,10 +64,10 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `Last` | Returns the last encountered value. |
 | `LastN` | `LastN(n, value)`: collects the last `n` encountered values as a list. |
 | `Max` | Returns the max value, skipping `None`. |
-| `MaxRow` | Returns the row with the max value, skipping `None` comparison values. When a conversion is piped into the reducer, the returned row is the piped value. |
+| `MaxRow` | Returns the row with the max value, skipping `None` comparison values. |
 | `Median` | Calculates the median value, skipping `None`. |
 | `Min` | Returns the min value, skipping `None`. |
-| `MinRow` | Returns the row with the min value, skipping `None` comparison values. When a conversion is piped into the reducer, the returned row is the piped value. |
+| `MinRow` | Returns the row with the min value, skipping `None` comparison values. |
 | `Mode` | Returns the most common non-`None` value; on ties, the first encountered value wins. |
 | `Percentile` | `Percentile(percentile, value, interpolation="linear")`: calculates a percentile (`percentile` in `[0, 100]`), skipping `None`. |
 | `PopulationStdDev` | Calculates population standard deviation, skipping `None`. |
