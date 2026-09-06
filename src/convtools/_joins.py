@@ -186,12 +186,15 @@ class _JoinConditions:
             else:
                 self.consume_other(arg)
 
+    @property
+    def left_loop_row_name(self):
+        """LazyEscapedString name bound to the left loop row (`left_item`)."""
+        return self.RIGHT_NAME if self.swapped else self.LEFT_NAME
+
     def wrap_with_namespace(self, conversion, left=None, right=None):
         name_to_code = {}
         if left is not None:
-            name_to_code[
-                self.RIGHT_NAME if self.swapped else self.LEFT_NAME
-            ] = left
+            name_to_code[self.left_loop_row_name] = left
         if right is not None:
             name_to_code[
                 self.LEFT_NAME if self.swapped else self.RIGHT_NAME
@@ -294,32 +297,34 @@ class JoinConversion(BaseConversion):
         return cls._wrap_for_full_join(
             And(*conditions),
             join_conditions,
-            left="left_item",
             right=True,
         )
 
     def _for_each_left_item(self, code, ctx, join_conditions, emit_lookup):
         """Loop left rows; on outer joins, skip hasher/lookup when left guards fail."""
         code.add_line("for left_item in left_:", 1)
-        if (
-            join_conditions.left_join
-            and join_conditions.left_collection_filters
+        with NamespaceCtx(
+            {join_conditions.left_loop_row_name: "left_item"}, ctx
         ):
-            left_guard = join_conditions.wrap_with_namespace(
-                And(*join_conditions.left_collection_filters),
-                left=True,
-            )
-            code.add_line(
-                "if %s:"
-                % left_guard.gen_code_and_update_ctx("left_item", ctx),
-                1,
-            )
-            emit_lookup()
-            code.incr_indent_level(-1)
-            code.add_line("else:", 1)
-            code.add_line("right_items = iter(())", -1)
-        else:
-            emit_lookup()
+            if (
+                join_conditions.left_join
+                and join_conditions.left_collection_filters
+            ):
+                left_guard = join_conditions.wrap_with_namespace(
+                    And(*join_conditions.left_collection_filters),
+                    left=True,
+                )
+                code.add_line(
+                    "if %s:"
+                    % left_guard.gen_code_and_update_ctx("left_item", ctx),
+                    1,
+                )
+                emit_lookup()
+                code.incr_indent_level(-1)
+                code.add_line("else:", 1)
+                code.add_line("right_items = iter(())", -1)
+            else:
+                emit_lookup()
 
     @staticmethod
     def _maybe_track_right_index(code, join_conditions):

@@ -1062,6 +1062,44 @@ def test_join_lazy_refs_inside_pipes(how):
     assert result == expected[how]
 
 
+def test_join_full_inner_loop_filter_function_wrap_keeps_left_item():
+    """Full-join inner-loop filters that wrap into functions must keep left_item.
+
+    Two labeled pipes AND-ed force the full-join filter pipe into a function
+    on every supported Python (uses=6 vs the 3.10 inlining threshold).
+    """
+    L, R = c.LEFT, c.RIGHT
+    data = (
+        [{"x": 1, "y": 5}, {"x": 2, "y": 1}],
+        [{"y": 1}, {"y": 3}],
+    )
+    a, b = data[0]
+    p, q = data[1]
+    cond = (L.item("x").pipe(c.this - R.item("y"), label_output="z1") > 0) & (
+        L.item("x").pipe(c.this - R.item("y"), label_output="z2") > 0
+    )
+    result = (
+        c.join(c.item(0), c.item(1), cond, how="full")
+        .as_type(list)
+        .execute(data)
+    )
+    assert result == [(a, None), (b, p), (None, q)]
+
+    left = [{"k": 2, "x": 1}, {"k": 1, "x": 2}]
+    right = [{"k": 1, "y": 1}, {"k": 2, "y": 3}]
+    hash_cond = (
+        (L.item("k") == R.item("k"))
+        & (L.item("x").pipe(c.this - R.item("y"), label_output="z1") > 0)
+        & (L.item("x").pipe(c.this - R.item("y"), label_output="z2") > 0)
+    )
+    result = (
+        c.join(c.item(0), c.item(1), hash_cond, how="full")
+        .as_type(list)
+        .execute((left, right))
+    )
+    assert result == [(left[0], None), (left[1], right[0]), (None, right[1])]
+
+
 def test_join_pipe_hasher_classification():
     L, R = c.LEFT, c.RIGHT
     conditions = (
