@@ -5,6 +5,7 @@ import re
 import string
 import sys
 from collections import deque
+from contextlib import ExitStack
 from copy import copy
 from datetime import datetime
 from decimal import Decimal
@@ -164,6 +165,46 @@ _random = Random(1)
 choice = _random.choice
 
 
+class _StrictCtx(dict):
+    """Test-only ctx that allows only declared or generated keys."""
+
+    def _allowed(self, key):
+        if key in BaseConversion.FIXED_CTX_NAMES:
+            return True
+        generated = dict.get(self, BaseConversion.GENERATED_NAMES)
+        return generated is not None and key in generated
+
+    def __setitem__(self, key, value):
+        if not self._allowed(key):
+            raise AssertionError(f"unregistered ctx key {key!r}")
+        dict.__setitem__(self, key, value)
+
+    def __delitem__(self, key):
+        if not self._allowed(key):
+            raise AssertionError(f"unregistered ctx key {key!r}")
+        dict.__delitem__(self, key)
+
+    def setdefault(self, key, default=None):
+        if key not in self:
+            self[key] = default
+        return self[key]
+
+    def update(self, *args, **kwargs):
+        raise AssertionError("ctx.update is not allowed")
+
+    def __ior__(self, other):
+        raise AssertionError("ctx |= is not allowed")
+
+    def pop(self, *args, **kwargs):
+        raise AssertionError("ctx.pop is not allowed")
+
+    def popitem(self):
+        raise AssertionError("ctx.popitem is not allowed")
+
+    def clear(self):
+        raise AssertionError("ctx.clear is not allowed")
+
+
 class BaseConversion(Generic[CT]):
     """Base class of every conversion.
 
@@ -300,6 +341,7 @@ class BaseConversion(Generic[CT]):
 
     def gen_random_name(self, prefix, ctx) -> str:
         generated_names = ctx[self.GENERATED_NAMES]
+        reserved = ctx[self.INPUT_ARG_RENAME_MAP]
         name = prefix if prefix.startswith("_") else f"_{prefix}"
         for _ in range(10):
             if _ or iskeyword(name):
@@ -308,11 +350,28 @@ class BaseConversion(Generic[CT]):
                 else:
                     name = f"{name}_{choice(self.allowed_symbols)}"
 
-            if name not in generated_names:
+            if name not in generated_names and name not in reserved:
                 generated_names.add(name)
                 return name
 
         raise AssertionError("failed to generate unique filename", name)
+
+    def gen_random_suffix(self, ctx, *global_prefixes) -> str:
+        generated_names = ctx[self.GENERATED_NAMES]
+        reserved = ctx[self.INPUT_ARG_RENAME_MAP]
+        for _ in range(10):
+            suffix = self.gen_random_name("_", ctx)
+            composed = tuple(f"{prefix}{suffix}" for prefix in global_prefixes)
+            if any(
+                name in generated_names or name in reserved
+                for name in composed
+            ):
+                continue
+            generated_names.update(composed)
+            return suffix
+        raise AssertionError(
+            "failed to generate unique suffix", global_prefixes
+        )
 
     def gen_name(self, prefix, ctx, item_to_hash) -> str:
         """Generates name of variable to be used in the generated code.
@@ -469,28 +528,74 @@ class BaseConversion(Generic[CT]):
     NAIVE_TO_WARM_UP = "_naive_to_warm_up"
     INPUT_ARG_RENAME_MAP = "_input_arg_rename_map"
     INPUT_ARG_RENAMED_STACK = "_input_arg_renamed_stack"
+    # Any literal key written into ctx must be listed here, including names
+    # generated code assigns at run time; names produced by gen_random_name
+    # are exempt. The strict test dict enforces it.
+    FIXED_CTX_NAMES = frozenset(
+        {
+            "sys",
+            "__debug",
+            "__name__",
+            "__naive_values__",
+            "__none__",
+            GENERATED_NAMES,
+            NAMESPACES,
+            PREFIXED_HASH_TO_NAME,
+            NAIVE_TO_WARM_UP,
+            INPUT_ARG_RENAME_MAP,
+            INPUT_ARG_RENAMED_STACK,
+            "__convtools__code_storage",
+            "__exceptions_to_dump_sources",
+            "__builtins__",
+            "current_reduce_manager",
+            "__column_ref_scopes",
+            "defaultdict",
+            "__deque__",
+            "operator_itemgetter",
+            "operator_attrgetter",
+            "ListSortedOnceWrapper",
+            "WelfordAccumulator",
+            "WelfordCovarianceAccumulator",
+            "ReversedOrdering",
+            "itertools_islice",
+            "itertools_chain",
+            "ExpectException",
+            "__BROKEN_EARLY__",
+        }
+    )
 
     exceptions_to_dump_sources = (Exception, KeyboardInterrupt)
+    strict_ctx = False
 
     @classmethod
     def _init_ctx(cls, debug=None):
-        ctx = {
-            "sys": sys,
-            "__debug": debug,
-            "__name__": "_convtools",
-            "__naive_values__": {},
-            "__none__": cls._none,
-            cls.GENERATED_NAMES: set(),
-            cls.NAMESPACES: [{}],
-            cls.PREFIXED_HASH_TO_NAME: {},
-            cls.NAIVE_TO_WARM_UP: None,
-            cls.INPUT_ARG_RENAME_MAP: {},
-            cls.INPUT_ARG_RENAMED_STACK: [],
-            "__convtools__code_storage": CodeStorage(),
-            "__exceptions_to_dump_sources": cls.exceptions_to_dump_sources,
-            # SetUpCumulative.__cumulative_names__
-        }
+        ctx = _StrictCtx() if cls.strict_ctx else {}
+        ctx["sys"] = sys
+        ctx["__debug"] = debug
+        ctx["__name__"] = "_convtools"
+        ctx["__naive_values__"] = {}
+        ctx["__none__"] = cls._none
+        ctx[cls.GENERATED_NAMES] = set()
+        ctx[cls.NAMESPACES] = [{}]
+        ctx[cls.PREFIXED_HASH_TO_NAME] = {}
+        ctx[cls.NAIVE_TO_WARM_UP] = None
+        ctx[cls.INPUT_ARG_RENAME_MAP] = {}
+        ctx[cls.INPUT_ARG_RENAMED_STACK] = []
+        ctx["__convtools__code_storage"] = CodeStorage()
+        ctx["__exceptions_to_dump_sources"] = cls.exceptions_to_dump_sources
         return ctx
+
+    def _render_converter_body(self, code, code_input, ctx):
+        code_ = self.to_code(  # pylint: disable=assignment-from-none
+            code_input, ctx
+        )
+        if code_ is None:
+            code.add_line(
+                f"return {self.gen_code_and_update_ctx(code_input, ctx)}",
+                0,
+            )
+        else:
+            code.add_code(code_)
 
     def gen_converter(
         self,
@@ -499,8 +604,6 @@ class BaseConversion(Generic[CT]):
         signature=None,
         debug=None,
         converter_name="converter",
-        _inner=False,
-        _force_delegate=False,
     ):
         """Compile a function which implements the conversion.
 
@@ -519,153 +622,123 @@ class BaseConversion(Generic[CT]):
         Returns:
           The compiled function
         """
-        if (
-            debug
-            and not _inner
-            and not ConverterOptionsCtx.get_option_value("debug")
-        ):
-            with ConverterOptionsCtx() as options:
+        if method and class_method:
+            raise ConversionException("choose either method or a class_method")
+
+        with ExitStack() as stack:
+            if debug and not ConverterOptionsCtx.get_option_value("debug"):
+                options = stack.enter_context(ConverterOptionsCtx())
                 options.debug = True
-                return self.gen_converter(
-                    method=method,
-                    class_method=class_method,
-                    signature=signature,
-                    debug=True,
-                    converter_name=converter_name,
-                    _inner=True,
-                    _force_delegate=_force_delegate,
-                )
-        # signature should contain "data_" argument
-        initial_code_input = "data_"
-        # self.ContentTypes.NEW_LABEL | self.ContentTypes.LABEL_USAGE
-        has_labels = self.contents & 20
-        has_none = self.contents & 128  # self.ContentTypes.NONE_USAGE
-        ctx = self._init_ctx(debug=debug)
 
-        input_arg_rename_map = {}
-        generated_names = ctx[self.GENERATED_NAMES]
-        for dep in self.get_dependencies():
-            if (
-                isinstance(dep, InputArg)
-                and dep.name not in input_arg_rename_map
-            ):
-                generated_names.add(dep.name)
-                input_arg_rename_map[dep.name] = self.gen_random_name(
-                    f"_input_arg_{dep.name}", ctx
-                )
-        ctx[self.INPUT_ARG_RENAME_MAP] = input_arg_rename_map
-
-        delegate = _force_delegate or any(
-            hasattr(builtins, name) or name in ctx
-            for name in input_arg_rename_map
-        )
-
-        args_to_skip = InputArg.TOP_LEVEL_ARGS_TO_SKIP
-        if signature is not None:
-            function_ctx = self.as_function_ctx(
-                ctx, args_to_skip=args_to_skip, for_top_level_converter=True
+            # signature should contain "data_" argument
+            initial_code_input = "data_"
+            has_labels = self.contents & (
+                self.ContentTypes.NEW_LABEL | self.ContentTypes.LABEL_USAGE
             )
-            missing_args = set(function_ctx.args_as_def_names).union(
-                function_ctx.kwargs_as_def_names
-            ) - set(_pattern_word.findall(signature))
-            if missing_args:
-                raise ConversionException(
-                    "bad signature, missing args", missing_args
+            has_none = self.contents & self.ContentTypes.NONE_USAGE
+            ctx = self._init_ctx(debug=debug)
+
+            input_arg_rename_map = ctx[self.INPUT_ARG_RENAME_MAP]
+            for dep in self.get_dependencies():
+                if (
+                    isinstance(dep, InputArg)
+                    and dep.name not in input_arg_rename_map
+                ):
+                    input_arg_rename_map[dep.name] = None
+            for name in input_arg_rename_map:
+                input_arg_rename_map[name] = self.gen_random_name(
+                    f"_input_arg_{name}", ctx
                 )
-        else:
-            if method and class_method:
-                raise ConversionException(
-                    "choose either method or a class_method"
-                )
-            function_ctx = self.as_function_ctx(
-                ctx,
-                as_kwargs=True,
-                args_to_skip=args_to_skip,
-                for_top_level_converter=True,
-                optimize_naive=True,
+
+            delegate = any(
+                hasattr(builtins, name) or name in self.FIXED_CTX_NAMES
+                for name in input_arg_rename_map
             )
-            function_ctx.add_arg(initial_code_input)
-            if method:
-                function_ctx.add_arg("self", left=True)
-            elif class_method:
-                function_ctx.add_arg("cls", left=True)
 
-        inner_function_ctx = None
-        if delegate:
-            inner_function_ctx = self.as_function_ctx(
-                ctx,
-                for_top_level_converter=False,
-                optimize_naive=signature is None,
-            )
-            if signature is None or "data_" in _pattern_word.findall(
-                signature
-            ):
-                inner_function_ctx.add_arg(initial_code_input, This())
-
-        with function_ctx:
-            code = Code()
-            compiled_name = self.gen_random_name(converter_name, ctx)
-
-            code.add_line("def placeholder", 1)
-            if has_none:
-                code.add_line("global __none__", 0)
-                code.add_line("_none = __none__", 0)
-            if has_labels:
-                code.add_line(f"{LabelConversion.labels_code_name} = {{}}", 0)
-
-            code.add_line("try:", 1)
-
-            if inner_function_ctx is None:
-                code_ = self.to_code(  # pylint: disable=assignment-from-none
-                    initial_code_input, ctx
+            if signature is not None:
+                function_ctx = self.as_function_ctx(
+                    ctx,
+                    args_to_skip=InputArg.TOP_LEVEL_ARGS_TO_SKIP,
+                    for_top_level_converter=True,
                 )
-                if code_ is None:
+                missing_args = set(function_ctx.args_as_def_names).union(
+                    function_ctx.kwargs_as_def_names
+                ) - set(_pattern_word.findall(signature))
+                if missing_args:
+                    raise ConversionException(
+                        "bad signature, missing args", missing_args
+                    )
+            else:
+                function_ctx = self.as_function_ctx(
+                    ctx,
+                    as_kwargs=True,
+                    args_to_skip=InputArg.TOP_LEVEL_ARGS_TO_SKIP,
+                    for_top_level_converter=True,
+                    optimize_naive=True,
+                )
+                function_ctx.add_arg(initial_code_input)
+                if method:
+                    function_ctx.add_arg("self", left=True)
+                elif class_method:
+                    function_ctx.add_arg("cls", left=True)
+
+            inner_function_ctx = None
+            if delegate:
+                inner_function_ctx = self.as_function_ctx(
+                    ctx,
+                    for_top_level_converter=False,
+                    optimize_naive=signature is None,
+                )
+                if signature is None or "data_" in _pattern_word.findall(
+                    signature
+                ):
+                    inner_function_ctx.add_arg(initial_code_input, This())
+
+            with function_ctx:
+                code = Code()
+                compiled_name = self.gen_random_name(converter_name, ctx)
+
+                code.add_line("def placeholder", 1)
+                if has_none:
+                    code.add_line("global __none__", 0)
+                    code.add_line("_none = __none__", 0)
+                if has_labels:
                     code.add_line(
-                        f"return {self.gen_code_and_update_ctx(initial_code_input, ctx)}",
-                        0,
+                        f"{LabelConversion.labels_code_name} = {{}}", 0
                     )
-                else:
-                    code.add_code(code_)
-            else:
-                with inner_function_ctx:
-                    inner_code = Code()
-                    inner_name = self.gen_random_name("converter", ctx)
-                    inner_code.add_line("def placeholder", 1)
-                    inner_code_ = (
-                        self.to_code(  # pylint: disable=assignment-from-none
-                            initial_code_input, ctx
-                        )
-                    )
-                    if inner_code_ is None:
-                        inner_code.add_line(
-                            f"return {self.gen_code_and_update_ctx(initial_code_input, ctx)}",
-                            0,
-                        )
-                    else:
-                        inner_code.add_code(inner_code_)
-                    inner_code.lines_info[0] = (
-                        0,
-                        f"def {inner_name}({inner_function_ctx.get_def_all_args_code()}):",
-                    )
-                    inner_conversion = inner_function_ctx.gen_conversion(
-                        inner_name,
-                        inner_code.to_string(base_indent_level=0),
-                    )
-                code.add_line(
-                    "return {}".format(
-                        inner_function_ctx.call_with_all_args(
-                            inner_conversion
-                        ).gen_code_and_update_ctx(initial_code_input, ctx)
-                    ),
-                    0,
-                )
 
-            if not delegate and any(
-                name in ctx for name in input_arg_rename_map
-            ):
-                rerun_with_delegate = True
-            else:
-                rerun_with_delegate = False
+                code.add_line("try:", 1)
+
+                if inner_function_ctx is None:
+                    self._render_converter_body(code, initial_code_input, ctx)
+                else:
+                    with inner_function_ctx:
+                        inner_code = Code()
+                        inner_name = self.gen_random_name("converter", ctx)
+                        inner_code.add_line("def placeholder", 1)
+                        self._render_converter_body(
+                            inner_code, initial_code_input, ctx
+                        )
+                        inner_code.lines_info[0] = (
+                            0,
+                            (
+                                f"def {inner_name}("
+                                f"{inner_function_ctx.get_def_all_args_code()}):"
+                            ),
+                        )
+                        inner_conversion = inner_function_ctx.gen_conversion(
+                            inner_name,
+                            inner_code.to_string(base_indent_level=0),
+                        )
+                    code.add_line(
+                        "return {}".format(
+                            inner_function_ctx.call_with_all_args(
+                                inner_conversion
+                            ).gen_code_and_update_ctx(initial_code_input, ctx)
+                        ),
+                        0,
+                    )
+
                 code.incr_indent_level(-1)
                 code.add_line("except __exceptions_to_dump_sources:", 1)
                 code.add_line("__convtools__code_storage.dump_sources()", 0)
@@ -685,31 +758,20 @@ class BaseConversion(Generic[CT]):
                     compiled_name, code.to_string(base_indent_level=0)
                 )
 
-        if rerun_with_delegate:
-            return self.gen_converter(
-                method=method,
-                class_method=class_method,
-                signature=signature,
-                debug=debug,
-                converter_name=converter_name,
-                _inner=True,
-                _force_delegate=True,
-            )
+            del ctx[self.GENERATED_NAMES]
+            del ctx[self.NAMESPACES]
+            del ctx[self.PREFIXED_HASH_TO_NAME]
+            del ctx[self.NAIVE_TO_WARM_UP]
+            del ctx[self.INPUT_ARG_RENAME_MAP]
+            del ctx[self.INPUT_ARG_RENAMED_STACK]
 
-        del ctx[self.GENERATED_NAMES]
-        del ctx[self.NAMESPACES]
-        del ctx[self.PREFIXED_HASH_TO_NAME]
-        del ctx[self.NAIVE_TO_WARM_UP]
-        del ctx[self.INPUT_ARG_RENAME_MAP]
-        del ctx[self.INPUT_ARG_RENAMED_STACK]
+            if debug or (self.contents & self.ContentTypes.BREAKPOINT):
+                ctx["__convtools__code_storage"].dump_sources()
 
-        if debug or (self.contents & self.ContentTypes.BREAKPOINT):
-            ctx["__convtools__code_storage"].dump_sources()
+            if class_method:
+                return classmethod(converter)
 
-        if class_method:
-            return classmethod(converter)
-
-        return converter
+            return converter
 
     def execute(self, *args, debug=None, **kwargs) -> Any:
         """Shortcut for `gen_converter()` and running it."""
@@ -2184,7 +2246,7 @@ class IfMultiple(BaseConversion):
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         code = Code()
-        suffix = self.gen_random_name("_", ctx)
+        suffix = self.gen_random_suffix(ctx, "if_multiple")
         converter_name = f"if_multiple{suffix}"
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", This())
@@ -3253,7 +3315,7 @@ class TakeWhile(BaseConversion):
         return new
 
     def gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_random_name("_", ctx)
+        suffix = self.gen_random_suffix(ctx, "take_while")
         converter_name = f"take_while{suffix}"
         var_it = f"it{suffix}"
         var_item = f"item{suffix}"
@@ -3303,7 +3365,7 @@ class DropWhile(BaseConversion):
         self.condition = self.ensure_conversion(condition)
 
     def gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_random_name("_", ctx)
+        suffix = self.gen_random_suffix(ctx, "drop_while")
         converter_name = f"drop_while{suffix}"
         var_it = f"it{suffix}"
         var_item = f"item{suffix}"
@@ -3691,7 +3753,7 @@ class PipeConversion(BaseConversion):
                 return f"({what_code}, {where_code})[1]"
             return where_code
 
-        suffix = self.gen_random_name("_", ctx)
+        suffix = self.gen_random_suffix(ctx, "pipe")
         converter_name = f"pipe{suffix}"
         var_result = "result_"
         var_input = "input_"

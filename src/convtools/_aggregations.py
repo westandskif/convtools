@@ -1826,7 +1826,9 @@ class Grouper(BaseConversion):
         ctx["WelfordAccumulator"] = WelfordAccumulator
         ctx["WelfordCovarianceAccumulator"] = WelfordCovarianceAccumulator
 
-        suffix = self.gen_random_name("_", ctx)
+        suffix = self.gen_random_suffix(
+            ctx, "aggregate", "group_by", "AggData"
+        )
         var_row = f"row{suffix}"
         var_signature = f"signature{suffix}"
         var_signature_to_agg_data = f"signature_to_agg_data{suffix}"

@@ -210,7 +210,7 @@ def test_custom_converter_generation():
                 code_args = function_ctx.get_def_all_args_code()
                 assert code_args.find("kwarg1") > code_args.find("kwarg2")
 
-                converter_name = "test_func"
+                converter_name = self.gen_random_name("test_func", ctx)
                 code = Code()
                 code.add_line(f"def {converter_name}({code_args}):", 1)
                 code.add_line("return data_ + kwarg1 + kwarg2", 0)
@@ -1431,4 +1431,47 @@ class CustomConversion(c.BaseConversion):
 
 def test_to_code():
     assert CustomConversion().execute(None) == 1
-    assert CustomConversion().gen_converter(_force_delegate=True)(None) == 1
+    assert (
+        CustomConversion()
+        .depends_on(c.input_arg("len"))
+        .gen_converter()(None, len=1)
+        == 1
+    )
+
+
+def test_generated_helper_skips_reserved_input_arg():
+    class HelperConversion(c.BaseConversion):
+        def gen_code_and_update_ctx(self, code_input, ctx):
+            helper_name = self.gen_random_name("helper", ctx)
+            self.compile_converter(
+                helper_name, f"def {helper_name}():\n    return 1", ctx
+            )
+            return f"{helper_name}()"
+
+    assert (
+        HelperConversion()
+        .depends_on(c.input_arg("_helper"))
+        .execute(None, _helper=7)
+        == 1
+    )
+
+
+def test_input_arg_reservation_not_generated():
+    class ReservationConversion(c.BaseConversion):
+        def gen_code_and_update_ctx(self, code_input, ctx):
+            assert c.BaseConversion.strict_ctx
+            for key in ("x", "_input_arg_x"):
+                with pytest.raises(
+                    AssertionError, match="unregistered ctx key"
+                ):
+                    ctx[key] = 1
+            name = self.gen_random_name("ok", ctx)
+            ctx[name] = 1
+            return "1"
+
+    converter = (
+        ReservationConversion()
+        .depends_on(c.input_arg("x"), c.input_arg("_input_arg_x"))
+        .gen_converter()
+    )
+    assert converter(None, x=0, _input_arg_x=0) == 1

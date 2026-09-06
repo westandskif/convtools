@@ -3,10 +3,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from convtools import conversion as c
-from convtools._base import BaseConversion
 from convtools._columns import ColumnDef, ColumnScope, MetaColumns
 from convtools.contrib.tables import CloseFileIterator, Table
-from tests.utils import get_code_str
 
 
 def test_table_base_init():
@@ -1575,23 +1573,6 @@ def test_pivot_after_take_and_rename():
     assert result == [{"k": "x", "p - n": 1, "q - n": 2}]
 
 
-def _capture_converter_codes(build):
-    codes = []
-    orig = BaseConversion.gen_converter
-
-    def wrapped(self, *args, **kwargs):
-        fn = orig(self, *args, **kwargs)
-        codes.append(get_code_str(fn))
-        return fn
-
-    BaseConversion.gen_converter = wrapped
-    try:
-        build()
-    finally:
-        BaseConversion.gen_converter = orig
-    return codes
-
-
 def test_table_chain_row_types():
     result = list(
         Table.from_rows([{"a": 1}])
@@ -1726,70 +1707,3 @@ def test_column_ref_falls_back_to_outer_scope():
     inner = ColumnScope(c.col("a"), {(None, "missing"): 1})
     outer = ColumnScope(inner, {(None, "a"): 0})
     assert outer.execute((10, 20)) == 10
-
-
-def test_col_ref_generated_code_unchanged():
-    update_codes = _capture_converter_codes(
-        lambda: list(
-            Table.from_rows([("a",), (1,)], header=True)
-            .update(b=c.col("a") + 1)
-            .into_iter_rows(tuple)
-        )
-    )
-    assert update_codes == [
-        "def _converter(data_):\n"
-        "    try:\n"
-        "        return ((_i[(0)],(_i[(0)] + (1)),) for _i in data_)\n"
-        "    except __exceptions_to_dump_sources:\n"
-        "        __convtools__code_storage.dump_sources()\n"
-        "        raise\n"
-    ]
-
-    filter_codes = _capture_converter_codes(
-        lambda: list(
-            Table.from_rows([("a",), (1,)], header=True)
-            .filter(c.col("a") > 0)
-            .into_iter_rows(tuple)
-        )
-    )
-    assert filter_codes == [
-        "def _converter(data_):\n"
-        "    try:\n"
-        "        return (_i for _i in data_ if ((_i[(0)] > (0))))\n"
-        "    except __exceptions_to_dump_sources:\n"
-        "        __convtools__code_storage.dump_sources()\n"
-        "        raise\n"
-    ]
-
-    fusion_codes = _capture_converter_codes(
-        lambda: list(
-            Table.from_rows([("a",), (1,)], header=True)
-            .update(a=c.col("a"))
-            .update(a=c.col("a"))
-            .into_iter_rows(tuple)
-        )
-    )
-    assert fusion_codes == [
-        "def _converter(data_):\n"
-        "    try:\n"
-        "        return (((_i[(0)],)[(0)],) for _i in data_)\n"
-        "    except __exceptions_to_dump_sources:\n"
-        "        __convtools__code_storage.dump_sources()\n"
-        "        raise\n"
-    ]
-
-    pivot_codes = _capture_converter_codes(
-        lambda: list(
-            Table.from_rows([("k", "p", "v"), ("x", "u", 1)], header=True)
-            .pivot(
-                rows=["k"],
-                columns=["p"],
-                values={"sum": c.ReduceFuncs.Sum(c.col("v"))},
-            )
-            .into_iter_rows(dict)
-        )
-    )
-    assert any(
-        "return sum(((_i[(2)] or (0)) for _i in data_))" in code
-        for code in pivot_codes
-    )

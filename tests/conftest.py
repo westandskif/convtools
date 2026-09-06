@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
-"""
-Dummy conftest.py for convtools.
+"""Test harness: strict ctx so undeclared globals fail the suite."""
 
-If you don't know what this is for, just leave it empty.
-Read more about conftest.py under:
-https://pytest.org/latest/plugins.html
-"""
+from convtools._base import BaseConversion
 
-# import pytest
+BaseConversion.strict_ctx = True

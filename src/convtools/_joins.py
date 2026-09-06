@@ -563,7 +563,7 @@ class JoinConversion(BaseConversion):
         )
         self._reject_join_input_in_row_bound_terms(join_conditions, ctx)
 
-        suffix = self.gen_random_name("", ctx)
+        suffix = self.gen_random_suffix(ctx, "join")
         converter_name = f"join{suffix}"
         code = Code()
         function_ctx = self.condition.as_function_ctx(ctx, optimize_naive=True)

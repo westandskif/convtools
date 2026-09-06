@@ -124,14 +124,59 @@ def test_add_sources():
 
     conversion = This()
     ctx = conversion._init_ctx()
-    code_str = "def abc(): return 1"
-    assert ctx[conversion.compile_converter("abc", code_str, ctx)]() == 1
+    name = conversion.gen_random_name("abc", ctx)
+    code_str = f"def {name}(): return 1"
+    assert ctx[conversion.compile_converter(name, code_str, ctx)]() == 1
 
     code_storage = CodeStorage()
     _, added = code_storage.add_sources("a", "tst")
     assert added
     _, added = code_storage.add_sources("a", "tst")
     assert not added
+
+
+def test_strict_ctx_guard():
+    assert BaseConversion.strict_ctx
+    conv = This()
+    ctx = conv._init_ctx()
+    with pytest.raises(AssertionError, match="unregistered ctx key"):
+        ctx["undeclared"] = 1
+    name = conv.gen_random_name("ok", ctx)
+    ctx[name] = 1
+    del ctx[name]
+    ctx["__debug"] = True
+    del ctx["__debug"]
+    with pytest.raises(AssertionError, match="unregistered ctx key"):
+        del ctx["undeclared"]
+    with pytest.raises(AssertionError, match="not allowed"):
+        ctx.update({"undeclared": 1})
+    with pytest.raises(AssertionError, match="not allowed"):
+        ctx.__ior__({"undeclared": 1})
+    with pytest.raises(AssertionError, match="not allowed"):
+        ctx.pop("__debug")
+    with pytest.raises(AssertionError, match="not allowed"):
+        ctx.popitem()
+    with pytest.raises(AssertionError, match="not allowed"):
+        ctx.clear()
+
+
+def test_init_ctx_is_exact_dict_when_strict_off():
+    prev = BaseConversion.strict_ctx
+    try:
+        BaseConversion.strict_ctx = False
+        ctx = This()._init_ctx()
+        assert type(ctx) is dict
+    finally:
+        BaseConversion.strict_ctx = prev
+
+
+def test_gen_random_suffix_retries_on_composed_collision():
+    conv = This()
+    ctx = conv._init_ctx()
+    ctx[BaseConversion.INPUT_ARG_RENAME_MAP]["foo_"] = None
+    suffix = conv.gen_random_suffix(ctx, "foo")
+    assert suffix != "_"
+    assert f"foo{suffix}" in ctx[BaseConversion.GENERATED_NAMES]
 
 
 def test_ignores_input():

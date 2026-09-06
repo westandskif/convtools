@@ -134,7 +134,7 @@ class TapConversion(BaseConversion):
         self.number_of_input_uses = 1
 
     def gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_random_name("", ctx)
+        suffix = self.gen_random_suffix(ctx, "tap_")
         converter_name = f"tap_{suffix}"
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", self.obj)
@@ -164,7 +164,7 @@ class IterMutConversion(TapConversion):
     """
 
     def gen_code_and_update_ctx(self, code_input, ctx):
-        suffix = self.gen_random_name("", ctx)
+        suffix = self.gen_random_suffix(ctx, "iter_mut_")
         converter_name = f"iter_mut_{suffix}"
         code_item = f"item_{suffix}"
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
