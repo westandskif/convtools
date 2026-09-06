@@ -2520,7 +2520,6 @@ class GetAttr(GetItem):
     against an input.
     """
 
-    valid_attr = re.compile(r"^'[A-Za-z_][a-zA-Z0-9_]*'$")
     prefix = "attr_or_default"
     weight = Weights.ATTR_LOOKUP
     caching_is_possible = False
@@ -2530,8 +2529,10 @@ class GetAttr(GetItem):
     getter_default_callable = get_attr_deep_default_callable
 
     def wrap_path_item(self, code_input, path_item):
-        if self.valid_attr.match(path_item) and _is_plain_python_ident(
-            path_item[1:-1]
+        if (
+            path_item[:1] == "'"
+            and path_item[-1:] == "'"
+            and _is_plain_python_ident(path_item[1:-1])
         ):
             return f"{code_input}.{path_item[1:-1]}"
         return f"getattr({code_input}, {path_item})"

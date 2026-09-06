@@ -12,3 +12,4 @@ tmp/
 *.csv
 .venvs/
 site/
+.agents/

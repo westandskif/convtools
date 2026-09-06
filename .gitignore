@@ -58,3 +58,5 @@ tests/csvs/out.csv
 .notes
 .s.vim
 site/
+.agents/
+.claude/
