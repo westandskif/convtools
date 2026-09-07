@@ -158,6 +158,15 @@ class MetaColumns:
         self.columns.append(column)
         return column, state
 
+    def rename(self, new_names):
+        none_counter = self.column_to_number[None]
+        for column, new_name in zip(self.columns, new_names):
+            column.name = new_name
+        self.column_to_number = defaultdict(int)
+        for column in self.columns:
+            self.column_to_number[column.name] += 1
+        self.column_to_number[None] = none_counter
+
     def take(self, *column_names) -> "MetaColumns":
         column_names_set = set(column_names)
         name_to_column = self.get_name_to_column()

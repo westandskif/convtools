@@ -369,6 +369,38 @@ def test_table_rename():
     )
     assert result == [{"A": 1}]
 
+    result = list(
+        Table.from_rows([{"a": 1}])
+        .rename({"a": "b"})
+        .update(a=2)
+        .into_iter_rows(dict)
+    )
+    assert result == [{"b": 1, "a": 2}]
+
+    result = list(
+        Table.from_rows([(1,)], ["a"])
+        .rename(["b"])
+        .update(a=2)
+        .into_iter_rows(dict)
+    )
+    assert result == [{"b": 1, "a": 2}]
+
+    result = list(
+        Table.from_rows([{"a": 1}], duplicate_columns="mangle")
+        .rename({"a": "b"})
+        .update(a=2)
+        .into_iter_rows(dict)
+    )
+    assert result == [{"b": 1, "a": 2}]
+
+    result = list(
+        Table.from_rows([{"a": 1}], duplicate_columns="drop")
+        .rename({"a": "b"})
+        .update(a=2)
+        .into_iter_rows(dict)
+    )
+    assert result == [{"b": 1, "a": 2}]
+
 
 # BEFORE
 def process_table(rows):
@@ -1383,6 +1415,24 @@ def test_table_pivot():
         (0, 2, 1, 1, None),
         (1, 2, 1, None, 1),
     ]
+
+    consumed = []
+
+    def gen():
+        consumed.append("first")
+        yield {"dept": 1, "year": 2023, "currency": "USD", "revenue": 100}
+        consumed.append("second")
+        yield {"dept": 1, "year": 2024, "currency": "USD", "revenue": 300}
+
+    table = Table.from_rows(gen())
+    assert consumed == ["first"]
+    with pytest.raises(ValueError, match="rows"):
+        table.pivot(
+            rows=[],
+            columns=["currency"],
+            values={"sum": c.ReduceFuncs.Sum(c.col("revenue"))},
+        )
+    assert consumed == ["first"]
 
 
 def test_join_after_take_drop():

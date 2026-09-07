@@ -625,25 +625,27 @@ class Table:
         """
         renamed = False
         if isinstance(columns, dict):
+            new_names = []
             for column_ in self.meta_columns.columns:
                 if column_.name in columns:
-                    column_.name = columns[column_.name]
+                    new_names.append(columns[column_.name])
                     renamed = True
+                else:
+                    new_names.append(column_.name)
 
         elif isinstance(columns, (tuple, list)):
             if len(columns) != len(self.meta_columns.columns):
                 raise ValueError("non-matching number of columns")
-            for column_, new_column_name in zip(
-                self.meta_columns.columns, columns
-            ):
-                column_.name = new_column_name
+            new_names = list(columns)
             renamed = True
 
         else:
             raise TypeError("unsupported columns type")
 
-        if renamed and self.row_type is dict:
-            self.pending_changes |= ColumnChanges.MUTATE
+        if renamed:
+            self.meta_columns.rename(new_names)
+            if self.row_type is dict:
+                self.pending_changes |= ColumnChanges.MUTATE
 
         return self
 
@@ -1213,7 +1215,7 @@ class Table:
         >>> ]
 
         Args:
-          rows: columns to group by
+          rows: columns to group by; must be non-empty
           columns: columns to take names of new columns from
           values: mapping of name to reducer of column value/values
           prepare_column_names: callable to create column names from column
@@ -1221,6 +1223,8 @@ class Table:
             str and joined with " - ", for example "USD - sum".
 
         """
+        if not rows:
+            raise ValueError("pivot requires at least one column in rows")
         self._align_indexes_to_rows()
 
         name_to_column = self.meta_columns.get_name_to_column()
