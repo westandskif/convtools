@@ -1,4 +1,5 @@
 import re
+from collections import deque
 from datetime import date
 from types import GeneratorType
 
@@ -1218,6 +1219,34 @@ def test_aggregate_reducers_reuse():
         c.ReduceFuncs.Average(c.this, c.this.or_(0))
     ).gen_converter()
     assert f([None, 1, 2, 3, 4]) == 3.0
+
+
+def test_aggregate_ifexp_guards_not_merged():
+    result = c.aggregate(
+        {
+            "z": c.ReduceFuncs.Min(
+                c.if_(c.item("a").is_(None), None, c.item("a").item("b"))
+            ),
+            "m": c.ReduceFuncs.Min(
+                c.if_(c.item("a").is_(None), -1, c.item("a").item("b"))
+            ),
+        }
+    ).execute([{"a": None}, {"a": {"b": 5}}])
+    assert result == {"z": 5, "m": -1}
+
+
+def test_aggregate_cse_does_not_hoist_call_containing_expr():
+    result = c.aggregate(
+        {
+            "a": c.ReduceFuncs.Array(
+                c.item("q").call_method("popleft").item("k")
+            ),
+            "b": c.ReduceFuncs.Array(
+                c.item("q").call_method("popleft").item("k") + 1
+            ),
+        }
+    ).execute([{"q": deque([{"k": 1}, {"k": 2}])} for _ in range(3)])
+    assert result == {"a": [2, 2, 2], "b": [2, 2, 2]}
 
 
 def _assert_no_hoisted_lambda_param(code_str):

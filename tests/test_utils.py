@@ -302,13 +302,62 @@ if 1 < 2:
             fuzzy_cmp,
             False,
         ),
+        (
+            """
+if (1 if t else 2) is not None:
+    pass
+            """,
+            """
+if (1 if t else 3) is not None:
+    pass
+            """,
+            fuzzy_cmp,
+            False,
+            frozenset({"body", "orelse"}),
+        ),
+        (
+            """
+if (1 if t else 2) is not None:
+    a = 1
+            """,
+            """
+if (1 if t else 2) is not None:
+    a = 2
+            """,
+            fuzzy_cmp,
+            True,
+            frozenset({"body", "orelse"}),
+        ),
+        (
+            """
+if x:
+    a = 1 if t else 2
+            """,
+            """
+if x:
+    a = 1 if t else 3
+            """,
+            fuzzy_cmp,
+            False,
+        ),
     ],
 )
 def test_ast_fuzzy_equal(args):
-    code_left, code_right, fuzzy_cmp, expected = args
+    fields_to_skip = frozenset()
+    if len(args) == 5:
+        code_left, code_right, fuzzy_cmp, expected, fields_to_skip = args
+    else:
+        code_left, code_right, fuzzy_cmp, expected = args
+    left = ast.parse(code_left)
+    right = ast.parse(code_right)
+    if fields_to_skip:
+        # ast_merge compares statements, not wrapping Modules (whose body
+        # would otherwise be skipped).
+        left = left.body[0]
+        right = right.body[0]
     assert (
         ast_are_fuzzy_equal(
-            ast.parse(code_left), ast.parse(code_right), fuzzy_cmp
+            left, right, fuzzy_cmp, fields_to_skip=fields_to_skip
         )
         is expected
     )

@@ -37,8 +37,11 @@ def ast_are_fuzzy_equal(left, right, fuzzy_cmp, fields_to_skip=frozenset()):
         if fuzzy_cmp(left, right):
             return True
 
+        skip_fields = isinstance(
+            left, (ast.stmt, ast.excepthandler, ast.Module)
+        )
         for field in right._fields:  # pylint: disable=protected-access
-            if field in fields_to_skip:
+            if skip_fields and field in fields_to_skip:
                 continue
 
             right_values = getattr(right, field)
@@ -362,6 +365,7 @@ class OptimizationStage1(ast.NodeVisitor):
         "global_expr_code_to_child_code",
         "global_expr_code_to_parent_code",
         "_node_code_cache",
+        "_non_idempotent_eval_cache",
         "_side_effects",
     ]
 
@@ -372,6 +376,7 @@ class OptimizationStage1(ast.NodeVisitor):
             lambda: self.generic_visit
         )
         self._node_code_cache = {}
+        self._non_idempotent_eval_cache = {}
         self.global_expr_code_to_child_code = defaultdict(set)
         self.global_expr_code_to_parent_code = defaultdict(set)
         for name in dir(self):
@@ -609,10 +614,13 @@ class OptimizationStage1(ast.NodeVisitor):
     ):
         expr_chain_collector = None
         node_name = node.__class__.__name__
+        tainted = node_name in _non_idempotent_expr_nodes or (
+            isinstance(node, AstExpr) and self._has_non_idempotent_eval(node)
+        )
 
         if isinstance(node, AstExpr):
             if self.mode_collect_expr_chain:
-                if node_name not in _non_idempotent_expr_nodes:
+                if not tainted:
                     expr_code = self.get_node_code(node)
                     expr_info = self.expr_code_tree[expr_code]
                     if self.parent_expr_code is not None:
@@ -632,7 +640,7 @@ class OptimizationStage1(ast.NodeVisitor):
                 if expr_code in self.exprs_to_optimize:
                     expr_chain_collector = ExprChainCollector(self)
                     expr_chain_collector.start()
-                    if node_name not in _non_idempotent_expr_nodes:
+                    if not tainted:
                         expr_info = self.expr_code_tree[expr_code]
                         expr_info.number += self.mode_track_numbers
                         expr_info.node_paths.append(self.node_path)
@@ -666,6 +674,22 @@ class OptimizationStage1(ast.NodeVisitor):
         expr_code = ast_unparse(node)
         self._node_code_cache[key] = expr_code
         return expr_code
+
+    def _has_non_idempotent_eval(
+        self,
+        node,
+        _names=frozenset(("Call", "NamedExpr", "Await", "Yield", "YieldFrom")),
+    ):
+        cache = self._non_idempotent_eval_cache
+        node_id = id(node)
+        cached = cache.get(node_id)
+        if cached is not None:
+            return cached
+        result = any(
+            child.__class__.__name__ in _names for child in ast.walk(node)
+        )
+        cache[node_id] = result
+        return result
 
     def _custom_expr_visit_call(self, node):
         self.visit_by_attr(node, "func")
