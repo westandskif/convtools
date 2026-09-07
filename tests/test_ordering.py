@@ -230,3 +230,34 @@ def test_sort_chained_lookup_key():
     chained_code = get_code_str(c.this.sort(key=chained_key).gen_converter())
     assert "operator_itemgetter" not in chained_code
     assert "sorting_key" in chained_code
+
+
+def test_sort_dotted_attr_name():
+    a = SimpleNamespace(x=SimpleNamespace(y=20))
+    b = SimpleNamespace(x=SimpleNamespace(y=10))
+    setattr(a, "x.y", 1)
+    setattr(b, "x.y", 2)
+    data = [a, b]
+    assert [c.attr("x.y").execute(r) for r in data] == [1, 2]
+
+    result = c.sort(c.attr("x.y")).execute(data)
+    assert [getattr(r, "x.y") for r in result] == [1, 2]
+
+    result = c.sort(c.attr(c.input_arg("n"))).execute(data, n="x.y")
+    assert [getattr(r, "x.y") for r in result] == [1, 2]
+
+    dotted_code = get_code_str(c.this.sort(key=c.attr("x.y")).gen_converter())
+    assert "operator_attrgetter" not in dotted_code
+    input_arg_code = get_code_str(
+        c.this.sort(key=c.attr(c.input_arg("n"))).gen_converter()
+    )
+    assert "operator_attrgetter" not in input_arg_code
+
+    converter = c.this.sort(key=c.attr("a")).gen_converter()
+    assert "operator_attrgetter" in get_code_str(converter)
+    sk = SortingKeyConversion((c.attr("a"),))
+    assert sk.try_get_key_or_index(sk.keys[0]) is not None
+    sk_dotted = SortingKeyConversion((c.attr("x.y"),))
+    assert sk_dotted.try_get_key_or_index(sk_dotted.keys[0]) is None
+    sk_input = SortingKeyConversion((c.attr(c.input_arg("n")),))
+    assert sk_input.try_get_key_or_index(sk_input.keys[0]) is None

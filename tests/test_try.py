@@ -81,3 +81,17 @@ def test_try_except_tracks_input_arg_dependencies():
     assert strict_conv({}, strict=False) == -1
     with pytest.raises(KeyError):
         strict_conv({}, strict=True)
+
+
+def test_try_except_lazy_exception():
+    converter = (
+        c.try_(c.item(c.input_arg("key")))
+        .except_(
+            KeyError, c.call_func(range, 2).iter(c.EXCEPTION.attr("args"))
+        )
+        .gen_converter()
+    )
+    result = converter({}, key="missing")
+    assert list(result) == [("missing",), ("missing",)]
+    result = converter({}, key="other")
+    assert list(result) == [("other",), ("other",)]

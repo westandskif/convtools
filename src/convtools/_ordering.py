@@ -89,6 +89,15 @@ class SortingKeyConversion(BaseConversion):
             return None
 
         index = key.indexes[0]
+        if getter_type == "attr":
+            # attrgetter splits on dots; InputArg names are unknown here.
+            if (
+                isinstance(index, NaiveConversion)
+                and isinstance(index.value, str)
+                and "." not in index.value
+            ):
+                return index.value, getter_type
+            return None
         if isinstance(index, NaiveConversion):
             return index.value, getter_type
         if isinstance(index, InputArg):

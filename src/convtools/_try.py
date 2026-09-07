@@ -18,7 +18,7 @@ class Try(BaseConversion):
     >>> )
     """
 
-    EXCEPTION = LazyEscapedString("exc_")
+    EXCEPTION = LazyEscapedString("exc")
 
     def __init__(self, conv):
         super().__init__()
@@ -55,7 +55,7 @@ class Try(BaseConversion):
             new_self.ensure_conversion(
                 Namespace(
                     value,
-                    {self.EXCEPTION.name: "exc_"},
+                    {self.EXCEPTION.name: "exc"},
                 )
             ),
         )
@@ -68,7 +68,7 @@ class Try(BaseConversion):
                     else new_self.ensure_conversion(
                         Namespace(
                             re_raise_if,
-                            {self.EXCEPTION.name: "exc_"},
+                            {self.EXCEPTION.name: "exc"},
                         )
                     )
                 ),
@@ -104,6 +104,9 @@ class Try(BaseConversion):
                     ),
                     1,
                 )
+                # Python deletes the `as` name on handler exit; copy it so
+                # lazy except_ values can still reference the exception.
+                code.add_line("exc = exc_", 0)
                 if re_raise_if is not None:
                     code.add_line(
                         "if {}:".format(
