@@ -147,6 +147,39 @@ def test_table_base_init():
         Table.from_rows((), header=True)
 
 
+@pytest.mark.parametrize(
+    "header, expected_columns",
+    [
+        (["a", "a", "a_1"], ["a", "a_1", "a_1_1"]),
+        (["a", "a_1", "a"], ["a", "a_1", "a_2"]),
+    ],
+)
+def test_table_mangle_skips_occupied_names(header, expected_columns):
+    table = Table.from_rows(
+        [(1, 2, 3)], header=header, duplicate_columns="mangle"
+    )
+    assert table.columns == expected_columns
+    assert len(set(table.columns)) == 3
+    row = next(iter(table.into_iter_rows(dict)))
+    assert set(row.values()) == {1, 2, 3}
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        [None, "COLUMN_0"],
+        ["COLUMN_0", None],
+    ],
+)
+def test_table_mangle_none_skips_occupied_column_n(header):
+    table = Table.from_rows(
+        [(1, 2)], header=header, duplicate_columns="mangle"
+    )
+    assert len(set(table.columns)) == 2
+    row = next(iter(table.into_iter_rows(dict)))
+    assert set(row.values()) == {1, 2}
+
+
 def test_from_rows_preserves_leading_none():
     assert list(
         Table.from_rows([None, 1], header=["value"]).into_iter_rows(dict)

@@ -125,17 +125,31 @@ class MetaColumns:
     def add(self, name, index, conversion):
         if name is not None:
             name = str(name)
-        column_number = self.column_to_number[name]
-        self.column_to_number[name] += 1
+        original_name = name
+        column_number = self.column_to_number[original_name]
+        self.column_to_number[original_name] += 1
         state = 0
+        occupied = {column.name for column in self.columns}
 
-        if name is None:
-            name = f"COLUMN_{column_number}"
-        elif column_number:
+        if original_name is None:
+            n = column_number
+            name = f"COLUMN_{n}"
+            while name in occupied:
+                n += 1
+                name = f"COLUMN_{n}"
+            self.column_to_number[None] = n + 1
+        elif column_number or (
+            self.duplicate_columns == "mangle" and original_name in occupied
+        ):
             if self.duplicate_columns == "raise":
-                raise ValueError("such column already exists", name)
+                raise ValueError("such column already exists", original_name)
             if self.duplicate_columns == "mangle":
-                name = f"{name}_{column_number}"
+                n = column_number or 1
+                name = f"{original_name}_{n}"
+                while name in occupied:
+                    n += 1
+                    name = f"{original_name}_{n}"
+                self.column_to_number[original_name] = n + 1
                 state = ColumnChanges.RENAME
             elif self.duplicate_columns == "drop":
                 return None, ColumnChanges.REARRANGE

@@ -49,7 +49,8 @@ tables, rearranges the result columns, and returns a row iterator:
 `duplicate_columns` controls how repeated column names are handled:
 
 * `raise` - raise `ValueError`.
-* `mangle` - rename duplicates to `name`, `name_1`, `name_2`, ...
+* `mangle` - rename duplicates to `name`, `name_1`, `name_2`, ..., skipping
+  names that are already taken.
 * `keep` - keep duplicates; when referenced by name, the first one wins.
 * `drop` - skip duplicates entirely.
 
