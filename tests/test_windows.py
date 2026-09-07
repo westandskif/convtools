@@ -554,4 +554,120 @@ def test_window_chained_order_by():
     ]
 
 
+_LAZY_FRAME_OPTS = dict(
+    frame_mode="ROWS", frame_start="CURRENT ROW", frame_end="CURRENT ROW"
+)
+
+
+def test_window_lazy_row_index_current_row():
+    reducer = c.ReduceFuncs.Array(c.this).iter(c.WindowFuncs.RowIndex())
+    lazy = (
+        c.this.window(reducer).over(**_LAZY_FRAME_OPTS).execute([10, 20, 30])
+    )
+    eager = (
+        c.this.window(reducer.as_type(list))
+        .over(**_LAZY_FRAME_OPTS)
+        .execute([10, 20, 30])
+    )
+    lazy_result = [list(v) for v in lazy]
+    assert lazy_result == [[0], [1], [2]]
+    assert lazy_result == eager
+
+
+def test_window_nested_deferred_row_index():
+    reducer = c.ReduceFuncs.Array(c.this.iter(c.WindowFuncs.RowIndex()))
+    result = (
+        c.this.window(reducer)
+        .over(**_LAZY_FRAME_OPTS)
+        .execute([[10], [20], [30]])
+    )
+    assert [[list(g) for g in arr] for arr in result] == [
+        [[0]],
+        [[1]],
+        [[2]],
+    ]
+
+
+def test_window_bare_sum_row_index():
+    result = (
+        c.this.window(c.ReduceFuncs.Sum(c.WindowFuncs.RowIndex()))
+        .over(**_LAZY_FRAME_OPTS)
+        .execute([10, 20, 30])
+    )
+    assert result == [0, 1, 2]
+
+
+@pytest.mark.parametrize(
+    "window_func",
+    [
+        pytest.param(c.WindowFuncs.RowIndex(), id="RowIndex"),
+        pytest.param(c.WindowFuncs.Row(), id="Row"),
+        pytest.param(c.WindowFuncs.RowPreceding(1), id="RowPreceding"),
+        pytest.param(c.WindowFuncs.RowFollowing(1), id="RowFollowing"),
+        pytest.param(c.WindowFuncs.PeerGroupIndex(), id="PeerGroupIndex"),
+        pytest.param(
+            c.WindowFuncs.PeerGroupFirstRowIndex(),
+            id="PeerGroupFirstRowIndex",
+        ),
+        pytest.param(
+            c.WindowFuncs.PeerGroupLastRowIndex(),
+            id="PeerGroupLastRowIndex",
+        ),
+        pytest.param(
+            c.WindowFuncs.PeerGroupFirstRow(), id="PeerGroupFirstRow"
+        ),
+        pytest.param(c.WindowFuncs.PeerGroupLastRow(), id="PeerGroupLastRow"),
+    ],
+)
+@pytest.mark.parametrize("frame_mode", ["ROWS", "RANGE", "GROUPS"])
+@pytest.mark.parametrize("with_partition", [False, True])
+@pytest.mark.parametrize("with_order", [False, True])
+def test_window_lazy_vs_eager_frame_metadata(
+    window_func, frame_mode, with_partition, with_order
+):
+    data = [
+        {"p": "a", "k": 1, "v": 10},
+        {"p": "a", "k": 1, "v": 20},
+        {"p": "a", "k": 2, "v": 30},
+        {"p": "b", "k": 1, "v": 40},
+        {"p": "b", "k": 2, "v": 50},
+    ]
+    over_kwargs = {
+        "frame_mode": frame_mode,
+        "frame_start": "CURRENT ROW",
+        "frame_end": "CURRENT ROW",
+    }
+    if with_partition:
+        over_kwargs["partition_by"] = c.item("p")
+    if with_order:
+        over_kwargs["order_by"] = c.item("k")
+
+    lazy_reducer = c.ReduceFuncs.Array(c.this).iter(window_func)
+    lazy = c.this.window(lazy_reducer).over(**over_kwargs).execute(data)
+    eager = (
+        c.this.window(lazy_reducer.as_type(list))
+        .over(**over_kwargs)
+        .execute(data)
+    )
+    assert [list(v) for v in lazy] == eager
+
+
+def test_window_input_arg_partition_does_not_clash():
+    result = (
+        c.this.window(
+            {
+                "row": c.WindowFuncs.Row(),
+                "arg": c.input_arg("partition"),
+            }
+        )
+        .over(**_LAZY_FRAME_OPTS)
+        .execute([10, 20, 30], partition="x")
+    )
+    assert result == [
+        {"row": 10, "arg": "x"},
+        {"row": 20, "arg": "x"},
+        {"row": 30, "arg": "x"},
+    ]
+
+
 # TODO: ordering

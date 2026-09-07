@@ -18,7 +18,6 @@ from ._base import (
     LazyEscapedString,
     NaiveConversion,
     Namespace,
-    NamespaceCtx,
     This,
 )
 from ._ordering import SortingKeyConversion
@@ -270,22 +269,15 @@ class AppliedWindow(BaseConversion):
             raise AssertionError("bug")
 
         if name_to_index:
-            frame_data_label = self.gen_random_name("frame_data", ctx)
-            name_to_code = {
-                name: (
-                    LabelConversion(frame_data_label)
-                    .item(index)
-                    .gen_code_and_update_ctx(None, ctx)
-                )
-                for name, index in name_to_index.items()
-            }
-            c_agg = Aggregate(self.reducer)
-            c_agg.contents |= self.ContentTypes.LABEL_USAGE
-            c_frame_data_handler = This.pipe(
-                frame_conv, label_input={frame_data_label: This}
-            ).pipe(c_agg)
+            c_frame_data_handler = Namespace(
+                frame_conv.pipe(Grouper((), self.reducer.conversion)),
+                {
+                    name: GetItem(index)
+                    for name, index in name_to_index.items()
+                },
+            )
+            c_frame_data_handler.contents |= self.ContentTypes.LABEL_USAGE
         else:
-            name_to_code = {}
             c_frame_data_handler = frame_conv.pipe(Aggregate(self.reducer))
 
         if self.order_by is None:
@@ -396,8 +388,7 @@ class AppliedWindow(BaseConversion):
         else:
             conv = conv.pipe(c_agg.as_type(list))
 
-        with NamespaceCtx(name_to_code, ctx):
-            return conv.gen_code_and_update_ctx(code_input, ctx)
+        return conv.gen_code_and_update_ctx(code_input, ctx)
 
     def _init_frame_data(self, name_to_code):
         frame_data_names = {
@@ -798,13 +789,15 @@ class AppliedWindow(BaseConversion):
 
 
 class FrameData:
-    PARTITION = LazyEscapedString("partition")
+    PARTITION = LazyEscapedString("_window_partition")
     PEER_GROUP_FIRST_ROW_INDEX = LazyEscapedString(
-        "peer_group_first_row_index"
+        "_window_peer_group_first_row_index"
     )
-    PEER_GROUP_INDEX = LazyEscapedString("group_index")
-    PEER_GROUP_LAST_ROW_INDEX = LazyEscapedString("peer_group_last_row_index")
-    ROW_INDEX = LazyEscapedString("row_index")
+    PEER_GROUP_INDEX = LazyEscapedString("_window_group_index")
+    PEER_GROUP_LAST_ROW_INDEX = LazyEscapedString(
+        "_window_peer_group_last_row_index"
+    )
+    ROW_INDEX = LazyEscapedString("_window_row_index")
     # PeerGroupIndex = LazyEscapedString("group_index")
     # PeerGroupLastRowIndex = LazyEscapedString("peer_group_last_row_index")
     # RowIndex = LazyEscapedString("row_index")

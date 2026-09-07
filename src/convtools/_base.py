@@ -1821,7 +1821,14 @@ class LabelConversion(BaseConversion):
 
 
 class Namespace(BaseConversion):
-    """Wrap conversion to hide `LazyEscapedString` from parents."""
+    """Wrap conversion to hide `LazyEscapedString` from parents.
+
+    ``name_to_code`` maps a lazy-string name to:
+      * ``True`` — the Namespace's input
+      * ``str`` — literal code
+      * ``None`` — hide the name (leave unresolved)
+      * a conversion — rendered against the Namespace's input
+    """
 
     weight = 0
     self_content_type = (
@@ -1832,19 +1839,32 @@ class Namespace(BaseConversion):
     def __init__(
         self,
         conversion: "Any",
-        name_to_code: "Dict[str, Union[bool, str, None]]",
+        name_to_code: "Dict[str, Union[bool, str, None, BaseConversion]]",
     ):
         super().__init__()
         self.name_to_code = name_to_code
         self.conversion = self.ensure_conversion(conversion)
-        if any(value is True for value in name_to_code.values()):
+        uses_input = False
+        for value in name_to_code.values():
+            if value is True:
+                uses_input = True
+            elif isinstance(value, BaseConversion):
+                uses_input = True
+                self.depends_on(value)
+        if uses_input:
             self.contents |= self.ContentTypes.HIDDEN_INPUT_USAGE
 
     def gen_code_and_update_ctx(self, code_input, ctx):
-        name_to_code = {
-            name: code_input if code is True else code
-            for name, code in self.name_to_code.items()
-        }
+        name_to_code = {}
+        for name, code in self.name_to_code.items():
+            if code is True:
+                name_to_code[name] = code_input
+            elif isinstance(code, BaseConversion):
+                name_to_code[name] = code.gen_code_and_update_ctx(
+                    code_input, ctx
+                )
+            else:
+                name_to_code[name] = code
         with NamespaceCtx(name_to_code, ctx):
             return self.conversion.gen_code_and_update_ctx(code_input, ctx)
 

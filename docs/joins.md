@@ -84,8 +84,10 @@ many-to-many behavior as a relational join.
 
 When the condition contains equality predicates that compare left expressions to
 right expressions, `c.join` uses those predicates as hash keys and stores the
-right side in memory. Additional one-sided filters can be pushed to the relevant
-side before matching.
+right side in memory. Key matching then follows Python dict semantics (identity
+first, then `==`), so e.g. the same `float("nan")` object on both sides matches
+while two distinct NaN objects do not. Additional one-sided filters can be
+pushed to the relevant side before matching.
 
 For non-equi conditions, or conditions that cannot be split into hash keys,
 `c.join` keeps the right side available and checks candidate pairs in a nested
