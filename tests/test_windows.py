@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 
@@ -380,6 +381,120 @@ def test_window_func_exceptions():
 
 
 @pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"frame_mode": "GROUPS", "frame_start": (-1, "PRECEDING")},
+        {"frame_mode": "GROUPS", "frame_start": (1.5, "PRECEDING")},
+        {"frame_mode": "RANGE", "frame_start": (1, "PRECEDING")},
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (-1, "PRECEDING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (-1.0, "PRECEDING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (Decimal("-1"), "PRECEDING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (-timedelta(days=1), "PRECEDING"),
+        },
+        {
+            "frame_mode": "ROWS",
+            "frame_start": "CURRENT ROW",
+            "frame_end": (1, "PRECEDING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": "CURRENT ROW",
+            "frame_end": (1, "PRECEDING"),
+        },
+        {
+            "frame_mode": "GROUPS",
+            "frame_start": "CURRENT ROW",
+            "frame_end": (1, "PRECEDING"),
+        },
+        {
+            "frame_mode": "ROWS",
+            "frame_start": (1, "FOLLOWING"),
+            "frame_end": "CURRENT ROW",
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (1, "FOLLOWING"),
+            "frame_end": "CURRENT ROW",
+        },
+        {
+            "frame_mode": "GROUPS",
+            "frame_start": (1, "FOLLOWING"),
+            "frame_end": "CURRENT ROW",
+        },
+        {
+            "frame_mode": "ROWS",
+            "frame_start": (1, "FOLLOWING"),
+            "frame_end": (1, "PRECEDING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (1, "FOLLOWING"),
+            "frame_end": (1, "PRECEDING"),
+        },
+        {
+            "frame_mode": "GROUPS",
+            "frame_start": (1, "FOLLOWING"),
+            "frame_end": (1, "PRECEDING"),
+        },
+        {
+            "frame_mode": "ROWS",
+            "frame_start": (2, "FOLLOWING"),
+            "frame_end": (1, "FOLLOWING"),
+        },
+        {
+            "frame_mode": "GROUPS",
+            "frame_start": (2, "FOLLOWING"),
+            "frame_end": (1, "FOLLOWING"),
+        },
+        {
+            "frame_mode": "ROWS",
+            "frame_start": (1, "PRECEDING"),
+            "frame_end": (2, "PRECEDING"),
+        },
+        {
+            "frame_mode": "GROUPS",
+            "frame_start": (1, "PRECEDING"),
+            "frame_end": (2, "PRECEDING"),
+        },
+    ],
+)
+def test_window_frame_offset_validation(kwargs):
+    with pytest.raises(ValueError):
+        c.this.window(c.ReduceFuncs.Count()).over(**kwargs)
+
+
+def test_window_empty_runtime_frame_keeps_default():
+    result = (
+        c.this.window(c.ReduceFuncs.Sum(c.this))
+        .over(
+            frame_mode="ROWS",
+            frame_start=(5, "FOLLOWING"),
+            frame_end=(6, "FOLLOWING"),
+        )
+        .execute([1, 2, 3])
+    )
+    assert result == [0, 0, 0]
+
+
+@pytest.mark.parametrize(
     "data, order_by, frame_start, frame_end, expected",
     [
         (
@@ -696,3 +811,69 @@ def test_window_input_arg_partition_does_not_clash():
 
 
 # TODO: ordering
+
+
+def test_window_order_by_list_equals_tuple():
+    data = [(1,), (2,), (3,)]
+    expected = [2, 1, 0]
+    via_tuple = (
+        c.this.window(c.WindowFuncs.RowIndex())
+        .over(order_by=(c.item(0).desc(),))
+        .execute(data)
+    )
+    via_list = (
+        c.this.window(c.WindowFuncs.RowIndex())
+        .over(order_by=[c.item(0).desc()])
+        .execute(data)
+    )
+    assert via_tuple == expected
+    assert via_list == expected
+
+    none_data = [(None,), (1,), (2,)]
+    none_expected = (
+        c.this.window(c.WindowFuncs.RowIndex())
+        .over(order_by=(c.item(0).desc(none_last=True),))
+        .execute(none_data)
+    )
+    none_list = (
+        c.this.window(c.WindowFuncs.RowIndex())
+        .over(order_by=[c.item(0).desc(none_last=True)])
+        .execute(none_data)
+    )
+    assert none_list == none_expected
+
+
+def test_window_partition_by_list_single_key():
+    data = [(0, 1), (1, 2), (0, 3)]
+    via_conv = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(partition_by=c.item(0))
+        .execute(data)
+    )
+    via_list = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(partition_by=[c.item(0)])
+        .execute(data)
+    )
+    via_tuple = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(partition_by=(c.item(0),))
+        .execute(data)
+    )
+    assert via_list == via_conv
+    assert via_tuple == via_conv
+    assert via_conv == [2, 1, 2]
+
+    multi = [(0, 1), (0, 2), (0, 1)]
+    via_multi_tuple = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(partition_by=(c.item(0), c.item(1)))
+        .execute(multi)
+    )
+    via_multi_list = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(partition_by=[c.item(0), c.item(1)])
+        .execute(multi)
+    )
+    assert via_multi_list == via_multi_tuple
+    assert via_multi_tuple == [2, 1, 2]

@@ -3,6 +3,8 @@
 https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS
 """
 
+from datetime import timedelta
+from decimal import Decimal
 from enum import Enum
 from itertools import chain, count, islice
 from typing import MutableMapping, cast
@@ -118,11 +120,14 @@ class AppliedWindow(BaseConversion):
           reducer: window accepts a conversion, which can contain reducers
             and/or window functions to be applied to window frames
 
-          partition_by (optional): conversion to partition by
+          partition_by (optional): conversion or tuple/list of conversions to
+            partition by. A list is a sequence of keys (same as a tuple).
 
-          order_by (optional): conversion or tuple with conversions, which
+          order_by (optional): conversion or tuple/list of conversions, which
             defines the ordering key to sort rows within partitions; rows with
-            the same ordering key form a peer group.
+            the same ordering key form a peer group. A list is a sequence of
+            keys (same as a tuple); wrap with c.list(...) for a single
+            composite key.
 
           frame_mode: one of:
             - "RANGE" (default): window frames are based on offsets between
@@ -141,8 +146,10 @@ class AppliedWindow(BaseConversion):
                 * "RANGE" mode: offset is added to / subtracted from an
                   ordering key of the current row and looked for within the
                   sorted partition; the first matching row is used as a frame
-                  boundary. Requires a single order_by key.
-                * "GROUPS" mode: offset as a number of peer groups
+                  boundary. Requires a single order_by key. Numbers and
+                  timedelta offsets must be non-negative.
+                * "GROUPS" mode: offset as a number of peer groups; must be
+                  non-negative int
 
           frame_end: one of
             - "UNBOUNDED FOLLOWING": the last row of a partition
@@ -154,8 +161,13 @@ class AppliedWindow(BaseConversion):
                 * "RANGE" mode: offset is added to / subtracted from an
                   ordering key of the current row and looked for within the
                   sorted partition; the last matching row is used as a frame
-                  boundary. Requires a single order_by key.
-                * "GROUPS" mode: offset as a number of peer groups
+                  boundary. Requires a single order_by key. Numbers and
+                  timedelta offsets must be non-negative.
+                * "GROUPS" mode: offset as a number of peer groups; must be
+                  non-negative int
+
+          Offsets are non-negative (int for ROWS/GROUPS). Frames whose start
+          is statically after the end are rejected at over() time.
 
           frame_exclusion: one of
             - "NO OTHERS" (default): it says to not exclude anything
@@ -178,6 +190,8 @@ class AppliedWindow(BaseConversion):
         self.reducer.contents |= self.ContentTypes.LABEL_USAGE
         self.conv = self.ensure_conversion(conv)
 
+        if isinstance(partition_by, list):
+            partition_by = tuple(partition_by)
         if isinstance(partition_by, tuple) and len(partition_by) == 1:
             partition_by = partition_by[0]
 
@@ -192,7 +206,9 @@ class AppliedWindow(BaseConversion):
             self.order_by = [
                 self.ensure_conversion(key)
                 for key in (
-                    order_by if isinstance(order_by, tuple) else (order_by,)
+                    order_by
+                    if isinstance(order_by, (tuple, list))
+                    else (order_by,)
                 )
             ]
 
@@ -209,7 +225,7 @@ class AppliedWindow(BaseConversion):
             raise ValueError("frame start cannot be UNBOUNDED FOLLOWING")
         if self.frame_end.unbounded_preceding:
             raise ValueError("frame end cannot be UNBOUNDED PRECEDING")
-        if self.frame_mode == FrameMode.ROWS and not all(
+        if self.frame_mode in (FrameMode.ROWS, FrameMode.GROUPS) and not all(
             isinstance(offset, int) and offset >= 0
             for offset in (
                 self.frame_start.offset,
@@ -225,6 +241,18 @@ class AppliedWindow(BaseConversion):
             self.frame_start.offset is not None
             or self.frame_end.offset is not None
         ):
+            for offset in (
+                self.frame_start.offset,
+                self.frame_end.offset,
+            ):
+                if offset is None:
+                    continue
+                if (
+                    isinstance(offset, (int, float, Decimal)) and offset < 0
+                ) or (isinstance(offset, timedelta) and offset < timedelta(0)):
+                    raise ValueError(
+                        "frame_start/frame_end offsets should be non-negative"
+                    )
             if self.order_by is None:
                 raise ValueError(
                     "RANGE mode offsets require 'order_by' to be set"
@@ -233,6 +261,41 @@ class AppliedWindow(BaseConversion):
                 raise ValueError(
                     "RANGE mode offsets require a single 'order_by' key"
                 )
+
+        start, end = self.frame_start, self.frame_end
+        start_preceding = (
+            start.offset is not None and start.offset_sign_as_str == "-"
+        )
+        start_following = (
+            start.offset is not None and start.offset_sign_as_str == "+"
+        )
+        end_preceding = (
+            end.offset is not None and end.offset_sign_as_str == "-"
+        )
+        end_following = (
+            end.offset is not None and end.offset_sign_as_str == "+"
+        )
+        inverted = False
+        if start.current_row and end_preceding:
+            inverted = True
+        elif start_following and (end.current_row or end_preceding):
+            inverted = True
+        elif (
+            self.frame_mode in (FrameMode.ROWS, FrameMode.GROUPS)
+            and start_following
+            and end_following
+            and start.offset > end.offset
+        ):
+            inverted = True
+        elif (
+            self.frame_mode in (FrameMode.ROWS, FrameMode.GROUPS)
+            and start_preceding
+            and end_preceding
+            and start.offset < end.offset
+        ):
+            inverted = True
+        if inverted:
+            raise ValueError("frame start cannot be after frame end")
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         labels: "MutableMapping[str, BaseConversion]" = {}

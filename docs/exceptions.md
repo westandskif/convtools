@@ -18,4 +18,12 @@ wrapper allows to handle exceptions:
 Both `value` and `re_raise_if` can work with the input data as usual, or
 reference the caught exception as `c.EXCEPTION`.
 
+`try_` only guards evaluation of the wrapped expression. Exceptions raised
+while iterating a generator produced inside it (for example `c.iter(...)`)
+escape the handler. Materialize inside the wrapper:
+
+```python
+c.try_(c.iter(c.item("a")).as_type(list)).except_(KeyError, [])
+```
+
 {!examples-md/api__try.md!}

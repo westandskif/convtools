@@ -95,3 +95,12 @@ def test_try_except_lazy_exception():
     assert list(result) == [("missing",), ("missing",)]
     result = converter({}, key="other")
     assert list(result) == [("other",), ("other",)]
+
+
+def test_try_materialize_lazy_conversion():
+    converter = (
+        c.try_(c.iter(c.item("a")).as_type(list))
+        .except_(KeyError, [])
+        .gen_converter()
+    )
+    assert converter([{}]) == []

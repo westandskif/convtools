@@ -209,14 +209,21 @@ class SortConversion(BaseConversion):
         # --8<-- [start:sort_args_docs]
 
         Args:
-          key: callable or conversion/tuple of conversions to form a sorting
-            key, to be passed to sorted
+          key: callable, or conversion / tuple or list of conversions to form
+            a sorting key, to be passed to sorted. A list is a sequence of
+            keys (same as a tuple); wrap with c.list(...) for a single
+            composite key. A Python callable is passed to sorted as is; a
+            conversion is evaluated per element as the key. To use a callable
+            known only at runtime, wrap it:
+            key=c.input_arg("f").call(c.this).
           reverse (bool): to be passed to sorted
         # --8<-- [end:sort_args_docs]
 
         >>> c.this.sort(key=lambda x: x["a"])
 
         >>> c.this.sort(key=c.item("a"))
+
+        >>> c.this.sort(key=c.input_arg("f").call(c.this))
 
         >>> c.this.sort(
         >>>     key=(
@@ -234,16 +241,20 @@ class SortConversion(BaseConversion):
                 self.sorted_kwargs["key"] = self.ensure_conversion(
                     SortingKeyConversion((key,))
                 )
-            elif isinstance(key, tuple):
-                # Tuple of conversions
+            elif isinstance(key, (tuple, list)):
+                # Tuple/list of conversions
                 self.sorted_kwargs["key"] = self.ensure_conversion(
-                    SortingKeyConversion(key)
+                    SortingKeyConversion(tuple(key))
                 )
             elif callable(key):
                 # Real Python function (lambda, etc.)
                 self.sorted_kwargs["key"] = self.ensure_conversion(key)
             else:
-                raise AssertionError("bug in SortConversion")
+                raise TypeError(
+                    "key should be a callable, a conversion, or a "
+                    "tuple/list of conversions",
+                    key,
+                )
 
         if reverse:
             self.sorted_kwargs["reverse"] = self.ensure_conversion(reverse)

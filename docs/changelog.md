@@ -2,6 +2,9 @@
 
 **Changed**
 
+- `over(order_by=...)`, `over(partition_by=...)` and `sort(key=...)` treat a
+  list as a sequence of keys, same as a tuple; wrap a single composite list
+  key with `c.list(...)`. Unsupported `sort` keys raise `TypeError`
 - removed the post-hoc AST optimizer (`_optimizer.py`). Aggregate / group_by
   reducers now emit a guard-scope tree and share repeated eager expressions
   (including function calls) via temporaries. Reducer `where`/value expressions
@@ -16,6 +19,8 @@
 
 **Fixed**
 
+- window `over()` rejects negative GROUPS offsets, negative RANGE number /
+  `timedelta` offsets, and frames whose start is statically after the end
 - `.asc()` / `.desc()` on a `pipe` now apply to sort and window `order_by` (including `none_last` / `none_first`)
 - `item` / `attr` `default=` conversions that are not constants (`c.label(...)`, `c.inline_expr(...)`, …) are evaluated only on a miss, with or without the C getters
 - `c.input_arg("self")` / `("cls")` now raise at `gen_converter` unless `method=True` / `class_method=True` (or the custom `signature` includes the name)

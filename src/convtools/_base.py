@@ -1104,9 +1104,16 @@ class BaseConversion(Generic[CT]):
         """Extended version of sorted(..., key=key, reverse=reverse).
 
         Args:
-          key: callable or conversion/tuple of conversions to form a sorting
-            key, to be passed to sorted
+          key: callable, or conversion / tuple or list of conversions to form
+            a sorting key, to be passed to sorted. A list is a sequence of
+            keys (same as a tuple); wrap with c.list(...) for a single
+            composite key. A Python callable is passed to sorted as is; a
+            conversion is evaluated per element as the key. To use a callable
+            known only at runtime, wrap it:
+            key=c.input_arg("f").call(c.this).
           reverse (bool): to be passed to sorted
+
+        >>> c.this.sort(key=c.input_arg("f").call(c.this))
         """
         return self.pipe(
             convtools_ordering.SortConversion(key=key, reverse=reverse)

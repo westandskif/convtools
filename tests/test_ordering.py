@@ -214,6 +214,13 @@ def test_ordering_callable_key():
     assert converter([3, 1, 2]) == [3, 2, 1]
 
 
+def test_sort_runtime_callable_via_input_arg_call():
+    result = c.this.sort(key=c.input_arg("f").call(c.this)).execute(
+        [3, 1, 2], f=lambda x: -x
+    )
+    assert result == [3, 2, 1]
+
+
 def test_sort_chained_lookup_key():
     data = [{"a": {"b": 2}, "b": 0}, {"a": {"b": 1}, "b": 9}]
     result = c.this.sort(key=c.item("a").item("b")).execute(data)
@@ -281,3 +288,33 @@ def test_sort_dotted_attr_name():
     assert sk_dotted.try_get_key_or_index(sk_dotted.keys[0]) is None
     sk_input = SortingKeyConversion((c.attr(c.input_arg("n")),))
     assert sk_input.try_get_key_or_index(sk_input.keys[0]) is None
+
+
+def test_sort_key_list_equals_tuple():
+    data = [
+        {"a": 1, "b": 2},
+        {"a": 1, "b": 1},
+        {"a": 0, "b": 9},
+    ]
+    expected = c.this.sort(key=(c.item("a"), c.item("b").desc())).execute(data)
+    result = c.this.sort(key=[c.item("a"), c.item("b").desc()]).execute(data)
+    assert result == expected
+    assert expected == [
+        {"a": 0, "b": 9},
+        {"a": 1, "b": 2},
+        {"a": 1, "b": 1},
+    ]
+
+    none_data = [{"a": None}, {"a": 1}, {"a": 2}]
+    none_expected = c.this.sort(
+        key=(c.item("a").desc(none_last=True),)
+    ).execute(none_data)
+    none_list = c.this.sort(key=[c.item("a").desc(none_last=True)]).execute(
+        none_data
+    )
+    assert none_list == none_expected
+
+
+def test_sort_unsupported_key_type():
+    with pytest.raises(TypeError, match="callable"):
+        c.this.sort(key=123)

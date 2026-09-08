@@ -82,8 +82,8 @@ c.WindowFuncs.RowPreceding(1).item("amount", default=0)
 
 | Parameter | Default | Description |
 | --- | --- | --- |
-| `partition_by` | not set | Conversion used to split input rows into independent partitions. Use a tuple of conversions for multi-key partitions. |
-| `order_by` | not set | Conversion, or tuple of conversions, used to order rows inside each partition. Equal ordering keys form a peer group. Supports sorting helpers such as `.desc()` and `none_last=True`. |
+| `partition_by` | not set | Conversion used to split input rows into independent partitions. Use a tuple or list of conversions for multi-key partitions. |
+| `order_by` | not set | Conversion, or tuple or list of conversions, used to order rows inside each partition. Equal ordering keys form a peer group. Supports sorting helpers such as `.desc()` and `none_last=True`. |
 | `frame_mode` | `"RANGE"` | Frame interpretation: `"RANGE"` uses ordering-key values, `"ROWS"` uses row offsets, and `"GROUPS"` uses peer-group offsets. |
 | `frame_start` | `"UNBOUNDED PRECEDING"` | Start boundary. Accepts `"UNBOUNDED PRECEDING"`, `"CURRENT ROW"`, or `(offset, "PRECEDING" / "FOLLOWING")`. |
 | `frame_end` | `"CURRENT ROW"` | End boundary. Accepts `"UNBOUNDED FOLLOWING"`, `"CURRENT ROW"`, or `(offset, "PRECEDING" / "FOLLOWING")`. |
@@ -93,9 +93,12 @@ Frame modes follow PostgreSQL terminology:
 
 | Mode | Frame offset meaning |
 | --- | --- |
-| `"RANGE"` | Offsets are added to or subtracted from the current row's ordering key. Offset frames require `order_by`. |
-| `"ROWS"` | Offsets are non-negative row counts before or after the current row. |
-| `"GROUPS"` | Offsets are peer-group counts before or after the current peer group. |
+| `"RANGE"` | Offsets are added to or subtracted from the current row's ordering key. Offset frames require `order_by`. Numbers and `timedelta` offsets must be non-negative. |
+| `"ROWS"` | Offsets are non-negative int row counts before or after the current row. |
+| `"GROUPS"` | Offsets are non-negative int peer-group counts before or after the current peer group. |
+
+Offsets are non-negative (int for ROWS/GROUPS). Frames whose start is
+statically after the end are rejected at `over()` time.
 
 For available reducers, see [`c.ReduceFuncs`](./aggregations.md#creducefuncs).
 
