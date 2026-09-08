@@ -1,5 +1,6 @@
 """Base and basic conversions are defined here."""
 
+import ast
 import builtins
 import re
 import string
@@ -258,6 +259,7 @@ class BaseConversion(Generic[CT]):
         ORDERING_DESC = 2
         ORDERING_NONE_LAST = 4
         ORDERING_NONE_FIRST = 8
+        ORDERING_ASC = 16
 
     output_hints = 0
     weight = Weights.UNPREDICTABLE
@@ -642,12 +644,27 @@ class BaseConversion(Generic[CT]):
             ctx = self._init_ctx(debug=debug)
 
             input_arg_rename_map = ctx[self.INPUT_ARG_RENAME_MAP]
+            if signature is not None:
+                signature_names = _signature_param_names(signature)
+                self_in_scope = "self" in signature_names
+                cls_in_scope = "cls" in signature_names
+            else:
+                self_in_scope = bool(method)
+                cls_in_scope = bool(class_method)
             for dep in self.get_dependencies():
-                if (
-                    isinstance(dep, InputArg)
-                    and dep.name not in input_arg_rename_map
-                ):
-                    input_arg_rename_map[dep.name] = None
+                if isinstance(dep, InputArg):
+                    if dep.name not in input_arg_rename_map:
+                        input_arg_rename_map[dep.name] = None
+                    if dep.name == "self" and not self_in_scope:
+                        raise ConversionException(
+                            'c.input_arg("self") requires '
+                            "gen_converter(method=True)"
+                        )
+                    if dep.name == "cls" and not cls_in_scope:
+                        raise ConversionException(
+                            'c.input_arg("cls") requires '
+                            "gen_converter(class_method=True)"
+                        )
             for name in input_arg_rename_map:
                 input_arg_rename_map[name] = self.gen_random_name(
                     f"_input_arg_{name}", ctx
@@ -912,7 +929,10 @@ class BaseConversion(Generic[CT]):
         resulting_args = []
         for arg in chain((self,), args):
             if isinstance(arg, Or):
-                resulting_args.extend(arg.args)
+                if arg.args:
+                    resulting_args.extend(arg.args)
+                else:
+                    resulting_args.append(NaiveConversion(bool(arg.default)))
             else:
                 resulting_args.append(arg)
 
@@ -926,7 +946,10 @@ class BaseConversion(Generic[CT]):
 
         for arg in chain((self,), args):
             if isinstance(arg, And):
-                resulting_args.extend(arg.args)
+                if arg.args:
+                    resulting_args.extend(arg.args)
+                else:
+                    resulting_args.append(NaiveConversion(bool(arg.default)))
             else:
                 resulting_args.append(arg)
 
@@ -1498,7 +1521,7 @@ class BaseConversion(Generic[CT]):
             result = result.add_hint(self.OutputHints.ORDERING_NONE_LAST)
         if none_first:
             result = result.add_hint(self.OutputHints.ORDERING_NONE_FIRST)
-        return result
+        return result.add_hint(self.OutputHints.ORDERING_ASC)
 
     def desc(self, none_last=None, none_first=None):
         """Sets descending ordering hint, to be used by conversion sort method.
@@ -1561,6 +1584,25 @@ class BaseMethodConversion(BaseConversion):
 _pattern_illegal_chars = re.compile("[^0-9a-zA-Z_]")
 _pattern_illegal_leading_chars = re.compile("^[^a-zA-Z_]+")
 _pattern_word = re.compile(r"(\w+)")
+
+
+def _signature_param_names(signature: str) -> Set[str]:
+    try:
+        module = ast.parse(f"def _({signature}):\n    pass")
+    except SyntaxError:
+        return set()
+    stmt = module.body[0]
+    if not isinstance(stmt, ast.FunctionDef):
+        return set()
+    args = stmt.args
+    names = {arg.arg for arg in args.args}
+    names.update(arg.arg for arg in args.kwonlyargs)
+    names.update(arg.arg for arg in getattr(args, "posonlyargs", ()))
+    if args.vararg is not None:
+        names.add(args.vararg.arg)
+    if args.kwarg is not None:
+        names.add(args.kwarg.arg)
+    return names
 
 
 def var_name_from_string(s):
@@ -2473,9 +2515,9 @@ class GetItem(BaseMethodConversion):
         elif self.default is not None and (
             not self.indexes_are_simple or not self.default_is_simple
         ):
-            # helper always add_arg("data_", This()); mark so a pipe does not
-            # also tuple-wrap the left side. When self_ is distinct from
-            # data_, that This() is an extra input use.
+            # helper add_arg("data_", This()) for non-simple indexes/default;
+            # mark so a pipe does not also tuple-wrap the left side. When
+            # self_ is distinct from data_, that This() is an extra input use.
             self.contents |= self.ContentTypes.HIDDEN_INPUT_USAGE
             if self.self_conv is not self._none:
                 self.number_of_input_uses += 1
@@ -2496,7 +2538,7 @@ class GetItem(BaseMethodConversion):
 
         if self.indexes_are_simple and self.default_is_simple:
 
-            if not isinstance(self.default, Call):
+            if isinstance(self.default, NaiveConversion):
                 return CallFunc(
                     self.getter_default_simple,
                     (
@@ -2508,7 +2550,8 @@ class GetItem(BaseMethodConversion):
                     self.default,
                 )
             elif (
-                isinstance(self.default.self_conv, NaiveConversion)
+                isinstance(self.default, Call)
+                and isinstance(self.default.self_conv, NaiveConversion)
                 and not self.default.args
                 and not self.default.kwargs
             ):
@@ -3689,6 +3732,8 @@ class PipeConversion(BaseConversion):
         return id(self)
 
     def has_hint(self, hint: int) -> int:
+        if self.output_hints:
+            return self.output_hints & hint
         if self.where is This:
             return self.what.has_hint(hint)
         return self.where.has_hint(hint)

@@ -392,6 +392,27 @@ def test_pipe_keeps_left_side_effects():
     assert calls == [10]
 
 
+def test_pipe_keeps_left_when_item_default_is_label():
+    with pytest.raises(IndexError):
+        c.item(0).pipe(
+            c.naive({"a": 1}).item("a", default=c.label("prev"))
+        ).execute([])
+
+    calls = []
+
+    def counting(value):
+        calls.append(value)
+        return value
+
+    assert (
+        c.call_func(counting, c.this)
+        .pipe(c.naive({"a": 1}).item("a", default=c.label("prev")))
+        .execute(3)
+        == 1
+    )
+    assert calls == [3]
+
+
 def test_pipe_method_conv_non_input_source_side_effects():
     data = {"a": 0}
     assert (

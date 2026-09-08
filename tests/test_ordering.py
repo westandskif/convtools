@@ -176,6 +176,26 @@ def test_asc_desc_do_not_mutate():
     assert sk.try_get_key_or_index(k) is not None
 
 
+def test_pipe_ordering_hints():
+    assert c.this.sort(key=c.this.pipe(int).desc()).execute(
+        ["1", "3", "2"]
+    ) == [
+        "3",
+        "2",
+        "1",
+    ]
+    assert c.this.sort(
+        key=c.item("a").pipe(c.this).asc(none_last=True)
+    ).execute([{"a": None}, {"a": 2}]) == [{"a": 2}, {"a": None}]
+    data = [{"a": 1}, {"a": 2}]
+    assert c.this.sort(key=c.item("a").pipe(c.this.desc()).asc()).execute(
+        data
+    ) == [{"a": 1}, {"a": 2}]
+    assert c.this.sort(key=c.item("a").desc().pipe(c.this).asc()).execute(
+        data
+    ) == [{"a": 1}, {"a": 2}]
+
+
 def test_ordering_exceptions():
     with pytest.raises(ValueError):
         c.this.asc(none_first=True, none_last=True)

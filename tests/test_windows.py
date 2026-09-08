@@ -522,6 +522,31 @@ def test_range_offsets_pipe_shaped_desc_key():
     assert via_pipe == expected
 
 
+def test_window_order_by_desc_on_pipe():
+    data = [{"v": v} for v in [1, 2, 3, 5]]
+    expected = [2, 2, 1, 1]
+    via_desc = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(
+            order_by=c.item("v").desc(),
+            frame_start=(1, "PRECEDING"),
+            frame_end="CURRENT ROW",
+        )
+        .execute(data)
+    )
+    via_pipe = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(
+            order_by=c.item("v").pipe(c.this).desc(),
+            frame_start=(1, "PRECEDING"),
+            frame_end="CURRENT ROW",
+        )
+        .execute(data)
+    )
+    assert via_desc == expected
+    assert via_pipe == expected
+
+
 def test_range_offsets_require_single_order_by_key():
     with pytest.raises(ValueError):
         c.this.window(c.ReduceFuncs.Count()).over(

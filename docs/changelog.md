@@ -16,6 +16,11 @@
 
 **Fixed**
 
+- `.asc()` / `.desc()` on a `pipe` now apply to sort and window `order_by` (including `none_last` / `none_first`)
+- `item` / `attr` `default=` conversions that are not constants (`c.label(...)`, `c.inline_expr(...)`, …) are evaluated only on a miss, with or without the C getters
+- `c.input_arg("self")` / `("cls")` now raise at `gen_converter` unless `method=True` / `class_method=True` (or the custom `signature` includes the name)
+- empty nested `or_` / `and_` with a `default` flatten to that boolean instead of being dropped
+
 - `ReduceFuncs.Sum`: the no-group-key `c.aggregate` path now generates the same
   accumulation loop as `group_by`, so any addable type (`timedelta`, `Decimal`,
   `str`, ...) behaves identically on both

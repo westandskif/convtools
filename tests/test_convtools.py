@@ -8,7 +8,13 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from convtools import conversion as c
-from convtools._base import LazyEscapedString, Namespace
+from convtools._base import (
+    GetAttr,
+    GetItem,
+    LazyEscapedString,
+    NaiveConversion,
+    Namespace,
+)
 from convtools._utils import Code
 
 from .utils import get_code_str
@@ -84,14 +90,8 @@ def test_gen_converter():
         conv1 = (c.this() + c.input_arg("self").attr("x")).gen_converter(
             method=True
         )
-        conv2 = (c.this + c.input_arg("cls").attr("x")).gen_converter(
-            method=True
-        )
 
         conv3 = (c.this + c.input_arg("cls").attr("x")).gen_converter(
-            class_method=True
-        )
-        conv4 = (c.this + c.input_arg("self").attr("x")).gen_converter(
             class_method=True
         )
 
@@ -125,10 +125,20 @@ def test_gen_converter():
     assert A().conv1(100) == 120
     assert A.conv3(100) == 110
 
-    with pytest.raises(NameError):
-        A().conv2(100)
-    with pytest.raises(NameError):
-        A.conv4(100)
+    with pytest.raises(c.ConversionException):
+        c.input_arg("self").gen_converter()
+    with pytest.raises(c.ConversionException):
+        c.input_arg("cls").gen_converter()
+    with pytest.raises(c.ConversionException):
+        (c.this + c.input_arg("cls").attr("x")).gen_converter(method=True)
+    with pytest.raises(c.ConversionException):
+        (c.this + c.input_arg("self").attr("x")).gen_converter(
+            class_method=True
+        )
+    with pytest.raises(c.ConversionException):
+        c.input_arg("self").gen_converter(signature="data_='self'")
+    with pytest.raises(c.ConversionException):
+        c.input_arg("cls").gen_converter(signature="data_='cls'")
 
     assert A().conv5() == 1035
     assert A().conv5(data_=7) == 1027
@@ -313,6 +323,19 @@ def test_naive_conversion_item():
         == 7
     )
 
+    assert c.item("a", default=c.label("prev")).execute({"a": 1}) == 1
+    labeled_item = c.this.pipe(
+        c.item("a", default=c.label("prev")), label_input="prev"
+    )
+    assert labeled_item.execute({"a": 1}) == 1
+    assert labeled_item.execute({"b": 2}) == {"b": 2}
+
+    assert c.item("a", default=c.label("prev")).hardcoded_version is None
+    const_item = c.item("a", default=1)
+    assert isinstance(const_item.default, NaiveConversion)
+    if GetItem.getter_default_simple is not None:
+        assert const_item.hardcoded_version is not None
+
     converter = c.item(0, 0, 0, default=1).gen_converter()
     assert converter([[[2]]]) == 2
     assert converter([[[]]]) == 1
@@ -424,6 +447,24 @@ def test_naive_conversion_item():
 
     with pytest.raises(NotImplementedError):
         c.attr("a", default=-1).execute(A())
+
+
+def test_item_label_default_python_fallback(monkeypatch):
+    monkeypatch.setattr(GetItem, "getter_default_simple", None)
+    monkeypatch.setattr(GetItem, "getter_default_callable", None)
+    monkeypatch.setattr(GetAttr, "getter_default_simple", None)
+    monkeypatch.setattr(GetAttr, "getter_default_callable", None)
+    assert c.item("a", default=c.label("prev")).execute({"a": 1}) == 1
+    labeled_item = c.this.pipe(
+        c.item("a", default=c.label("prev")), label_input="prev"
+    )
+    assert labeled_item.execute({"a": 1}) == 1
+    assert labeled_item.execute({"b": 2}) == {"b": 2}
+    assert c.item("a", default=c.label("prev")).hardcoded_version is None
+    assert c.attr("a", default=c.label("prev")).hardcoded_version is None
+    assert c.this.pipe(
+        c.attr("a", default=c.label("prev")), label_input="prev"
+    ).execute(SimpleNamespace(b=2)) == SimpleNamespace(b=2)
 
 
 def test_item_attr_zero_indexes_with_default():
@@ -823,6 +864,10 @@ def test_naive_conversion_or_and():
 
     assert c.this.and_(c.and_(c.this, 3)).execute(1) == 3
     assert (c.this & (c.this & 3)).execute(1) == 3
+
+    assert c.this.or_(c.or_(default=True)).execute(0) is True
+    assert c.this.and_(c.and_(default=False)).execute(1) is False
+    assert c.this.or_(c.or_(default=False)).execute(0) is False
 
 
 def test_escaped_string_conversion():
