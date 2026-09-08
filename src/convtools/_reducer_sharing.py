@@ -10,7 +10,7 @@ must not mutate the values they receive.
 
 import ast
 import copy
-from typing import Any, Dict, Tuple  # noqa: F401  # type comment below
+from functools import lru_cache
 
 from ._utils import ast_unparse
 
@@ -39,8 +39,6 @@ _HOISTABLE_TYPES = (
     ast.IfExp,
 )
 
-_TEMPLATE_INFO_CACHE = {}  # type: Dict[Tuple[Any, ...], Tuple[Any, ...]]
-
 
 def _is_binder(node):
     return isinstance(node, _BINDER_TYPES)
@@ -50,8 +48,46 @@ def _is_hoistable(node):
     return isinstance(node, _HOISTABLE_TYPES)
 
 
-def _node_size(node):
-    return sum(1 for _ in ast.walk(node))
+def _structural_keys(root, intern):
+    """Map id(node) -> (key, size) for every node under root.
+
+    ``key`` is a small int interned via ``intern`` so that two subtrees get
+    the same key if their ``ast.dump`` would be equal; computed bottom-up in
+    one pass instead of dumping every subtree separately.
+    """
+    keys = {}
+
+    def visit(node):
+        parts = []
+        size = 1
+        for field, value in ast.iter_fields(node):
+            if isinstance(value, ast.AST):
+                sub_key, sub_size = visit(value)
+                size += sub_size
+                parts.append((field, sub_key))
+            elif isinstance(value, list):
+                sub_keys = []
+                for elem in value:
+                    if isinstance(elem, ast.AST):
+                        sub_key, sub_size = visit(elem)
+                        size += sub_size
+                        sub_keys.append(sub_key)
+                    else:
+                        sub_keys.append(repr(elem))
+                parts.append((field, tuple(sub_keys)))
+            else:
+                parts.append((field, repr(value)))
+        raw = (type(node), tuple(parts))
+        key = intern.get(raw)
+        if key is None:
+            key = len(intern)
+            intern[raw] = key
+        entry = (key, size)
+        keys[id(node)] = entry
+        return entry
+
+    visit(root)
+    return keys
 
 
 def _opaque_eager_parts(node):
@@ -124,13 +160,14 @@ def _fmt_expr(node, original=None, rewritten=False):
 
 
 class _ReplaceDumps(ast.NodeTransformer):
-    def __init__(self, dump_to_name):
-        self.dump_to_name = dump_to_name
+    def __init__(self, key_to_name, keys):
+        self.key_to_name = key_to_name
+        self.keys = keys
         self.changed = False
 
     def visit(self, node):
         if isinstance(node, ast.expr):
-            name = self.dump_to_name.get(ast.dump(node))
+            name = self.key_to_name.get(self.keys[id(node)][0])
             if name is not None:
                 self.changed = True
                 return ast.Name(id=name, ctx=ast.Load())
@@ -183,8 +220,8 @@ class _ReplaceDumps(ast.NodeTransformer):
         return ast.arguments(**kwargs)
 
 
-def _replace_dumps(node, dump_to_name):
-    transformer = _ReplaceDumps(dump_to_name)
+def _replace_dumps(node, key_to_name, keys):
+    transformer = _ReplaceDumps(key_to_name, keys)
     new_node = transformer.visit(node)
     return new_node, transformer.changed
 
@@ -331,18 +368,15 @@ def _analyze_template_block(lines, n_values):
     return eager, weights
 
 
+@lru_cache(maxsize=1024)
 def _template_info(prepare_lines, reduce_lines, n_values):
-    key = (prepare_lines, reduce_lines, n_values)
-    cached = _TEMPLATE_INFO_CACHE.get(key)
-    if cached is not None:
-        return cached
+    # Templates embed per-compile naive names and user constants, so the
+    # key space is unbounded; bound the cache instead of using a plain dict.
     init_eager, init_weight = _analyze_template_block(prepare_lines, n_values)
     reduce_eager, reduce_weight = _analyze_template_block(
         reduce_lines, n_values
     )
-    info = (init_eager, init_weight, reduce_eager, reduce_weight)
-    _TEMPLATE_INFO_CACHE[key] = info
-    return info
+    return init_eager, init_weight, reduce_eager, reduce_weight
 
 
 class _CountItem(object):
@@ -548,37 +582,43 @@ def _analyze_scope(scope, plan, with_init, signature, tmp_index):
     _collect_count_items(scope, plan, with_init, scope, signature, items)
     local_temps = []
     local_i = 0
+    intern = {}
+    item_keys = {}  # id(item) -> structural keys; dropped when rewritten
     while True:
         candidates = {}
         for item in items:
-            eager_dumps = set()
+            keys = item_keys.get(id(item))
+            if keys is None:
+                keys = _structural_keys(item.tree, intern)
+                item_keys[id(item)] = keys
+            eager_keys = set()
             if item.is_self_eager_root:
                 for node in _iter_eager(item.tree):
                     if _is_hoistable(node):
-                        eager_dumps.add(ast.dump(node))
+                        eager_keys.add(keys[id(node)][0])
             for node in _iter_hoistable(item.tree):
-                dumped = ast.dump(node)
-                rec = candidates.get(dumped)
+                key, size = keys[id(node)]
+                rec = candidates.get(key)
                 if rec is None:
                     rec = {
-                        "size": _node_size(node),
+                        "size": size,
                         "count": 0,
                         "eager_ok": False,
                         "node": node,
                     }
-                    candidates[dumped] = rec
+                    candidates[key] = rec
                 rec["count"] += item.weight
-                if dumped in eager_dumps:
+                if key in eager_keys:
                     rec["eager_ok"] = True
         best = None
         best_key = None
-        for dumped, rec in candidates.items():
+        for key, rec in candidates.items():
             if rec["count"] < 2 or not rec["eager_ok"]:
                 continue
-            key = (rec["size"], rec["count"], dumped)
-            if best is None or key > best:
-                best = key
-                best_key = dumped
+            order = (rec["size"], rec["count"], key)
+            if best is None or order > best:
+                best = order
+                best_key = key
         if best_key is None:
             break
         rec = candidates[best_key]
@@ -587,10 +627,13 @@ def _analyze_scope(scope, plan, with_init, signature, tmp_index):
         rhs_tree = copy.deepcopy(rec["node"])
         mapping = {best_key: internal_name}
         for item in items:
-            new_tree, changed = _replace_dumps(item.tree, mapping)
+            new_tree, changed = _replace_dumps(
+                item.tree, mapping, item_keys[id(item)]
+            )
             if changed:
                 item.tree = new_tree
                 item.rewritten = True
+                del item_keys[id(item)]
         items.append(
             _CountItem(
                 _fmt_expr(rhs_tree, rewritten=True),

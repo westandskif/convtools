@@ -371,6 +371,13 @@ def test_table_rename():
 
     result = list(
         Table.from_rows([{"a": 1}])
+        .rename({"missing": "A"})
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": 1}]
+
+    result = list(
+        Table.from_rows([{"a": 1}])
         .rename({"a": "b"})
         .update(a=2)
         .into_iter_rows(dict)
