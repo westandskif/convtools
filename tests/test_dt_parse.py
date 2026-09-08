@@ -286,3 +286,19 @@ def test_date_parse_whitespace_tab():
 def test_datetime_parse_whitespace_regex_codegen():
     assert "\\s" not in DatetimeParse("%Y-%m-%d").re_pattern.pattern
     assert DatetimeParse("%Y %m").re_pattern.pattern.count(r"\s+") == 1
+
+
+def test_datetime_parse_repeated_directive():
+    for fmt, directive in (
+        ("%Y%Y", "%Y"),
+        ("%H:%M:%H", "%H"),
+        ("%z%Y%Y", "%Y"),
+        ("%Y%z%Y", "%Y"),
+        ("%Y%Y%z", "%Y"),
+    ):
+        with pytest.raises(ValueError, match=directive):
+            c.datetime_parse(fmt).gen_converter()
+
+    assert c.datetime_parse("%Y%%%%%m").execute("2024%%01") == datetime(
+        2024, 1, 1
+    )

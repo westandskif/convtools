@@ -1566,3 +1566,73 @@ def test_datetime_trunc_2d_1h_repro():
     assert c.datetime_trunc("2d", "1h").execute(datetime(2020, 1, 1)) == (
         datetime(2019, 12, 31, 1, 0)
     )
+
+
+def _assert_trunc_result(got, wall, fold, offset):
+    assert (
+        got.year,
+        got.month,
+        got.day,
+        got.hour,
+        got.minute,
+        got.second,
+        got.microsecond,
+    ) == wall
+    assert got.fold == fold
+    if offset is None:
+        assert got.tzinfo is None
+    else:
+        assert got.utcoffset() == offset
+
+
+@pytest.mark.parametrize("mode", ("start", "end", "end_inclusive"))
+@pytest.mark.parametrize("step", ("1h", "1d", "1mo"))
+def test_datetime_trunc_preserves_fold(mode, step):
+    zoneinfo = pytest.importorskip("zoneinfo")
+    tz = zoneinfo.ZoneInfo("America/New_York")
+    dt_fold1 = datetime(2021, 11, 7, 1, 30, tzinfo=tz, fold=1)
+    dt_fold0 = datetime(2021, 11, 7, 1, 30, tzinfo=tz, fold=0)
+    dt_naive = datetime(2021, 11, 7, 1, 30)
+    edt = timedelta(hours=-4)
+    est = timedelta(hours=-5)
+    expected = {
+        "1h": {
+            "start": ((2021, 11, 7, 1, 0, 0, 0), edt, est),
+            "end": ((2021, 11, 7, 2, 0, 0, 0), est, est),
+            "end_inclusive": (
+                (2021, 11, 7, 1, 59, 59, 999999),
+                edt,
+                est,
+            ),
+        },
+        "1d": {
+            "start": ((2021, 11, 7, 0, 0, 0, 0), edt, edt),
+            "end": ((2021, 11, 8, 0, 0, 0, 0), est, est),
+            "end_inclusive": (
+                (2021, 11, 7, 23, 59, 59, 999999),
+                est,
+                est,
+            ),
+        },
+        "1mo": {
+            "start": ((2021, 11, 1, 0, 0, 0, 0), edt, edt),
+            "end": ((2021, 12, 1, 0, 0, 0, 0), est, est),
+            "end_inclusive": (
+                (2021, 11, 30, 23, 59, 59, 999999),
+                est,
+                est,
+            ),
+        },
+    }
+    wall, offset0, offset1 = expected[step][mode]
+
+    got1 = c.datetime_trunc(step, mode=mode).execute(dt_fold1)
+    assert got1.tzinfo is tz
+    _assert_trunc_result(got1, wall, 1, offset1)
+
+    got0 = c.datetime_trunc(step, mode=mode).execute(dt_fold0)
+    assert got0.tzinfo is tz
+    _assert_trunc_result(got0, wall, 0, offset0)
+
+    got_naive = c.datetime_trunc(step, mode=mode).execute(dt_naive)
+    _assert_trunc_result(got_naive, wall, 0, None)

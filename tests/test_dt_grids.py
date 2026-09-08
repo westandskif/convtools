@@ -596,6 +596,15 @@ def test_grid_exceptions():
         DateTimeGrid("0h")
 
 
+def test_to_step_sign_only():
+    from convtools._dt import to_step
+
+    with pytest.raises(ValueError):
+        to_step("-")
+    with pytest.raises(ValueError):
+        DateGrid("-")
+
+
 def test_grid_negative_offset():
     result = list(
         DateTimeGrid("8h", "-1h").around(

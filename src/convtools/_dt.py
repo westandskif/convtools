@@ -186,37 +186,55 @@ def datetime_trunc_to_month(dt, to_months, offset_months, mode):
     total_months -= (total_months - offset_months) % to_months
     if mode == 1:
         return datetime(
-            total_months // 12, total_months % 12 + 1, 1, tzinfo=dt.tzinfo
+            total_months // 12,
+            total_months % 12 + 1,
+            1,
+            tzinfo=dt.tzinfo,
+            fold=dt.fold,
         )
 
     elif mode == 2:
         total_months += to_months
         return datetime(
-            total_months // 12, total_months % 12 + 1, 1, tzinfo=dt.tzinfo
+            total_months // 12,
+            total_months % 12 + 1,
+            1,
+            tzinfo=dt.tzinfo,
+            fold=dt.fold,
         )
 
     total_months += to_months
     return (
         datetime(
-            total_months // 12, total_months % 12 + 1, 1, tzinfo=dt.tzinfo
+            total_months // 12,
+            total_months % 12 + 1,
+            1,
+            tzinfo=dt.tzinfo,
+            fold=dt.fold,
         )
         - MICROSECOND
-    )
+    ).replace(fold=dt.fold)
 
 
 def datetime_trunc_to_day(dt, to_days, offset_days, mode):
     days = dt.toordinal()
     days -= (days - offset_days) % to_days
     if mode == 1:
-        return datetime_from_ordinal(days).replace(tzinfo=dt.tzinfo)
+        return datetime_from_ordinal(days).replace(
+            tzinfo=dt.tzinfo, fold=dt.fold
+        )
 
     elif mode == 2:
-        return datetime_from_ordinal(days + to_days).replace(tzinfo=dt.tzinfo)
+        return datetime_from_ordinal(days + to_days).replace(
+            tzinfo=dt.tzinfo, fold=dt.fold
+        )
 
     return (
-        datetime_from_ordinal(days + to_days).replace(tzinfo=dt.tzinfo)
+        datetime_from_ordinal(days + to_days).replace(
+            tzinfo=dt.tzinfo, fold=dt.fold
+        )
         - MICROSECOND
-    )
+    ).replace(fold=dt.fold)
 
 
 def datetime_trunc_to_microsecond(dt, to_us, offset_us, mode):
@@ -244,6 +262,7 @@ def datetime_trunc_to_microsecond(dt, to_us, offset_us, mode):
         second=left_microseconds % 60000000 // 1000000,
         microsecond=left_microseconds % 1000000,
         tzinfo=dt.tzinfo,
+        fold=dt.fold,
     )
 
 
@@ -305,7 +324,7 @@ def to_step(in_) -> "Union[MonthStep, DayOfWeekStep, MicroSecondStep]":
                 raise ValueError("unknown type", type_)
 
         if step_cls is None:
-            raise AssertionError
+            raise ValueError("unsupported definition of grid", in_)
 
         if negative:
             if issubclass(step_cls, DayOfWeekStep):
@@ -950,6 +969,24 @@ class DatetimeParse(BaseConversion):
     @staticmethod
     @lru_cache(32)
     def _parse_fmt(fmt):
+        seen_directives = set()
+        i = 0
+        length = len(fmt)
+        while i < length:
+            if fmt[i] != "%":
+                i += 1
+                continue
+            i += 1
+            if i >= length or fmt[i] == "%":
+                i += 1
+                continue
+            ch = fmt[i]
+            if ch in "YmdHIpMSf":
+                if ch in seen_directives:
+                    raise ValueError(f"repeated directive %{ch}")
+                seen_directives.add(ch)
+            i += 1
+
         re_pieces = []
         code_params = CodeParams()
         group_index = 0
