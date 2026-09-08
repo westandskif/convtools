@@ -2,14 +2,7 @@
 
 from itertools import repeat, zip_longest
 
-from ._aggregations import (
-    Aggregate,
-    BaseReducer,
-    GroupBy,
-    Reduce,
-    ReduceFuncs,
-    ReducerDispatcher,
-)
+from ._aggregations import Aggregate, GroupBy
 from ._base import (
     And,
     ApplyFunc,
@@ -54,6 +47,7 @@ from ._expect import ExpectException
 from ._joins import JoinConversion, _JoinConditions
 from ._mutations import Mutations
 from ._ordering import SortConversion, SortingKeyConversion
+from ._reducers import BaseReducer, Reduce, ReduceFuncs, ReducerDispatcher
 from ._try import Try
 from ._window import WindowFuncs
 

@@ -25,7 +25,7 @@ from typing import (
     cast,
 )
 
-from .._aggregations import Aggregate, GroupBy, ReduceFuncs
+from .._aggregations import Aggregate, GroupBy
 from .._base import (
     And,
     BaseConversion,
@@ -44,6 +44,7 @@ from .._base import (
 )
 from .._columns import ColumnChanges, ColumnRef, ColumnScope, MetaColumns
 from .._joins import JoinConversion, LeftJoinCondition, RightJoinCondition
+from .._reducers import ReduceFuncs
 
 _none = BaseConversion._none
 _UPDATE_ALL = "__update_all"

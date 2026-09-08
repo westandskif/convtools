@@ -4,7 +4,7 @@ from collections.abc import Iterator, Sized
 from itertools import chain, repeat
 from typing import Set
 
-from ._aggregations import Aggregate, ReduceFuncs
+from ._aggregations import Aggregate
 from ._base import (
     And,
     BaseConversion,
@@ -23,6 +23,7 @@ from ._base import (
     Tuple_,
 )
 from ._columns import ColumnRef
+from ._reducers import ReduceFuncs
 from ._utils import Code
 
 _none = BaseConversion._none

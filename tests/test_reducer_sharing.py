@@ -1,8 +1,12 @@
+import sys
 from collections import deque
 
+import pytest
+
 from convtools import conversion as c
-from convtools._aggregations import SumReducer, _analyze_template_block
 from convtools._base import BaseConversion
+from convtools._reducer_sharing import _analyze_template_block
+from convtools._reducers import SumReducer
 
 from .utils import get_code_str
 
@@ -394,6 +398,10 @@ def test_if_else_eagerness_is_intersection():
     )
     assert eager == [True]
 
+    eager, weights = _analyze_template_block(("pass",), 1)
+    assert eager == [False]
+    assert weights == [0]
+
 
 class _OneBranchValue(SumReducer):
     reduce_lines = (
@@ -412,3 +420,165 @@ def test_one_branch_value_is_not_hoisted():
         }
     )
     assert spec.execute([{"g": 1, "x": 1}, {"g": 1}]) == [{"g": 1, "v": 0}]
+
+
+def _assert_comp_iter_is_tmp_not_target(code_str):
+    found = False
+    for line in code_str.splitlines():
+        if " for " not in line or " in " not in line or "lambda" in line:
+            continue
+        if "{" not in line and "[" not in line:
+            continue
+        found = True
+        after_for = line.split(" for ", 1)[1]
+        target, rest = after_for.split(" in ", 1)
+        assert "_tmp" not in target
+        assert "_tmp" in rest
+    assert found
+
+
+def test_lambda_defaults_are_eager_and_rewritten():
+    R = c.ReduceFuncs
+    data = [{"a": {"b": 1}}, {"a": {"b": 2}}]
+    spec = c.aggregate(
+        {
+            "s": R.Sum(
+                c.inline_expr("(lambda y={0}: y)()").pass_args(
+                    c.item("a", "b")
+                )
+            ),
+            "m": R.Max(c.item("a", "b")),
+        }
+    )
+    assert spec.execute(data) == {"s": 3, "m": 2}
+    code_str = get_code_str(spec.gen_converter(debug=True))
+    assert (
+        '_tmp0_ = row_["a"]["b"]' in code_str
+        or "_tmp0_ = row_['a']['b']" in code_str
+    )
+    assert "lambda y=_tmp0_:" in code_str
+    assert "_tmp1_" not in code_str
+
+    spec = c.aggregate(
+        {
+            "s": R.Sum(
+                c.inline_expr("(lambda *, y={0}: y)()").pass_args(
+                    c.item("a", "b")
+                )
+            ),
+            "m": R.Max(c.item("a", "b")),
+        }
+    )
+    assert spec.execute(data) == {"s": 3, "m": 2}
+    code_str = get_code_str(spec.gen_converter(debug=True))
+    assert "lambda *, y=_tmp0_:" in code_str
+    assert "_tmp1_" not in code_str
+
+    spec = c.aggregate(
+        {
+            "arr": R.Array(
+                c.inline_expr("(lambda *, z, y={0}: y)").pass_args(
+                    c.item("a", "b")
+                )
+            ),
+            "m": R.Max(c.item("a", "b")),
+        }
+    )
+    result = spec.execute(data)
+    assert [fn(z=0) for fn in result["arr"]] == [1, 2]
+    assert result["m"] == 2
+    code_str = get_code_str(spec.gen_converter(debug=True))
+    assert "lambda *, z, y=_tmp0_:" in code_str
+    assert "_tmp1_" not in code_str
+
+
+def test_keyword_argument_calls_share():
+    R = c.ReduceFuncs
+
+    def f(x):
+        return x
+
+    spec = c.aggregate(
+        {
+            "s": R.Sum(c.call_func(f, x=c.item("a", "b"))),
+            "m": R.Max(c.item("a", "b")),
+        }
+    )
+    data = [{"a": {"b": 1}}, {"a": {"b": 2}}]
+    assert spec.execute(data) == {"s": 3, "m": 2}
+    code_str = get_code_str(spec.gen_converter(debug=True))
+    assert "_tmp0_" in code_str
+    assert "x=_tmp0_" in code_str
+    assert "_tmp1_" not in code_str
+
+
+def test_comprehension_first_iterable_shares():
+    R = c.ReduceFuncs
+    data = [{"k": [("a", 1), ("b", 2)]}, {"k": [("c", 3)]}]
+    spec = c.aggregate(
+        {
+            "arr": R.Array(
+                c.inline_expr("{{k: v for k, v in {0}}}").pass_args(
+                    c.item("k")
+                )
+            ),
+            "m": R.Max(c.item("k")),
+        }
+    )
+    assert spec.execute(data) == {
+        "arr": [{"a": 1, "b": 2}, {"c": 3}],
+        "m": [("c", 3)],
+    }
+    code_str = get_code_str(spec.gen_converter(debug=True))
+    _assert_comp_iter_is_tmp_not_target(code_str)
+    assert "_tmp1_" not in code_str
+
+    spec = c.aggregate(
+        {
+            "arr": R.Array(
+                c.inline_expr("[k for k in {0}]").pass_args(c.item("k"))
+            ),
+            "m": R.Max(c.item("k")),
+        }
+    )
+    assert spec.execute(data) == {
+        "arr": [[("a", 1), ("b", 2)], [("c", 3)]],
+        "m": [("c", 3)],
+    }
+    code_str = get_code_str(spec.gen_converter(debug=True))
+    _assert_comp_iter_is_tmp_not_target(code_str)
+    assert "_tmp1_" not in code_str
+
+
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="walrus requires 3.8+")
+def test_named_expr_in_reducer_value_does_not_crash():
+    R = c.ReduceFuncs
+    spec = c.aggregate(
+        {
+            "a": R.Array(
+                c.item("x")
+                + c.inline_expr("(_v := {0})").pass_args(c.item("x"))
+            ),
+            "s": R.Sum(c.item("x")),
+        }
+    )
+    data = [{"x": 1}, {"x": 2}]
+    assert spec.execute(data) == {"a": [2, 4], "s": 3}
+    code_str = get_code_str(spec.gen_converter(debug=True))
+    assert "_tmp0_" in code_str
+
+
+class _Idle(SumReducer):
+    reduce_lines = ("pass",)
+
+
+def test_unrecognized_template_stmt_contributes_zero():
+    spec = c.group_by(c.item("g")).aggregate(
+        {
+            "g": c.item("g"),
+            "v": _Idle(c.item("x")),
+        }
+    )
+    assert spec.execute([{"g": 1, "x": 1}, {"g": 1, "x": 99}]) == [
+        {"g": 1, "v": 1}
+    ]

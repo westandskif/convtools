@@ -7,7 +7,7 @@ from enum import Enum
 from itertools import chain, count, islice
 from typing import MutableMapping, cast
 
-from ._aggregations import Aggregate, GroupBy, Grouper, ReduceFuncs
+from ._aggregations import Aggregate, GroupBy, Grouper
 from ._base import (
     BaseConversion,
     CallFunc,
@@ -21,6 +21,7 @@ from ._base import (
     This,
 )
 from ._ordering import SortingKeyConversion
+from ._reducers import ReduceFuncs
 from ._utils import Code
 
 _none = BaseConversion._none

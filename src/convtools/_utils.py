@@ -182,12 +182,6 @@ class Code:
             write_("\n")
         return stream.getvalue()
 
-    def clone(self):
-        copy = Code()
-        copy.lines_info = self.lines_info[:]
-        copy.indent_level = self.indent_level
-        return copy
-
 
 class CodeParams:
     """Code-gen tree-like helper to generate assignments when needed."""

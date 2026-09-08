@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).parent
-AGGREGATIONS_SOURCE = ROOT / "src" / "convtools" / "_aggregations.py"
+REDUCERS_SOURCE = ROOT / "src" / "convtools" / "_reducers.py"
 README = ROOT / "README.md"
 AGGREGATIONS_DOC = ROOT / "docs" / "aggregations.md"
 
@@ -14,10 +14,10 @@ END_MARKER = "<!-- reducer-inventory:end -->"
 
 
 def get_reduce_func_assignments():
-    module = ast.parse(AGGREGATIONS_SOURCE.read_text())
+    module = ast.parse(REDUCERS_SOURCE.read_text())
     for node in module.body:
         if isinstance(node, ast.ClassDef) and node.name == "ReduceFuncs":
-            source_lines = AGGREGATIONS_SOURCE.read_text().splitlines()
+            source_lines = REDUCERS_SOURCE.read_text().splitlines()
             reducers = []
             missing_descriptions = []
             for child in node.body:
