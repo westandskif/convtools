@@ -1,7 +1,8 @@
 import random
 import statistics
 from collections import Counter
-from datetime import date
+from datetime import timedelta
+from decimal import Decimal
 from fractions import Fraction
 from itertools import chain, cycle
 from operator import eq
@@ -40,7 +41,8 @@ def ordered_set(data):
 
 
 def weighted_average(samples: List[Tuple]):
-    return sum(v * w for v, w in samples) / sum(x[1] for x in samples)
+    pairs = [(v, w) for v, w in samples if v is not None and w is not None]
+    return sum(v * w for v, w in pairs) / sum(w for _, w in pairs)
 
 
 def test_custom_reduce_initialization():
@@ -180,7 +182,7 @@ def test_weighted_average_with_group_by(series):
 
 
 def test_weighted_average_none_weight():
-    """None weights are treated as 0 (row effectively excluded from numerator)."""
+    """None weights skip the row (excluded from numerator and denominator)."""
     data = [
         {"v": 10, "w": None},
         {"v": 20, "w": 1},
@@ -238,6 +240,67 @@ def test_weighted_average_none_weight():
             c.ReduceFuncs.Average(c.item("v"), weight=c.item("w"), default=-1)
         ).execute([{"v": 1, "w": None}, {"v": 2, "w": None}])
         == -1
+    )
+
+
+def test_weighted_average_where_skips_row_before_value():
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Average(c.item("v"), c.item("w"), where=c.item("ok"))
+        ).execute([{"ok": False}])
+        is None
+    )
+
+    def boom(_x):
+        raise AssertionError("value evaluated on excluded row")
+
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Average(
+                c.call_func(boom, c.item("v")),
+                c.item("w"),
+                where=c.item("ok"),
+            )
+        ).execute([{"ok": False, "v": 1, "w": 1}])
+        is None
+    )
+
+
+def test_weighted_average_skips_none_value_and_weight():
+    avg = c.aggregate(c.ReduceFuncs.Average(c.item(0), c.item(1)))
+    assert avg.execute([(None, 2), (None, 3)]) is None
+    assert avg.execute([(1, 2), (None, 3), (3, 1)]) == 5 / 3
+    assert avg.execute([(1, None), (3, 1)]) == 3.0
+
+    data = [(None, 1), (1, 1), (None, 1), (2, 1), (0, 1), (3, 1)]
+    assert c.aggregate(c.ReduceFuncs.Average(c.item(0))).execute(
+        data
+    ) == c.aggregate(c.ReduceFuncs.Average(c.item(0), c.item(1))).execute(data)
+
+
+def test_sum_aggregate_group_by_parity():
+    data = [timedelta(1), timedelta(2)]
+    expected = timedelta(days=3)
+    assert c.aggregate(c.ReduceFuncs.Sum(c.this)).execute(data) == expected
+    assert (
+        c.group_by().aggregate(c.ReduceFuncs.Sum(c.this)).execute(data)
+        == expected
+    )
+    assert c.aggregate(c.ReduceFuncs.Sum(c.this)).execute([]) == 0
+    assert c.aggregate(c.ReduceFuncs.Sum(c.this)).execute([None]) == 0
+    assert (
+        c.aggregate(c.ReduceFuncs.Sum(c.this, where=c.this > 1)).execute(
+            [1, 2, 3]
+        )
+        == 5
+    )
+    assert c.aggregate(c.ReduceFuncs.Sum(c.this)).execute(
+        [Decimal("1.1"), Decimal("2.2")]
+    ) == Decimal("3.3")
+    assert c.aggregate(c.ReduceFuncs.Sum(c.this)).execute(["a", "b"]) == "ab"
+    assert (
+        c.group_by().aggregate(c.ReduceFuncs.Sum(c.this)).execute(["a", "b"])
+        == "ab"
     )
 
 
@@ -629,11 +692,7 @@ def _ref_percentile_higher(data, p):
 
 
 def _ref_percentile_nearest(data, p):
-    index = _percentile_index_fraction(len(data), p)
-    left_index = int(index)
-    if index - left_index > Fraction(1, 2):
-        return data[left_index + 1]
-    return data[left_index]
+    return data[round((len(data) - 1) * p / 100)]
 
 
 def _ref_percentile_midpoint(data, p):
@@ -669,6 +728,16 @@ def test_percentile_integer_index_matches_fraction():
                     assert got == pytest.approx(expected)
                 else:
                     assert got == expected
+
+
+@pytest.mark.parametrize("n", range(1, 12))
+@pytest.mark.parametrize("p", range(0, 101, 5))
+def test_percentile_nearest_half_to_even(n, p):
+    data = list(range(n))
+    got = c.aggregate(
+        c.ReduceFuncs.Percentile(p, c.this, interpolation="nearest")
+    ).execute(data)
+    assert got == data[round((n - 1) * p / 100)]
 
 
 def test_group_by_percentile():
@@ -1129,8 +1198,6 @@ def test_single_reducer_aggregate_honors_initial():
     assert (
         c.group_by().aggregate(R.Sum(c.this, initial=100)).execute(data) == 103
     )
-    code_str = get_code_str(c.aggregate(R.Sum(c.this)).gen_converter())
-    assert "sum(" in code_str
 
 
 def test_reducer_callable_initial_and_default():

@@ -10,6 +10,18 @@
   the values they receive. `initial=` expressions are never shared. Lambdas,
   comprehensions and walrus expressions stay opaque so a temp is never
   substituted into a scope that may rebind a name.
+- `Percentile(..., interpolation="nearest")` now rounds half to even
+  (Python `round`, matching numpy `method="nearest"`); previously half rounded
+  down. Only exact-`.5` indexes change
+
+**Fixed**
+
+- `ReduceFuncs.Sum`: the no-group-key `c.aggregate` path now generates the same
+  accumulation loop as `group_by`, so any addable type (`timedelta`, `Decimal`,
+  `str`, ...) behaves identically on both
+- weighted `ReduceFuncs.Average(value, weight)` now skips rows where the value
+  or the weight is `None` (previously a `None` value counted as 0 with full
+  weight)
 
 ## 1.17.2 (2026-09-06)
 

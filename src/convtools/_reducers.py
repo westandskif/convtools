@@ -21,18 +21,17 @@ from ._base import (
     CallFunc,
     DictComp,
     EscapedString,
-    GeneratorComp,
     GetItem,
     If,
     InlineExpr,
     List_,
     ListComp,
     NaiveConversion,
-    Or,
     This,
     Tuple_,
     _None,
     _none,
+    ensure_conversion,
 )
 from ._reducer_sharing import ReducerRecord
 
@@ -263,26 +262,6 @@ class SumReducer(SingleExpressionReducer):
         if self.expressions[0].has_hint(BaseConversion.OutputHints.NOT_NONE):
             return ("%(result)s += %(value0)s",)
         return ("%(result)s += %(value0)s or 0",)
-
-    def get_single_agg_reduction(self):
-        if (
-            isinstance(self.default, NaiveConversion)
-            and self.default.value == 0
-        ):
-            return CallFunc(
-                sum,
-                GeneratorComp(
-                    (
-                        self.expressions[0]
-                        if self.expressions[0].has_hint(
-                            BaseConversion.OutputHints.NOT_NONE
-                        )
-                        else self.expressions[0].or_(0)
-                    ),
-                    self.where,
-                    This,
-                ),
-            )
 
 
 class SumOrNoneReducer(SingleExpressionReducer):
@@ -1032,11 +1011,16 @@ class AverageReducerDispatcher(ReducerDispatcher):
                 ),
                 default,
             )
+        value = ensure_conversion(value)
+        weight = ensure_conversion(weight)
+        none_filter = value.is_not(None).and_(weight.is_not(None))
+        if where is not None:
+            none_filter = ensure_conversion(where).and_(none_filter)
         return If(
-            SumReducer(weight, where=where),
+            SumReducer(weight, where=none_filter),
             (
-                SumReducer(Or(value, 0) * Or(weight, 0), where=where)
-                / SumReducer(weight, where=where)
+                SumReducer(value * weight, where=none_filter)
+                / SumReducer(weight, where=none_filter)
             ),
             default,
         )
@@ -1168,11 +1152,7 @@ class PercentileReducer(ArraySortedReducer):
     @staticmethod
     def percentile_nearest(data, percentile):
         index = PercentileReducer._percentile_index(data, percentile)
-        left_index = int(index)
-        if index - left_index > 0.5:
-            return data[left_index + 1]
-        else:
-            return data[left_index]
+        return data[round(index)]
 
     def post_conversion(self, ctx):  # pylint: disable=unused-argument
         return CallFunc(

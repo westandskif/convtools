@@ -184,10 +184,8 @@ Notes:
    `n` (positive int), second is the value conversion.
  * note 6: `DictFirstN(n, key, value)` / `DictLastN(n, key, value)` — first
    positional arg is `n` (positive int); key and value are row conversions.
- * note 7: `Average(value)` skips `None` values. In
-   `Average(value, weight)`, falsey values and weights are treated as zero: a
-   `None` weight contributes nothing, while a `None` value with a nonzero
-   weight still contributes that weight to the denominator. A zero total
+ * note 7: Both forms skip `None` values; the weighted
+   form also skips rows with a `None` weight. A zero total
    weight returns `default`.
  * note 8: `Sum` / `DictSum` do not skip `None`; they treat `None` (and other
    falsy values) as `0`.
