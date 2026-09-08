@@ -1,3 +1,16 @@
+## Unreleased
+
+**Changed**
+
+- removed the post-hoc AST optimizer (`_optimizer.py`). Aggregate / group_by
+  reducers now emit a guard-scope tree and share repeated eager expressions
+  (including function calls) via temporaries. Reducer `where`/value expressions
+  are treated as deterministic and free of side effects on the row; a value
+  shared between reducers is the same object; reducer callables must not mutate
+  the values they receive. `initial=` expressions are never shared. Lambdas,
+  comprehensions and walrus expressions stay opaque so a temp is never
+  substituted into a scope that may rebind a name.
+
 ## 1.17.2 (2026-09-06)
 
 **Bugfix**

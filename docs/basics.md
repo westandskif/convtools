@@ -309,8 +309,9 @@ attributes of unknown pieces of code. Avoid using if possible.
 
 - **Code injection**: Never pass untrusted user input to inline expressions -
   they are executed as Python code.
-- **Bypasses optimizer**: Inline code cannot be analyzed or optimized by
-  convtools.
+- **Sharing still applies**: inline expressions are ordinary generated code, so
+  reducer `where`/value expressions that happen to be inline still participate
+  in value sharing like any other expression.
 - **Harder to debug**: Errors in inline expressions produce less helpful
   tracebacks.
 ///

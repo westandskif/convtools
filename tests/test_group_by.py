@@ -1,5 +1,4 @@
 import re
-from collections import deque
 from datetime import date
 from types import GeneratorType
 
@@ -1235,20 +1234,6 @@ def test_aggregate_ifexp_guards_not_merged():
     assert result == {"z": 5, "m": -1}
 
 
-def test_aggregate_cse_does_not_hoist_call_containing_expr():
-    result = c.aggregate(
-        {
-            "a": c.ReduceFuncs.Array(
-                c.item("q").call_method("popleft").item("k")
-            ),
-            "b": c.ReduceFuncs.Array(
-                c.item("q").call_method("popleft").item("k") + 1
-            ),
-        }
-    ).execute([{"q": deque([{"k": 1}, {"k": 2}])} for _ in range(3)])
-    assert result == {"a": [2, 2, 2], "b": [2, 2, 2]}
-
-
 def _assert_no_hoisted_lambda_param(code_str):
     for line in code_str.splitlines():
         if "=" not in line:
@@ -1256,7 +1241,7 @@ def _assert_no_hoisted_lambda_param(code_str):
         lhs, rhs = line.split("=", 1)
         if "_tmp" in lhs and re.search(r"\bx\b", rhs):
             raise AssertionError(
-                "optimizer hoisted a lambda-parameter expression", line
+                "sharing hoisted a lambda-parameter expression", line
             )
 
 

@@ -1,16 +1,8 @@
 """Define aggregations with various reduce functions."""
 
+import ast
+import copy
 import warnings
-from ast import Assign as AstAssign
-from ast import Attribute as AstAttribute
-from ast import AugAssign as AstAugAssign
-from ast import Call as AstCall
-from ast import Compare as AstCompare
-from ast import Is as AstIs
-from ast import Name as AstName
-from ast import Pass as AstPass
-from ast import Subscript as AstSubscript
-from ast import parse as ast_parse
 from collections import defaultdict, deque
 from decimal import Decimal
 from math import ceil
@@ -41,162 +33,733 @@ from ._base import (
     _none,
 )
 from ._heuristics import Weights
-from ._optimizer import (
-    OptimizationStage1,
-    ast_are_fuzzy_equal,
-    ast_merge,
-    ast_unparse,
-    replace_node_by_node_path,
+from ._utils import Code, ast_unparse
+
+_NAMED_EXPR = getattr(ast, "NamedExpr", None)
+_BINDER_TYPES = tuple(
+    t
+    for t in (
+        ast.Lambda,
+        ast.ListComp,
+        ast.SetComp,
+        ast.DictComp,
+        ast.GeneratorExp,
+        _NAMED_EXPR,
+    )
+    if t is not None
 )
-from ._utils import Code
 
-# Module-level constants for code generation
-AGG_DATA_PREFIX = "agg_data_"
-REDUCER_VAR_PREFIX = "n_"
-NONE_SENTINEL_NAME = "_none"
-CHECKSUM_VAR = "checksum_"
-AGG_DATA_ATTR_PREFIX = "v"
-INPUT_VAR_NAME = "data_"
+_HOISTABLE_TYPES = (
+    ast.Subscript,
+    ast.Attribute,
+    ast.Call,
+    ast.BinOp,
+    ast.UnaryOp,
+    ast.Compare,
+    ast.BoolOp,
+    ast.IfExp,
+)
 
-
-def _names_have_matching_reducer_prefix(x, y):
-    """Check if two AstName nodes have matching n_* prefixes."""
-    return (
-        isinstance(x, AstName)
-        and isinstance(y, AstName)
-        and x.id.startswith(REDUCER_VAR_PREFIX)
-        and y.id.startswith(REDUCER_VAR_PREFIX)
-        and x.id.split("__", 1)[0] == y.id.split("__", 1)[0]
-    )
+_TEMPLATE_INFO_CACHE = {}  # type: Dict[Tuple[Any, ...], Tuple[Any, ...]]
 
 
-def _is_agg_data_name(node):
-    """Check if node is an AstName starting with agg_data_."""
-    return isinstance(node, AstName) and node.id.startswith(AGG_DATA_PREFIX)
+def _is_binder(node):
+    return isinstance(node, _BINDER_TYPES)
 
 
-def _is_agg_data_attribute(node):
-    """Check if node is an AstAttribute accessing agg_data_."""
-    return (
-        isinstance(node, AstAttribute)
-        and isinstance(node.value, AstName)
-        and node.value.id == AGG_DATA_PREFIX
-    )
+def _is_hoistable(node):
+    return isinstance(node, _HOISTABLE_TYPES)
 
 
-def _is_none_sentinel_comparison(compare_node, left_checker):
-    """Check if node is a comparison against _none sentinel.
-
-    Args:
-        compare_node: The AstCompare node to check
-        left_checker: Function to validate the left side of comparison
-    """
-    return (
-        isinstance(compare_node, AstCompare)
-        and isinstance(compare_node.ops[0], AstIs)
-        and isinstance(compare_node.comparators[0], AstName)
-        and compare_node.comparators[0].id == NONE_SENTINEL_NAME
-        and left_checker(compare_node.left)
-    )
+def _node_size(node):
+    return sum(1 for _ in ast.walk(node))
 
 
-class OptimizationStage1WithChecksums(OptimizationStage1):
-    """OptimizationStage1 + deletion of duplicate checksums."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.stack_checksum_incrs = []
-        self.unnecessary_checksum_node_paths = []
-        self.checksum = 0
-
-    def visit_If(self, node):
-        self.stack_checksum_incrs.append(0)
-        super().visit_If(node)
-        self.checksum += self.stack_checksum_incrs.pop()
-
-    def visit_AugAssign(self, node):
-        if isinstance(node.target, AstName) and node.target.id == CHECKSUM_VAR:
-            if self.stack_checksum_incrs[-1] > 0:
-                self.unnecessary_checksum_node_paths.append(self.node_path)
-                return None
-            else:
-                self.stack_checksum_incrs[-1] += 1
-            return
-        return super().visit_AugAssign(node)
-
-    def run(self, *args, **kwargs):
-        super().run(*args, **kwargs)
-        new_node = AstPass()
-        for node_path in self.unnecessary_checksum_node_paths:
-            replace_node_by_node_path(node_path, new_node)
-        self.unnecessary_checksum_node_paths = []
-
-
-def fuzzy_cmp_group_by(x, y):
-    """Compare AST nodes for group_by fuzzy equality."""
-    if _is_agg_data_attribute(x) and _is_agg_data_attribute(y):
-        return True
-    return _names_have_matching_reducer_prefix(x, y)
-
-
-def fuzzy_cmp_aggregate(x, y):
-    """Compare AST nodes for aggregate fuzzy equality."""
-    if isinstance(x, AstName) and isinstance(y, AstName):
-        if _is_agg_data_name(x) and _is_agg_data_name(y):
-            return True
-        return _names_have_matching_reducer_prefix(x, y)
-    return False
-
-
-def fuzzy_merge_group_by_cmp(x, y):
-    """Compare AST nodes for group_by merge fuzzy equality."""
-    if _is_none_sentinel_comparison(
-        x, _is_agg_data_attribute
-    ) and _is_none_sentinel_comparison(y, _is_agg_data_attribute):
-        return True
-    return _names_have_matching_reducer_prefix(x, y)
-
-
-def fuzzy_merge_aggregate_cmp(x, y):
-    """Compare AST nodes for aggregate merge fuzzy equality."""
-    if _is_none_sentinel_comparison(
-        x, _is_agg_data_name
-    ) and _is_none_sentinel_comparison(y, _is_agg_data_name):
-        return True
-    return _names_have_matching_reducer_prefix(x, y)
-
-
-def no_side_effects_test(x):
-    """Check if an AST node has no side effects in aggregation context."""
-    if isinstance(x, AstAssign):
-        return all(no_side_effects_test(t) for t in x.targets)
-    if isinstance(x, AstAugAssign):
-        x = x.target
-
-    if isinstance(x, AstSubscript):
-        x = x.value
-
-    if isinstance(x, AstCall):
-        x = x.func
-
-    if isinstance(x, AstAttribute):
-        x = x.value
-
-    return _is_agg_data_name(x)
-
-
-def condition_is_transparent_test(x):
-    """Check if a condition is transparent for optimization purposes."""
-    if (
-        isinstance(x, AstCompare)
-        and isinstance(x.ops[0], AstIs)
-        and isinstance(x.comparators[0], AstName)
-        and x.comparators[0].id == NONE_SENTINEL_NAME
+def _opaque_eager_parts(node):
+    if isinstance(node, ast.Lambda):
+        args = node.args
+        for default in list(args.defaults or []):
+            if default is not None:
+                yield default
+        for default in list(getattr(args, "kw_defaults", None) or []):
+            if default is not None:
+                yield default
+        return
+    if isinstance(
+        node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
     ):
-        x = x.left
-    if isinstance(x, AstAttribute):
-        x = x.value
-    return _is_agg_data_name(x)
+        if node.generators:
+            yield node.generators[0].iter
+        return
+
+
+def _walk_expr_children_skip_binders(node, eager_only):
+    if _is_binder(node):
+        for part in _opaque_eager_parts(node):
+            yield part
+        return
+    if eager_only:
+        if isinstance(node, ast.BoolOp):
+            if node.values:
+                yield node.values[0]
+            return
+        if isinstance(node, ast.IfExp):
+            yield node.test
+            return
+        if isinstance(node, ast.Compare):
+            yield node.left
+            if node.comparators:
+                yield node.comparators[0]
+            return
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.expr):
+            yield child
+        elif _is_binder(child):
+            for part in _opaque_eager_parts(child):
+                yield part
+        else:
+            for grandchild in ast.iter_child_nodes(child):
+                if isinstance(grandchild, ast.expr):
+                    yield grandchild
+
+
+def _walk_tree(node, eager_only):
+    stack = list(_walk_expr_children_skip_binders(node, eager_only))
+    while stack:
+        current = stack.pop()
+        yield current
+        stack.extend(_walk_expr_children_skip_binders(current, eager_only))
+
+
+def _iter_hoistable(node):
+    if _is_hoistable(node):
+        yield node
+    for child in _walk_tree(node, eager_only=False):
+        if _is_hoistable(child):
+            yield child
+
+
+def _iter_eager(node):
+    yield node
+    for child in _walk_tree(node, eager_only=True):
+        yield child
+
+
+def _parse_expr(code):
+    if not code or not str(code).strip():
+        return None
+    try:
+        return ast.parse(code, mode="eval").body
+    except SyntaxError:
+        return None
+
+
+def _fmt_expr(node, original=None, rewritten=False):
+    if not rewritten and original is not None:
+        return original
+    code = ast_unparse(node).strip()
+    if isinstance(node, (ast.Name, ast.Attribute, ast.Subscript, ast.Call)):
+        return code
+    return "({})".format(code)
+
+
+class _ReplaceDumps(ast.NodeTransformer):
+    def __init__(self, dump_to_name):
+        self.dump_to_name = dump_to_name
+        self.changed = False
+
+    def visit(self, node):
+        if isinstance(node, ast.expr):
+            name = self.dump_to_name.get(ast.dump(node))
+            if name is not None:
+                self.changed = True
+                return ast.Name(id=name, ctx=ast.Load())
+        if _is_binder(node):
+            return self._visit_binder(node)
+        return self.generic_visit(node)
+
+    def _visit_binder(self, node):
+        if isinstance(node, ast.Lambda):
+            new_args = self._visit_lambda_args(node.args)
+            if new_args is node.args:
+                return node
+            new_node = ast.Lambda(args=new_args, body=node.body)
+            return ast.copy_location(new_node, node)
+        if isinstance(
+            node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+        ):
+            if not node.generators:
+                return node
+            first = node.generators[0]
+            new_iter = self.visit(first.iter)
+            if new_iter is first.iter:
+                return node
+            new_first = ast.comprehension(
+                target=first.target,
+                iter=new_iter,
+                ifs=first.ifs,
+                is_async=getattr(first, "is_async", 0),
+            )
+            new_gens = [new_first] + list(node.generators[1:])
+            kwargs = {"generators": new_gens}
+            if isinstance(node, ast.DictComp):
+                kwargs["key"] = node.key
+                kwargs["value"] = node.value
+            else:
+                kwargs["elt"] = node.elt
+            return ast.copy_location(type(node)(**kwargs), node)
+        return node
+
+    def _visit_lambda_args(self, args):
+        new_defaults = [
+            self.visit(d) if d is not None else d for d in args.defaults
+        ]
+        kw_defaults = getattr(args, "kw_defaults", None)
+        new_kw = None
+        if kw_defaults is not None:
+            new_kw = [
+                self.visit(d) if d is not None else d for d in kw_defaults
+            ]
+        if new_defaults == list(args.defaults) and (
+            kw_defaults is None or new_kw == list(kw_defaults)
+        ):
+            return args
+        kwargs = dict(
+            args=args.args,
+            vararg=args.vararg,
+            kwarg=args.kwarg,
+            defaults=new_defaults,
+        )
+        for attr in ("posonlyargs", "kwonlyargs", "kw_defaults"):
+            if hasattr(args, attr):
+                kwargs[attr] = (
+                    new_kw if attr == "kw_defaults" else getattr(args, attr)
+                )
+        return ast.arguments(**kwargs)
+
+
+def _replace_dumps(node, dump_to_name):
+    if node is None:
+        return None, False
+    transformer = _ReplaceDumps(dump_to_name)
+    new_node = transformer.visit(node)
+    return new_node, transformer.changed
+
+
+def _rename_names(node, old_to_new):
+    class _Renamer(ast.NodeTransformer):
+        def visit_Name(self, name_node):
+            new_id = old_to_new.get(name_node.id)
+            if new_id is None:
+                return name_node
+            return ast.Name(id=new_id, ctx=name_node.ctx)
+
+    return _Renamer().visit(node)
+
+
+def _if_has_complete_else(if_stmt):
+    orelse = if_stmt.orelse
+    if not orelse:
+        return False
+    if len(orelse) == 1 and isinstance(orelse[0], ast.If):
+        return _if_has_complete_else(orelse[0])
+    return True
+
+
+def _if_branch_bodies(if_stmt):
+    """If/elif/else statement bodies; elif tests are not included."""
+    bodies = [if_stmt.body]
+    orelse = if_stmt.orelse
+    while len(orelse) == 1 and isinstance(orelse[0], ast.If):
+        bodies.append(orelse[0].body)
+        orelse = orelse[0].orelse
+    if orelse:
+        bodies.append(orelse)
+    return bodies
+
+
+def _add_counts(left, right):
+    return [a + b for a, b in zip(left, right)]
+
+
+def _max_counts(left, right):
+    return [max(a, b) for a, b in zip(left, right)]
+
+
+def _count_sentinels(node, sentinel_to_index, n_values):
+    counts = [0] * n_values
+    if node is None:
+        return counts
+    names = []
+    if isinstance(node, ast.Name):
+        names.append(node)
+    names.extend(
+        n
+        for n in _walk_tree(node, eager_only=False)
+        if isinstance(n, ast.Name)
+    )
+    for name_node in names:
+        index = sentinel_to_index.get(name_node.id)
+        if index is not None:
+            counts[index] += 1
+    return counts
+
+
+def _mark_eager_expr(node, sentinel_to_index, eager):
+    if node is None:
+        return
+    names = []
+    if isinstance(node, ast.Name):
+        names.append(node)
+    names.extend(
+        n for n in _walk_tree(node, eager_only=True) if isinstance(n, ast.Name)
+    )
+    for name_node in names:
+        index = sentinel_to_index.get(name_node.id)
+        if index is not None:
+            eager[index] = True
+
+
+def _stmt_evaled_exprs(stmt):
+    if isinstance(stmt, ast.Assign):
+        yield stmt.value
+        for target in stmt.targets:
+            yield target
+        return
+    if isinstance(stmt, ast.AugAssign):
+        yield stmt.value
+        yield stmt.target
+        return
+    if isinstance(stmt, ast.AnnAssign):
+        if stmt.value is not None:
+            yield stmt.value
+        yield stmt.target
+        return
+    if isinstance(stmt, ast.Expr):
+        yield stmt.value
+        return
+    if isinstance(stmt, ast.Return) and stmt.value is not None:
+        yield stmt.value
+
+
+def _weight_block(stmts, sentinel_to_index, n_values):
+    total = [0] * n_values
+    for stmt in stmts:
+        total = _add_counts(
+            total, _weight_stmt(stmt, sentinel_to_index, n_values)
+        )
+    return total
+
+
+def _weight_stmt(stmt, sentinel_to_index, n_values):
+    if isinstance(stmt, ast.If):
+        weights = _count_sentinels(stmt.test, sentinel_to_index, n_values)
+        body_w = _weight_block(stmt.body, sentinel_to_index, n_values)
+        else_w = _weight_block(stmt.orelse, sentinel_to_index, n_values)
+        return _add_counts(weights, _max_counts(body_w, else_w))
+    exprs = list(_stmt_evaled_exprs(stmt))
+    if exprs:
+        total = [0] * n_values
+        for expr in exprs:
+            total = _add_counts(
+                total, _count_sentinels(expr, sentinel_to_index, n_values)
+            )
+        return total
+    total = [0] * n_values
+    for child in ast.iter_child_nodes(stmt):
+        if isinstance(child, ast.expr):
+            total = _add_counts(
+                total, _count_sentinels(child, sentinel_to_index, n_values)
+            )
+        elif isinstance(child, ast.stmt):
+            total = _add_counts(
+                total, _weight_stmt(child, sentinel_to_index, n_values)
+            )
+    return total
+
+
+def _mark_eager_block(stmts, sentinel_to_index, eager, tests_are_top_level):
+    for stmt in stmts:
+        if isinstance(stmt, ast.If):
+            if tests_are_top_level:
+                _mark_eager_expr(stmt.test, sentinel_to_index, eager)
+            if _if_has_complete_else(stmt):
+                n = len(eager)
+                branch_flags = []
+                for body in _if_branch_bodies(stmt):
+                    flags = [False] * n
+                    _mark_eager_block(body, sentinel_to_index, flags, True)
+                    branch_flags.append(flags)
+                for i in range(n):
+                    if all(flags[i] for flags in branch_flags):
+                        eager[i] = True
+            continue
+        for expr in _stmt_evaled_exprs(stmt):
+            _mark_eager_expr(expr, sentinel_to_index, eager)
+
+
+def _analyze_template_block(lines, n_values):
+    eager = [False] * n_values
+    weights = [0] * n_values
+    if not lines:
+        return eager, weights
+    sentinels = ["_red_val_{}_".format(i) for i in range(n_values)]
+    sentinel_to_index = {name: i for i, name in enumerate(sentinels)}
+    kwargs = {"result": "_red_result_", "row": "_red_row_"}
+    for i, name in enumerate(sentinels):
+        kwargs["value{}".format(i)] = name
+    try:
+        rendered = "\n".join(line % kwargs for line in lines)
+        if not rendered.strip():
+            return eager, weights
+        tree = ast.parse(rendered)
+    except (SyntaxError, TypeError, ValueError, KeyError):
+        for i in range(n_values):
+            placeholder = "%(value{})s".format(i)
+            total = sum(line.count(placeholder) for line in lines)
+            weights[i] = total
+            eager[i] = total > 0
+        return eager, weights
+    _mark_eager_block(tree.body, sentinel_to_index, eager, True)
+    weights = _weight_block(tree.body, sentinel_to_index, n_values)
+    return eager, weights
+
+
+def _template_info(prepare_lines, reduce_lines, n_values):
+    key = (prepare_lines, reduce_lines, n_values)
+    cached = _TEMPLATE_INFO_CACHE.get(key)
+    if cached is not None:
+        return cached
+    init_eager, init_weight = _analyze_template_block(prepare_lines, n_values)
+    reduce_eager, reduce_weight = _analyze_template_block(
+        reduce_lines, n_values
+    )
+    info = (init_eager, init_weight, reduce_eager, reduce_weight)
+    _TEMPLATE_INFO_CACHE[key] = info
+    return info
+
+
+class _CountItem(object):
+    __slots__ = [
+        "code",
+        "tree",
+        "weight",
+        "is_self_eager_root",
+        "kind",
+        "record",
+        "index",
+        "child",
+        "rewritten",
+    ]
+
+    def __init__(
+        self,
+        code,
+        weight,
+        is_self_eager_root,
+        kind,
+        record=None,
+        index=None,
+        child=None,
+        tree=None,
+        rewritten=False,
+    ):
+        self.code = code
+        self.weight = weight
+        self.is_self_eager_root = is_self_eager_root
+        self.kind = kind
+        self.record = record
+        self.index = index
+        self.child = child
+        self.rewritten = rewritten
+        self.tree = tree if tree is not None else _parse_expr(code)
+
+
+class ReducerRecord(object):
+    __slots__ = [
+        "slot",
+        "where_code",
+        "value_codes",
+        "not_none_flags",
+        "prepare_first_lines",
+        "reduce_lines",
+        "initial_code",
+        "row_code",
+        "guard_chain",
+    ]
+
+    def __init__(
+        self,
+        where_code,
+        value_codes,
+        not_none_flags,
+        prepare_first_lines,
+        reduce_lines,
+        initial_code,
+        row_code,
+    ):
+        self.slot = None
+        self.where_code = where_code
+        self.value_codes = value_codes
+        self.not_none_flags = not_none_flags
+        self.prepare_first_lines = prepare_first_lines
+        self.reduce_lines = reduce_lines
+        self.initial_code = initial_code
+        self.row_code = row_code
+        self.guard_chain = None
+
+    def dedup_key(self):
+        # row_code is part of the identity: MaxRow/MinRow (and any template
+        # using %(row)s) capture the piped input, not only the comparison value.
+        return (
+            self.where_code,
+            self.value_codes,
+            self.not_none_flags,
+            self.prepare_first_lines,
+            self.reduce_lines,
+            self.initial_code,
+            self.row_code,
+        )
+
+
+class GuardScope(object):
+    __slots__ = ["reducers", "children"]
+
+    def __init__(self):
+        self.reducers = []
+        self.children = {}
+
+
+class SharingPlan(object):
+    __slots__ = ["values", "guards", "signature", "temps"]
+
+    def __init__(self):
+        self.values = {}
+        self.guards = {}
+        self.signature = None
+        self.temps = {}
+
+
+def _build_guard_tree(records):
+    root = GuardScope()
+    for record in records:
+        node = root
+        for guard in record.guard_chain:
+            child = node.children.get(guard)
+            if child is None:
+                child = GuardScope()
+                node.children[guard] = child
+            node = child
+        node.reducers.append(record)
+    return root
+
+
+def _eager_and_weight(record, with_init):
+    n_values = len(record.value_codes)
+    init_eager, init_weight, reduce_eager, reduce_weight = _template_info(
+        record.prepare_first_lines, record.reduce_lines, n_values
+    )
+    if with_init:
+        eager = []
+        weights = []
+        reduce_is_empty = not record.reduce_lines
+        for i in range(n_values):
+            red_eager = False if reduce_is_empty else reduce_eager[i]
+            eager.append(bool(init_eager[i] and red_eager))
+            weights.append(max(init_weight[i], reduce_weight[i]))
+        return eager, weights
+    return list(reduce_eager), list(reduce_weight)
+
+
+def _collect_count_items(scope, plan, with_init, self_scope, signature, items):
+    for record in scope.reducers:
+        eager_flags, weights = _eager_and_weight(record, with_init)
+        codes = plan.values[id(record)]
+        for i, code in enumerate(codes):
+            items.append(
+                _CountItem(
+                    code,
+                    weights[i],
+                    scope is self_scope and eager_flags[i],
+                    "value",
+                    record=record,
+                    index=i,
+                )
+            )
+    for guard, child in scope.children.items():
+        gcode = plan.guards.get(id(child), guard)
+        items.append(
+            _CountItem(
+                gcode,
+                1,
+                scope is self_scope,
+                "guard",
+                child=child,
+            )
+        )
+        _collect_count_items(
+            child, plan, with_init, self_scope, signature, items
+        )
+    if signature is not None and scope is self_scope:
+        items.append(_CountItem(plan.signature, 1, True, "signature"))
+
+
+def _topo_temp_order(temp_entries):
+    names = [name for name, _tree in temp_entries]
+    name_set = set(names)
+    depends = {name: set() for name in names}
+    for name, tree in temp_entries:
+        if tree is None:
+            continue
+        found = []
+        if isinstance(tree, ast.Name) and tree.id in name_set:
+            found.append(tree.id)
+        for child in _walk_tree(tree, eager_only=False):
+            if isinstance(child, ast.Name) and child.id in name_set:
+                found.append(child.id)
+        depends[name].update(found)
+    remaining = set(names)
+    ordered = []
+    while remaining:
+        ready = [
+            name
+            for name in names
+            if name in remaining and not (depends[name] & remaining)
+        ]
+        if not ready:
+            ordered.extend(n for n in names if n in remaining)
+            break
+        for name in ready:
+            remaining.remove(name)
+            ordered.append(name)
+    by_name = dict(temp_entries)
+    return [(name, by_name[name]) for name in ordered]
+
+
+def _analyze_scope(scope, plan, with_init, signature, tmp_index):
+    # Safety: an expression is evaluated only on rows where some naive
+    # per-reducer use would have evaluated it, never above its guards, and
+    # initial expressions are never shared. Reducer where/value expressions
+    # are treated as deterministic and free of side effects on the row;
+    # shared values are the same object in every reducer; reducer callables
+    # must not mutate the values they receive.
+    items = []
+    _collect_count_items(scope, plan, with_init, scope, signature, items)
+    local_temps = []
+    local_i = 0
+    while True:
+        candidates = {}
+        for item in items:
+            if item.tree is None:
+                continue
+            eager_dumps = set()
+            if item.is_self_eager_root:
+                for node in _iter_eager(item.tree):
+                    if _is_hoistable(node):
+                        eager_dumps.add(ast.dump(node))
+            for node in _iter_hoistable(item.tree):
+                dumped = ast.dump(node)
+                rec = candidates.get(dumped)
+                if rec is None:
+                    rec = {
+                        "size": _node_size(node),
+                        "count": 0,
+                        "eager_ok": False,
+                        "node": node,
+                    }
+                    candidates[dumped] = rec
+                rec["count"] += item.weight
+                if dumped in eager_dumps:
+                    rec["eager_ok"] = True
+        best = None
+        best_key = None
+        for dumped, rec in candidates.items():
+            if rec["count"] < 2 or not rec["eager_ok"]:
+                continue
+            key = (rec["size"], rec["count"], dumped)
+            if best is None or key > best:
+                best = key
+                best_key = dumped
+        if best_key is None:
+            break
+        rec = candidates[best_key]
+        internal_name = "__cse{}_{}_".format(id(scope) % 100000, local_i)
+        local_i += 1
+        rhs_tree = copy.deepcopy(rec["node"])
+        mapping = {best_key: internal_name}
+        for item in items:
+            new_tree, changed = _replace_dumps(item.tree, mapping)
+            if changed:
+                item.tree = new_tree
+                item.rewritten = True
+        items.append(
+            _CountItem(
+                _fmt_expr(rhs_tree, rewritten=True),
+                1,
+                True,
+                "temp_rhs",
+                tree=rhs_tree,
+                rewritten=True,
+            )
+        )
+        local_temps.append((internal_name, rhs_tree))
+
+    ordered = _topo_temp_order(local_temps)
+    old_to_new = {}
+    emitted = []
+    for internal_name, tree in ordered:
+        public_name = "_tmp{}_".format(tmp_index)
+        tmp_index += 1
+        old_to_new[internal_name] = public_name
+        emitted.append((public_name, tree))
+    if old_to_new:
+        for item in items:
+            if item.tree is not None:
+                item.tree = _rename_names(item.tree, old_to_new)
+        emitted = [
+            (
+                name,
+                _rename_names(tree, old_to_new) if tree is not None else tree,
+            )
+            for name, tree in emitted
+        ]
+
+    plan.temps[id(scope)] = [
+        (name, _fmt_expr(tree, rewritten=True) if tree is not None else "None")
+        for name, tree in emitted
+    ]
+
+    for item in items:
+        if item.kind == "temp_rhs":
+            continue
+        new_code = _fmt_expr(item.tree, item.code, item.rewritten)
+        if item.kind == "value":
+            codes = list(plan.values[id(item.record)])
+            codes[item.index] = new_code
+            plan.values[id(item.record)] = tuple(codes)
+        elif item.kind == "guard":
+            plan.guards[id(item.child)] = new_code
+        elif item.kind == "signature":
+            plan.signature = new_code
+
+    for child in scope.children.values():
+        tmp_index = _analyze_scope(child, plan, with_init, None, tmp_index)
+    return tmp_index
+
+
+def _init_plan(root, records, signature):
+    plan = SharingPlan()
+    for record in records:
+        plan.values[id(record)] = record.value_codes
+    plan.signature = signature
+    return plan
+
+
+def _count_reducer_nodes(node):
+    total = 1 if node.reducers else 0
+    for child in node.children.values():
+        total += _count_reducer_nodes(child)
+    return total
 
 
 class ReduceManager:
@@ -207,183 +770,163 @@ class ReduceManager:
         "var_agg_data",
         "aggregate_mode",
         "var_agg_data_to_index",
-        "var_agg_data_value_to_ast_with_init",
-        "var_agg_data_value_to_ast_without_init",
-        "code_optimizer",
+        "records",
+        "dedup",
     ]
-    code_optimizer: (
-        "Union[OptimizationStage1WithChecksums, OptimizationStage1]"
-    )
 
     def __init__(self, var_row, var_agg_data, aggregate_mode):
         self.var_row = var_row
         self.var_agg_data = var_agg_data
         self.aggregate_mode = aggregate_mode
         self.var_agg_data_to_index = {}
-        self.var_agg_data_value_to_ast_with_init = {}
-        self.var_agg_data_value_to_ast_without_init = {}
-
-        if self.aggregate_mode:
-            self.code_optimizer = OptimizationStage1WithChecksums()
-        else:
-            self.code_optimizer = OptimizationStage1()
-
-    def add_reducer_code(
-        self, var_agg_data_value, code_with_init, code_without_init
-    ):
-        ast_with_init = ast_parse(code_with_init)
-        for (
-            l_var_agg_data_value,
-            l_ast_with_init,
-        ) in self.var_agg_data_value_to_ast_with_init.items():
-            if ast_are_fuzzy_equal(
-                l_ast_with_init,
-                ast_with_init,
-                (
-                    fuzzy_cmp_aggregate
-                    if self.aggregate_mode
-                    else fuzzy_cmp_group_by
-                ),
-            ):
-                return l_var_agg_data_value
-        self.var_agg_data_value_to_ast_with_init[var_agg_data_value] = (
-            ast_with_init
-        )
-        self.var_agg_data_value_to_ast_without_init[var_agg_data_value] = (
-            code_without_init and ast_parse(code_without_init)
-        )
-        return var_agg_data_value
-
-    def optimize(self, tree):
-        self.code_optimizer.run(
-            tree=tree,
-            no_side_effects_test=no_side_effects_test,
-            condition_is_transparent_test=condition_is_transparent_test,
-        )
-        return self.code_optimizer.tree
-
-    def gen_group_by_code(self, var_signature_to_agg_data, code_signature):
-        ast_with_init = None
-        for (
-            l_ast_with_init
-        ) in self.var_agg_data_value_to_ast_with_init.values():
-            if ast_with_init is None:
-                ast_with_init = l_ast_with_init
-            else:
-                ast_merge(
-                    ast_with_init, l_ast_with_init, fuzzy_merge_group_by_cmp
-                )
-
-        ast_assign_var_agg_data = ast_parse(
-            f"{self.var_agg_data} = {var_signature_to_agg_data}[{code_signature}]"
-        )
-        if ast_with_init:
-            ast_merge(
-                ast_with_init,
-                ast_assign_var_agg_data,
-                fuzzy_merge_group_by_cmp,
-            )
-            optimized_ast = self.optimize(ast_with_init)
-        else:
-            optimized_ast = ast_assign_var_agg_data
-
-        code = Code()
-        code.add_line(f"for {self.var_row} in data_:", 1)
-        for l_line in ast_unparse(optimized_ast).splitlines():
-            code.add_line(l_line, 0)
-
-        return code
-
-    def gen_aggregate_code(self):
-        ast_with_init = None
-        for (
-            l_ast_with_init
-        ) in self.var_agg_data_value_to_ast_with_init.values():
-            if ast_with_init is None:
-                ast_with_init = l_ast_with_init
-            else:
-                ast_merge(
-                    ast_with_init, l_ast_with_init, fuzzy_merge_aggregate_cmp
-                )
-
-        code = Code()
-
-        ast_without_init = None
-        for (
-            l_ast_without_init
-        ) in self.var_agg_data_value_to_ast_without_init.values():
-            if ast_without_init is None:
-                ast_without_init = l_ast_without_init
-            elif l_ast_without_init:
-                ast_merge(
-                    ast_without_init,
-                    l_ast_without_init,
-                    fuzzy_merge_aggregate_cmp,
-                )
-
-        if ast_with_init:
-            optimized_ast_with_init = self.optimize(ast_with_init)
-            expected_checksum = cast(
-                OptimizationStage1WithChecksums, self.code_optimizer
-            ).checksum
-
-            var_init_checksum = "checksum_"
-            code.add_line(f"{var_init_checksum} = 0", 0)
-            if ast_without_init:
-                code.add_line("it_ = iter(data_)", 0)
-                code.add_line(f"for {self.var_row} in it_:", 1)
-            else:
-                code.add_line(f"for {self.var_row} in data_:", 1)
-
-            for l_line in ast_unparse(optimized_ast_with_init).splitlines():
-                code.add_line(l_line, 0)
-
-            code.add_line(
-                f"if {var_init_checksum} == {expected_checksum}:",
-                1,
-            )
-            if ConverterOptionsCtx.get_option_value("debug"):
-                code.add_line(
-                    "globals()['__BROKEN_EARLY__'] = True  # DEBUG ONLY",
-                    0,
-                )
-            code.add_line("break", -2)
-
-        if ast_without_init:
-            optimized_ast_without_init = self.optimize(ast_without_init)
-            code.add_line(f"for {self.var_row} in it_:", 1)
-            for l_line in ast_unparse(optimized_ast_without_init).splitlines():
-                code.add_line(l_line, 0)
-
-        return code
-
-    def fmt_agg_data_value(self, index):
-        return (
-            f"{self.var_agg_data}_v{index}"
-            if self.aggregate_mode
-            else f"{self.var_agg_data}.v{index}"
-        )
+        self.records = []
+        self.dedup = {}
 
     def gen_agg_data_value(self):
-        index = len(self.var_agg_data_value_to_ast_with_init)
+        index = len(self.records)
         var_agg_data_value = self.fmt_agg_data_value(index)
         self.var_agg_data_to_index[var_agg_data_value] = index
         return var_agg_data_value
 
+    def add_reducer_code(self, record):
+        key = record.dedup_key()
+        existing = self.dedup.get(key)
+        if existing is not None:
+            return existing.slot
+        slot = self.gen_agg_data_value()
+        record.slot = slot
+        chain = []
+        if record.where_code is not None:
+            chain.append(record.where_code)
+        for code, flag in zip(record.value_codes, record.not_none_flags):
+            if flag:
+                chain.append("{} is not None".format(code))
+        record.guard_chain = tuple(chain)
+        self.records.append(record)
+        self.dedup[key] = record
+        return slot
+
+    def fmt_agg_data_value(self, index):
+        return (
+            "{}_v{}".format(self.var_agg_data, index)
+            if self.aggregate_mode
+            else "{}.v{}".format(self.var_agg_data, index)
+        )
+
+    def _record_kwargs(self, record, plan):
+        kwargs = {"result": record.slot, "row": record.row_code}
+        codes = plan.values[id(record)]
+        for i, code in enumerate(codes):
+            kwargs["value{}".format(i)] = code
+        return kwargs
+
+    def _emit_lines(self, code, lines, record, plan):
+        if not lines:
+            return
+        kwargs = self._record_kwargs(record, plan)
+        for line in lines:
+            code.add_line(line % kwargs, 0)
+
+    def _emit_scope(self, code, node, plan, with_init, after_temps=None):
+        for tmp_name, tmp_code in plan.temps.get(id(node), ()):
+            code.add_line("{} = {}".format(tmp_name, tmp_code), 0)
+        if after_temps is not None:
+            after_temps()
+        if with_init and node.reducers:
+            first_slot = node.reducers[0].slot
+            code.add_line("if {} is _none:".format(first_slot), 1)
+            for record in node.reducers:
+                self._emit_lines(
+                    code, record.prepare_first_lines, record, plan
+                )
+            if self.aggregate_mode:
+                code.add_line("checksum_ += 1", 0)
+            if any(record.reduce_lines for record in node.reducers):
+                code.incr_indent_level(-1)
+                code.add_line("else:", 1)
+                for record in node.reducers:
+                    self._emit_lines(code, record.reduce_lines, record, plan)
+            code.incr_indent_level(-1)
+        elif not with_init and node.reducers:
+            for record in node.reducers:
+                self._emit_lines(code, record.reduce_lines, record, plan)
+        for guard, child in node.children.items():
+            rewritten = plan.guards.get(id(child), guard)
+            code.add_line("if {}:".format(rewritten), 1)
+            self._emit_scope(code, child, plan, with_init)
+            code.incr_indent_level(-1)
+
+    def gen_group_by_code(self, var_signature_to_agg_data, code_signature):
+        root = _build_guard_tree(self.records)
+        plan = _init_plan(root, self.records, code_signature)
+        _analyze_scope(root, plan, True, code_signature, 0)
+        code = Code()
+        code.add_line("for {} in data_:".format(self.var_row), 1)
+
+        def _assign_agg_data():
+            code.add_line(
+                "{} = {}[{}]".format(
+                    self.var_agg_data,
+                    var_signature_to_agg_data,
+                    plan.signature,
+                ),
+                0,
+            )
+
+        self._emit_scope(code, root, plan, True, after_temps=_assign_agg_data)
+        return code
+
+    def gen_aggregate_code(self):
+        code = Code()
+        if not self.records:
+            return code
+        with_init_root = _build_guard_tree(self.records)
+        with_init_plan = _init_plan(with_init_root, self.records, None)
+        _analyze_scope(with_init_root, with_init_plan, True, None, 0)
+        expected_checksum = _count_reducer_nodes(with_init_root)
+
+        reduce_records = [r for r in self.records if r.reduce_lines]
+        reduce_root = (
+            _build_guard_tree(reduce_records) if reduce_records else None
+        )
+        reduce_plan = None
+        if reduce_root is not None:
+            reduce_plan = _init_plan(reduce_root, reduce_records, None)
+            _analyze_scope(reduce_root, reduce_plan, False, None, 0)
+
+        code.add_line("checksum_ = 0", 0)
+        if reduce_records:
+            code.add_line("it_ = iter(data_)", 0)
+            code.add_line("for {} in it_:".format(self.var_row), 1)
+        else:
+            code.add_line("for {} in data_:".format(self.var_row), 1)
+        self._emit_scope(code, with_init_root, with_init_plan, True)
+        code.add_line("if checksum_ == {}:".format(expected_checksum), 1)
+        if ConverterOptionsCtx.get_option_value("debug"):
+            code.add_line(
+                "globals()['__BROKEN_EARLY__'] = True  # DEBUG ONLY",
+                0,
+            )
+        code.add_line("break", -2)
+
+        if reduce_records:
+            code.add_line("for {} in it_:".format(self.var_row), 1)
+            self._emit_scope(code, reduce_root, reduce_plan, False)
+        return code
+
     def gen_group_by_data_container(self, grouper, container_name, ctx):
         attrs = [
-            f"v{self.var_agg_data_to_index[var_agg_data_value]}"
-            for var_agg_data_value in self.var_agg_data_value_to_ast_with_init
+            "v{}".format(self.var_agg_data_to_index[record.slot])
+            for record in self.records
         ]
-
         code = Code()
-        code.add_line(f"class {container_name}:", 1)
-        _ = ",".join(f"'{attr}'" for attr in attrs)
-        code.add_line(f"__slots__ = [{_}]", 0)
+        code.add_line("class {}:".format(container_name), 1)
+        joined = ",".join("'{}'".format(attr) for attr in attrs)
+        code.add_line("__slots__ = [{}]".format(joined), 0)
         code.add_line("def __init__(self, _none=__none__):", 1)
         if attrs:
             for attr in attrs:
-                code.add_line(f"self.{attr} = _none", 0)
+                code.add_line("self.{} = _none".format(attr), 0)
         else:
             code.add_line("pass", 0)
         return ctx[
@@ -391,17 +934,17 @@ class ReduceManager:
         ]
 
     def gen_init_aggregate_vars(self):
-        if not self.var_agg_data_value_to_ast_with_init:
+        if not self.records:
             return ""
         vars_code = " = ".join(
             [
                 self.fmt_agg_data_value(
-                    self.var_agg_data_to_index[var_agg_data_value]
+                    self.var_agg_data_to_index[record.slot]
                 )
-                for var_agg_data_value in self.var_agg_data_value_to_ast_with_init
+                for record in self.records
             ]
         )
-        return f"{vars_code} = _none"
+        return "{} = _none".format(vars_code)
 
 
 class BaseReducer(BaseConversion):
@@ -490,82 +1033,58 @@ class BaseReducer(BaseConversion):
 
     def gen_code_and_update_ctx(self, code_input, ctx) -> str:
         reduce_manager: ReduceManager = ctx["current_reduce_manager"][-1]
-        var_agg_data_value = reduce_manager.gen_agg_data_value()
 
-        var_row = reduce_manager.var_row
-
-        code = Code()
+        where_code = None
         if not isinstance(self.where, _None):
-            line_ = reduce_manager.code_optimizer.use_expression(
-                self.where.gen_code_and_update_ctx(code_input, ctx)
-            )
-            code.add_line(f"if {line_}:", 1)
-        kwargs = {
-            "result": var_agg_data_value,
-            "row": code_input,
-            # "value0", "value1", etc.
-        }
+            where_code = self.where.gen_code_and_update_ctx(code_input, ctx)
+
         works_with_not_none_only = self.get_option(
             "works_with_not_none_only", ctx
         )
+        value_codes = []
+        not_none_flags = []
         for index, expression in enumerate(self.expressions):
-            expression_code = reduce_manager.code_optimizer.use_expression(
-                expression.gen_code_and_update_ctx(code_input, ctx)
+            expression_code = expression.gen_code_and_update_ctx(
+                code_input, ctx
             )
-            kwargs[f"value{index}"] = expression_code
-            if works_with_not_none_only[index] and not expression.has_hint(
-                BaseConversion.OutputHints.NOT_NONE
-            ):
-                code.add_line(
-                    "if {}:".format(f"{expression_code} is not None"),
-                    1,
+            value_codes.append(expression_code)
+            not_none_flags.append(
+                bool(works_with_not_none_only[index])
+                and not expression.has_hint(
+                    BaseConversion.OutputHints.NOT_NONE
                 )
-
-        reduce_lines = self.get_option("reduce_lines", ctx)
-        if not isinstance(self.initial, _None) and self.internals_are_public:
-            line_ = reduce_manager.code_optimizer.use_expression(
-                self.initial.gen_code_and_update_ctx(code_input, ctx)
             )
-            # Escape % so literal modulos in initial code survive line % kwargs.
-            # Optimizer still sees the unescaped form above.
+
+        reduce_lines = tuple(self.get_option("reduce_lines", ctx) or ())
+        initial_code = None
+        if not isinstance(self.initial, _None) and self.internals_are_public:
+            initial_code = self.initial.gen_code_and_update_ctx(
+                code_input, ctx
+            )
             prepare_first_lines = (
-                f"%(result)s = {line_.replace('%', '%%')}",
+                "%(result)s = {}".format(initial_code.replace("%", "%%")),
                 *reduce_lines,
             )
         else:
-            prepare_first_lines = self.get_option("prepare_first_lines", ctx)
+            prepare_first_lines = tuple(
+                self.get_option("prepare_first_lines", ctx) or ()
+            )
 
-        code_without_init = (
-            code.clone()
-            if reduce_manager.aggregate_mode and reduce_lines
-            else None
+        record = ReducerRecord(
+            where_code=where_code,
+            value_codes=tuple(value_codes),
+            not_none_flags=tuple(not_none_flags),
+            prepare_first_lines=prepare_first_lines,
+            reduce_lines=reduce_lines,
+            initial_code=initial_code,
+            row_code=code_input,
         )
-
-        code.add_line(f"if {var_agg_data_value} is _none:", 1)
-        for line in prepare_first_lines:
-            code.add_line(line % kwargs, 0)
-        if reduce_manager.aggregate_mode:
-            code.add_line("checksum_ += 1", 0)
-        code.incr_indent_level(-1)
-
-        if reduce_lines:
-            code.add_line("else:", 1)
-            for l_line in reduce_lines:
-                line = l_line % kwargs
-                code.add_line(line, 0)
-                if code_without_init is not None:
-                    code_without_init.add_line(line, 0)
-
-        new_code_input = reduce_manager.add_reducer_code(
-            var_agg_data_value,
-            code.to_string(0),
-            code_without_init and code_without_init.to_string(0),
-        )
+        new_code_input = reduce_manager.add_reducer_code(record)
 
         post_conversion = self.get_option("post_conversion", ctx, None)
         default_code = cast(
             BaseConversion, self.default
-        ).gen_code_and_update_ctx(var_row, ctx)
+        ).gen_code_and_update_ctx(reduce_manager.var_row, ctx)
         return If(
             This.is_(EscapedString("_none")),
             EscapedString(default_code),
@@ -2006,15 +2525,20 @@ class Reduce(BaseReducer):
         # without corrupting intentional %(result)s / %(row)s placeholders.
         result_sentinel = "__reduce_result_sentinel__"
         row_sentinel = "__reduce_row_sentinel__"
+        value_sentinels = tuple(
+            "__reduce_value_{}_sentinel__".format(i)
+            for i in range(len(self.expressions))
+        )
+        value_args = tuple(
+            EscapedString(sentinel) for sentinel in value_sentinels
+        )
         to_call = self.to_call_with_2_args
         if isinstance(to_call, InlineExpr):
             conv = to_call.pass_args(
-                EscapedString(result_sentinel), *self.expressions
+                EscapedString(result_sentinel), *value_args
             )
         elif isinstance(to_call, NaiveConversion) and callable(to_call.value):
-            conv = to_call.call(
-                EscapedString(result_sentinel), *self.expressions
-            )
+            conv = to_call.call(EscapedString(result_sentinel), *value_args)
         else:
             raise AssertionError("unexpected callable", to_call)
         code = conv.gen_code_and_update_ctx(row_sentinel, ctx)
@@ -2023,4 +2547,6 @@ class Reduce(BaseReducer):
             .replace(result_sentinel, "%(result)s")
             .replace(row_sentinel, "%(row)s")
         )
+        for i, sentinel in enumerate(value_sentinels):
+            code = code.replace(sentinel, "%(value{})s".format(i))
         return (f"%(result)s = {code}",)
