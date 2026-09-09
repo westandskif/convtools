@@ -159,6 +159,12 @@ class MetaColumns:
         return column, state
 
     def rename(self, new_names):
+        if self.duplicate_columns != "keep":
+            seen = set()
+            for name in new_names:
+                if name in seen:
+                    raise ValueError("such column already exists", name)
+                seen.add(name)
         none_counter = self.column_to_number[None]
         for column, new_name in zip(self.columns, new_names):
             column.name = new_name
@@ -202,9 +208,11 @@ class MetaColumns:
         if missing_columns:
             raise ValueError("missing columns", missing_columns)
 
+        to_drop = set(unique_column_names)
         new_columns = MetaColumns(self.duplicate_columns)
         for column in self.columns:
-            if column.name in unique_column_names:
+            if column.name in to_drop:
+                to_drop.remove(column.name)
                 continue
             new_columns.add(column.name, column.index, column.conversion)
 

@@ -67,3 +67,17 @@ def test_split_buffer():
                     chunk_size_,
                 )
             ) == [s for s in result]
+
+
+def test_split_buffer_leaves_caller_buffer_open():
+    buf = StringIO("12345")
+    list(split_buffer(buf, "3", 10))
+    assert buf.closed is False
+
+    buf = BytesIO(b"12345")
+    list(split_buffer(buf, b"3", 10))
+    assert buf.closed is False
+
+    buf = BytesIO(b"12345")
+    list(split_buffer_n_decode(buf, b"3", 10))
+    assert buf.closed is False

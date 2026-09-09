@@ -52,6 +52,7 @@ tables, rearranges the result columns, and returns a row iterator:
 * `mangle` - rename duplicates to `name`, `name_1`, `name_2`, ..., skipping
   names that are already taken.
 * `keep` - keep duplicates; when referenced by name, the first one wins.
+  `Table.drop` removes only the first column of each given name.
 * `drop` - skip duplicates entirely.
 
 Defaults differ by constructor: `from_rows` uses `raise`, while `from_csv` and
@@ -71,6 +72,10 @@ Arguments:
 * `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
 * `skip_rows` - number of rows to skip before header handling; default is 0.
 
+When the first row already has the requested `into_iter_rows` type and no
+column changes are pending, rows pass through unchanged, so the output row
+type is guaranteed only for homogeneous input.
+
 ----
 
 ### `Table.into_iter_rows`
@@ -81,6 +86,10 @@ Arguments:
 
 * `type_` - must be `dict`, `tuple`, or `list`.
 * `include_header` - when `True`, prepend a header row (ignored for `dict`).
+
+When the first row already has the requested type and no column changes are
+pending, rows pass through unchanged, so the output row type is guaranteed
+only for homogeneous input.
 
 {!examples-md/contrib_tables_read_rows.md!}
 
@@ -95,7 +104,10 @@ Arguments:
 * `filepath_or_buffer` - a filepath or a buffer acceptable by `csv.reader`.
 * `header` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
 * `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
-* `skip_rows` - number of rows to skip before header handling; default is 0.
+* `skip_rows` - number of non-empty records to skip before header handling;
+  default is 0. Blank lines are skipped and do not count. The first record
+  kept after skipping fixes the row width; a later record of a different
+  width raises `ValueError` with the 1-based physical line number.
 * `dialect` - a dialect acceptable by `csv.reader`. Use
   `Table.csv_dialect(delimiter="\t")` for tab-separated files.
 * `encoding` - default is `utf-8`.
@@ -210,6 +222,10 @@ Arguments:
 * `table` - table to chain.
 * `fill_value` - value used to fill gaps when columns don't align; default is
   `None`.
+
+Tables with duplicate names (`duplicate_columns="keep"`) keep them only on
+the identical-schema fast path; otherwise columns align by name using the
+first column of each name.
 
 {!examples-md/contrib_tables_chain.md!}
 

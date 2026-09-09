@@ -206,6 +206,10 @@ class Table:
 
           file_to_close: for internal use
 
+        When the first row already has the requested ``into_iter_rows`` type
+        and no column changes are pending, rows pass through unchanged, so the
+        output row type is guaranteed only for homogeneous input.
+
         """
         columns = MetaColumns(duplicate_columns=duplicate_columns)
 
@@ -213,10 +217,14 @@ class Table:
 
         if skip_rows:
             for _ in range(skip_rows):
-                next(rows)
+                if next(rows, _none) is _none:
+                    break
 
         first_row = next(rows, _none)
-        first_row_is_sized = isinstance(first_row, Sized)
+        input_exhausted = first_row is _none
+        first_row_is_sized = isinstance(first_row, Sized) and not isinstance(
+            first_row, (str, bytes, bytearray)
+        )
         row_type = tuple if first_row is _none else type(first_row)
         pending_changes = 0
 
@@ -230,8 +238,12 @@ class Table:
                 first_row = cast(Sized, first_row)
                 if len(header) != len(first_row):
                     raise ValueError("non-matching number of columns")
-                for index, column in enumerate(header):
-                    pending_changes |= columns.add(column, index, None)[1]
+                if isinstance(first_row, dict):
+                    for name, index in zip(header, first_row):
+                        pending_changes |= columns.add(name, index, None)[1]
+                else:
+                    for index, column in enumerate(header):
+                        pending_changes |= columns.add(column, index, None)[1]
             else:
                 if len(header) != 1:
                     raise ValueError("non-matching number of columns")
@@ -287,9 +299,26 @@ class Table:
 
             pending_changes |= ColumnChanges.MUTATE
 
-        rows_objects: "List[Iterable]" = [rows]
+        if isinstance(header, (tuple, list, dict)) and first_row is not _none:
+            if isinstance(first_row, dict):
+                if any(
+                    column.index != column.name for column in columns.columns
+                ):
+                    pending_changes |= ColumnChanges.REARRANGE
+            else:
+                if any(
+                    column.index != index
+                    for index, column in enumerate(columns.columns)
+                ):
+                    pending_changes |= ColumnChanges.REARRANGE
+
+        rows_objects: "List[Iterable]" = [] if input_exhausted else [rows]
         if first_row is not _none:
             rows_objects.insert(0, (first_row,))
+
+        if input_exhausted and file_to_close is not None:
+            file_to_close.close()
+            file_to_close = None
 
         return cls(
             row_type=row_type,
@@ -344,9 +373,10 @@ class Table:
             * "mangle": names of duplicate columns are mangled like: "name",
               "name_1", "name_2", etc.
 
-          skip_rows: number of rows to skip at the beginning. Useful when input
-            data contains a header, but you provide your own - in this case
-            it's convenient to skip the heading row from the input
+          skip_rows: number of non-empty records to skip at the beginning.
+            Blank lines are skipped and do not count. Useful when input data
+            contains a header, but you provide your own - in this case it's
+            convenient to skip the heading row from the input
 
           dialect: a dialect acceptable by `csv.reader` There's a
             helper method:
@@ -370,17 +400,37 @@ class Table:
             buffer = filepath_or_buffer
             file_to_close = None
 
-        try:
-            rows = map(
-                tuple,  # type: ignore
-                csv.reader(buffer, dialect=dialect),
-            )
+        def csv_rows():
+            # Per row: skip empty records, one len, one tuple() (tuple already
+            # paid today). Width is taken from the first yielded record so a
+            # differently shaped preamble can be skip_rows'd first.
+            reader = csv.reader(buffer, dialect=dialect)
+            expected_width = None
+            skipped = 0
+            for record in reader:
+                if not record:
+                    continue
+                if skipped < skip_rows:
+                    skipped += 1
+                    continue
+                width = len(record)
+                if expected_width is None:
+                    expected_width = width
+                elif width != expected_width:
+                    if file_to_close is not None:
+                        file_to_close.close()
+                    raise ValueError(
+                        f"row on line {reader.line_num} has {width} columns,"
+                        f" expected {expected_width}"
+                    )
+                yield tuple(record)
 
+        try:
             return cls.from_rows(
-                rows,
+                csv_rows(),
                 header,
                 duplicate_columns,
-                skip_rows=skip_rows,
+                skip_rows=0,
                 file_to_close=file_to_close,
             )
         except BaseException:
@@ -756,6 +806,10 @@ class Table:
         Args:
           table: table to be chained
           fill_value: value to use for filling gaps
+
+        Tables with duplicate names (``duplicate_columns="keep"``) keep them
+        only on the identical-schema fast path; otherwise columns align by
+        name using the first column of each name.
         """
         if self.rows_objects is None:
             raise AssertionError("move_rows called the 2nd time")
@@ -1089,7 +1143,11 @@ class Table:
                 .execute(self.into_iter_rows(tuple, include_header=False))
             )
 
-        return Table.from_rows(new_rows, header=columns)
+        return Table.from_rows(
+            new_rows,
+            header=columns,
+            duplicate_columns=self.meta_columns.duplicate_columns,
+        )
 
     def wide_to_long(
         self,
@@ -1127,9 +1185,14 @@ class Table:
         Returns: a new Table.
         """
         columns = self.columns
-        keep_cols_set = set(keep_cols)
-        collapse_cols = tuple(
-            col for col in columns if col not in keep_cols_set
+        seen = set()
+        for name in (col_for_names, col_for_values, *keep_cols):
+            if name in seen:
+                raise ValueError("such column already exists", name)
+            seen.add(name)
+        keep_indexes = {columns.index(name) for name in keep_cols}
+        collapse_items = tuple(
+            (i, col) for i, col in enumerate(columns) if i not in keep_indexes
         )
         resulting_cols = tuple(keep_cols) + (col_for_names, col_for_values)
 
@@ -1156,20 +1219,24 @@ class Table:
                                 )
                             ),
                             EscapedString("row_")
-                            .item(columns.index(collapse_col))
+                            .item(collapse_index)
                             .pipe(
                                 This
                                 if prepare_value is None
                                 else prepare_value
                             ),
                         )
-                        for collapse_col in collapse_cols
+                        for collapse_index, collapse_col in collapse_items
                     )
                 ),
             )
             .execute(self.into_iter_rows(tuple, include_header=False))
         )
-        return Table.from_rows(new_rows, header=resulting_cols)
+        return Table.from_rows(
+            new_rows,
+            header=resulting_cols,
+            duplicate_columns=self.meta_columns.duplicate_columns,
+        )
 
     def pivot(
         self,
@@ -1366,6 +1433,10 @@ class Table:
             * `tuple`
             * `list`
           include_header: whether to include header row in the result or not
+
+        When the first row already has the requested type and no column changes
+        are pending, rows pass through unchanged, so the output row type is
+        guaranteed only for homogeneous input.
 
         """
         return chain.from_iterable(

@@ -4,7 +4,7 @@
 
 Python's `open` function doesn't support custom newlines in the text mode and
 doesn't support "newlines" (delimiters) in binary mode, so it is convenient to
-have `split_buffer` helper for this:
+have `split_buffer` helper for this. The caller owns and closes the buffer:
 
 {!examples-md/contrib_fs__split_buffer.md!}
 

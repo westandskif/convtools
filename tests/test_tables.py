@@ -1,3 +1,4 @@
+import io
 from unittest.mock import MagicMock
 
 import pytest
@@ -928,9 +929,27 @@ def test_from_jsonl_closes_opened_file_on_skip_past_end(monkeypatch, tmp_path):
     path = tmp_path / "one.jsonl"
     path.write_text('{"a": 1}\n', encoding="utf-8")
     closed = _patch_open_tracking(monkeypatch)
-    with pytest.raises(StopIteration):
-        Table.from_jsonl(str(path), skip_rows=5)
+    table = Table.from_jsonl(str(path), skip_rows=5)
     assert closed
+    assert list(table.into_iter_rows(dict)) == []
+
+
+def test_from_csv_closes_opened_file_on_empty_and_skip_past_end(
+    monkeypatch, tmp_path
+):
+    empty = tmp_path / "empty.csv"
+    empty.write_text("", encoding="utf-8")
+    closed = _patch_open_tracking(monkeypatch)
+    table = Table.from_csv(str(empty))
+    assert closed
+    assert list(table.into_iter_rows(tuple)) == []
+
+    short = tmp_path / "short.csv"
+    short.write_text("a,b\n1,2\n", encoding="utf-8")
+    closed = _patch_open_tracking(monkeypatch)
+    table = Table.from_csv(str(short), skip_rows=5)
+    assert closed
+    assert list(table.into_iter_rows(tuple)) == []
 
 
 def test_from_jsonl_closes_opened_file_on_invalid_first_line(
@@ -1797,3 +1816,208 @@ def test_column_ref_falls_back_to_outer_scope():
     inner = ColumnScope(c.col("a"), {(None, "missing"): 1})
     outer = ColumnScope(inner, {(None, "a"): 0})
     assert outer.execute((10, 20)) == 10
+
+
+def test_from_rows_explicit_header_rebuilds_non_identity():
+    assert list(
+        Table.from_rows([(1, 2)], header={"y": 1, "x": 0}).into_iter_rows(
+            tuple, include_header=True
+        )
+    ) == [("y", "x"), (2, 1)]
+
+    buf = io.StringIO()
+    Table.from_rows([(1, 2)], header={"y": 1, "x": 0}).into_csv(buf)
+    assert buf.getvalue() == "y,x\r\n2,1\r\n"
+
+    assert list(
+        Table.from_rows(
+            [{"a": 1, "b": 2}], header={"y": "b", "x": "a"}
+        ).into_iter_rows(dict)
+    ) == [{"y": 2, "x": 1}]
+
+    assert list(
+        Table.from_rows([{"a": 1, "b": 2}], header=["y", "x"]).into_iter_rows(
+            dict
+        )
+    ) == [{"y": 1, "x": 2}]
+
+    row = (1, 2)
+    table = Table.from_rows([row], header=["a", "b"])
+    assert table.pending_changes == 0
+    assert next(iter(table.into_iter_rows(tuple))) is row
+
+    row = {"a": 1, "b": 2}
+    table = Table.from_rows([row], header={"a": "a", "b": "b"})
+    assert table.pending_changes == 0
+    assert next(iter(table.into_iter_rows(dict))) is row
+
+
+def test_from_rows_str_bytes_are_scalar_for_header():
+    assert list(
+        Table.from_rows(["a", "bc"], header=["x"]).into_iter_rows(tuple)
+    ) == [("a",), ("bc",)]
+    assert list(
+        Table.from_rows([b"a", b"bc"], header=["x"]).into_iter_rows(tuple)
+    ) == [(b"a",), (b"bc",)]
+    with pytest.raises(ValueError, match="first row is not sized"):
+        Table.from_rows(["a", "bc"], header={"x": 0})
+
+
+def test_from_csv_skips_blanks_and_rejects_ragged(monkeypatch, tmp_path):
+    buf = io.StringIO("a,b\n1,2\n\n3,4\n")
+    assert list(Table.from_csv(buf, header=True).into_iter_rows(dict)) == [
+        {"a": "1", "b": "2"},
+        {"a": "3", "b": "4"},
+    ]
+
+    buf = io.StringIO("a,b\n1,2\n\n3,4\n")
+    assert list(Table.from_csv(buf, header=True).into_iter_rows(tuple)) == [
+        ("1", "2"),
+        ("3", "4"),
+    ]
+
+    with pytest.raises(
+        ValueError, match="row on line 2 has 1 columns, expected 2"
+    ):
+        list(
+            Table.from_csv(
+                io.StringIO("a,b\n1\n"), header=True
+            ).into_iter_rows(tuple)
+        )
+    with pytest.raises(
+        ValueError, match="row on line 2 has 3 columns, expected 2"
+    ):
+        list(
+            Table.from_csv(
+                io.StringIO("a,b\n1,2,3\n"), header=True
+            ).into_iter_rows(tuple)
+        )
+
+    buf = io.StringIO("only-one\na,b\n1,2\n")
+    assert list(
+        Table.from_csv(buf, header=True, skip_rows=1).into_iter_rows(dict)
+    ) == [{"a": "1", "b": "2"}]
+
+    buf = io.StringIO("\nonly-one\n\na,b\n1,2\n")
+    assert list(
+        Table.from_csv(buf, header=True, skip_rows=1).into_iter_rows(dict)
+    ) == [{"a": "1", "b": "2"}]
+
+    path = tmp_path / "ragged.csv"
+    path.write_text("a,b\n1,2,3\n", encoding="utf-8")
+    closed = _patch_open_tracking(monkeypatch)
+    with pytest.raises(
+        ValueError, match="row on line 2 has 3 columns, expected 2"
+    ):
+        list(Table.from_csv(str(path), header=True).into_iter_rows(tuple))
+    assert closed
+
+
+def test_mangle_header_a_a_a1_is_occupied_aware():
+    table = Table.from_rows(
+        [(1, 2, 3)], header=["a", "a", "a_1"], duplicate_columns="mangle"
+    )
+    assert table.columns == ["a", "a_1", "a_1_1"]
+    assert list(table.into_iter_rows(dict)) == [{"a": 1, "a_1": 2, "a_1_1": 3}]
+
+
+def test_explode_and_wide_to_long_keep_duplicates():
+    result = list(
+        Table.from_rows([["a"], [[1, 2]]], header=True)
+        .zip(Table.from_rows([["a"], [10]], header=True))
+        .explode("a")
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [("a", "a"), (1, 10), (2, 10)]
+
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), (1, 2, [3, 4])],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .explode("b")
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [("a", "a", "b"), (1, 2, 3), (1, 2, 4)]
+
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), (1, 2, 3)],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .wide_to_long(keep_cols=["a"])
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [
+        ("a", "name", "value"),
+        (1, "a", 2),
+        (1, "b", 3),
+    ]
+
+    with pytest.raises(ValueError) as exc:
+        Table.from_rows([(1, 2)], header=["a", "b"]).wide_to_long(
+            col_for_names="a", keep_cols=["a"]
+        )
+    assert exc.value.args == ("such column already exists", "a")
+
+
+def test_into_iter_rows_passthrough_mixed_row_types():
+    assert list(Table.from_rows([(1, 2), [3, 4]]).into_iter_rows(tuple)) == [
+        (1, 2),
+        [3, 4],
+    ]
+
+
+def test_drop_keep_removes_first_duplicate_only():
+    result = list(
+        Table.from_rows(
+            [("a", "a", "b"), (1, 2, 3)],
+            header=True,
+            duplicate_columns="keep",
+        )
+        .drop("a")
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [("a", "b"), (2, 3)]
+
+
+def test_rename_raises_on_collision_unless_keep():
+    with pytest.raises(ValueError) as exc:
+        Table.from_rows([(1, 2)], header=["a", "b"]).rename({"a": "b"})
+    assert exc.value.args == ("such column already exists", "b")
+
+    result = list(
+        Table.from_rows([(1, 2)], header=["a", "b"])
+        .rename({"a": "b", "b": "a"})
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [("b", "a"), (1, 2)]
+
+    result = list(
+        Table.from_rows([(1, 2)], header=["a", "b"], duplicate_columns="keep")
+        .rename({"a": "b"})
+        .into_iter_rows(tuple, include_header=True)
+    )
+    assert result == [("b", "b"), (1, 2)]
+
+
+def test_skip_rows_past_end_empty_and_header_true_by_path_yields_data(
+    tmp_path,
+):
+    table = Table.from_rows([(1, 2)], header=["a", "b"], skip_rows=5)
+    assert table.columns == ["a", "b"]
+    assert list(table.into_iter_rows(tuple)) == []
+
+    csv_path = tmp_path / "t.csv"
+    csv_path.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
+    assert list(
+        Table.from_csv(str(csv_path), header=True).into_iter_rows(tuple)
+    ) == [("1", "2"), ("3", "4")]
+
+    jsonl_path = tmp_path / "t.jsonl"
+    jsonl_path.write_text('{"a": 1}\n{"a": 2}\n', encoding="utf-8")
+    assert list(
+        Table.from_jsonl(str(jsonl_path), header=True).into_iter_rows(dict)
+    ) == [{"a": 1}, {"a": 2}]

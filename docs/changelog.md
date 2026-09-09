@@ -2,6 +2,14 @@
 
 **Changed**
 
+- `Table.from_csv` skips blank lines and raises `ValueError` on ragged rows
+  (physical line number, actual vs expected width)
+- `Table.drop` removes only the first column of each given name (under
+  `duplicate_columns="keep"`, later same-named columns remain)
+- `Table.rename` raises `ValueError("such column already exists", name)` when
+  the resulting names collide, unless `duplicate_columns="keep"`
+- `split_buffer` / `split_buffer_n_decode` no longer close the buffer; the
+  caller owns it
 - `over(order_by=...)`, `over(partition_by=...)` and `sort(key=...)` treat a
   list as a sequence of keys, same as a tuple; wrap a single composite list
   key with `c.list(...)`. Unsupported `sort` keys raise `TypeError`
@@ -19,6 +27,15 @@
 
 **Fixed**
 
+- `Table.from_rows` with an explicit header that is not an identity mapping
+  now rearranges rows (tuple and dict output); a list/tuple header on dict
+  rows is a positional rename
+- `str` / `bytes` / `bytearray` first rows are treated as scalar, not sized,
+  so `header=["x"]` yields the whole value
+- `Table.explode` / `wide_to_long` keep the source `duplicate_columns` policy
+  (including `zip` output)
+- `Table.from_rows(..., skip_rows=N)` past the end of the input yields an
+  empty table instead of raising `StopIteration`
 - window `over()` rejects negative GROUPS offsets, negative RANGE number /
   `timedelta` offsets, and frames whose start is statically after the end
 - `.asc()` / `.desc()` on a `pipe` now apply to sort and window `order_by` (including `none_last` / `none_first`)
