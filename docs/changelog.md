@@ -38,14 +38,18 @@
   empty table instead of raising `StopIteration`
 - window `over()` rejects negative GROUPS offsets, negative RANGE number /
   `timedelta` offsets, and frames whose start is statically after the end
-- `.asc()` / `.desc()` on a `pipe` now apply to sort and window `order_by` (including `none_last` / `none_first`)
+- `.asc()` / `.desc()` on a `pipe` now apply to sort and window `order_by` (including `none_last` / `none_first`); they no longer hide an inherited `NOT_NONE` hint
 - `item` / `attr` `default=` conversions that are not constants (`c.label(...)`, `c.inline_expr(...)`, …) are evaluated only on a miss, with or without the C getters
 - `c.input_arg("self")` / `("cls")` now raise at `gen_converter` unless `method=True` / `class_method=True` (or the custom `signature` includes the name)
 - empty nested `or_` / `and_` with a `default` flatten to that boolean instead of being dropped
 
 - `ReduceFuncs.Sum`: the no-group-key `c.aggregate` path now generates the same
   accumulation loop as `group_by`, so any addable type (`timedelta`, `Decimal`,
-  `str`, ...) behaves identically on both
+  `str`, ...) behaves identically on both. Float sums are plain left-to-right
+  addition (no compensated summation)
+- `ReduceFuncs.Sum` / `SumOrNone` accumulate in place when `initial` is a
+  factory callable (`initial=list`), restoring linear list accumulation;
+  borrowed row values are still never mutated
 - weighted `ReduceFuncs.Average(value, weight)` now skips rows where the value
   or the weight is `None` (previously a `None` value counted as 0 with full
   weight)

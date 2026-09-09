@@ -1,5 +1,7 @@
+import gc
 import random
 import statistics
+import time
 from collections import Counter
 from datetime import timedelta
 from decimal import Decimal
@@ -1198,6 +1200,53 @@ def test_single_reducer_aggregate_honors_initial():
     assert (
         c.group_by().aggregate(R.Sum(c.this, initial=100)).execute(data) == 103
     )
+
+
+def test_sum_owned_list_accumulator():
+    R = c.ReduceFuncs
+    n = 32
+    data = [[i] for i in range(n)]
+    snapshot = [row[:] for row in data]
+    assert c.aggregate(R.Sum(c.this, initial=list)).execute(data) == list(
+        range(n)
+    )
+    assert data == snapshot
+    assert c.aggregate(R.SumOrNone(c.this, initial=list)).execute(
+        data
+    ) == list(range(n))
+    assert data == snapshot
+
+    grouped = (
+        c.group_by(c.item(0))
+        .aggregate(R.Sum(c.item(1), initial=list))
+        .execute([(0, [1]), (0, [2]), (1, [10]), (1, [20])])
+    )
+    assert grouped == [[1, 2], [10, 20]]
+
+    owned_code = get_code_str(
+        c.aggregate(R.Sum(c.this, initial=list)).gen_converter()
+    )
+    assert "agg_data__v0 += " in owned_code
+    unowned_code = get_code_str(c.aggregate(R.Sum(c.this)).gen_converter())
+    assert "agg_data__v0 += " not in unowned_code
+    const_initial_code = get_code_str(
+        c.aggregate(R.Sum(c.this, initial=[])).gen_converter()
+    )
+    assert "agg_data__v0 += " not in const_initial_code
+
+    converter = c.aggregate(R.Sum(c.this, initial=list)).gen_converter()
+
+    def timed(size):
+        rows = [[i] for i in range(size)]
+        gc.collect()
+        started = time.perf_counter()
+        assert converter(rows) == list(range(size))
+        return time.perf_counter() - started
+
+    timed(8)
+    t_small = min(timed(8000) for _ in range(3))
+    t_large = min(timed(16000) for _ in range(3))
+    assert t_large / t_small < 4
 
 
 def test_reducer_callable_initial_and_default():

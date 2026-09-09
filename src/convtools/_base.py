@@ -260,6 +260,12 @@ class BaseConversion(Generic[CT]):
         ORDERING_NONE_LAST = 4
         ORDERING_NONE_FIRST = 8
         ORDERING_ASC = 16
+        ORDERING_MASK = (
+            ORDERING_DESC
+            | ORDERING_NONE_LAST
+            | ORDERING_NONE_FIRST
+            | ORDERING_ASC
+        )
 
     output_hints = 0
     weight = Weights.UNPREDICTABLE
@@ -3743,8 +3749,12 @@ class PipeConversion(BaseConversion):
         return id(self)
 
     def has_hint(self, hint: int) -> int:
-        if self.output_hints:
+        ordering_mask = self.OutputHints.ORDERING_MASK
+        if (self.output_hints & ordering_mask) and (hint & ordering_mask):
             return self.output_hints & hint
+        own = self.output_hints & hint
+        if own:
+            return own
         if self.where is This:
             return self.what.has_hint(hint)
         return self.where.has_hint(hint)

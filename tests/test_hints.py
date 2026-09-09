@@ -42,6 +42,25 @@ def test_hints():
     )
 
 
+def test_pipe_ordering_does_not_mask_not_none():
+    data = [{"x": []}, {"x": [1]}]
+    expr = c.item("x").pipe(c.this + [])
+    not_none = c.BaseConversion.OutputHints.NOT_NONE
+    ordering_asc = c.BaseConversion.OutputHints.ORDERING_ASC
+    ordering_desc = c.BaseConversion.OutputHints.ORDERING_DESC
+
+    assert expr.has_hint(not_none)
+    assert expr.asc().has_hint(not_none)
+    assert expr.asc().has_hint(ordering_asc)
+    assert expr.desc().has_hint(not_none)
+    assert expr.desc().has_hint(ordering_desc)
+
+    for value in (expr, expr.asc(), expr.desc()):
+        assert c.aggregate({"x": c.ReduceFuncs.Sum(value)}).execute(data) == {
+            "x": [1]
+        }
+
+
 @pytest.mark.parametrize(
     [
         "reducer_cls",

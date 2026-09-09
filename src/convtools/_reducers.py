@@ -40,12 +40,18 @@ if TYPE_CHECKING:
 
 
 class BaseReducer(BaseConversion):
-    """Base reduce operation to be used during the aggregation."""
+    """Base reduce operation to be used during the aggregation.
+
+    A callable ``initial`` is called per group and must return a new object
+    each time (like ``defaultdict``'s factory); the reducer may then
+    accumulate in place.
+    """
 
     _expressions: Sequence[BaseConversion]
 
     default: Union[_None, BaseConversion] = _none
     initial: Union[_None, BaseConversion] = _none
+    owns_accumulator = False
     internals_are_public: bool
     # works_with_not_none_only: Union[Tuple[int, ...], Callable]
     # prepare_first_lines: Union[Tuple[str, ...], Callable]
@@ -101,6 +107,7 @@ class BaseReducer(BaseConversion):
                 initial.value
             ):
                 initial = initial.call()
+                self.owns_accumulator = True
 
             if default is _none and initial.ignores_input():
                 default = initial
@@ -259,7 +266,14 @@ class SumReducer(SingleExpressionReducer):
         return ("%(result)s = %(value0)s or 0",)
 
     def reduce_lines(self, ctx):  # pylint: disable=unused-argument
-        if self.expressions[0].has_hint(BaseConversion.OutputHints.NOT_NONE):
+        not_none = self.expressions[0].has_hint(
+            BaseConversion.OutputHints.NOT_NONE
+        )
+        if self.owns_accumulator:
+            if not_none:
+                return ("%(result)s += %(value0)s",)
+            return ("%(result)s += %(value0)s or 0",)
+        if not_none:
             return ("%(result)s = %(result)s + %(value0)s",)
         return ("%(result)s = %(result)s + (%(value0)s or 0)",)
 
@@ -273,13 +287,17 @@ class SumOrNoneReducer(SingleExpressionReducer):
     prepare_first_lines = ("%(result)s = %(value0)s",)
 
     def reduce_lines(self, ctx):  # pylint: disable=unused-argument
+        if self.owns_accumulator:
+            add = "%(result)s += %(value0)s"
+        else:
+            add = "%(result)s = %(result)s + %(value0)s"
         if self.expressions[0].has_hint(BaseConversion.OutputHints.NOT_NONE):
-            return ("%(result)s = %(result)s + %(value0)s",)
+            return (add,)
         return (
             "if %(value0)s is None:",
             "    %(result)s = None",
             "elif %(result)s is not None:",
-            "    %(result)s = %(result)s + %(value0)s",
+            f"    {add}",
         )
 
 
