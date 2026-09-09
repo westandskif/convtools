@@ -188,7 +188,9 @@ Notes:
    form also skips rows with a `None` weight. A zero total
    weight returns `default`.
  * note 8: `Sum` / `DictSum` do not skip `None`; they treat `None` (and other
-   falsy values) as `0`.
+   falsy values) as `0`. `DictSum` / `DictSumOrNone` are numeric reducers
+   (values must support `+` with the `int` 0 seed of a new key); to collect
+   lists per key use `DictArray`.
 
 Special parameters:
 

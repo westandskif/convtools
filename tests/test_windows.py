@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from fractions import Fraction
 
 import pytest
 
@@ -474,11 +475,101 @@ def test_window_func_exceptions():
             "frame_start": (1, "PRECEDING"),
             "frame_end": (2, "PRECEDING"),
         },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (2, "FOLLOWING"),
+            "frame_end": (1, "FOLLOWING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (timedelta(days=2), "FOLLOWING"),
+            "frame_end": (timedelta(days=1), "FOLLOWING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (1, "PRECEDING"),
+            "frame_end": (2, "PRECEDING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (timedelta(days=1), "PRECEDING"),
+            "frame_end": (timedelta(days=2), "PRECEDING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": (Fraction(-1), "PRECEDING"),
+        },
     ],
 )
 def test_window_frame_offset_validation(kwargs):
     with pytest.raises(ValueError):
         c.this.window(c.ReduceFuncs.Count()).over(**kwargs)
+
+
+def test_range_fraction_offset_matches_int():
+    data = [1, 2, 3, 5]
+    via_int = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(
+            order_by=c.this,
+            frame_start=(1, "PRECEDING"),
+            frame_end="CURRENT ROW",
+        )
+        .execute(data)
+    )
+    via_fraction = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(
+            order_by=c.this,
+            frame_start=(Fraction(1), "PRECEDING"),
+            frame_end="CURRENT ROW",
+        )
+        .execute(data)
+    )
+    assert via_fraction == via_int
+
+
+def test_range_custom_non_orderable_offset():
+    class Delta(object):
+        def __init__(self, n):
+            self.n = n
+
+        def __radd__(self, other):
+            return other + self.n
+
+        def __rsub__(self, other):
+            return other - self.n
+
+    data = [1, 2, 3]
+    result = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(
+            order_by=c.this,
+            frame_start=(Delta(1), "PRECEDING"),
+            frame_end=(Delta(1), "FOLLOWING"),
+        )
+        .execute(data)
+    )
+    expected = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(
+            order_by=c.this,
+            frame_start=(1, "PRECEDING"),
+            frame_end=(1, "FOLLOWING"),
+        )
+        .execute(data)
+    )
+    assert result == expected
+    c.this.window(c.ReduceFuncs.Count()).over(
+        order_by=c.this,
+        frame_start=(Delta(2), "FOLLOWING"),
+        frame_end=(Delta(1), "FOLLOWING"),
+    ).gen_converter()
 
 
 @pytest.mark.parametrize(
@@ -698,6 +789,39 @@ def test_range_offsets_pipe_shaped_desc_key():
     )
     assert via_desc == expected
     assert via_pipe == expected
+
+
+def test_window_order_by_last_hint_wins():
+    data = [{"v": v} for v in [1, 3, 2]]
+    via_asc = (
+        c.this.window(c.WindowFuncs.RowIndex())
+        .over(order_by=c.item("v").asc())
+        .execute(data)
+    )
+    via_desc = (
+        c.this.window(c.WindowFuncs.RowIndex())
+        .over(order_by=c.item("v").desc())
+        .execute(data)
+    )
+    via_desc_asc = (
+        c.this.window(c.WindowFuncs.RowIndex())
+        .over(order_by=c.item("v").desc().asc())
+        .execute(data)
+    )
+    via_asc_desc = (
+        c.this.window(c.WindowFuncs.RowIndex())
+        .over(order_by=c.item("v").asc().desc())
+        .execute(data)
+    )
+    via_pipe_desc_asc = (
+        c.this.window(c.WindowFuncs.RowIndex())
+        .over(order_by=c.item("v").pipe(c.this).desc().asc())
+        .execute(data)
+    )
+    assert via_desc_asc == via_asc
+    assert via_pipe_desc_asc == via_asc
+    assert via_asc_desc == via_desc
+    assert via_asc != via_desc
 
 
 def test_window_order_by_desc_on_pipe():

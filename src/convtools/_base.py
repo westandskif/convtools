@@ -1519,6 +1519,7 @@ class BaseConversion(Generic[CT]):
         result = copy(self)
         # pylint: disable-next=protected-access
         result._depends_on = dict(self._depends_on)
+        result.output_hints &= ~self.OutputHints.ORDERING_MASK
         return result
 
     def asc(self, *, none_last=None, none_first=None):

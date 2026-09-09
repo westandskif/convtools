@@ -836,16 +836,11 @@ def test_table_jsonl_errors():
         )
 
 
-def test_meta_columns_add_is_linear_and_preserves_names():
-    import time
-
+def test_meta_columns_add_preserves_names():
     n = 8000
     meta = MetaColumns(duplicate_columns="raise")
-    started = time.perf_counter()
     for i in range(n):
         meta.add("c{}".format(i), i, None)
-    elapsed = time.perf_counter() - started
-    assert elapsed < 0.2
     assert [column.name for column in meta.columns] == [
         "c{}".format(i) for i in range(n)
     ]

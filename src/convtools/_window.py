@@ -3,6 +3,7 @@
 https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS
 """
 
+import numbers
 from datetime import timedelta
 from decimal import Decimal
 from enum import Enum
@@ -248,7 +249,7 @@ class AppliedWindow(BaseConversion):
                 if offset is None:
                     continue
                 if (
-                    isinstance(offset, (int, float, Decimal)) and offset < 0
+                    isinstance(offset, (numbers.Real, Decimal)) and offset < 0
                 ) or (isinstance(offset, timedelta) and offset < timedelta(0)):
                     raise ValueError(
                         "frame_start/frame_end offsets should be non-negative"
@@ -294,20 +295,38 @@ class AppliedWindow(BaseConversion):
             inverted = True
         elif start_following and (end_current or end_preceding):
             inverted = True
-        elif (
-            self.frame_mode in (FrameMode.ROWS, FrameMode.GROUPS)
-            and start_following
-            and end_following
-            and start.offset > end.offset
-        ):
-            inverted = True
-        elif (
-            self.frame_mode in (FrameMode.ROWS, FrameMode.GROUPS)
-            and start_preceding
-            and end_preceding
-            and start.offset < end.offset
-        ):
-            inverted = True
+        else:
+            numeric = (numbers.Real, Decimal)
+            so, eo = start.offset, end.offset
+            range_offsets_comparable = (
+                self.frame_mode == FrameMode.RANGE
+                and so is not None
+                and eo is not None
+                and (
+                    (isinstance(so, numeric) and isinstance(eo, numeric))
+                    or (
+                        isinstance(so, timedelta) and isinstance(eo, timedelta)
+                    )
+                )
+            )
+            check_bound_order = (
+                self.frame_mode in (FrameMode.ROWS, FrameMode.GROUPS)
+                or range_offsets_comparable
+            )
+            if (
+                check_bound_order
+                and start_following
+                and end_following
+                and start.offset > end.offset
+            ):
+                inverted = True
+            elif (
+                check_bound_order
+                and start_preceding
+                and end_preceding
+                and start.offset < end.offset
+            ):
+                inverted = True
         if inverted:
             raise ValueError("frame start cannot be after frame end")
 

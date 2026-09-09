@@ -118,6 +118,8 @@ none_first/none_last configuration:
 
 `c.this.desc(none_last=None, none_first=None)`
 
+The last `asc()` / `desc()` wins and resets `none_first` / `none_last`.
+
 {!examples-md/api__sort.md!}
 
 ##### sorting_key

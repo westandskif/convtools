@@ -36,9 +36,12 @@
   (including `zip` output)
 - `Table.from_rows(..., skip_rows=N)` past the end of the input yields an
   empty table instead of raising `StopIteration`
-- window `over()` rejects negative GROUPS offsets, negative RANGE number /
-  `timedelta` offsets, and frames whose start is statically after the end
+- window `over()` rejects negative GROUPS offsets, negative RANGE
+  `numbers.Real` / `Decimal` / `timedelta` offsets (including `Fraction`),
+  and frames whose start is statically after the end (RANGE same-direction
+  bounds too, when both offsets are numeric or both `timedelta`)
 - `.asc()` / `.desc()` on a `pipe` now apply to sort and window `order_by` (including `none_last` / `none_first`); they no longer hide an inherited `NOT_NONE` hint
+- the last `.asc()` / `.desc()` on a sort or window key replaces prior ordering bits (direction and `none_first` / `none_last`)
 - `item` / `attr` `default=` conversions that are not constants (`c.label(...)`, `c.inline_expr(...)`, …) are evaluated only on a miss, with or without the C getters
 - `c.input_arg("self")` / `("cls")` now raise at `gen_converter` unless `method=True` / `class_method=True` (or the custom `signature` includes the name)
 - empty nested `or_` / `and_` with a `default` flatten to that boolean instead of being dropped

@@ -584,36 +584,60 @@ def _analyze_scope(scope, plan, with_init, signature, tmp_index):
     local_i = 0
     intern = {}
     item_keys = {}  # id(item) -> structural keys; dropped when rewritten
+    item_contribs = {}
+    candidates = {}
+
+    def _add_item_contributions(item):
+        keys = _structural_keys(item.tree, intern)
+        item_keys[id(item)] = keys
+        eager_keys = set()
+        if item.is_self_eager_root:
+            for node in _iter_eager(item.tree):
+                if _is_hoistable(node):
+                    eager_keys.add(keys[id(node)][0])
+        contribs = []
+        for node in _iter_hoistable(item.tree):
+            key, size = keys[id(node)]
+            eager_flag = key in eager_keys
+            contribs.append((key, item.weight, eager_flag, node))
+            rec = candidates.get(key)
+            if rec is None:
+                rec = {
+                    "size": size,
+                    "count": 0,
+                    "live": 0,
+                    "eager_ok": 0,
+                    "contributors": {},
+                }
+                candidates[key] = rec
+            rec["count"] += item.weight
+            rec["live"] += 1
+            if eager_flag:
+                rec["eager_ok"] += 1
+            rec["contributors"][id(item)] = node
+        item_contribs[id(item)] = contribs
+
+    def _subtract_item_contributions(item):
+        item_id = id(item)
+        contribs = item_contribs.pop(item_id)
+        del item_keys[item_id]
+        for key, weight, eager_flag, _node in contribs:
+            rec = candidates[key]
+            rec["count"] -= weight
+            rec["live"] -= 1
+            if eager_flag:
+                rec["eager_ok"] -= 1
+            rec["contributors"].pop(item_id, None)
+            if rec["live"] == 0:
+                del candidates[key]
+
+    for item in items:
+        _add_item_contributions(item)
     while True:
-        candidates = {}
-        for item in items:
-            keys = item_keys.get(id(item))
-            if keys is None:
-                keys = _structural_keys(item.tree, intern)
-                item_keys[id(item)] = keys
-            eager_keys = set()
-            if item.is_self_eager_root:
-                for node in _iter_eager(item.tree):
-                    if _is_hoistable(node):
-                        eager_keys.add(keys[id(node)][0])
-            for node in _iter_hoistable(item.tree):
-                key, size = keys[id(node)]
-                rec = candidates.get(key)
-                if rec is None:
-                    rec = {
-                        "size": size,
-                        "count": 0,
-                        "eager_ok": False,
-                        "node": node,
-                    }
-                    candidates[key] = rec
-                rec["count"] += item.weight
-                if key in eager_keys:
-                    rec["eager_ok"] = True
         best = None
         best_key = None
         for key, rec in candidates.items():
-            if rec["count"] < 2 or not rec["eager_ok"]:
+            if rec["count"] < 2 or rec["eager_ok"] <= 0:
                 continue
             order = (rec["size"], rec["count"], key)
             if best is None or order > best:
@@ -624,16 +648,24 @@ def _analyze_scope(scope, plan, with_init, signature, tmp_index):
         rec = candidates[best_key]
         internal_name = "__cse{}_{}_".format(id(scope) % 100000, local_i)
         local_i += 1
-        rhs_tree = copy.deepcopy(rec["node"])
+        rhs_tree = copy.deepcopy(next(iter(rec["contributors"].values())))
         mapping = {best_key: internal_name}
+        contributor_ids = rec["contributors"]
+        rewritten_items = []
         for item in items:
+            if id(item) not in contributor_ids:
+                continue
             new_tree, changed = _replace_dumps(
                 item.tree, mapping, item_keys[id(item)]
             )
             if changed:
                 item.tree = new_tree
                 item.rewritten = True
-                del item_keys[id(item)]
+                rewritten_items.append(item)
+        for item in rewritten_items:
+            _subtract_item_contributions(item)
+        for item in rewritten_items:
+            _add_item_contributions(item)
         items.append(
             _CountItem(
                 _fmt_expr(rhs_tree, rewritten=True),
@@ -644,6 +676,7 @@ def _analyze_scope(scope, plan, with_init, signature, tmp_index):
                 rewritten=True,
             )
         )
+        _add_item_contributions(items[-1])
         local_temps.append((internal_name, rhs_tree))
 
     ordered = _topo_temp_order(local_temps)

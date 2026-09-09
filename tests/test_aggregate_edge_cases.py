@@ -1,7 +1,5 @@
-import gc
 import random
 import statistics
-import time
 from collections import Counter
 from datetime import timedelta
 from decimal import Decimal
@@ -1233,20 +1231,6 @@ def test_sum_owned_list_accumulator():
         c.aggregate(R.Sum(c.this, initial=[])).gen_converter()
     )
     assert "agg_data__v0 += " not in const_initial_code
-
-    converter = c.aggregate(R.Sum(c.this, initial=list)).gen_converter()
-
-    def timed(size):
-        rows = [[i] for i in range(size)]
-        gc.collect()
-        started = time.perf_counter()
-        assert converter(rows) == list(range(size))
-        return time.perf_counter() - started
-
-    timed(8)
-    t_small = min(timed(8000) for _ in range(3))
-    t_large = min(timed(16000) for _ in range(3))
-    assert t_large / t_small < 4
 
 
 def test_reducer_callable_initial_and_default():

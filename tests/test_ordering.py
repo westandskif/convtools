@@ -196,6 +196,36 @@ def test_pipe_ordering_hints():
     ) == [{"a": 1}, {"a": 2}]
 
 
+def test_last_ordering_hint_wins():
+    assert c.this.sort(key=c.this.desc().asc()).execute([1, 3, 2]) == [1, 2, 3]
+    assert c.this.sort(key=c.this.asc().desc()).execute([1, 3, 2]) == [3, 2, 1]
+    assert c.this.sort(key=c.this.pipe(int).desc().asc()).execute(
+        ["1", "3", "2"]
+    ) == ["1", "2", "3"]
+    assert c.this.sort(key=c.this.pipe(int).asc().desc()).execute(
+        ["1", "3", "2"]
+    ) == ["3", "2", "1"]
+
+    assert c.this.sort(
+        key=c.this.pipe(c.this.desc(none_last=True)).asc()
+    ).execute([1, 3, 2]) == [1, 2, 3]
+    with pytest.raises(TypeError):
+        c.this.sort(
+            key=c.this.pipe(c.this.desc(none_last=True)).asc()
+        ).execute([1, None, 2])
+    assert c.this.sort(key=c.this.desc().asc(none_last=True)).execute(
+        [1, None, 2]
+    ) == [1, 2, None]
+    assert c.this.sort(
+        key=c.this.pipe(c.this.desc()).asc(none_last=True)
+    ).execute([1, None, 2]) == [1, 2, None]
+    with pytest.raises(TypeError):
+        c.this.sort(key=c.this.desc(none_last=True).asc()).execute(
+            [1, None, 2]
+        )
+    assert c.this.output_hints == 0
+
+
 def test_ordering_exceptions():
     with pytest.raises(ValueError):
         c.this.asc(none_first=True, none_last=True)

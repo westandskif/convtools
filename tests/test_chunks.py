@@ -75,6 +75,12 @@ def test_chunks_by_size(data_for_chunking):
         [10, 11, 12, 13, 14],
         [15, 16, 17, 18],
     ]
+    assert c.chunk_by(size=5).iter(c.list_comp(c.item("z"))).as_type(
+        list
+    ).execute(iter(data_for_chunking)) == [
+        [10, 11, 12, 13, 14],
+        [15, 16, 17, 18],
+    ]
 
     assert c.chunk_by(c.item(c.call_func(lambda: "x"))).iter(
         c.list_comp(c.item("z"))
