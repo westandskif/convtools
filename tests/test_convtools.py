@@ -50,6 +50,19 @@ def test_naive_conversion():
     )
     assert "f1" not in code_str and "prefix" in code_str
 
+    def none__(x):
+        return x
+
+    # warm-up naming would otherwise produce "__none__", clashing with the
+    # fixed ctx name of the same spelling
+    assert (
+        c.naive(none__)
+        .call(c.this)
+        .pipe(c.aggregate(c.ReduceFuncs.Count()))
+        .execute([1, 2])
+        == 2
+    )
+
 
 def test_naive_int_literals_are_parenthesized():
     """Bare ints break ** precedence, attr/method access, and inline_expr."""

@@ -355,7 +355,11 @@ class BaseConversion(Generic[CT]):
                 else:
                     name = f"{name}_{choice(self.allowed_symbols)}"
 
-            if name not in generated_names and name not in reserved:
+            if (
+                name not in generated_names
+                and name not in reserved
+                and name not in self.FIXED_CTX_NAMES
+            ):
                 generated_names.add(name)
                 return name
 
