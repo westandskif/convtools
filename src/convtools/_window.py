@@ -263,22 +263,36 @@ class AppliedWindow(BaseConversion):
                 )
 
         start, end = self.frame_start, self.frame_end
+        start_current = start.current_row or (
+            start.offset is not None and not start.offset
+        )
+        end_current = end.current_row or (
+            end.offset is not None and not end.offset
+        )
         start_preceding = (
-            start.offset is not None and start.offset_sign_as_str == "-"
+            start.offset is not None
+            and start.offset_sign_as_str == "-"
+            and not start_current
         )
         start_following = (
-            start.offset is not None and start.offset_sign_as_str == "+"
+            start.offset is not None
+            and start.offset_sign_as_str == "+"
+            and not start_current
         )
         end_preceding = (
-            end.offset is not None and end.offset_sign_as_str == "-"
+            end.offset is not None
+            and end.offset_sign_as_str == "-"
+            and not end_current
         )
         end_following = (
-            end.offset is not None and end.offset_sign_as_str == "+"
+            end.offset is not None
+            and end.offset_sign_as_str == "+"
+            and not end_current
         )
         inverted = False
-        if start.current_row and end_preceding:
+        if start_current and end_preceding:
             inverted = True
-        elif start_following and (end.current_row or end_preceding):
+        elif start_following and (end_current or end_preceding):
             inverted = True
         elif (
             self.frame_mode in (FrameMode.ROWS, FrameMode.GROUPS)

@@ -260,8 +260,8 @@ class SumReducer(SingleExpressionReducer):
 
     def reduce_lines(self, ctx):  # pylint: disable=unused-argument
         if self.expressions[0].has_hint(BaseConversion.OutputHints.NOT_NONE):
-            return ("%(result)s += %(value0)s",)
-        return ("%(result)s += %(value0)s or 0",)
+            return ("%(result)s = %(result)s + %(value0)s",)
+        return ("%(result)s = %(result)s + (%(value0)s or 0)",)
 
 
 class SumOrNoneReducer(SingleExpressionReducer):
@@ -274,12 +274,12 @@ class SumOrNoneReducer(SingleExpressionReducer):
 
     def reduce_lines(self, ctx):  # pylint: disable=unused-argument
         if self.expressions[0].has_hint(BaseConversion.OutputHints.NOT_NONE):
-            return ("%(result)s += %(value0)s",)
+            return ("%(result)s = %(result)s + %(value0)s",)
         return (
             "if %(value0)s is None:",
             "    %(result)s = None",
             "elif %(result)s is not None:",
-            "    %(result)s += %(value0)s",
+            "    %(result)s = %(result)s + %(value0)s",
         )
 
 
@@ -739,8 +739,13 @@ class DictSumReducer(BaseDictReducer):
 
     def reduce_lines(self, ctx):  # pylint: disable=unused-argument
         if self.expressions[1].has_hint(BaseConversion.OutputHints.NOT_NONE):
-            return ("%(result)s[%(value0)s] += %(value1)s",)
-        return ("%(result)s[%(value0)s] += (%(value1)s or 0)",)
+            return (
+                "%(result)s[%(value0)s] = %(result)s[%(value0)s] + %(value1)s",
+            )
+        return (
+            "%(result)s[%(value0)s] = %(result)s[%(value0)s]"
+            " + (%(value1)s or 0)",
+        )
 
 
 class DictSumOrNoneReducer(BaseDictReducer):
@@ -762,12 +767,14 @@ class DictSumOrNoneReducer(BaseDictReducer):
 
     def reduce_lines(self, ctx):  # pylint: disable=unused-argument
         if self.expressions[1].has_hint(BaseConversion.OutputHints.NOT_NONE):
-            return ("%(result)s[%(value0)s] += %(value1)s",)
+            return (
+                "%(result)s[%(value0)s] = %(result)s[%(value0)s] + %(value1)s",
+            )
         return (
             "if %(value1)s is None:",
             "    %(result)s[%(value0)s] = None",
             "elif %(result)s[%(value0)s] is not None:",
-            "    %(result)s[%(value0)s] += %(value1)s",
+            "    %(result)s[%(value0)s] = %(result)s[%(value0)s] + %(value1)s",
         )
 
 

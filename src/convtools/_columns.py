@@ -106,6 +106,7 @@ class MetaColumns:
     ):
         self.columns: "List[ColumnDef]" = []
         self.column_to_number = defaultdict(int)
+        self.occupied_names = set()
         if duplicate_columns not in ("raise", "keep", "drop", "mangle"):
             raise ValueError("invalid duplicate_columns value")
         self.duplicate_columns = duplicate_columns
@@ -129,7 +130,7 @@ class MetaColumns:
         column_number = self.column_to_number[original_name]
         self.column_to_number[original_name] += 1
         state = 0
-        occupied = {column.name for column in self.columns}
+        occupied = self.occupied_names
 
         if original_name is None:
             n = column_number
@@ -156,6 +157,7 @@ class MetaColumns:
 
         column = ColumnDef(name, index, conversion)
         self.columns.append(column)
+        occupied.add(name)
         return column, state
 
     def rename(self, new_names):
@@ -169,9 +171,12 @@ class MetaColumns:
         for column, new_name in zip(self.columns, new_names):
             column.name = new_name
         self.column_to_number = defaultdict(int)
+        occupied_names = set()
         for column in self.columns:
             self.column_to_number[column.name] += 1
+            occupied_names.add(column.name)
         self.column_to_number[None] = none_counter
+        self.occupied_names = occupied_names
 
     def take(self, *column_names) -> "MetaColumns":
         column_names_set = set(column_names)

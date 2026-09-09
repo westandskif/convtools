@@ -481,6 +481,69 @@ def test_window_frame_offset_validation(kwargs):
         c.this.window(c.ReduceFuncs.Count()).over(**kwargs)
 
 
+@pytest.mark.parametrize(
+    "over_kwargs",
+    [
+        {
+            "frame_mode": "ROWS",
+            "frame_start": "CURRENT ROW",
+            "frame_end": (0, "PRECEDING"),
+        },
+        {
+            "frame_mode": "GROUPS",
+            "order_by": c.this,
+            "frame_start": "CURRENT ROW",
+            "frame_end": (0, "PRECEDING"),
+        },
+        {
+            "frame_mode": "RANGE",
+            "order_by": c.this,
+            "frame_start": "CURRENT ROW",
+            "frame_end": (0, "PRECEDING"),
+        },
+        {
+            "frame_mode": "ROWS",
+            "frame_start": (0, "FOLLOWING"),
+            "frame_end": "CURRENT ROW",
+        },
+    ],
+)
+def test_window_zero_offset_is_current_row(over_kwargs):
+    data = [1, 2, 3]
+    result = (
+        c.this.window(c.ReduceFuncs.Count()).over(**over_kwargs).execute(data)
+    )
+    current_row_kwargs = dict(over_kwargs)
+    current_row_kwargs["frame_start"] = "CURRENT ROW"
+    current_row_kwargs["frame_end"] = "CURRENT ROW"
+    expected = (
+        c.this.window(c.ReduceFuncs.Count())
+        .over(**current_row_kwargs)
+        .execute(data)
+    )
+    assert result == expected == [1, 1, 1]
+
+
+@pytest.mark.parametrize(
+    "over_kwargs",
+    [
+        {
+            "frame_mode": "ROWS",
+            "frame_start": (0, "PRECEDING"),
+            "frame_end": (2, "PRECEDING"),
+        },
+        {
+            "frame_mode": "ROWS",
+            "frame_start": (1, "FOLLOWING"),
+            "frame_end": "CURRENT ROW",
+        },
+    ],
+)
+def test_window_zero_offset_still_rejects_inverted_frames(over_kwargs):
+    with pytest.raises(ValueError):
+        c.this.window(c.ReduceFuncs.Count()).over(**over_kwargs)
+
+
 def test_window_empty_runtime_frame_keeps_default():
     result = (
         c.this.window(c.ReduceFuncs.Sum(c.this))

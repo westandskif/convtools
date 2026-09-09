@@ -836,6 +836,47 @@ def test_table_jsonl_errors():
         )
 
 
+def test_meta_columns_add_is_linear_and_preserves_names():
+    import time
+
+    n = 8000
+    meta = MetaColumns(duplicate_columns="raise")
+    started = time.perf_counter()
+    for i in range(n):
+        meta.add("c{}".format(i), i, None)
+    elapsed = time.perf_counter() - started
+    assert elapsed < 0.2
+    assert [column.name for column in meta.columns] == [
+        "c{}".format(i) for i in range(n)
+    ]
+
+    mangled = MetaColumns(duplicate_columns="mangle")
+    mangled.add("a", 0, None)
+    mangled.add("a", 1, None)
+    mangled.add("a_1", 2, None)
+    assert [column.name for column in mangled.columns] == [
+        "a",
+        "a_1",
+        "a_1_1",
+    ]
+
+    none_names = MetaColumns()
+    none_names.add(None, 0, None)
+    none_names.add(None, 1, None)
+    assert [column.name for column in none_names.columns] == [
+        "COLUMN_0",
+        "COLUMN_1",
+    ]
+
+    renamed = MetaColumns()
+    renamed.add("a", 0, None)
+    renamed.add("b", 1, None)
+    renamed.rename(["x", "y"])
+    with pytest.raises(ValueError):
+        renamed.add("x", 2, None)
+    assert [column.name for column in renamed.columns] == ["x", "y"]
+
+
 def test_table_exceptions():
     with pytest.raises(c.ConversionException):
         c.col("tst").gen_converter()

@@ -1302,6 +1302,41 @@ def test_aggregate_single_reducer_reduction():
     )
 
 
+@pytest.mark.parametrize(
+    "make_sum, wrap_sum",
+    [
+        (c.ReduceFuncs.Sum, lambda s: s),
+        (c.ReduceFuncs.SumOrNone, lambda s: s),
+        (c.ReduceFuncs.DictSum, lambda s: {"k": s}),
+        (c.ReduceFuncs.DictSumOrNone, lambda s: {"k": s}),
+    ],
+)
+def test_sum_family_does_not_mutate_shared_values(make_sum, wrap_sum):
+    to_list = c.call_func(lambda x: [x], c.this)
+    if make_sum in (c.ReduceFuncs.DictSum, c.ReduceFuncs.DictSumOrNone):
+        sum_conv = make_sum("k", to_list)
+    else:
+        sum_conv = make_sum(to_list)
+    spec = {"sum": sum_conv, "array": c.ReduceFuncs.Array(to_list)}
+    expected = {
+        "sum": wrap_sum([1, 2, 3]),
+        "array": [[1], [2], [3]],
+    }
+    assert c.aggregate(spec).execute([1, 2, 3]) == expected
+    assert c.group_by(0).aggregate(spec).execute([1, 2, 3]) == [expected]
+
+    data = [[1], [2], [3]]
+    snapshot = [row[:] for row in data]
+    if make_sum in (c.ReduceFuncs.DictSum, c.ReduceFuncs.DictSumOrNone):
+        sum_this = make_sum("k", c.this)
+    else:
+        sum_this = make_sum(c.this)
+    c.aggregate(
+        {"sum": sum_this, "array": c.ReduceFuncs.Array(c.this)}
+    ).execute(data)
+    assert data == snapshot
+
+
 def test_reducer_default_evaluated_like_output_expression():
     R = c.ReduceFuncs
     assert c.group_by(c.item(0)).aggregate(
