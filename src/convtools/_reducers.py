@@ -50,6 +50,8 @@ class BaseReducer(BaseConversion):
 
     default: Union[_None, BaseConversion] = _none
     initial: Union[_None, BaseConversion] = _none
+    # Set for every callable-initial reducer; consumed only by Sum/SumOrNone
+    # (in-place +=).
     owns_accumulator = False
     internals_are_public: bool
     # works_with_not_none_only: Union[Tuple[int, ...], Callable]
@@ -154,7 +156,6 @@ class BaseReducer(BaseConversion):
             )
 
         reduce_lines = tuple(self.get_option("reduce_lines", ctx) or ())
-        initial_code = None
         if not isinstance(self.initial, _None) and self.internals_are_public:
             initial_code = self.initial.gen_code_and_update_ctx(
                 code_input, ctx
@@ -174,7 +175,6 @@ class BaseReducer(BaseConversion):
             not_none_flags=tuple(not_none_flags),
             prepare_first_lines=prepare_first_lines,
             reduce_lines=reduce_lines,
-            initial_code=initial_code,
             row_code=code_input,
         )
         new_code_input = reduce_manager.add_reducer_code(record)

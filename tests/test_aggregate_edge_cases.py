@@ -1026,7 +1026,7 @@ def test_group_by_dict_reducer_optimization():
         "f10": {10: 22, 34: 46},
         "f11": {11: 23, 35: 47},
     }
-    assert "_tmp0_ = row_[1]" in code_str
+    assert "_tmp0_ = row_[1]" in code_str or "_tmp1_ = row_[1]" in code_str
     assert code_str.count("row_[1]") == 2
     assert code_str.count("row_[(0)]") + code_str.count("row_[0]") >= 1
 

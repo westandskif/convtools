@@ -633,3 +633,67 @@ def test_unguarded_reducers_evaluated_before_guarded():
                 ),
             }
         ).execute([{"x": 1}])
+
+
+def test_ternary_max_guard_is_parenthesized_or_hoisted():
+    spec = c.aggregate(
+        c.ReduceFuncs.Max(c.if_(c.item("ok"), c.item("x"), c.item("y")))
+    )
+    data = [
+        {"ok": True, "x": 3, "y": 1},
+        {"ok": False, "x": 0, "y": 9},
+    ]
+    converter = spec.gen_converter()
+    assert converter(data) == 9
+    code_str = get_code_str(converter)
+    assert "else" not in code_str.split("is not None")[0].split("if ")[-1]
+    assert "_tmp" in code_str or "(row_" in code_str
+
+
+def test_piped_maxrow_minrow_share_row_expr():
+    class CountingDict(dict):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.n = 0
+
+        def __getitem__(self, key):
+            self.n += 1
+            return super().__getitem__(key)
+
+    def rows():
+        return [
+            CountingDict({"a": CountingDict({"x": 1, "k": "first"})}),
+            CountingDict({"a": CountingDict({"x": 3, "k": "second"})}),
+            CountingDict({"a": CountingDict({"x": 2, "k": "mid"})}),
+        ]
+
+    max_spec = c.aggregate(c.item("a").pipe(c.ReduceFuncs.MaxRow(c.item("x"))))
+    min_spec = c.aggregate(c.item("a").pipe(c.ReduceFuncs.MinRow(c.item("x"))))
+    max_data = rows()
+    min_data = rows()
+    assert max_spec.execute(max_data)["k"] == "second"
+    assert [row.n for row in max_data] == [1, 1, 1]
+    assert min_spec.execute(min_data)["k"] == "first"
+    assert [row.n for row in min_data] == [1, 1, 1]
+
+    for spec in (max_spec, min_spec):
+        code_str = get_code_str(spec.gen_converter())
+        loop_bodies = code_str.split("for row_ in")[1:]
+        assert loop_bodies
+        for body in loop_bodies:
+            assert body.count('row_["a"]') + body.count("row_['a']") == 1
+
+    # %(row)s is not eager in MaxRow/MinRow reduce (only the comparison body).
+    losing = [{"a": 1}, {}]
+    assert (
+        c.aggregate(
+            (c.item("a") + c.item("a")).pipe(c.ReduceFuncs.MaxRow(1))
+        ).execute(losing)
+        == 2
+    )
+    assert (
+        c.aggregate(
+            (c.item("a") + c.item("a")).pipe(c.ReduceFuncs.MinRow(1))
+        ).execute(losing)
+        == 2
+    )

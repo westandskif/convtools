@@ -18,10 +18,10 @@ from ._base import (
 )
 from ._heuristics import Weights
 from ._reducer_sharing import (
-    _analyze_scope,
-    _build_guard_tree,
-    _count_reducer_nodes,
-    _init_plan,
+    analyze_scope,
+    build_guard_tree,
+    count_reducer_nodes,
+    init_plan,
 )
 from ._reducers import (
     BaseReducer,
@@ -39,7 +39,6 @@ class ReduceManager:
         "var_row",
         "var_agg_data",
         "aggregate_mode",
-        "var_agg_data_to_index",
         "records",
         "dedup",
     ]
@@ -48,15 +47,11 @@ class ReduceManager:
         self.var_row = var_row
         self.var_agg_data = var_agg_data
         self.aggregate_mode = aggregate_mode
-        self.var_agg_data_to_index = {}
         self.records = []
         self.dedup = {}
 
     def gen_agg_data_value(self):
-        index = len(self.records)
-        var_agg_data_value = self.fmt_agg_data_value(index)
-        self.var_agg_data_to_index[var_agg_data_value] = index
-        return var_agg_data_value
+        return self.fmt_agg_data_value(len(self.records))
 
     def add_reducer_code(self, record):
         key = record.dedup_key()
@@ -70,7 +65,7 @@ class ReduceManager:
             chain.append(record.where_code)
         for code, flag in zip(record.value_codes, record.not_none_flags):
             if flag:
-                chain.append("{} is not None".format(code))
+                chain.append("({}) is not None".format(code))
         record.guard_chain = tuple(chain)
         self.records.append(record)
         self.dedup[key] = record
@@ -84,7 +79,10 @@ class ReduceManager:
         )
 
     def _record_kwargs(self, record, plan):
-        kwargs = {"result": record.slot, "row": record.row_code}
+        kwargs = {
+            "result": record.slot,
+            "row": plan.rows[id(record)],
+        }
         codes = plan.values[id(record)]
         for i, code in enumerate(codes):
             kwargs["value{}".format(i)] = code
@@ -127,9 +125,9 @@ class ReduceManager:
             code.incr_indent_level(-1)
 
     def gen_group_by_code(self, var_signature_to_agg_data, code_signature):
-        root = _build_guard_tree(self.records)
-        plan = _init_plan(root, self.records, code_signature)
-        _analyze_scope(root, plan, True, code_signature, 0)
+        root = build_guard_tree(self.records)
+        plan = init_plan(self.records, code_signature)
+        analyze_scope(root, plan, True, code_signature, 0)
         code = Code()
         code.add_line("for {} in data_:".format(self.var_row), 1)
 
@@ -150,19 +148,19 @@ class ReduceManager:
         code = Code()
         if not self.records:
             return code
-        with_init_root = _build_guard_tree(self.records)
-        with_init_plan = _init_plan(with_init_root, self.records, None)
-        _analyze_scope(with_init_root, with_init_plan, True, None, 0)
-        expected_checksum = _count_reducer_nodes(with_init_root)
+        with_init_root = build_guard_tree(self.records)
+        with_init_plan = init_plan(self.records, None)
+        analyze_scope(with_init_root, with_init_plan, True, None, 0)
+        expected_checksum = count_reducer_nodes(with_init_root)
 
         reduce_records = [r for r in self.records if r.reduce_lines]
         reduce_root = (
-            _build_guard_tree(reduce_records) if reduce_records else None
+            build_guard_tree(reduce_records) if reduce_records else None
         )
         reduce_plan = None
         if reduce_root is not None:
-            reduce_plan = _init_plan(reduce_root, reduce_records, None)
-            _analyze_scope(reduce_root, reduce_plan, False, None, 0)
+            reduce_plan = init_plan(reduce_records, None)
+            analyze_scope(reduce_root, reduce_plan, False, None, 0)
 
         code.add_line("checksum_ = 0", 0)
         if reduce_records:
@@ -185,10 +183,7 @@ class ReduceManager:
         return code
 
     def gen_group_by_data_container(self, grouper, container_name, ctx):
-        attrs = [
-            "v{}".format(self.var_agg_data_to_index[record.slot])
-            for record in self.records
-        ]
+        attrs = ["v{}".format(index) for index, _ in enumerate(self.records)]
         code = Code()
         code.add_line("class {}:".format(container_name), 1)
         joined = ",".join("'{}'".format(attr) for attr in attrs)
@@ -208,10 +203,8 @@ class ReduceManager:
             return ""
         vars_code = " = ".join(
             [
-                self.fmt_agg_data_value(
-                    self.var_agg_data_to_index[record.slot]
-                )
-                for record in self.records
+                self.fmt_agg_data_value(index)
+                for index, _ in enumerate(self.records)
             ]
         )
         return "{} = _none".format(vars_code)

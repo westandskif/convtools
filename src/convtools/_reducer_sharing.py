@@ -351,20 +351,32 @@ def _mark_eager_block(stmts, sentinel_to_index, eager):
             _mark_eager_expr(expr, sentinel_to_index, eager)
 
 
-def _analyze_template_block(lines, n_values):
-    eager = [False] * n_values
-    weights = [0] * n_values
+def _analyze_template_block(lines, n_values, include_row=False):
+    n = n_values + 1 if include_row else n_values
+    eager = [False] * n
+    weights = [0] * n
     if not lines:
+        if include_row:
+            return eager[:n_values], weights[:n_values], False, 0
         return eager, weights
     sentinels = ["_red_val_{}_".format(i) for i in range(n_values)]
     sentinel_to_index = {name: i for i, name in enumerate(sentinels)}
+    if include_row:
+        sentinel_to_index["_red_row_"] = n_values
     kwargs = {"result": "_red_result_", "row": "_red_row_"}
     for i, name in enumerate(sentinels):
         kwargs["value{}".format(i)] = name
     rendered = "\n".join(line % kwargs for line in lines)
     tree = ast.parse(rendered)
     _mark_eager_block(tree.body, sentinel_to_index, eager)
-    weights = _weight_block(tree.body, sentinel_to_index, n_values)
+    weights = _weight_block(tree.body, sentinel_to_index, n)
+    if include_row:
+        return (
+            eager[:n_values],
+            weights[:n_values],
+            eager[n_values],
+            weights[n_values],
+        )
     return eager, weights
 
 
@@ -372,11 +384,20 @@ def _analyze_template_block(lines, n_values):
 def _template_info(prepare_lines, reduce_lines, n_values):
     # Templates embed per-compile naive names and user constants, so the
     # key space is unbounded; bound the cache instead of using a plain dict.
-    init_eager, init_weight = _analyze_template_block(prepare_lines, n_values)
-    reduce_eager, reduce_weight = _analyze_template_block(
-        reduce_lines, n_values
+    init_eager, init_weight, init_row_eager, _ = _analyze_template_block(
+        prepare_lines, n_values, include_row=True
     )
-    return init_eager, init_weight, reduce_eager, reduce_weight
+    reduce_eager, reduce_weight, reduce_row_eager, _ = _analyze_template_block(
+        reduce_lines, n_values, include_row=True
+    )
+    return (
+        init_eager,
+        init_weight,
+        reduce_eager,
+        reduce_weight,
+        init_row_eager,
+        reduce_row_eager,
+    )
 
 
 class _CountItem(object):
@@ -412,9 +433,10 @@ class _CountItem(object):
         self.index = index
         self.child = child
         self.rewritten = rewritten
-        self.tree = (
-            tree if tree is not None else ast.parse(code, mode="eval").body
-        )
+        if tree is not None:
+            self.tree = tree
+        else:
+            self.tree = ast.parse(code, mode="eval").body
 
 
 class ReducerRecord(object):
@@ -425,7 +447,6 @@ class ReducerRecord(object):
         "not_none_flags",
         "prepare_first_lines",
         "reduce_lines",
-        "initial_code",
         "row_code",
         "guard_chain",
     ]
@@ -437,7 +458,6 @@ class ReducerRecord(object):
         not_none_flags,
         prepare_first_lines,
         reduce_lines,
-        initial_code,
         row_code,
     ):
         self.slot = None
@@ -446,20 +466,18 @@ class ReducerRecord(object):
         self.not_none_flags = not_none_flags
         self.prepare_first_lines = prepare_first_lines
         self.reduce_lines = reduce_lines
-        self.initial_code = initial_code
         self.row_code = row_code
         self.guard_chain = None
 
     def dedup_key(self):
-        # row_code is part of the identity: MaxRow/MinRow (and any template
-        # using %(row)s) capture the piped input, not only the comparison value.
+        # row_code is part of identity because MaxRow/MinRow capture the piped
+        # input; it now also participates in sharing.
         return (
             self.where_code,
             self.value_codes,
             self.not_none_flags,
             self.prepare_first_lines,
             self.reduce_lines,
-            self.initial_code,
             self.row_code,
         )
 
@@ -473,16 +491,17 @@ class GuardScope(object):
 
 
 class SharingPlan(object):
-    __slots__ = ["values", "guards", "signature", "temps"]
+    __slots__ = ["values", "guards", "signature", "temps", "rows"]
 
     def __init__(self):
         self.values = {}
         self.guards = {}
         self.signature = None
         self.temps = {}
+        self.rows = {}
 
 
-def _build_guard_tree(records):
+def build_guard_tree(records):
     root = GuardScope()
     for record in records:
         node = root
@@ -498,7 +517,14 @@ def _build_guard_tree(records):
 
 def _eager_and_weight(record, with_init):
     n_values = len(record.value_codes)
-    init_eager, init_weight, reduce_eager, reduce_weight = _template_info(
+    (
+        init_eager,
+        init_weight,
+        reduce_eager,
+        reduce_weight,
+        init_row_eager,
+        reduce_row_eager,
+    ) = _template_info(
         record.prepare_first_lines, record.reduce_lines, n_values
     )
     if with_init:
@@ -509,13 +535,16 @@ def _eager_and_weight(record, with_init):
             red_eager = False if reduce_is_empty else reduce_eager[i]
             eager.append(bool(init_eager[i] and red_eager))
             weights.append(max(init_weight[i], reduce_weight[i]))
-        return eager, weights
-    return list(reduce_eager), list(reduce_weight)
+        row_eager = bool(
+            init_row_eager and (False if reduce_is_empty else reduce_row_eager)
+        )
+        return eager, weights, row_eager
+    return list(reduce_eager), list(reduce_weight), reduce_row_eager
 
 
 def _collect_count_items(scope, plan, with_init, self_scope, signature, items):
     for record in scope.reducers:
-        eager_flags, weights = _eager_and_weight(record, with_init)
+        eager_flags, weights, row_eager = _eager_and_weight(record, with_init)
         codes = plan.values[id(record)]
         for i, code in enumerate(codes):
             items.append(
@@ -526,6 +555,17 @@ def _collect_count_items(scope, plan, with_init, self_scope, signature, items):
                     "value",
                     record=record,
                     index=i,
+                )
+            )
+        templates = record.prepare_first_lines + record.reduce_lines
+        if any("%(row)s" in line for line in templates):
+            items.append(
+                _CountItem(
+                    plan.rows[id(record)],
+                    1,
+                    scope is self_scope and row_eager,
+                    "row",
+                    record=record,
                 )
             )
     for guard, child in scope.children.items():
@@ -571,13 +611,7 @@ def _topo_temp_order(temp_entries):
     return [(name, by_name[name]) for name in ordered]
 
 
-def _analyze_scope(scope, plan, with_init, signature, tmp_index):
-    # Safety: an expression is evaluated only on rows where some naive
-    # per-reducer use would have evaluated it, never above its guards, and
-    # initial expressions are never shared. Reducer where/value expressions
-    # are treated as deterministic and free of side effects on the row;
-    # shared values are the same object in every reducer; reducer callables
-    # must not mutate the values they receive.
+def analyze_scope(scope, plan, with_init, signature, tmp_index):
     items = []
     _collect_count_items(scope, plan, with_init, scope, signature, items)
     local_temps = []
@@ -639,14 +673,14 @@ def _analyze_scope(scope, plan, with_init, signature, tmp_index):
         for key, rec in candidates.items():
             if rec["count"] < 2 or rec["eager_ok"] <= 0:
                 continue
-            order = (rec["size"], rec["count"], key)
+            order = (rec["count"], rec["size"], key)
             if best is None or order > best:
                 best = order
                 best_key = key
         if best_key is None:
             break
         rec = candidates[best_key]
-        internal_name = "__cse{}_{}_".format(id(scope) % 100000, local_i)
+        internal_name = "__cse{}_".format(local_i)
         local_i += 1
         rhs_tree = copy.deepcopy(next(iter(rec["contributors"].values())))
         mapping = {best_key: internal_name}
@@ -668,7 +702,7 @@ def _analyze_scope(scope, plan, with_init, signature, tmp_index):
             _add_item_contributions(item)
         items.append(
             _CountItem(
-                _fmt_expr(rhs_tree, rewritten=True),
+                None,
                 1,
                 True,
                 "temp_rhs",
@@ -708,24 +742,27 @@ def _analyze_scope(scope, plan, with_init, signature, tmp_index):
             plan.values[id(item.record)] = tuple(codes)
         elif item.kind == "guard":
             plan.guards[id(item.child)] = new_code
+        elif item.kind == "row":
+            plan.rows[id(item.record)] = new_code
         else:
             plan.signature = new_code
 
     for child in scope.children.values():
-        tmp_index = _analyze_scope(child, plan, with_init, None, tmp_index)
+        tmp_index = analyze_scope(child, plan, with_init, None, tmp_index)
     return tmp_index
 
 
-def _init_plan(root, records, signature):
+def init_plan(records, signature):
     plan = SharingPlan()
     for record in records:
         plan.values[id(record)] = record.value_codes
+        plan.rows[id(record)] = record.row_code
     plan.signature = signature
     return plan
 
 
-def _count_reducer_nodes(node):
+def count_reducer_nodes(node):
     total = 1 if node.reducers else 0
     for child in node.children.values():
-        total += _count_reducer_nodes(child)
+        total += count_reducer_nodes(child)
     return total

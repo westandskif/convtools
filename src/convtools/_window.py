@@ -189,6 +189,7 @@ class AppliedWindow(BaseConversion):
             ),
         )
         self.contents = self.contents & ~self.ContentTypes.REDUCER
+        # Needed: test_window_func_inside_agg NameError: _labels is not defined
         self.reducer.contents |= self.ContentTypes.LABEL_USAGE
         self.conv = self.ensure_conversion(conv)
 
@@ -338,6 +339,7 @@ class AppliedWindow(BaseConversion):
                     for name, index in name_to_index.items()
                 },
             )
+            # Needed: test_window_func_inside_agg NameError: _labels is not defined
             c_frame_data_handler.contents |= self.ContentTypes.LABEL_USAGE
         else:
             c_frame_data_handler = frame_conv.pipe(Aggregate(self.reducer))
