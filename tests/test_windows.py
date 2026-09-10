@@ -456,50 +456,6 @@ def test_window_func_exceptions():
             "frame_end": (1, "PRECEDING"),
         },
         {
-            "frame_mode": "ROWS",
-            "frame_start": (2, "FOLLOWING"),
-            "frame_end": (1, "FOLLOWING"),
-        },
-        {
-            "frame_mode": "GROUPS",
-            "frame_start": (2, "FOLLOWING"),
-            "frame_end": (1, "FOLLOWING"),
-        },
-        {
-            "frame_mode": "ROWS",
-            "frame_start": (1, "PRECEDING"),
-            "frame_end": (2, "PRECEDING"),
-        },
-        {
-            "frame_mode": "GROUPS",
-            "frame_start": (1, "PRECEDING"),
-            "frame_end": (2, "PRECEDING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (2, "FOLLOWING"),
-            "frame_end": (1, "FOLLOWING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (timedelta(days=2), "FOLLOWING"),
-            "frame_end": (timedelta(days=1), "FOLLOWING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (1, "PRECEDING"),
-            "frame_end": (2, "PRECEDING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (timedelta(days=1), "PRECEDING"),
-            "frame_end": (timedelta(days=2), "PRECEDING"),
-        },
-        {
             "frame_mode": "RANGE",
             "order_by": c.this,
             "frame_start": (Fraction(-1), "PRECEDING"),
@@ -633,6 +589,96 @@ def test_window_zero_offset_is_current_row(over_kwargs):
 def test_window_zero_offset_still_rejects_inverted_frames(over_kwargs):
     with pytest.raises(ValueError):
         c.this.window(c.ReduceFuncs.Count()).over(**over_kwargs)
+
+
+@pytest.mark.parametrize(
+    "data, over_kwargs",
+    [
+        (
+            [1, 2, 3],
+            {
+                "frame_mode": "ROWS",
+                "order_by": c.this,
+                "frame_start": (2, "FOLLOWING"),
+                "frame_end": (1, "FOLLOWING"),
+            },
+        ),
+        (
+            [1, 2, 3],
+            {
+                "frame_mode": "ROWS",
+                "order_by": c.this,
+                "frame_start": (1, "PRECEDING"),
+                "frame_end": (2, "PRECEDING"),
+            },
+        ),
+        (
+            [1, 2, 3],
+            {
+                "frame_mode": "GROUPS",
+                "order_by": c.this,
+                "frame_start": (2, "FOLLOWING"),
+                "frame_end": (1, "FOLLOWING"),
+            },
+        ),
+        (
+            [1, 2, 3],
+            {
+                "frame_mode": "GROUPS",
+                "order_by": c.this,
+                "frame_start": (1, "PRECEDING"),
+                "frame_end": (2, "PRECEDING"),
+            },
+        ),
+        (
+            [1, 2, 3],
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (2, "FOLLOWING"),
+                "frame_end": (1, "FOLLOWING"),
+            },
+        ),
+        (
+            [1, 2, 3],
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (1, "PRECEDING"),
+                "frame_end": (2, "PRECEDING"),
+            },
+        ),
+        (
+            [date(2020, 1, 1), date(2020, 1, 2), date(2020, 1, 3)],
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (timedelta(days=2), "FOLLOWING"),
+                "frame_end": (timedelta(days=1), "FOLLOWING"),
+            },
+        ),
+        (
+            [date(2020, 1, 1), date(2020, 1, 2), date(2020, 1, 3)],
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (timedelta(days=1), "PRECEDING"),
+                "frame_end": (timedelta(days=2), "PRECEDING"),
+            },
+        ),
+    ],
+)
+def test_window_same_direction_empty_frames(data, over_kwargs):
+    array_result = (
+        c.this.window(c.ReduceFuncs.Array(c.this))
+        .over(**over_kwargs)
+        .execute(data)
+    )
+    assert array_result == [None, None, None]
+    count_result = (
+        c.this.window(c.ReduceFuncs.Count()).over(**over_kwargs).execute(data)
+    )
+    assert count_result == [0, 0, 0]
 
 
 def test_window_empty_runtime_frame_keeps_default():

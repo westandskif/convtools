@@ -167,8 +167,9 @@ class AppliedWindow(BaseConversion):
                 * "GROUPS" mode: offset as a number of peer groups; must be
                   non-negative int
 
-          Offsets are non-negative (int for ROWS/GROUPS). Frames whose start
-          is statically after the end are rejected at over() time.
+          Offsets are non-negative (int for ROWS/GROUPS). Same-direction
+          frames whose start lies past the end are valid and empty, as in
+          PostgreSQL.
 
           frame_exclusion: one of
             - "NO OTHERS" (default): it says to not exclude anything
@@ -270,11 +271,6 @@ class AppliedWindow(BaseConversion):
         end_current = end.current_row or (
             end.offset is not None and not end.offset
         )
-        start_preceding = (
-            start.offset is not None
-            and start.offset_sign_as_str == "-"
-            and not start_current
-        )
         start_following = (
             start.offset is not None
             and start.offset_sign_as_str == "+"
@@ -285,49 +281,9 @@ class AppliedWindow(BaseConversion):
             and end.offset_sign_as_str == "-"
             and not end_current
         )
-        end_following = (
-            end.offset is not None
-            and end.offset_sign_as_str == "+"
-            and not end_current
-        )
-        inverted = False
         if start_current and end_preceding:
-            inverted = True
-        elif start_following and (end_current or end_preceding):
-            inverted = True
-        else:
-            numeric = (numbers.Real, Decimal)
-            so, eo = start.offset, end.offset
-            range_offsets_comparable = (
-                self.frame_mode == FrameMode.RANGE
-                and so is not None
-                and eo is not None
-                and (
-                    (isinstance(so, numeric) and isinstance(eo, numeric))
-                    or (
-                        isinstance(so, timedelta) and isinstance(eo, timedelta)
-                    )
-                )
-            )
-            check_bound_order = (
-                self.frame_mode in (FrameMode.ROWS, FrameMode.GROUPS)
-                or range_offsets_comparable
-            )
-            if (
-                check_bound_order
-                and start_following
-                and end_following
-                and start.offset > end.offset
-            ):
-                inverted = True
-            elif (
-                check_bound_order
-                and start_preceding
-                and end_preceding
-                and start.offset < end.offset
-            ):
-                inverted = True
-        if inverted:
+            raise ValueError("frame start cannot be after frame end")
+        if start_following and (end_current or end_preceding):
             raise ValueError("frame start cannot be after frame end")
 
     def gen_code_and_update_ctx(self, code_input, ctx):

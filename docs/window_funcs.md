@@ -97,8 +97,8 @@ Frame modes follow PostgreSQL terminology:
 | `"ROWS"` | Offsets are non-negative int row counts before or after the current row. |
 | `"GROUPS"` | Offsets are non-negative int peer-group counts before or after the current peer group. |
 
-Offsets are non-negative (int for ROWS/GROUPS). Frames whose start is
-statically after the end are rejected at `over()` time.
+Offsets are non-negative (int for ROWS/GROUPS). Same-direction frames
+whose start lies past the end are valid and empty, as in PostgreSQL.
 
 For available reducers, see [`c.ReduceFuncs`](./aggregations.md#creducefuncs).
 

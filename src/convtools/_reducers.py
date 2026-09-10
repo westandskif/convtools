@@ -1207,9 +1207,16 @@ class ReduceFuncs:
 
     # pylint: disable=invalid-name
 
-    #: Sums values, treating `None` (and other falsy values) as `0`; default is `0`.
+    #: Sums values, treating `None` (and other falsy values) as `0`;
+    #: default is `0`. Summing lists/tuples uses `result = result +
+    #: value` (never mutates the first row's object) and is O(n^2);
+    #: pass `initial=list` for linear in-place list accumulation
+    #: (`Sum` still treats empty lists as `0`, which then raises).
     Sum = SumReducer
-    #: Sums values; any `None` makes the result `None`.
+    #: Sums values; any `None` makes the result `None`. Summing
+    #: lists/tuples uses `result = result + value` (never mutates the
+    #: first row's object) and is O(n^2); pass `initial=list` for
+    #: linear in-place list accumulation.
     SumOrNone = SumOrNoneReducer
 
     #: Returns the max value, skipping `None`.
@@ -1277,7 +1284,10 @@ class ReduceFuncs:
     DictArray = DictArrayReducer
     #: Builds a dict whose values are distinct lists per key, preserving order.
     DictArrayDistinct = DictArrayDistinctReducer
-    #: Builds a dict whose values are sums per key, treating `None` as `0`.
+    #: Builds a dict whose values are sums per key, treating `None` as
+    #: `0`. Summing lists/tuples per key uses `result[k] = result[k] +
+    #: value` and is O(n^2); `initial=` is ignored (use `DictArray` to
+    #: collect lists per key).
     DictSum = DictSumReducer
     #: Builds a dict whose values are sums per key; any `None` makes that
     #: key's result `None`.

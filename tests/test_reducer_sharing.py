@@ -582,3 +582,54 @@ def test_unrecognized_template_stmt_contributes_zero():
     assert spec.execute([{"g": 1, "x": 1}, {"g": 1, "x": 99}]) == [
         {"g": 1, "v": 1}
     ]
+
+
+def test_shared_next_call_once_across_array_and_sum():
+    next_it = c.call_func(next, c.input_arg("it"))
+    spec = c.aggregate(
+        {
+            "a": c.ReduceFuncs.Array(next_it),
+            "b": c.ReduceFuncs.Sum(next_it),
+        }
+    )
+    assert spec.execute([None, None, None], it=iter(range(6))) == {
+        "a": [0, 1, 2],
+        "b": 3,
+    }
+
+    spec = c.group_by(c.item("g")).aggregate(
+        {
+            "g": c.item("g"),
+            "a": c.ReduceFuncs.Array(next_it),
+            "b": c.ReduceFuncs.Sum(next_it),
+        }
+    )
+    data = [{"g": 1}, {"g": 1}, {"g": 1}]
+    assert spec.execute(data, it=iter(range(6))) == [
+        {"g": 1, "a": [0, 1, 2], "b": 3}
+    ]
+
+
+def test_shared_call_aliases_same_object():
+    listed = c.call_func(list, c.this)
+    result = c.aggregate(
+        {
+            "a": c.ReduceFuncs.First(listed),
+            "b": c.ReduceFuncs.Array(listed),
+        }
+    ).execute([[1], [2]])
+    assert result["a"] == [1]
+    assert result["b"] == [[1], [2]]
+    assert result["a"] is result["b"][0]
+
+
+def test_unguarded_reducers_evaluated_before_guarded():
+    with pytest.raises(KeyError, match="missing_a"):
+        c.aggregate(
+            {
+                "a": c.ReduceFuncs.Sum(c.item("missing_a")),
+                "b": c.ReduceFuncs.Sum(
+                    c.item("missing_b"), where=c.item("x") > 0
+                ),
+            }
+        ).execute([{"x": 1}])

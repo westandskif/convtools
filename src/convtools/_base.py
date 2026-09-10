@@ -2556,7 +2556,9 @@ class GetItem(BaseMethodConversion):
 
         if self.indexes_are_simple and self.default_is_simple:
 
-            if isinstance(self.default, NaiveConversion):
+            if isinstance(
+                self.default, (NaiveConversion, InputArg, EscapedString)
+            ):
                 return CallFunc(
                     self.getter_default_simple,
                     (

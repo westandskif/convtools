@@ -20,7 +20,10 @@
   shared between reducers is the same object; reducer callables must not mutate
   the values they receive. `initial=` expressions are never shared. Lambdas,
   comprehensions and walrus expressions stay opaque so a temp is never
-  substituted into a scope that may rebind a name.
+  substituted into a scope that may rebind a name. A node's unguarded
+  reducers run before its guarded (`where=`) children, so side effects and
+  the first raised exception can move between reducers; declaration order
+  was not honoured before either.
 - `Percentile(..., interpolation="nearest")` now rounds half to even
   (Python `round`, matching numpy `method="nearest"`); previously half rounded
   down. Only exact-`.5` indexes change
@@ -36,13 +39,16 @@
   (including `zip` output)
 - `Table.from_rows(..., skip_rows=N)` past the end of the input yields an
   empty table instead of raising `StopIteration`
-- window `over()` rejects negative GROUPS offsets, negative RANGE
-  `numbers.Real` / `Decimal` / `timedelta` offsets (including `Fraction`),
-  and frames whose start is statically after the end (RANGE same-direction
-  bounds too, when both offsets are numeric or both `timedelta`)
+- window `over()` rejects negative GROUPS offsets and negative RANGE
+  `numbers.Real` / `Decimal` / `timedelta` offsets (including `Fraction`)
+- same-direction window frames (`2 FOLLOWING .. 1 FOLLOWING`,
+  `1 PRECEDING .. 2 PRECEDING`) are accepted again and yield empty frames
+  (regression introduced in Unreleased, PostgreSQL parity)
 - `.asc()` / `.desc()` on a `pipe` now apply to sort and window `order_by` (including `none_last` / `none_first`); they no longer hide an inherited `NOT_NONE` hint
 - the last `.asc()` / `.desc()` on a sort or window key replaces prior ordering bits (direction and `none_first` / `none_last`)
 - `item` / `attr` `default=` conversions that are not constants (`c.label(...)`, `c.inline_expr(...)`, …) are evaluated only on a miss, with or without the C getters
+- `item` / `attr` `default=` given a `c.input_arg(...)` or
+  `c.escaped_string(...)` uses the C getter again
 - `c.input_arg("self")` / `("cls")` now raise at `gen_converter` unless `method=True` / `class_method=True` (or the custom `signature` includes the name)
 - empty nested `or_` / `and_` with a `default` flatten to that boolean instead of being dropped
 

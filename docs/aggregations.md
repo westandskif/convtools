@@ -190,7 +190,11 @@ Notes:
  * note 8: `Sum` / `DictSum` do not skip `None`; they treat `None` (and other
    falsy values) as `0`. `DictSum` / `DictSumOrNone` are numeric reducers
    (values must support `+` with the `int` 0 seed of a new key); to collect
-   lists per key use `DictArray`.
+   lists per key use `DictArray`. Summing lists or tuples accumulates by
+   `result = result + value` (never mutates the first row's object) and is
+   O(n^2); pass `initial=list` for linear in-place list accumulation, e.g.
+   `c.ReduceFuncs.Sum(c.item("tags"), initial=list)` (`Sum` still treats
+   empty lists as `0`, which then raises). `DictSum` ignores `initial=`.
 
 Special parameters:
 

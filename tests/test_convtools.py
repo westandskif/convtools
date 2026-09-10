@@ -480,6 +480,51 @@ def test_item_label_default_python_fallback(monkeypatch):
     ).execute(SimpleNamespace(b=2)) == SimpleNamespace(b=2)
 
 
+def test_item_attr_input_arg_escaped_string_default_fast_path():
+    item_input_arg = c.item("a", default=c.input_arg("d"))
+    item_escaped = c.item("a", default=c.escaped_string("123"))
+    attr_input_arg = c.attr("a", default=c.input_arg("d"))
+    if GetItem.getter_default_simple is not None:
+        for conv, getter_name in (
+            (item_input_arg, "get_item_deep_default_simple"),
+            (item_escaped, "get_item_deep_default_simple"),
+            (attr_input_arg, "get_attr_deep_default_simple"),
+        ):
+            code = get_code_str(conv)
+            assert getter_name in code
+            assert "item_or_default" not in code
+            assert "attr_or_default" not in code
+        assert item_input_arg.hardcoded_version is not None
+        assert item_escaped.hardcoded_version is not None
+        assert attr_input_arg.hardcoded_version is not None
+
+    converter = item_input_arg.gen_converter()
+    assert converter({"a": 1}, d=99) == 1
+    assert converter({}, d=99) == 99
+    assert converter(None, d=99) == 99
+
+    converter = item_escaped.gen_converter()
+    assert converter({"a": 1}) == 1
+    assert converter({}) == 123
+    assert converter(None) == 123
+
+    converter = attr_input_arg.gen_converter()
+    assert converter(SimpleNamespace(a=1), d=99) == 1
+    assert converter(SimpleNamespace(), d=99) == 99
+    assert converter(object(), d=99) == 99
+
+    assert c.iter(c.item("a", default=c.input_arg("d"))).as_type(list).execute(
+        [{"a": 1}, {}], d=99
+    ) == [1, 99]
+    assert c.aggregate(
+        c.ReduceFuncs.Array(c.item("a", default=c.input_arg("d")))
+    ).execute([{"a": 1}, {}], d=99) == [1, 99]
+
+    label_code = get_code_str(c.item("a", default=c.label("x")))
+    assert "item_or_default" in label_code
+    assert "get_item_deep_default_simple" not in label_code
+
+
 def test_item_attr_zero_indexes_with_default():
     assert c.item("a").item(default=1).execute({"a": 5}) == 5
     assert c.attr("a").attr(default=1).execute(SimpleNamespace(a=5)) == 5
