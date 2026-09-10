@@ -105,9 +105,12 @@ Arguments:
 * `header` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
 * `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
 * `skip_rows` - number of non-empty records to skip before header handling;
-  default is 0. Blank lines are skipped and do not count. The first record
-  kept after skipping fixes the row width; a later record of a different
-  width raises `ValueError` with the 1-based physical line number.
+  default is 0. Empty lines are skipped and do not count. A whitespace-only
+  line is a one-column record: it counts toward `skip_rows`, and once past
+  skipping it is yielded, or raises the ragged-row `ValueError` when the
+  fixed width is not 1. The first record kept after skipping fixes the row
+  width; a later record of a different width raises `ValueError` with the
+  1-based physical line number.
 * `dialect` - a dialect acceptable by `csv.reader`. Use
   `Table.csv_dialect(delimiter="\t")` for tab-separated files.
 * `encoding` - default is `utf-8`.
@@ -143,7 +146,8 @@ Arguments:
 * `filepath_or_buffer` - a filepath or a text buffer to read from.
 * `header` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
 * `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
-* `skip_rows` - number of rows to skip before header handling; default is 0.
+* `skip_rows` - number of non-empty records to skip before header handling;
+  blank and whitespace-only lines are skipped and do not count; default is 0.
 * `encoding` - default is `utf-8`.
 
 ----

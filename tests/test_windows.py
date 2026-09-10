@@ -399,88 +399,139 @@ def test_window_func_exceptions():
 
 
 @pytest.mark.parametrize(
-    "kwargs",
+    "kwargs, match",
     [
-        {"frame_mode": "GROUPS", "frame_start": (-1, "PRECEDING")},
-        {"frame_mode": "GROUPS", "frame_start": (1.5, "PRECEDING")},
-        {"frame_mode": "RANGE", "frame_start": (1, "PRECEDING")},
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (-1, "PRECEDING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (-1.0, "PRECEDING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (Decimal("-1"), "PRECEDING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (-timedelta(days=1), "PRECEDING"),
-        },
-        {
-            "frame_mode": "ROWS",
-            "frame_start": "CURRENT ROW",
-            "frame_end": (1, "PRECEDING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": "CURRENT ROW",
-            "frame_end": (1, "PRECEDING"),
-        },
-        {
-            "frame_mode": "GROUPS",
-            "frame_start": "CURRENT ROW",
-            "frame_end": (1, "PRECEDING"),
-        },
-        {
-            "frame_mode": "ROWS",
-            "frame_start": (1, "FOLLOWING"),
-            "frame_end": "CURRENT ROW",
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (1, "FOLLOWING"),
-            "frame_end": "CURRENT ROW",
-        },
-        {
-            "frame_mode": "GROUPS",
-            "frame_start": (1, "FOLLOWING"),
-            "frame_end": "CURRENT ROW",
-        },
-        {
-            "frame_mode": "ROWS",
-            "frame_start": (1, "FOLLOWING"),
-            "frame_end": (1, "PRECEDING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (1, "FOLLOWING"),
-            "frame_end": (1, "PRECEDING"),
-        },
-        {
-            "frame_mode": "GROUPS",
-            "frame_start": (1, "FOLLOWING"),
-            "frame_end": (1, "PRECEDING"),
-        },
-        {
-            "frame_mode": "RANGE",
-            "order_by": c.this,
-            "frame_start": (Fraction(-1), "PRECEDING"),
-        },
+        (
+            {"frame_mode": "GROUPS", "frame_start": (-1, "PRECEDING")},
+            "offsets should be non-negative",
+        ),
+        (
+            {"frame_mode": "GROUPS", "frame_start": (1.5, "PRECEDING")},
+            "offsets should be non-negative",
+        ),
+        (
+            {"frame_mode": "RANGE", "frame_start": (1, "PRECEDING")},
+            "require 'order_by'",
+        ),
+        (
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (-1, "PRECEDING"),
+            },
+            "offsets should be non-negative",
+        ),
+        (
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (-1.0, "PRECEDING"),
+            },
+            "offsets should be non-negative",
+        ),
+        (
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (Decimal("-1"), "PRECEDING"),
+            },
+            "offsets should be non-negative",
+        ),
+        (
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (-timedelta(days=1), "PRECEDING"),
+            },
+            "offsets should be non-negative",
+        ),
+        (
+            {
+                "frame_mode": "ROWS",
+                "frame_start": "CURRENT ROW",
+                "frame_end": (1, "PRECEDING"),
+            },
+            "frame start cannot be after frame end",
+        ),
+        (
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": "CURRENT ROW",
+                "frame_end": (1, "PRECEDING"),
+            },
+            "frame start cannot be after frame end",
+        ),
+        (
+            {
+                "frame_mode": "GROUPS",
+                "frame_start": "CURRENT ROW",
+                "frame_end": (1, "PRECEDING"),
+            },
+            "frame start cannot be after frame end",
+        ),
+        (
+            {
+                "frame_mode": "ROWS",
+                "frame_start": (1, "FOLLOWING"),
+                "frame_end": "CURRENT ROW",
+            },
+            "frame start cannot be after frame end",
+        ),
+        (
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (1, "FOLLOWING"),
+                "frame_end": "CURRENT ROW",
+            },
+            "frame start cannot be after frame end",
+        ),
+        (
+            {
+                "frame_mode": "GROUPS",
+                "frame_start": (1, "FOLLOWING"),
+                "frame_end": "CURRENT ROW",
+            },
+            "frame start cannot be after frame end",
+        ),
+        (
+            {
+                "frame_mode": "ROWS",
+                "frame_start": (1, "FOLLOWING"),
+                "frame_end": (1, "PRECEDING"),
+            },
+            "frame start cannot be after frame end",
+        ),
+        (
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (1, "FOLLOWING"),
+                "frame_end": (1, "PRECEDING"),
+            },
+            "frame start cannot be after frame end",
+        ),
+        (
+            {
+                "frame_mode": "GROUPS",
+                "frame_start": (1, "FOLLOWING"),
+                "frame_end": (1, "PRECEDING"),
+            },
+            "frame start cannot be after frame end",
+        ),
+        (
+            {
+                "frame_mode": "RANGE",
+                "order_by": c.this,
+                "frame_start": (Fraction(-1), "PRECEDING"),
+            },
+            "offsets should be non-negative",
+        ),
     ],
 )
-def test_window_frame_offset_validation(kwargs):
-    with pytest.raises(ValueError):
+def test_window_frame_offset_validation(kwargs, match):
+    with pytest.raises(ValueError, match=match):
         c.this.window(c.ReduceFuncs.Count()).over(**kwargs)
 
 
@@ -554,7 +605,7 @@ def test_range_custom_non_orderable_offset():
     ],
 )
 def test_window_zero_offset_is_current_row(over_kwargs):
-    data = [1, 2, 3]
+    data = [1, 1, 2]
     result = (
         c.this.window(c.ReduceFuncs.Count()).over(**over_kwargs).execute(data)
     )
@@ -566,7 +617,11 @@ def test_window_zero_offset_is_current_row(over_kwargs):
         .over(**current_row_kwargs)
         .execute(data)
     )
-    assert result == expected == [1, 1, 1]
+    if over_kwargs["frame_mode"] == "ROWS":
+        peer_counts = [1, 1, 1]
+    else:
+        peer_counts = [2, 2, 1]
+    assert result == expected == peer_counts
 
 
 @pytest.mark.parametrize(

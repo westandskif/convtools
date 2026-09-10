@@ -149,20 +149,30 @@ def test_table_base_init():
 
 
 @pytest.mark.parametrize(
-    "header, expected_columns",
+    "header, expected_columns, expected_row",
     [
-        (["a", "a", "a_1"], ["a", "a_1", "a_1_1"]),
-        (["a", "a_1", "a"], ["a", "a_1", "a_2"]),
+        (
+            ["a", "a", "a_1"],
+            ["a", "a_1", "a_1_1"],
+            {"a": 1, "a_1": 2, "a_1_1": 3},
+        ),
+        (
+            ["a", "a_1", "a"],
+            ["a", "a_1", "a_2"],
+            {"a": 1, "a_1": 2, "a_2": 3},
+        ),
     ],
 )
-def test_table_mangle_skips_occupied_names(header, expected_columns):
+def test_table_mangle_skips_occupied_names(
+    header, expected_columns, expected_row
+):
     table = Table.from_rows(
         [(1, 2, 3)], header=header, duplicate_columns="mangle"
     )
     assert table.columns == expected_columns
     assert len(set(table.columns)) == 3
     row = next(iter(table.into_iter_rows(dict)))
-    assert set(row.values()) == {1, 2, 3}
+    assert row == expected_row
 
 
 @pytest.mark.parametrize(
@@ -2006,14 +2016,6 @@ def test_from_csv_skips_blanks_and_rejects_ragged(monkeypatch, tmp_path):
     ):
         list(Table.from_csv(str(path), header=True).into_iter_rows(tuple))
     assert closed
-
-
-def test_mangle_header_a_a_a1_is_occupied_aware():
-    table = Table.from_rows(
-        [(1, 2, 3)], header=["a", "a", "a_1"], duplicate_columns="mangle"
-    )
-    assert table.columns == ["a", "a_1", "a_1_1"]
-    assert list(table.into_iter_rows(dict)) == [{"a": 1, "a_1": 2, "a_1_1": 3}]
 
 
 def test_explode_and_wide_to_long_keep_duplicates():

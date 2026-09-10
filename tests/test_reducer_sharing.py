@@ -297,7 +297,7 @@ def test_lambda_with_rebinding_param_is_not_rewritten():
             "m": R.Max(c.item("a")),
         }
     )
-    converter = conv.gen_converter(debug=True)
+    converter = conv.gen_converter()
     assert converter([{"a": 1}, {"a": 2}]) == {"s": 3, "t": 3, "m": 2}
     code_str = get_code_str(converter)
     assert (
@@ -451,7 +451,7 @@ def test_lambda_defaults_are_eager_and_rewritten():
         }
     )
     assert spec.execute(data) == {"s": 3, "m": 2}
-    code_str = get_code_str(spec.gen_converter(debug=True))
+    code_str = get_code_str(spec.gen_converter())
     assert (
         '_tmp0_ = row_["a"]["b"]' in code_str
         or "_tmp0_ = row_['a']['b']" in code_str
@@ -470,7 +470,7 @@ def test_lambda_defaults_are_eager_and_rewritten():
         }
     )
     assert spec.execute(data) == {"s": 3, "m": 2}
-    code_str = get_code_str(spec.gen_converter(debug=True))
+    code_str = get_code_str(spec.gen_converter())
     assert "lambda *, y=_tmp0_:" in code_str
     assert "_tmp1_" not in code_str
 
@@ -487,7 +487,7 @@ def test_lambda_defaults_are_eager_and_rewritten():
     result = spec.execute(data)
     assert [fn(z=0) for fn in result["arr"]] == [1, 2]
     assert result["m"] == 2
-    code_str = get_code_str(spec.gen_converter(debug=True))
+    code_str = get_code_str(spec.gen_converter())
     assert "lambda *, z, y=_tmp0_:" in code_str
     assert "_tmp1_" not in code_str
 
@@ -506,7 +506,7 @@ def test_keyword_argument_calls_share():
     )
     data = [{"a": {"b": 1}}, {"a": {"b": 2}}]
     assert spec.execute(data) == {"s": 3, "m": 2}
-    code_str = get_code_str(spec.gen_converter(debug=True))
+    code_str = get_code_str(spec.gen_converter())
     assert "_tmp0_" in code_str
     assert "x=_tmp0_" in code_str
     assert "_tmp1_" not in code_str
@@ -529,7 +529,7 @@ def test_comprehension_first_iterable_shares():
         "arr": [{"a": 1, "b": 2}, {"c": 3}],
         "m": [("c", 3)],
     }
-    code_str = get_code_str(spec.gen_converter(debug=True))
+    code_str = get_code_str(spec.gen_converter())
     _assert_comp_iter_is_tmp_not_target(code_str)
     assert "_tmp1_" not in code_str
 
@@ -545,7 +545,7 @@ def test_comprehension_first_iterable_shares():
         "arr": [[("a", 1), ("b", 2)], [("c", 3)]],
         "m": [("c", 3)],
     }
-    code_str = get_code_str(spec.gen_converter(debug=True))
+    code_str = get_code_str(spec.gen_converter())
     _assert_comp_iter_is_tmp_not_target(code_str)
     assert "_tmp1_" not in code_str
 
@@ -564,7 +564,7 @@ def test_named_expr_in_reducer_value_does_not_crash():
     )
     data = [{"x": 1}, {"x": 2}]
     assert spec.execute(data) == {"a": [2, 4], "s": 3}
-    code_str = get_code_str(spec.gen_converter(debug=True))
+    code_str = get_code_str(spec.gen_converter())
     assert "_tmp0_" in code_str
 
 

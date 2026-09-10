@@ -479,9 +479,11 @@ class Table:
             * "mangle": names of duplicate columns are mangled like: "name",
               "name_1", "name_2", etc.
 
-          skip_rows: number of rows to skip at the beginning. Useful when input
-            data contains a header, but you provide your own - in this case
-            it's convenient to skip the heading row from the input
+          skip_rows: number of non-empty records to skip before header
+            handling; blank and whitespace-only lines are skipped and do not
+            count. Useful when input data contains a header, but you provide
+            your own - in this case it's convenient to skip the heading row
+            from the input
 
           encoding: encoding to pass to `open`
         """

@@ -97,8 +97,16 @@ Frame modes follow PostgreSQL terminology:
 | `"ROWS"` | Offsets are non-negative int row counts before or after the current row. |
 | `"GROUPS"` | Offsets are non-negative int peer-group counts before or after the current peer group. |
 
-Offsets are non-negative (int for ROWS/GROUPS). Same-direction frames
-whose start lies past the end are valid and empty, as in PostgreSQL.
+Offsets are non-negative (int for ROWS/GROUPS). Same-direction frames with
+non-zero offsets whose start lies past the end are valid and empty, as in
+PostgreSQL.
+
+A `0` offset is treated as `CURRENT ROW` and the `PRECEDING` / `FOLLOWING`
+keyword no longer decides validity. This diverges from PostgreSQL in four
+cases: accepted here but rejected by PostgreSQL: `CURRENT ROW .. 0 PRECEDING`
+and `0 FOLLOWING .. CURRENT ROW`; rejected here ("frame start cannot be after
+frame end") but accepted by PostgreSQL as an empty frame: `0 PRECEDING .. 1
+PRECEDING` and `1 FOLLOWING .. 0 FOLLOWING`.
 
 For available reducers, see [`c.ReduceFuncs`](./aggregations.md#creducefuncs).
 

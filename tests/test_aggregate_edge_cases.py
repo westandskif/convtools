@@ -1323,6 +1323,18 @@ def test_sum_owned_list_accumulator():
     assert "agg_data__v0 += " not in const_initial_code
 
 
+def test_sum_owned_accumulator_not_none_hint():
+    R = c.ReduceFuncs
+    spec = c.aggregate(R.Sum(c.call_func(len, c.this), initial=lambda: 0))
+    assert spec.execute([[1], [1, 2]]) == 3
+    plus_line = next(
+        line
+        for line in get_code_str(spec.gen_converter()).splitlines()
+        if "agg_data__v0 += " in line
+    )
+    assert "or 0" not in plus_line
+
+
 def test_reducer_callable_initial_and_default():
     """Plain Python callables used as initial/default still get auto-called."""
     assert (

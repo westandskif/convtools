@@ -27,6 +27,18 @@
 - `Percentile(..., interpolation="nearest")` now rounds half to even
   (Python `round`, matching numpy `method="nearest"`); previously half rounded
   down. Only exact-`.5` indexes change
+- `duplicate_columns="mangle"` skips names already present in the header
+  (`["a", "a", "a_1"]` -> `a, a_1, a_1_1`)
+- `None` header names become `COLUMN_n`, with `n` skipping numbers already
+  taken by the header, under every `duplicate_columns` policy (`["COLUMN_0",
+  None]` -> `COLUMN_0, COLUMN_1`). The policy applies only when a later
+  explicit name collides with a generated one (`[None, "COLUMN_0"]` -> mangle
+  `COLUMN_0, COLUMN_0_1`; drop `COLUMN_0`; keep `COLUMN_0, COLUMN_0`)
+- `Table.wide_to_long` raises `ValueError("such column already exists", name)`
+  when `col_for_names`, `col_for_values` and `keep_cols` are not pairwise
+  distinct, regardless of `duplicate_columns`; under `"keep"` with duplicate
+  source names, the first same-named column is kept and later duplicates are
+  collapsed into name/value rows
 
 **Fixed**
 
@@ -41,9 +53,10 @@
   empty table instead of raising `StopIteration`
 - window `over()` rejects negative GROUPS offsets and negative RANGE
   `numbers.Real` / `Decimal` / `timedelta` offsets (including `Fraction`)
-- same-direction window frames (`2 FOLLOWING .. 1 FOLLOWING`,
-  `1 PRECEDING .. 2 PRECEDING`) are accepted again and yield empty frames
-  (regression introduced in Unreleased, PostgreSQL parity)
+- `Table.pivot(rows=[])` raises `ValueError` (was `KeyError`)
+- same-direction window frames with non-zero offsets (`2 FOLLOWING .. 1
+  FOLLOWING`, `1 PRECEDING .. 2 PRECEDING`) are accepted again and yield empty
+  frames (regression introduced in Unreleased, PostgreSQL parity)
 - `.asc()` / `.desc()` on a `pipe` now apply to sort and window `order_by` (including `none_last` / `none_first`); they no longer hide an inherited `NOT_NONE` hint
 - the last `.asc()` / `.desc()` on a sort or window key replaces prior ordering bits (direction and `none_first` / `none_last`)
 - `item` / `attr` `default=` conversions that are not constants (`c.label(...)`, `c.inline_expr(...)`, …) are evaluated only on a miss, with or without the C getters

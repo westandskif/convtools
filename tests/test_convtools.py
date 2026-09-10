@@ -348,8 +348,6 @@ def test_naive_conversion_item():
     assert c.item("a", default=c.label("prev")).hardcoded_version is None
     const_item = c.item("a", default=1)
     assert isinstance(const_item.default, NaiveConversion)
-    if GetItem.getter_default_simple is not None:
-        assert const_item.hardcoded_version is not None
 
     converter = c.item(0, 0, 0, default=1).gen_converter()
     assert converter([[[2]]]) == 2
@@ -462,6 +460,13 @@ def test_naive_conversion_item():
 
     with pytest.raises(NotImplementedError):
         c.attr("a", default=-1).execute(A())
+
+
+def test_getitem_const_default_uses_c_getter():
+    if GetItem.getter_default_simple is None:
+        pytest.skip("C getters not available")
+    const_item = c.item("a", default=1)
+    assert const_item.hardcoded_version is not None
 
 
 def test_item_label_default_python_fallback(monkeypatch):
