@@ -31,7 +31,6 @@ from ._base import (
     Tuple_,
     _None,
     _none,
-    ensure_conversion,
 )
 from ._reducer_sharing import ReducerRecord
 
@@ -1021,6 +1020,24 @@ class ReducerDispatcher:
         raise NotImplementedError
 
 
+class WeightedAverageReducer(BaseDictReducer):
+    """Weighted mean: ``[sum(value * weight), sum(weight)]``."""
+
+    default = NaiveConversion(None)
+    internals_are_public = False
+    works_with_not_none_only = (True, True)
+    prepare_first_lines = (
+        "%(result)s = [%(value0)s * %(value1)s, %(value1)s]",
+    )
+    reduce_lines = (
+        "%(result)s[0] = %(result)s[0] + %(value0)s * %(value1)s",
+        "%(result)s[1] = %(result)s[1] + %(value1)s",
+    )
+
+    def post_conversion(self, ctx):  # pylint: disable=unused-argument
+        return If(This.item(1), This.item(0) / This.item(1), None)
+
+
 class AverageReducerDispatcher(ReducerDispatcher):
     """Calculates weighted average (default weight is 1)."""
 
@@ -1036,19 +1053,10 @@ class AverageReducerDispatcher(ReducerDispatcher):
                 ),
                 default,
             )
-        value = ensure_conversion(value)
-        weight = ensure_conversion(weight)
-        none_filter = value.is_not(None).and_(weight.is_not(None))
-        if where is not None:
-            none_filter = ensure_conversion(where).and_(none_filter)
-        return If(
-            SumReducer(weight, where=none_filter),
-            (
-                SumReducer(value * weight, where=none_filter)
-                / SumReducer(weight, where=none_filter)
-            ),
-            default,
-        )
+        reducer = WeightedAverageReducer(value, weight, where=where)
+        if default is not None:
+            return If(reducer.is_not(None), reducer, default)
+        return reducer
 
 
 class TopReducer(DictCountReducer):
@@ -1244,7 +1252,7 @@ class ReduceFuncs:
     LastN = LastNReducer
 
     #: `Average(value)` or `Average(value, weight)`: arithmetic or weighted
-    #: mean; `None` handling differs between the two forms.
+    #: mean; both forms skip rows where value (or weight) is `None`.
     Average = AverageReducerDispatcher()
     #: Calculates the median value, skipping `None`.
     Median = MedianReducer

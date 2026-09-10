@@ -228,7 +228,9 @@ class AppliedWindow(BaseConversion):
         if self.frame_end.unbounded_preceding:
             raise ValueError("frame end cannot be UNBOUNDED PRECEDING")
         if self.frame_mode in (FrameMode.ROWS, FrameMode.GROUPS) and not all(
-            isinstance(offset, int) and offset >= 0
+            isinstance(offset, int)
+            and not isinstance(offset, bool)
+            and offset >= 0
             for offset in (
                 self.frame_start.offset,
                 self.frame_end.offset,
@@ -249,6 +251,13 @@ class AppliedWindow(BaseConversion):
             ):
                 if offset is None:
                     continue
+                if not (
+                    isinstance(offset, (numbers.Real, Decimal, timedelta))
+                    and not isinstance(offset, bool)
+                ):
+                    raise ValueError(
+                        "RANGE offsets should be numeric or timedelta"
+                    )
                 if (
                     isinstance(offset, (numbers.Real, Decimal)) and offset < 0
                 ) or (isinstance(offset, timedelta) and offset < timedelta(0)):

@@ -295,6 +295,8 @@ def test_datetime_parse_repeated_directive():
         ("%z%Y%Y", "%Y"),
         ("%Y%z%Y", "%Y"),
         ("%Y%Y%z", "%Y"),
+        ("%Y %H %I%p", "%I"),
+        ("%Y %z %z", "%z"),
     ):
         with pytest.raises(ValueError, match=directive):
             c.datetime_parse(fmt).gen_converter()

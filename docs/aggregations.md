@@ -54,7 +54,7 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `Array` | Collects values as a list. |
 | `ArrayDistinct` | Collects distinct values as a list, preserving order. |
 | `ArraySorted` | Collects values as a sorted list; optional `key=` / `reverse=` like `sorted`. |
-| `Average` | `Average(value)` or `Average(value, weight)`: arithmetic or weighted mean; `None` handling differs between the two forms. |
+| `Average` | `Average(value)` or `Average(value, weight)`: arithmetic or weighted mean; both forms skip rows where value (or weight) is `None`. |
 | `Correlation` | Calculates Pearson correlation between two variables, skipping `None`. |
 | `Count` | `Count()` counts rows; `Count(value)` counts non-`None` values. |
 | `CountDistinct` | Counts distinct non-`None` values. |

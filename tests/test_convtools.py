@@ -152,6 +152,8 @@ def test_gen_converter():
         c.input_arg("self").gen_converter(signature="data_='self'")
     with pytest.raises(c.ConversionException):
         c.input_arg("cls").gen_converter(signature="data_='cls'")
+    with pytest.raises(SyntaxError):
+        c.input_arg("self").gen_converter(signature="self data_")
 
     assert A().conv5() == 1035
     assert A().conv5(data_=7) == 1027

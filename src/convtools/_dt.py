@@ -981,10 +981,10 @@ class DatetimeParse(BaseConversion):
                 i += 1
                 continue
             ch = fmt[i]
-            if ch in "YmdHIpMSf":
-                if ch in seen_directives:
-                    raise ValueError(f"repeated directive %{ch}")
-                seen_directives.add(ch)
+            slot = "H" if ch in "HI" else ch
+            if slot in seen_directives:
+                raise ValueError(f"repeated directive %{ch}")
+            seen_directives.add(slot)
             i += 1
 
         re_pieces = []

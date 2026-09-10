@@ -380,6 +380,23 @@ def test_window_func_exceptions():
     with pytest.raises(ValueError):
         c.this.window(1).gen_converter()
 
+    with pytest.raises(ValueError):
+        c.this.window(1).over(
+            frame_mode="ROWS", frame_start=(True, "PRECEDING")
+        )
+    with pytest.raises(ValueError):
+        c.this.window(1).over(
+            frame_mode="RANGE",
+            order_by=c.this,
+            frame_start=(True, "PRECEDING"),
+        )
+    with pytest.raises(ValueError, match="numeric or timedelta"):
+        c.this.window(1).over(
+            frame_mode="RANGE",
+            order_by=c.this,
+            frame_start=("x", "PRECEDING"),
+        )
+
 
 @pytest.mark.parametrize(
     "kwargs",
@@ -501,31 +518,12 @@ def test_range_custom_non_orderable_offset():
         def __rsub__(self, other):
             return other - self.n
 
-    data = [1, 2, 3]
-    result = (
-        c.this.window(c.ReduceFuncs.Count())
-        .over(
+    with pytest.raises(ValueError, match="numeric or timedelta"):
+        c.this.window(c.ReduceFuncs.Count()).over(
             order_by=c.this,
             frame_start=(Delta(1), "PRECEDING"),
             frame_end=(Delta(1), "FOLLOWING"),
         )
-        .execute(data)
-    )
-    expected = (
-        c.this.window(c.ReduceFuncs.Count())
-        .over(
-            order_by=c.this,
-            frame_start=(1, "PRECEDING"),
-            frame_end=(1, "FOLLOWING"),
-        )
-        .execute(data)
-    )
-    assert result == expected
-    c.this.window(c.ReduceFuncs.Count()).over(
-        order_by=c.this,
-        frame_start=(Delta(2), "FOLLOWING"),
-        frame_end=(Delta(1), "FOLLOWING"),
-    ).gen_converter()
 
 
 @pytest.mark.parametrize(

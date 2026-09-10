@@ -694,7 +694,7 @@ class Table:
             raise TypeError("unsupported columns type")
 
         if renamed:
-            self.meta_columns.rename(new_names)
+            self.pending_changes |= self.meta_columns.rename(new_names)
             if self.row_type is dict:
                 self.pending_changes |= ColumnChanges.MUTATE
 

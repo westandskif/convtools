@@ -243,6 +243,8 @@ class SortConversion(BaseConversion):
                 )
             elif isinstance(key, (tuple, list)):
                 # Tuple/list of conversions
+                if len(key) == 0:
+                    raise ValueError("key sequence is empty")
                 self.sorted_kwargs["key"] = self.ensure_conversion(
                     SortingKeyConversion(tuple(key))
                 )

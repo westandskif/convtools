@@ -278,6 +278,96 @@ def test_weighted_average_skips_none_value_and_weight():
     ) == c.aggregate(c.ReduceFuncs.Average(c.item(0), c.item(1))).execute(data)
 
 
+def test_weighted_average_group_key_and_callable_default():
+    assert c.group_by(c.item(0)).aggregate(
+        c.ReduceFuncs.Average(c.item(1), weight=c.item(2), default=c.item(0))
+    ).execute([(1, 2, 0)]) == [1]
+    assert (
+        c.aggregate(
+            c.ReduceFuncs.Average(c.item(0), weight=c.item(1), default=list)
+        ).execute([])
+        is list
+    )
+
+
+class _MutatingWeight:
+    def __init__(self, value):
+        self.value = value
+        self.iadd_called = False
+
+    def __iadd__(self, other):
+        self.iadd_called = True
+        self.value += getattr(other, "value", other)
+        return self
+
+    def __add__(self, other):
+        return _MutatingWeight(self.value + getattr(other, "value", other))
+
+    def __mul__(self, other):
+        return _MutatingWeight(self.value * getattr(other, "value", other))
+
+    def __rmul__(self, other):
+        return _MutatingWeight(getattr(other, "value", other) * self.value)
+
+    def __truediv__(self, other):
+        return self.value / getattr(other, "value", other)
+
+
+def test_weighted_average_does_not_mutate_weight_objects():
+    weights = [_MutatingWeight(1), _MutatingWeight(3)]
+    data = [{"v": 2, "w": weights[0]}, {"v": 4, "w": weights[1]}]
+    result = c.aggregate(
+        {
+            "avg": c.ReduceFuncs.Average(c.item("v"), weight=c.item("w")),
+            "ws": c.ReduceFuncs.Array(c.item("w")),
+        }
+    ).execute(data)
+    assert result["avg"] == 3.5
+    assert result["ws"] is not None
+    assert [w.value for w in weights] == [1, 3]
+    assert not any(w.iadd_called for w in weights)
+    assert [w.value for w in result["ws"]] == [1, 3]
+    assert not any(w.iadd_called for w in result["ws"])
+
+
+def _count_row_item(code_str, key):
+    return code_str.count('row_["%s"]' % key) + code_str.count(
+        "row_['%s']" % key
+    )
+
+
+def test_weighted_average_evaluates_value_and_weight_once():
+    R = c.ReduceFuncs
+    v, w = c.item("v"), c.item("w")
+    spec = c.aggregate(R.Average(v, weight=w))
+    code_str = get_code_str(spec.gen_converter())
+    n_loops = code_str.count("for row_")
+    assert n_loops >= 1
+    assert _count_row_item(code_str, "v") == n_loops
+    assert _count_row_item(code_str, "w") == n_loops
+
+    spec = c.group_by(c.item("g")).aggregate(
+        R.Average(v, weight=w, where=c.item("ok"))
+    )
+    code_str = get_code_str(spec.gen_converter())
+    n_loops = code_str.count("for row_")
+    assert n_loops >= 1
+    assert _count_row_item(code_str, "v") == n_loops
+    assert _count_row_item(code_str, "w") == n_loops
+
+    spec = c.group_by(c.item("g")).aggregate(
+        {
+            "avg": R.Average(v, weight=w),
+            "s": R.Sum(v),
+        }
+    )
+    code_str = get_code_str(spec.gen_converter())
+    n_loops = code_str.count("for row_")
+    assert n_loops >= 1
+    assert _count_row_item(code_str, "v") == n_loops
+    assert "_tmp" in code_str
+
+
 def test_sum_aggregate_group_by_parity():
     data = [timedelta(1), timedelta(2)]
     expected = timedelta(days=3)

@@ -1605,10 +1605,7 @@ _pattern_word = re.compile(r"(\w+)")
 
 
 def _signature_param_names(signature: str) -> Set[str]:
-    try:
-        module = ast.parse(f"def _({signature}):\n    pass")
-    except SyntaxError:
-        return set()
+    module = ast.parse(f"def _({signature}):\n    pass")
     stmt = module.body[0]
     if not isinstance(stmt, ast.FunctionDef):
         return set()

@@ -181,6 +181,65 @@ def test_table_mangle_none_skips_occupied_column_n(header):
     assert set(row.values()) == {1, 2}
 
 
+@pytest.mark.parametrize(
+    "policy, expected_columns, expected_tuple_row",
+    [
+        ("drop", ["COLUMN_0"], (1,)),
+        ("keep", ["COLUMN_0", "COLUMN_0"], (1, 2)),
+    ],
+)
+def test_table_none_then_column_0_follows_duplicate_policy(
+    policy, expected_columns, expected_tuple_row
+):
+    header = [None, "COLUMN_0"]
+    table = Table.from_rows([(1, 2)], header=header, duplicate_columns=policy)
+    assert table.columns == expected_columns
+    assert next(iter(table.into_iter_rows(tuple))) == expected_tuple_row
+    table = Table.from_rows([(1, 2)], header=header, duplicate_columns=policy)
+    assert next(iter(table.into_iter_rows(dict))) == {"COLUMN_0": 1}
+
+
+def test_table_none_then_column_0_raises():
+    with pytest.raises(ValueError) as exc:
+        Table.from_rows(
+            [(1, 2)], header=[None, "COLUMN_0"], duplicate_columns="raise"
+        )
+    assert exc.value.args == ("such column already exists", "COLUMN_0")
+
+
+@pytest.mark.parametrize(
+    "policy, expected_columns, expected_dict_row",
+    [
+        ("mangle", ["x", "x_1"], {"x": 1, "x_1": 2}),
+        ("drop", ["x"], {"x": 1}),
+        ("keep", ["x", "x"], {"x": 1}),
+    ],
+)
+def test_table_rename_duplicate_names_follow_policy(
+    policy, expected_columns, expected_dict_row
+):
+    table = Table.from_rows(
+        [(1, 2)], header=["a", "b"], duplicate_columns=policy
+    ).rename(["x", "x"])
+    assert table.columns == expected_columns
+    assert next(iter(table.into_iter_rows(dict))) == expected_dict_row
+
+
+def test_table_rename_duplicate_names_raise():
+    with pytest.raises(ValueError) as exc:
+        Table.from_rows([(1, 2)], header=["a", "b"]).rename(["x", "x"])
+    assert exc.value.args == ("such column already exists", "x")
+
+
+def test_table_rename_raise_normalization_collision_leaves_table():
+    table = Table.from_rows([(1, 2)], header=["a", "b"])
+    with pytest.raises(ValueError) as exc:
+        table.rename([1, "1"])
+    assert exc.value.args == ("such column already exists", "1")
+    assert table.columns == ["a", "b"]
+    assert list(table.into_iter_rows(dict)) == [{"a": 1, "b": 2}]
+
+
 def test_from_rows_preserves_leading_none():
     assert list(
         Table.from_rows([None, 1], header=["value"]).into_iter_rows(dict)

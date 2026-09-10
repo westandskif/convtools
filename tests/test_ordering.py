@@ -348,3 +348,10 @@ def test_sort_key_list_equals_tuple():
 def test_sort_unsupported_key_type():
     with pytest.raises(TypeError, match="callable"):
         c.this.sort(key=123)
+
+
+def test_sort_empty_key_sequence():
+    with pytest.raises(ValueError, match="key sequence is empty"):
+        c.this.sort(key=[])
+    with pytest.raises(ValueError, match="key sequence is empty"):
+        c.this.sort(key=())

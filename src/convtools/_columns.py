@@ -139,9 +139,7 @@ class MetaColumns:
                 n += 1
                 name = f"COLUMN_{n}"
             self.column_to_number[None] = n + 1
-        elif column_number or (
-            self.duplicate_columns == "mangle" and original_name in occupied
-        ):
+        elif column_number or original_name in occupied:
             if self.duplicate_columns == "raise":
                 raise ValueError("such column already exists", original_name)
             if self.duplicate_columns == "mangle":
@@ -161,22 +159,18 @@ class MetaColumns:
         return column, state
 
     def rename(self, new_names):
-        if self.duplicate_columns != "keep":
-            seen = set()
-            for name in new_names:
-                if name in seen:
-                    raise ValueError("such column already exists", name)
-                seen.add(name)
-        none_counter = self.column_to_number[None]
+        scratch = MetaColumns(self.duplicate_columns)
+        scratch.column_to_number[None] = self.column_to_number[None]
+        state = 0
         for column, new_name in zip(self.columns, new_names):
-            column.name = new_name
-        self.column_to_number = defaultdict(int)
-        occupied_names = set()
-        for column in self.columns:
-            self.column_to_number[column.name] += 1
-            occupied_names.add(column.name)
-        self.column_to_number[None] = none_counter
-        self.occupied_names = occupied_names
+            _, add_state = scratch.add(
+                new_name, column.index, column.conversion
+            )
+            state |= add_state
+        self.columns = scratch.columns
+        self.occupied_names = scratch.occupied_names
+        self.column_to_number = scratch.column_to_number
+        return state
 
     def take(self, *column_names) -> "MetaColumns":
         column_names_set = set(column_names)
