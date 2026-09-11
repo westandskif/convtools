@@ -20,6 +20,11 @@ and [Reducers API](./aggregations.md#reducers-api). For SQL terminology, see
 Python iterable. It sorts rows into partitions, finds a frame for each row, and
 returns one result for every input row.
 
+Window calculations accept any finite iterable, including generators, but
+buffer the entire input in memory before producing results. This applies even
+without partitioning or ordering and with a small bounded frame. Memory usage
+therefore depends on the full input size, not just the frame size.
+
 The first argument to `window(...)` is a conversion evaluated for each output
 row. It may contain `c.WindowFuncs` references to the current row, partition,
 peer group, and frame metadata. It may also contain `c.ReduceFuncs` reducers,

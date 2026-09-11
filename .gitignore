@@ -61,3 +61,5 @@ tests/csvs/out.jsonl
 site/
 .agents/
 .claude/
+
+convtools-2026-09-11.md
