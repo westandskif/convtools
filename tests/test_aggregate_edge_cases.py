@@ -408,6 +408,10 @@ def test_mode(series):
     )
 
 
+def test_mode_tie_first_encountered():
+    assert c.aggregate(c.ReduceFuncs.Mode(c.this)).execute([1, 2, 2, 1]) == 1
+
+
 def test_mode_with_groupby():
     series = [(0, 1), (0, 1), (0, 2), (1, 1), (1, 2), (1, 2)]
 
@@ -437,6 +441,12 @@ def test_top_k_extra():
         [None] * 4 + [3, 3, 3, 2, 2, 1],
         debug=False,
     ) == [3, 2]
+
+
+def test_topk_tie_insertion_order():
+    assert c.aggregate(c.ReduceFuncs.TopK(2, c.this)).execute(
+        ["a", "b", "b", "a", "c"]
+    ) == ["a", "b"]
 
 
 @pytest.mark.parametrize("k", [0, -1])

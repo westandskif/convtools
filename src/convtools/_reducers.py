@@ -1187,7 +1187,7 @@ class ModeReducer(DictCountReducer):
 
         ctx["operator_itemgetter"] = itemgetter
         return InlineExpr(
-            "sorted({data}.items(), key=operator_itemgetter(1), reverse=True)[0][0]"
+            "max({data}.items(), key=operator_itemgetter(1))[0]"
         ).pass_args(data=This)
 
 
