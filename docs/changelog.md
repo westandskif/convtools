@@ -39,6 +39,9 @@
   distinct, regardless of `duplicate_columns`; under `"keep"` with duplicate
   source names, the first same-named column is kept and later duplicates are
   collapsed into name/value rows
+- a reducer that reads a label written by a sibling reducer of the same
+  aggregate now raises `ConversionException` at compile time (cross-reducer
+  label order was never defined)
 
 **Fixed**
 
@@ -83,6 +86,16 @@
   `c.escaped_string(...)` uses the C getter again
 - `c.input_arg("self")` / `("cls")` now raise at `gen_converter` unless `method=True` / `class_method=True` (or the custom `signature` includes the name)
 - empty nested `or_` / `and_` with a `default` flatten to that boolean instead of being dropped
+- `group_by` / `aggregate` output no longer raises when generated code contains
+  the row variable (`row_...`) as a substring (an input arg, string, or
+  function name); a nested `aggregate` reused as both a group-by key and an
+  output expression (same object) now compiles
+- a reducer placed in a `group_by` key or in the output expression now raises
+  `ConversionException` at compile time instead of an internal `KeyError`
+- custom `c.reduce` no longer rewrites sentinel identifiers that appear inside
+  string literals or as part of a longer name
+- sharing planner no longer raises `RecursionError` on deep shared getter
+  chains; it falls back to the unshared plan if AST analysis overflows
 
 - `ReduceFuncs.Sum`: the no-group-key `c.aggregate` path now generates the same
   accumulation loop as `group_by`, so any addable type (`timedelta`, `Decimal`,

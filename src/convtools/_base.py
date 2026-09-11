@@ -563,6 +563,7 @@ class BaseConversion(Generic[CT]):
             "__exceptions_to_dump_sources",
             "__builtins__",
             "current_reduce_manager",
+            "grouper_function_by_id",
             "__column_ref_scopes",
             "defaultdict",
             "__deque__",
@@ -1877,6 +1878,9 @@ class LabelConversion(BaseConversion):
         self.label_name = label_name
 
     def gen_code_and_update_ctx(self, code_input, ctx):
+        managers = ctx.get("current_reduce_manager")
+        if managers:
+            managers[-1].note_label_read(self.label_name)
         return f"{self.labels_code_name}[{repr(self.label_name)}]"
 
 
@@ -3869,6 +3873,9 @@ class PipeConversion(BaseConversion):
 
             if self.label_input:
                 for label_name, label_c in self.label_input.items():
+                    managers = ctx.get("current_reduce_manager")
+                    if managers:
+                        managers[-1].note_label_write(label_name)
                     code.add_line(
                         f"{LabelConversion.labels_code_name}[{repr(label_name)}] = "
                         f"{label_c.gen_code_and_update_ctx(var_input, ctx)}",
@@ -3877,6 +3884,9 @@ class PipeConversion(BaseConversion):
             if self.label_output:
                 code.add_line(f"{var_result} = {where_code}", 0)
                 for label_name, label_c in self.label_output.items():
+                    managers = ctx.get("current_reduce_manager")
+                    if managers:
+                        managers[-1].note_label_write(label_name)
                     code.add_line(
                         f"{LabelConversion.labels_code_name}[{repr(label_name)}] = "
                         f"{label_c.gen_code_and_update_ctx(var_result, ctx)}",

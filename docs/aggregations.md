@@ -32,6 +32,15 @@ shortcuts like `c.item(...)` refer to the row currently being reduced. See
 [Placeholders & Special References](./basics.md#placeholders-special-references)
 for the broader context-reference rules.
 
+Repeated eager reducer `where`/value expressions are shared via temporaries
+(see the Unreleased changelog notes). A label written by one reducer's
+expressions (`label_input`, `label_output`, or `c.cumulative` /
+`c.cumulative_reset`) is not visible to sibling reducers of the same
+aggregate; that raises `ConversionException` at compile time. Use one
+reducer, or label outside the aggregate. The check is per aggregate: a
+nested aggregate reading a label written by a sibling reducer of the outer
+aggregate is not detected.
+
 
 ## c.group_by
 

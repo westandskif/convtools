@@ -1,5 +1,7 @@
 """Built-in reducers and the Reduce primitive."""
 
+import io
+import tokenize
 import warnings
 from collections import deque
 from decimal import Decimal
@@ -19,6 +21,7 @@ from typing import (
 from ._base import (
     BaseConversion,
     CallFunc,
+    ConversionException,
     DictComp,
     EscapedString,
     GetItem,
@@ -37,6 +40,53 @@ from ._reducer_sharing import ReducerRecord
 
 if TYPE_CHECKING:
     from ._aggregations import ReduceManager
+
+
+def _substitute_names(code, name_to_placeholder):
+    """Replace identifier tokens; %-escape everything else.
+
+    F-string STRING tokens (Python < 3.12) also substitute sentinels inside
+    the token text so InlineExpr templates that splice names into f-strings
+    keep working.
+    """
+    starts = []
+    offset = 0
+    # Same line boundaries as tokenize.generate_tokens(readline):
+    # str.splitlines also splits on U+2028 / U+2029 / VT / FF / NEL.
+    for line in iter(io.StringIO(code).readline, ""):
+        starts.append(offset)
+        offset += len(line)
+
+    def _abs_pos(pos):
+        row, col = pos
+        return starts[row - 1] + col
+
+    parts = []
+    cursor = 0
+    for tok in tokenize.generate_tokens(io.StringIO(code).readline):
+        if tok.start[0] > len(starts):
+            continue
+        if tok.type == tokenize.NAME and tok.string in name_to_placeholder:
+            start = _abs_pos(tok.start)
+            parts.append(code[cursor:start].replace("%", "%%"))
+            parts.append(name_to_placeholder[tok.string])
+            cursor = _abs_pos(tok.end)
+            continue
+        if not (
+            tok.type == tokenize.STRING
+            and "f" in tok.string.lstrip("rRbBuU")[:1].lower()
+        ):
+            continue
+        start = _abs_pos(tok.start)
+        end = _abs_pos(tok.end)
+        parts.append(code[cursor:start].replace("%", "%%"))
+        chunk = code[start:end].replace("%", "%%")
+        for name, placeholder in name_to_placeholder.items():
+            chunk = chunk.replace(name, placeholder)
+        parts.append(chunk)
+        cursor = end
+    parts.append(code[cursor:].replace("%", "%%"))
+    return "".join(parts)
 
 
 class BaseReducer(BaseConversion):
@@ -140,42 +190,74 @@ class BaseReducer(BaseConversion):
         return option_value
 
     def gen_code_and_update_ctx(self, code_input, ctx) -> str:
-        reduce_manager: "ReduceManager" = ctx["current_reduce_manager"][-1]
-
-        where_code = None
-        if not isinstance(self.where, _None):
-            where_code = self.where.gen_code_and_update_ctx(code_input, ctx)
-
-        works_with_not_none_only = self.get_option(
-            "works_with_not_none_only", ctx
-        )
-        value_codes = []
-        not_none_flags = []
-        for index, expression in enumerate(self.expressions):
-            expression_code = expression.gen_code_and_update_ctx(
-                code_input, ctx
+        managers = ctx.get("current_reduce_manager")
+        if not managers or not managers[-1].accepts_reducers:
+            raise ConversionException(
+                "reducers are only allowed inside aggregate/group_by "
+                "reducer expressions"
             )
-            value_codes.append(expression_code)
-            not_none_flags.append(
-                bool(works_with_not_none_only[index])
-                and not expression.has_hint(
-                    BaseConversion.OutputHints.NOT_NONE
+        reduce_manager: "ReduceManager" = managers[-1]
+
+        reduce_manager.reducer_label_writes = set()
+        reduce_manager.reducer_label_reads = set()
+        try:
+            where_code = None
+            if not isinstance(self.where, _None):
+                where_code = self.where.gen_code_and_update_ctx(
+                    code_input, ctx
                 )
-            )
 
-        reduce_lines = tuple(self.get_option("reduce_lines", ctx) or ())
-        if not isinstance(self.initial, _None) and self.internals_are_public:
-            initial_code = self.initial.gen_code_and_update_ctx(
-                code_input, ctx
+            works_with_not_none_only = self.get_option(
+                "works_with_not_none_only", ctx
             )
-            prepare_first_lines = (
-                "%(result)s = {}".format(initial_code.replace("%", "%%")),
-                *reduce_lines,
+            value_codes = []
+            not_none_flags = []
+            for index, expression in enumerate(self.expressions):
+                expression_code = expression.gen_code_and_update_ctx(
+                    code_input, ctx
+                )
+                value_codes.append(expression_code)
+                not_none_flags.append(
+                    bool(works_with_not_none_only[index])
+                    and not expression.has_hint(
+                        BaseConversion.OutputHints.NOT_NONE
+                    )
+                )
+
+            reduce_lines = tuple(self.get_option("reduce_lines", ctx) or ())
+            if (
+                not isinstance(self.initial, _None)
+                and self.internals_are_public
+            ):
+                initial_code = self.initial.gen_code_and_update_ctx(
+                    code_input, ctx
+                )
+                prepare_first_lines = (
+                    "%(result)s = {}".format(initial_code.replace("%", "%%")),
+                    *reduce_lines,
+                )
+            else:
+                prepare_first_lines = tuple(
+                    self.get_option("prepare_first_lines", ctx) or ()
+                )
+
+            writes = reduce_manager.reducer_label_writes
+            reads = reduce_manager.reducer_label_reads
+            external = reads - writes
+            conflict = (external & reduce_manager.label_writes) | (
+                writes & reduce_manager.label_external_reads
             )
-        else:
-            prepare_first_lines = tuple(
-                self.get_option("prepare_first_lines", ctx) or ()
-            )
+            if conflict:
+                raise ConversionException(
+                    "reducers cannot depend on labels written by sibling "
+                    "reducers of the same aggregate",
+                    sorted(conflict),
+                )
+            reduce_manager.label_writes |= writes
+            reduce_manager.label_external_reads |= external
+        finally:
+            reduce_manager.reducer_label_writes = None
+            reduce_manager.reducer_label_reads = None
 
         record = ReducerRecord(
             where_code=where_code,
@@ -1412,11 +1494,11 @@ class Reduce(BaseReducer):
         else:
             raise AssertionError("unexpected callable", to_call)
         code = conv.gen_code_and_update_ctx(row_sentinel, ctx)
-        code = (
-            code.replace("%", "%%")
-            .replace(result_sentinel, "%(result)s")
-            .replace(row_sentinel, "%(row)s")
-        )
+        mapping = {
+            result_sentinel: "%(result)s",
+            row_sentinel: "%(row)s",
+        }
         for i, sentinel in enumerate(value_sentinels):
-            code = code.replace(sentinel, "%(value{})s".format(i))
+            mapping[sentinel] = "%(value{})s".format(i)
+        code = _substitute_names(code, mapping)
         return (f"%(result)s = {code}",)

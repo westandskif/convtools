@@ -89,3 +89,138 @@ def test_label_names_with_quotes_and_escapes(name):
         .execute(1)
         == 4
     )
+
+
+def test_sibling_reducer_label_dependencies():
+    R = c.ReduceFuncs
+    sibling_msg = "sibling reducers of the same aggregate"
+
+    with pytest.raises(c.ConversionException, match=sibling_msg) as exc_info:
+        c.aggregate(
+            {
+                "s": R.Sum(c.item("a").pipe(c.this, label_output="lbl")),
+                "m": R.Max(c.label("lbl")),
+            }
+        ).gen_converter()
+    assert "lbl" in str(exc_info.value)
+
+    with pytest.raises(c.ConversionException, match=sibling_msg):
+        c.aggregate(
+            {
+                "s": R.Sum(c.item("a").pipe(c.this, label_input="lbl")),
+                "m": R.Max(c.label("lbl")),
+            }
+        ).gen_converter()
+
+    with pytest.raises(c.ConversionException, match=sibling_msg):
+        c.aggregate(
+            {
+                "s": R.Sum(c.item("a").pipe(c.this, label_output="lbl")),
+                "m": R.Max(c.label("lbl") * 2),
+            }
+        ).gen_converter()
+
+    with pytest.raises(c.ConversionException, match=sibling_msg):
+        c.aggregate(
+            {
+                "s": R.Sum(c.item("a").pipe(c.this, label_output="lbl")),
+                "m": R.Max(c.item("b"), where=c.label("lbl") > 0),
+            }
+        ).gen_converter()
+
+    with pytest.raises(c.ConversionException, match=sibling_msg):
+        c.aggregate(
+            {
+                "a": R.Sum(
+                    c.this.cumulative(
+                        c.this, c.this + c.PREV, label_name="lbl"
+                    )
+                ),
+                "b": R.Max(c.label("lbl")),
+            }
+        ).gen_converter()
+
+    with pytest.raises(c.ConversionException, match=sibling_msg):
+        c.aggregate(
+            {
+                "a": R.Sum(c.this.cumulative_reset("lbl")),
+                "b": R.Max(c.label("lbl")),
+            }
+        ).gen_converter()
+
+    with pytest.raises(c.ConversionException, match=sibling_msg):
+        c.aggregate(
+            {
+                "a": R.Array(c.this.pipe(c.this, label_output="x")),
+                "b": R.Sum(c.this, initial=c.label("x")),
+            }
+        ).gen_converter()
+
+    assert (
+        c.aggregate(
+            R.Sum(
+                c.item("a").pipe(c.this, label_output="lbl") + c.label("lbl")
+            )
+        ).execute([{"a": 1}, {"a": 2}])
+        == 6
+    )
+
+    nested_write_read = c.aggregate(
+        R.Sum(c.this.pipe(c.this, label_output="lbl") + c.label("lbl"))
+    )
+    assert c.aggregate(
+        {
+            "a": R.Sum(c.item("xs").pipe(nested_write_read)),
+            "b": R.Max(
+                c.item("ys").pipe(
+                    c.aggregate(
+                        R.Sum(
+                            c.this.pipe(c.this, label_output="lbl")
+                            + c.label("lbl")
+                        )
+                    )
+                )
+            ),
+        }
+    ).execute([{"xs": [1, 2], "ys": [3]}]) == {"a": 6, "b": 6}
+
+    assert (
+        c.this.pipe(c.this, label_output={"n": c.call_func(len, c.this)})
+        .pipe(c.aggregate(R.Sum(c.this) + c.label("n")))
+        .execute([1, 2, 3])
+        == 9
+    )
+
+    c.this.add_label("g").pipe(
+        c.group_by(c.label("g")).aggregate(R.Count())
+    ).gen_converter()
+    assert c.this.add_label("flag").pipe(
+        c.group_by(c.this).aggregate(
+            {"k": c.this, "n": R.Count(), "flag": c.label("flag")}
+        )
+    ).execute([1, 1, 2]) == [
+        {"k": 1, "n": 2, "flag": [1, 1, 2]},
+        {"k": 2, "n": 1, "flag": [1, 1, 2]},
+    ]
+
+    c.aggregate(
+        {
+            "a": R.Sum(c.item("a").pipe(c.this, label_output="lbl")),
+            "b": R.Max(
+                c.item("xs").pipe(
+                    c.group_by(c.label("lbl")).aggregate(R.Count())
+                )
+            ),
+        }
+    ).gen_converter()
+
+    reducer_outside_msg = (
+        "reducers are only allowed inside aggregate/group_by reducer "
+        "expressions"
+    )
+    with pytest.raises(c.ConversionException, match=reducer_outside_msg):
+        c.group_by(R.Sum(c.this)).aggregate(c.this).gen_converter()
+    with pytest.raises(c.ConversionException, match=reducer_outside_msg):
+        c.group_by(c.item(0)).aggregate(c.item(0)).filter(
+            R.Sum(c.this)
+        ).gen_converter()

@@ -959,3 +959,39 @@ def test_sharing_on_off_same_output(monkeypatch, make_spec, data):
     )
     without_sharing = make_spec().execute(data)
     assert with_sharing == without_sharing
+
+
+def _deep_getitem_row(value, depth):
+    obj = value
+    for i in range(depth - 1, -1, -1):
+        row = [0] * (i + 1)
+        row[i] = obj
+        obj = row
+    return obj
+
+
+def test_deep_shared_getitem_compiles():
+    depth = 500
+    chain = c.item(*range(depth))
+    spec = c.aggregate(
+        {
+            "a": c.ReduceFuncs.Sum(chain),
+            "b": c.ReduceFuncs.Max(chain),
+        }
+    )
+    converter = spec.gen_converter()
+    data = [_deep_getitem_row(1, depth), _deep_getitem_row(2, depth)]
+    assert converter(data) == {"a": 3, "b": 2}
+
+
+def test_analyze_scope_recursion_fallback(monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RecursionError
+
+    monkeypatch.setattr("convtools._aggregations.analyze_scope", boom)
+    spec = c.aggregate(
+        {"a": c.ReduceFuncs.Sum(c.this), "b": c.ReduceFuncs.Max(c.this)}
+    )
+    converter = spec.gen_converter()
+    assert converter([1, 2, 3]) == {"a": 6, "b": 3}
+    assert "_tmp" not in get_code_str(converter)

@@ -1481,3 +1481,100 @@ def test_percentile_interpolation_with_infinities_and_overflow():
     assert c.aggregate(
         R.Percentile(50, c.this, interpolation="midpoint")
     ).execute([date(2020, 1, 1), date(2020, 1, 3)]) == date(2020, 1, 2)
+
+
+def test_row_substring_in_output_is_not_a_row_read():
+    R = c.ReduceFuncs
+    assert (
+        c.aggregate(R.Sum(c.item(1)) + c.input_arg("row_limit")).execute(
+            [(1, 2)], row_limit=10
+        )
+        == 12
+    )
+    assert c.group_by(c.item("a")).aggregate(
+        {"label": "row_ count", "n": R.Count()}
+    ).execute([{"a": 1}]) == [{"label": "row_ count", "n": 1}]
+
+    def row_x(v):
+        return v * 2
+
+    assert c.group_by(c.item("a")).aggregate(
+        c.call_func(row_x, R.Sum(c.item("b")))
+    ).execute([{"a": 1, "b": 2}]) == [4]
+
+
+def test_nested_grouper_reused_as_key_and_output():
+    R = c.ReduceFuncs
+    agg = c.aggregate(R.Sum(c.this))
+    assert c.group_by(c.item("xs").pipe(agg)).aggregate(
+        {"k": c.item("xs").pipe(agg), "n": R.Count()}
+    ).execute([{"xs": [1, 2]}, {"xs": [3]}]) == [{"k": 3, "n": 2}]
+    with pytest.raises(
+        c.ConversionException,
+        match="something other than group_by keys and reducers",
+    ):
+        c.group_by(c.item("xs").pipe(c.aggregate(R.Sum(c.this)))).aggregate(
+            {
+                "k": c.item("xs").pipe(c.aggregate(R.Sum(c.this))),
+                "n": R.Count(),
+            }
+        ).gen_converter()
+
+
+def test_custom_reduce_does_not_rewrite_sentinel_literals():
+    from convtools._reducers import _substitute_names
+
+    sentinels = [
+        "__reduce_result_sentinel__",
+        "__reduce_row_sentinel__",
+        "__reduce_value_0_sentinel__",
+        "x__reduce_result_sentinel__y",
+        "100%",
+    ]
+    literal = '["{}"]'.format('", "'.join(sentinels))
+    conv = c.aggregate(
+        c.reduce(c.inline_expr("{} + " + literal), c.this, initial=list)
+    )
+    assert conv.execute([1, 2]) == sentinels * 2
+
+    assert (
+        c.aggregate(
+            c.reduce(c.inline_expr('f"{{{}}}:{{{}}}"'), c.this, initial="")
+        ).execute([1, 2, 3])
+        == ":1:2:3"
+    )
+
+    code = (
+        "__reduce_result_sentinel__ + (\n    '__reduce_result_sentinel__'\n)\n"
+    )
+    assert (
+        _substitute_names(code, {"__reduce_result_sentinel__": "%(result)s"})
+        == "%(result)s + (\n    '__reduce_result_sentinel__'\n)\n"
+    )
+
+    # U+2028 is a str.splitlines boundary but not a tokenize line break.
+    ls = "\u2028"
+    code_ls = (
+        "__reduce_result_sentinel__ + len('" + ls + "') + (\n"
+        "__reduce_value_0_sentinel__\n)"
+    )
+    assert (
+        _substitute_names(
+            code_ls,
+            {
+                "__reduce_result_sentinel__": "%(result)s",
+                "__reduce_value_0_sentinel__": "%(value0)s",
+            },
+        )
+        == "%(result)s + len('" + ls + "') + (\n%(value0)s\n)"
+    )
+    assert (
+        c.aggregate(
+            c.reduce(
+                c.inline_expr("{} + len('\u2028') + (\n{}\n)"),
+                c.this,
+                initial=0,
+            )
+        ).execute([1, 2])
+        == 5
+    )

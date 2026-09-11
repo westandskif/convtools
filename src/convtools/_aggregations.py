@@ -1,5 +1,6 @@
 """Define aggregations with various reduce functions."""
 
+import ast
 from collections import defaultdict
 from typing import Union
 
@@ -32,6 +33,16 @@ from ._reducers import (
 from ._utils import Code
 
 
+def _analyze_or_unshared(root, records, with_init, signature):
+    """Share eager expressions; fall back to the unshared plan on overflow."""
+    plan = init_plan(records, signature)
+    try:
+        analyze_scope(root, plan, with_init, signature, 0)
+    except RecursionError:
+        return init_plan(records, signature)
+    return plan
+
+
 class ReduceManager:
     """Build group by / aggregate code."""
 
@@ -41,6 +52,11 @@ class ReduceManager:
         "aggregate_mode",
         "records",
         "dedup",
+        "label_writes",
+        "label_external_reads",
+        "reducer_label_writes",
+        "reducer_label_reads",
+        "accepts_reducers",
     ]
 
     def __init__(self, var_row, var_agg_data, aggregate_mode):
@@ -49,6 +65,19 @@ class ReduceManager:
         self.aggregate_mode = aggregate_mode
         self.records = []
         self.dedup = {}
+        self.label_writes = set()
+        self.label_external_reads = set()
+        self.reducer_label_writes = None
+        self.reducer_label_reads = None
+        self.accepts_reducers = False
+
+    def note_label_read(self, name):
+        if self.reducer_label_reads is not None:
+            self.reducer_label_reads.add(name)
+
+    def note_label_write(self, name):
+        if self.reducer_label_writes is not None:
+            self.reducer_label_writes.add(name)
 
     def gen_agg_data_value(self):
         return self.fmt_agg_data_value(len(self.records))
@@ -126,8 +155,7 @@ class ReduceManager:
 
     def gen_group_by_code(self, var_signature_to_agg_data, code_signature):
         root = build_guard_tree(self.records)
-        plan = init_plan(self.records, code_signature)
-        analyze_scope(root, plan, True, code_signature, 0)
+        plan = _analyze_or_unshared(root, self.records, True, code_signature)
         code = Code()
         code.add_line("for {} in data_:".format(self.var_row), 1)
 
@@ -149,8 +177,9 @@ class ReduceManager:
         if not self.records:
             return code
         with_init_root = build_guard_tree(self.records)
-        with_init_plan = init_plan(self.records, None)
-        analyze_scope(with_init_root, with_init_plan, True, None, 0)
+        with_init_plan = _analyze_or_unshared(
+            with_init_root, self.records, True, None
+        )
         expected_checksum = count_reducer_nodes(with_init_root)
 
         reduce_records = [r for r in self.records if r.reduce_lines]
@@ -159,8 +188,9 @@ class ReduceManager:
         )
         reduce_plan = None
         if reduce_root is not None:
-            reduce_plan = init_plan(reduce_records, None)
-            analyze_scope(reduce_root, reduce_plan, False, None, 0)
+            reduce_plan = _analyze_or_unshared(
+                reduce_root, reduce_records, False, None
+            )
 
         code.add_line("checksum_ = 0", 0)
         if reduce_records:
@@ -351,6 +381,17 @@ class Grouper(BaseConversion):
         ctx["WelfordAccumulator"] = WelfordAccumulator
         ctx["WelfordCovarianceAccumulator"] = WelfordCovarianceAccumulator
 
+        if "grouper_function_by_id" not in ctx:
+            ctx["grouper_function_by_id"] = {}
+        cached = ctx["grouper_function_by_id"].get(id(self))
+        if cached is not None:
+            conversion = cached[1]
+            function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
+            function_ctx.add_arg("data_", This())
+            return function_ctx.call_with_all_args(
+                conversion
+            ).gen_code_and_update_ctx(code_input, ctx)
+
         suffix = self.gen_random_suffix(
             ctx, "aggregate", "group_by", "AggData"
         )
@@ -371,97 +412,107 @@ class Grouper(BaseConversion):
                 ctx["current_reduce_manager"] = [reduce_manager]
             else:
                 ctx["current_reduce_manager"].append(reduce_manager)
-
             try:
-                code_agg_result = self.reducer.gen_code_and_update_ctx(
-                    var_row, ctx
+                reduce_manager.accepts_reducers = True
+                try:
+                    code_agg_result = self.reducer.gen_code_and_update_ctx(
+                        var_row, ctx
+                    )
+                finally:
+                    reduce_manager.accepts_reducers = False
+
+                by_is_single = len(self.by) == 1
+                code_signatures = []
+                for index, by_ in enumerate(self.by):
+                    code_by = by_.gen_code_and_update_ctx(var_row, ctx)
+                    code_signatures.append(code_by)
+                    code_agg_result = self.replace_word(
+                        code_agg_result,
+                        code_by,
+                        (
+                            var_signature
+                            if by_is_single
+                            else f"{var_signature}[{index}]"
+                        ),
+                    )
+
+                code_signature = (
+                    code_signatures[0]
+                    if by_is_single
+                    else f"({', '.join(code_signatures)})"
+                )
+
+                if any(
+                    isinstance(node, ast.Name) and node.id == var_row
+                    for node in ast.walk(
+                        ast.parse(code_agg_result, mode="eval")
+                    )
+                ):
+                    raise ConversionException(
+                        "something other than group_by keys and reducers have been used",
+                        code_agg_result,
+                    )
+
+                with NamespaceCtx(
+                    {
+                        self.SIGNATURE_NAME: var_signature,
+                        self.AGG_DATA_NAME: var_agg_data,
+                        self.AGG_RESULT_ITEM_NAME: code_agg_result,
+                    },
+                    ctx,
+                ):
+                    code_final_result = (
+                        self.conversion.gen_code_and_update_ctx(None, ctx)
+                        if self.aggregate_mode
+                        else self.conversion.gen_code_and_update_ctx(
+                            f"{var_signature_to_agg_data}.items()", ctx
+                        )
+                    )
+                agg_template_kwargs = {
+                    "code_args": function_ctx.get_def_all_args_code(),
+                    "code_result": f"    return {code_final_result}",
+                    "var_row": var_row,
+                }
+
+                if self.aggregate_mode:
+                    converter_name = f"aggregate{suffix}"
+                    grouper_code = AGGREGATE_TEMPLATE.format(
+                        converter_name=converter_name,
+                        code_init_agg_vars=reduce_manager.gen_init_aggregate_vars(),
+                        code_aggregate=reduce_manager.gen_aggregate_code().to_string(
+                            base_indent_level=1,
+                        ),
+                        **agg_template_kwargs,
+                    )
+                else:
+                    converter_name = f"group_by{suffix}"
+                    ctx[var_agg_data_cls] = (
+                        reduce_manager.gen_group_by_data_container(
+                            self, var_agg_data_cls, ctx
+                        )
+                    )
+                    grouper_code = GROUPER_TEMPLATE.format(
+                        converter_name=converter_name,
+                        var_signature_to_agg_data=var_signature_to_agg_data,
+                        var_agg_data_cls=var_agg_data_cls,
+                        var_agg_data=var_agg_data,
+                        code_signature=code_signature,
+                        code_group_by=reduce_manager.gen_group_by_code(
+                            var_signature_to_agg_data=var_signature_to_agg_data,
+                            code_signature=code_signature,
+                        ).to_string(base_indent_level=1),
+                        **agg_template_kwargs,
+                    )
+
+                conversion = function_ctx.gen_conversion(
+                    converter_name, grouper_code
                 )
             finally:
                 ctx["current_reduce_manager"].pop()
                 if not ctx["current_reduce_manager"]:
                     del ctx["current_reduce_manager"]
 
-            by_is_single = len(self.by) == 1
-            code_signatures = []
-            for index, by_ in enumerate(self.by):
-                code_by = by_.gen_code_and_update_ctx(var_row, ctx)
-                code_signatures.append(code_by)
-                code_agg_result = self.replace_word(
-                    code_agg_result,
-                    code_by,
-                    (
-                        var_signature
-                        if by_is_single
-                        else f"{var_signature}[{index}]"
-                    ),
-                )
-
-            code_signature = (
-                code_signatures[0]
-                if by_is_single
-                else f"({', '.join(code_signatures)})"
-            )
-
-            if var_row in code_agg_result:
-                raise ConversionException(
-                    "something other than group_by keys and reducers have been used",
-                    code_agg_result,
-                )
-
-            with NamespaceCtx(
-                {
-                    self.SIGNATURE_NAME: var_signature,
-                    self.AGG_DATA_NAME: var_agg_data,
-                    self.AGG_RESULT_ITEM_NAME: code_agg_result,
-                },
-                ctx,
-            ):
-                code_final_result = (
-                    self.conversion.gen_code_and_update_ctx(None, ctx)
-                    if self.aggregate_mode
-                    else self.conversion.gen_code_and_update_ctx(
-                        f"{var_signature_to_agg_data}.items()", ctx
-                    )
-                )
-            agg_template_kwargs = {
-                "code_args": function_ctx.get_def_all_args_code(),
-                "code_result": f"    return {code_final_result}",
-                "var_row": var_row,
-            }
-
-            if self.aggregate_mode:
-                converter_name = f"aggregate{suffix}"
-                grouper_code = AGGREGATE_TEMPLATE.format(
-                    converter_name=converter_name,
-                    code_init_agg_vars=reduce_manager.gen_init_aggregate_vars(),
-                    code_aggregate=reduce_manager.gen_aggregate_code().to_string(
-                        base_indent_level=1,
-                    ),
-                    **agg_template_kwargs,
-                )
-            else:
-                converter_name = f"group_by{suffix}"
-                ctx[var_agg_data_cls] = (
-                    reduce_manager.gen_group_by_data_container(
-                        self, var_agg_data_cls, ctx
-                    )
-                )
-                grouper_code = GROUPER_TEMPLATE.format(
-                    converter_name=converter_name,
-                    var_signature_to_agg_data=var_signature_to_agg_data,
-                    var_agg_data_cls=var_agg_data_cls,
-                    var_agg_data=var_agg_data,
-                    code_signature=code_signature,
-                    code_group_by=reduce_manager.gen_group_by_code(
-                        var_signature_to_agg_data=var_signature_to_agg_data,
-                        code_signature=code_signature,
-                    ).to_string(base_indent_level=1),
-                    **agg_template_kwargs,
-                )
-
-            conversion = function_ctx.gen_conversion(
-                converter_name, grouper_code
-            )
+        ctx["grouper_function_by_id"][id(self)] = (self, conversion)
         return function_ctx.call_with_all_args(
             conversion
         ).gen_code_and_update_ctx(code_input, ctx)

@@ -9,7 +9,6 @@ must not mutate the values they receive.
 """
 
 import ast
-import copy
 from functools import lru_cache
 
 from ._utils import ast_unparse
@@ -647,8 +646,9 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
 
     A key is extracted while ``count >= 2 and eager_ok > 0``. An item's
     structural keys are computed once when it is added and discarded when
-    its tree is rewritten (then re-added). ``rhs_tree`` is a deep copy
-    owned by the plan, so items and temps never alias AST nodes.
+    its tree is rewritten (then re-added). ``rhs_tree`` is the original
+    matched node, orphaned from every item tree after substitution, so
+    items and temps never alias AST nodes.
     Provisional names ``__cse<N>_`` are renamed to ``_tmp<N>_`` in
     topological emission order. Optimizer temps are recognised only by
     the ``_cse_temp`` marker on ``ast.Name`` nodes, never by identifier
@@ -724,7 +724,7 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
         rec = candidates[best_key]
         internal_name = "__cse{}_".format(local_i)
         local_i += 1
-        rhs_tree = copy.deepcopy(next(iter(rec["contributors"].values()))[1])
+        rhs_tree = next(iter(rec["contributors"].values()))[1]
         mapping = {best_key: internal_name}
         rewritten_items = []
         for item, _node in list(rec["contributors"].values()):

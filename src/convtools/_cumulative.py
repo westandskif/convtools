@@ -36,6 +36,9 @@ class CumulativeReset(BaseConversion):
         self.contents |= BaseConversion.ContentTypes.NEW_LABEL
 
     def gen_code_and_update_ctx(self, code_input, ctx):
+        managers = ctx.get("current_reduce_manager")
+        if managers:
+            managers[-1].note_label_write(self.label_name)
         return (
             f"(_labels.pop({repr(self.label_name)}, None), "
             f"{self.parent.gen_code_and_update_ctx(code_input, ctx)})[1]"
