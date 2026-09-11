@@ -3516,24 +3516,26 @@ class Dispatcher(BaseConversion):
         self.number_of_input_uses = 2
 
     def gen_code_and_update_ctx(self, code_input, ctx):
-        converter_name = self.gen_random_name("dispatch", ctx)
         var_input = "data_"
 
-        function_ctx = self.as_function_ctx(ctx)
+        function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg(var_input, This())
         with function_ctx:
             key_to_func = {}
             for key, then_conversion in self.key_to_conversion.items():
                 converter_name = self.gen_random_name("branch", ctx)
-                code = Code()
-                code.add_line(
-                    f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-                    1,
+                function_ctx.naive_to_optimize = ctx[self.NAIVE_TO_WARM_UP] = (
+                    set()
                 )
-
+                code = Code()
+                code.add_line("def placeholder", 1)
                 code.add_line(
                     f"return {then_conversion.gen_code_and_update_ctx(var_input, ctx)}",
                     -1,
+                )
+                code.lines_info[0] = (
+                    0,
+                    f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
                 )
                 key_to_func[key] = function_ctx.gen_function(
                     converter_name, code.to_string(0)
@@ -3545,14 +3547,18 @@ class Dispatcher(BaseConversion):
 
             else:
                 converter_name = self.gen_random_name("branch_else", ctx)
-                code = Code()
-                code.add_line(
-                    f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
-                    1,
+                function_ctx.naive_to_optimize = ctx[self.NAIVE_TO_WARM_UP] = (
+                    set()
                 )
+                code = Code()
+                code.add_line("def placeholder", 1)
                 code.add_line(
                     f"return {self.default_conversion.gen_code_and_update_ctx(var_input, ctx)}",
                     -1,
+                )
+                code.lines_info[0] = (
+                    0,
+                    f"def {converter_name}({function_ctx.get_def_all_args_code()}):",
                 )
                 else_func = function_ctx.gen_function(
                     converter_name, code.to_string(0)
