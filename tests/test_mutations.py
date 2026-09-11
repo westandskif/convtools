@@ -165,6 +165,35 @@ def test_mutation_attr():
     assert obj.a.b == 1 and not hasattr(obj, "c")
 
 
+def test_del_attr_if_exists_evaluates_target_once():
+    class Row(object):
+        def __init__(self):
+            self.x = 1
+
+    calls = []
+
+    def of_():
+        calls.append(1)
+        return Row()
+
+    list(
+        c.iter_mut(
+            c.Mut.del_attr("x", if_exists=True, of_=c.call_func(of_))
+        ).execute([0, 1, 2])
+    )
+    assert len(calls) == 3
+
+
+def test_del_attr_if_exists_property_without_deleter():
+    class P(object):
+        @property
+        def x(self):
+            return 1
+
+    with pytest.raises(AttributeError):
+        c.this.tap(c.Mut.del_attr("x", if_exists=True)).execute(P())
+
+
 def test_iter_mut_method():
     assert c.iter(c.item(0)).as_type(list).execute([[1], [2]]) == [1, 2]
     assert c.iter_mut(c.Mut.custom(c.this.call_method("append", 7))).as_type(

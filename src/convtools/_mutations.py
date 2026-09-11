@@ -12,6 +12,11 @@ def _del_item_if_exists(obj, index):
         pass
 
 
+def _del_attr_if_exists(obj, name):
+    if hasattr(obj, name):
+        delattr(obj, name)
+
+
 class BaseNameValueMutation(BaseMutation):
     """Base in-place mutation."""
 
@@ -81,10 +86,12 @@ class DelAttr(BaseIndexMutation):
     def gen_code_and_update_ctx(self, code_input, ctx):
         index_code = self.index.gen_code_and_update_ctx(code_input, ctx)
         of_code = self.of_.gen_code_and_update_ctx(code_input, ctx)
-        code = f"delattr({of_code}, {index_code})"
         if self.if_exists:
-            return f"hasattr({of_code}, {index_code}) and {code}"
-        return code
+            helper_code = NaiveConversion(
+                _del_attr_if_exists
+            ).gen_code_and_update_ctx(None, ctx)
+            return f"{helper_code}({of_code}, {index_code})"
+        return f"delattr({of_code}, {index_code})"
 
 
 class Custom(BaseMutation):

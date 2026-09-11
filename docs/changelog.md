@@ -80,6 +80,8 @@
 
 **Fixed**
 
+- `del_attr(..., if_exists=True)` evaluates its target expression once instead
+  of twice
 - `c.OptionsCtx()` spanning an `await` no longer leaks options into sibling
   asyncio tasks (options context is a `contextvars.ContextVar`; child tasks
   inherit the current options)
