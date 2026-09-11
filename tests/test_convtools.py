@@ -1585,3 +1585,17 @@ def test_input_arg_reservation_not_generated():
         .gen_converter()
     )
     assert converter(None, x=0, _input_arg_x=0) == 1
+
+
+def test_item_default_with_hidden_input_usage():
+    # if_multiple / dispatch defaults need the hidden data_ argument
+    converter = (
+        c.item("a")
+        .item(
+            "b", default=c.if_multiple((c.input_arg("strict"), None), else_=0)
+        )
+        .gen_converter()
+    )
+    assert converter({"a": {}}, strict=False) == 0
+    assert converter({"a": {}}, strict=True) is None
+    assert converter({"a": {"b": 1}}, strict=True) == 1

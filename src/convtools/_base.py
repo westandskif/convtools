@@ -2516,6 +2516,7 @@ class GetItem(BaseMethodConversion):
         simple_mask = (
             self.ContentTypes.FUNCTION_OF_INPUT
             | self.ContentTypes.LOOKUP_USAGE
+            | self.ContentTypes.HIDDEN_INPUT_USAGE
         )
         self.indexes_are_simple = not any(
             index.contents & simple_mask for index in self.indexes

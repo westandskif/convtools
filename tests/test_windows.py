@@ -1163,3 +1163,16 @@ def test_window_partition_by_list_single_key():
     )
     assert via_multi_list == via_multi_tuple
     assert via_multi_tuple == [2, 1, 2]
+
+
+def test_window_single_key_order_by_input_arg_and_label():
+    data = [{"k": (i * 7) % 5, "v": i} for i in range(6)]
+    assert c.this.window(c.WindowFuncs.RowIndex()).over(
+        order_by=c.item("k") * c.input_arg("m")
+    ).execute(data, m=1) == [0, 3, 5, 2, 4, 1]
+    assert (
+        c.this.pipe(c.this, label_output="rows")
+        .window(c.WindowFuncs.RowIndex())
+        .over(order_by=c.item("k") * c.label("rows").pipe(len))
+        .execute(data)
+    ) == [0, 3, 5, 2, 4, 1]

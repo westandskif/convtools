@@ -581,7 +581,8 @@ class JoinConversion(BaseConversion):
             function_ctx.add_arg("left_", self.left_conversion)
             function_ctx.add_arg("right_", self.right_conversion)
 
-        function_ctx.add_arg("_none", EscapedString("_none"))
+        if "_none" not in function_ctx.args_as_def_names:
+            function_ctx.add_arg("_none", EscapedString("_none"))
 
         with function_ctx:
             code.add_line("def placeholder", 1)

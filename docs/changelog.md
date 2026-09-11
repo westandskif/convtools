@@ -42,6 +42,12 @@
 
 **Fixed**
 
+- join conditions containing an aggregate or a nested join no longer fail to
+  compile with `duplicate argument '_none'`
+- window `order_by` with a single key using `c.input_arg` / `c.label` no
+  longer raises `NameError`
+- `c.item(..., default=c.if_multiple(...))` / `c.dispatch(...)` defaults that
+  use input args no longer raise `NameError: data_`
 - `Table.from_rows` with an explicit header that is not an identity mapping
   now rearranges rows (tuple and dict output); a list/tuple header on dict
   rows is a positional rename

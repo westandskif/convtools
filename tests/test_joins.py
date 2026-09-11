@@ -1147,3 +1147,19 @@ def test_join_pre_filter_this_binds_to_join_input():
         .execute((left, right, False))
         == left_false
     )
+
+
+def test_join_condition_with_aggregate_adds_none_arg_once():
+    # the condition already carries NONE_USAGE via the nested aggregate, so
+    # the join must not append a second `_none` parameter
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.LEFT.item("xs").pipe(c.aggregate(c.ReduceFuncs.Sum(c.this)))
+            == c.RIGHT,
+        )
+        .as_type(list)
+        .execute(([{"xs": [1, 2]}], [3]))
+    )
+    assert result == [({"xs": [1, 2]}, 3)]

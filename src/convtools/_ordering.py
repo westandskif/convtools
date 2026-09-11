@@ -49,7 +49,11 @@ class SortingKeyConversion(BaseConversion):
         super().__init__()
         self.ignore_hints = ignore_hints
         if common_conv is not None and len(keys) == 1:
-            self.keys = [self.ensure_conversion(common_conv).pipe(keys[0])]
+            self.keys = [
+                self.ensure_conversion(
+                    self.ensure_conversion(common_conv).pipe(keys[0])
+                )
+            ]
             self.common_conv = None
         else:
             self.keys = [self.ensure_conversion(key) for key in keys]
