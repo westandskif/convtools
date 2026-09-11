@@ -48,6 +48,9 @@ def test_split_buffer():
             ["7777010011000", "0000", "00000"],
         ],
         ["123abc456", "abc", 4, ["123", "456"]],
+        ["A" * 100 + "XYZ" + "B" * 80, "XYZ", 3, ["A" * 100, "B" * 80]],
+        ["p" * 40 + "ab" + "c" + "q" * 40, "abc", 1, ["p" * 40, "q" * 40]],
+        ["A" * 100 + "1" + "B" * 80, "1", 3, ["A" * 100, "B" * 80]],
     ]
     for input_str, delimiter, chunk_size, result in tests:
         for chunk_size_ in (1, 2, 3, chunk_size):
