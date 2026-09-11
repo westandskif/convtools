@@ -13,6 +13,7 @@ from .test_dt_utils import (
     all_datetimes,
     all_delimiters,
 )
+from .utils import get_code_str
 
 
 @pytest.mark.parametrize(
@@ -275,6 +276,31 @@ def test_datetime_parse_whitespace_matches_strptime(fmt, data):
             c.datetime_parse(fmt).execute(data)
     else:
         assert c.datetime_parse(fmt).execute(data) == expected
+
+
+def test_date_parse_emits_date_constructor():
+    date_only = get_code_str(c.date_parse("%Y-%m-%d").gen_converter())
+    assert ".date()" not in date_only
+    with_hour = get_code_str(c.date_parse("%Y-%m-%d %H").gen_converter())
+    assert ".date()" in with_hour
+
+
+def test_date_parse_strptime_fallback_returns_date():
+    result = c.date_parse("%Y-%m-%d %Z").execute("2020-01-01 UTC")
+    assert result == date(2020, 1, 1)
+    assert type(result) is date
+
+
+def test_date_parse_rejects_invalid_times_and_dates():
+    with pytest.raises(ValueError):
+        c.date_parse("%Y-%m-%d %H:%M:%S").execute("2020-01-01 25:00:00")
+    with pytest.raises(ValueError):
+        c.date_parse("%Y-%m-%d %H:%M:%S").execute("2020-01-01 12:00:60")
+    assert c.date_parse("%Y-%m-%d %H:%M:%S").execute(
+        "2020-01-01 23:59:59"
+    ) == date(2020, 1, 1)
+    with pytest.raises(ValueError):
+        c.date_parse("%Y-%m-%d").execute("2020-02-30")
 
 
 def test_date_parse_whitespace_tab():

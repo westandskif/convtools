@@ -1272,9 +1272,7 @@ class BaseConversion(Generic[CT]):
 
         parse_exc_pairs = []
         for fmt in chain((main_format,), other_formats):
-            conversion = _dt.DatetimeParse(fmt)
-            if to_date:
-                conversion = conversion.call_method("date")
+            conversion = _dt.DatetimeParse(fmt, to_date=to_date)
             parse_exc_pairs.append((conversion, (ValueError, TypeError)))
 
         return self.pipe(

@@ -237,6 +237,22 @@ def datetime_trunc_to_day(dt, to_days, offset_days, mode):
     ).replace(fold=dt.fold)
 
 
+def _dt_from_us(us, tzinfo, fold):
+    d = date_from_ordinal(us // 86400000000)
+    left = us % 86400000000
+    return datetime(
+        d.year,
+        d.month,
+        d.day,
+        left // 3600000000,
+        left % 3600000000 // 60000000,
+        left % 60000000 // 1000000,
+        left % 1000000,
+        tzinfo=tzinfo,
+        fold=fold,
+    )
+
+
 def datetime_trunc_to_microsecond(dt, to_us, offset_us, mode):
     us = (
         dt.toordinal() * 86400000000
@@ -254,16 +270,7 @@ def datetime_trunc_to_microsecond(dt, to_us, offset_us, mode):
     else:
         us += to_us - 1
 
-    new_dt = datetime_from_ordinal(us // 86400000000)
-    left_microseconds = us % 86400000000
-    return new_dt.replace(
-        hour=left_microseconds // 3600000000,
-        minute=left_microseconds % 3600000000 // 60000000,
-        second=left_microseconds % 60000000 // 1000000,
-        microsecond=left_microseconds % 1000000,
-        tzinfo=dt.tzinfo,
-        fold=dt.fold,
-    )
+    return _dt_from_us(us, dt.tzinfo, dt.fold)
 
 
 STEP_CLASSES: (
@@ -454,44 +461,18 @@ def gen_datetimes__microsecond(dt_start, dt_end, to_us, offset_us, mode):
 
     if mode == 1:
         while us <= end_us:
-            new_dt = datetime_from_ordinal(us // 86400000000)
-            left_microseconds = us % 86400000000
-            yield new_dt.replace(
-                hour=left_microseconds // 3600000000,
-                minute=left_microseconds % 3600000000 // 60000000,
-                second=left_microseconds % 60000000 // 1000000,
-                microsecond=left_microseconds % 1000000,
-                tzinfo=tzinfo,
-            )
+            yield _dt_from_us(us, tzinfo, 0)
             us += to_us
 
     elif mode == 2:
         while us <= end_us:
             us += to_us
-
-            new_dt = datetime_from_ordinal(us // 86400000000)
-            left_microseconds = us % 86400000000
-            yield new_dt.replace(
-                hour=left_microseconds // 3600000000,
-                minute=left_microseconds % 3600000000 // 60000000,
-                second=left_microseconds % 60000000 // 1000000,
-                microsecond=left_microseconds % 1000000,
-                tzinfo=tzinfo,
-            )
+            yield _dt_from_us(us, tzinfo, 0)
 
     else:
         while us <= end_us:
             us += to_us
-
-            new_dt = datetime_from_ordinal((us - 1) // 86400000000)
-            left_microseconds = (us - 1) % 86400000000
-            yield new_dt.replace(
-                hour=left_microseconds // 3600000000,
-                minute=left_microseconds % 3600000000 // 60000000,
-                second=left_microseconds % 60000000 // 1000000,
-                microsecond=left_microseconds % 1000000,
-                tzinfo=tzinfo,
-            )
+            yield _dt_from_us(us - 1, tzinfo, 0)
 
 
 class DateGrid:
@@ -968,11 +949,12 @@ class DatetimeFormat(BaseConversion):
 class DatetimeParse(BaseConversion):
     """Code generation based subset of datetime.strptime."""
 
-    def __init__(self, fmt):
+    def __init__(self, fmt, to_date=False):
         if not isinstance(fmt, str):
             raise ValueError
         super().__init__()
         self.fmt = fmt
+        self.to_date = to_date
         try:
             (
                 self.re_pattern,
@@ -983,6 +965,11 @@ class DatetimeParse(BaseConversion):
             self.re_pattern = self.assignment_code_lines = self.format_args = (
                 None
             )
+        self.to_date_direct = (
+            to_date
+            and self.format_args is not None
+            and self.format_args[3:] == ("0", "0", "0", "0")
+        )
 
     @staticmethod
     def _seq_to_re_group_str(seq):
@@ -1078,7 +1065,7 @@ class DatetimeParse(BaseConversion):
                 elif ch == "f":
                     re_pieces.append(r"([0-9]{1,6})")
                     code_params.create(
-                        f"int(groups_[{group_index}] + '0' * (6 - len(groups_[{group_index}])))",
+                        f"int(groups_[{group_index}].ljust(6, '0'))",
                         "microsecond",
                     )
                     group_index += 1
@@ -1153,21 +1140,33 @@ class DatetimeParse(BaseConversion):
         for assignment_code in self.assignment_code_lines:
             code.add_line(assignment_code, 0)
 
-        datetime_code = NaiveConversion(datetime).gen_code_and_update_ctx(
-            None, ctx
-        )
-        code.add_line(
-            f"return {datetime_code}(%s, %s, %s, %s, %s, %s, %s)"
-            % self.format_args,
-            0,
-        )
+        if self.to_date_direct:
+            date_code = NaiveConversion(date).gen_code_and_update_ctx(
+                None, ctx
+            )
+            code.add_line(
+                f"return {date_code}(%s, %s, %s)" % self.format_args[:3],
+                0,
+            )
+        else:
+            datetime_code = NaiveConversion(datetime).gen_code_and_update_ctx(
+                None, ctx
+            )
+            line = (
+                f"return {datetime_code}(%s, %s, %s, %s, %s, %s, %s)"
+                % self.format_args
+            )
+            if self.to_date:
+                line = "{}.date()".format(line)
+            code.add_line(line, 0)
         return code
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         if self.re_pattern is None:
-            return CallFunc(
-                datetime.strptime, This, self.fmt
-            ).gen_code_and_update_ctx(code_input, ctx)
+            conversion = CallFunc(datetime.strptime, This, self.fmt)
+            if self.to_date:
+                conversion = conversion.call_method("date")
+            return conversion.gen_code_and_update_ctx(code_input, ctx)
 
         converter_name = self.gen_random_name("datetime_parse", ctx)
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
