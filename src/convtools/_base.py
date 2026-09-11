@@ -1527,11 +1527,8 @@ class BaseConversion(Generic[CT]):
                             CallFunc(isinstance, This, date),
                             This.call_method("isoformat"),
                             This.call_method("strftime", "%Y-%m-%d"),
-                            no_input_caching=True,
                         ),
-                        no_input_caching=True,
                     ),
-                    no_input_caching=True,
                 )
             )
         from convtools import _dt
@@ -2271,7 +2268,6 @@ class If(BaseConversion):
         condition=True,
         if_true=BaseConversion._none,
         if_false=BaseConversion._none,
-        no_input_caching=False,
     ):
         """Initialize conditional expression.
 
@@ -2280,8 +2276,6 @@ class If(BaseConversion):
             True, then the input is used as the condition.
           if_true (object): the result if the condition is true
           if_false (object): the result if the condition is false
-          no_input_caching (bool): if True, disables automatic decision making
-            on whether result caching is needed
         """
         super().__init__()
 
@@ -2307,9 +2301,6 @@ class If(BaseConversion):
             if_true.total_weight,
             if_false.total_weight,
         )
-
-        if not no_input_caching:
-            conversion = PipeConversion(this, conversion)
 
         self.conversion = self.ensure_conversion(conversion)
 
@@ -3769,12 +3760,31 @@ class PipeConversion(BaseConversion):
 
         if not self.to_be_inlined:
             self.input_args_container.ensure_conversion(where)
-            self.total_weight += Weights.FUNCTION_CALL
-            self.number_of_input_uses = 1
 
         self.what = self.ensure_conversion(what)
         self.where = self.ensure_conversion(where)
         self.ensure_conversion(self.input_args_container)
+
+        if not self.to_be_inlined:
+            self.number_of_input_uses = what.number_of_input_uses
+            self.total_weight = (
+                what.total_weight
+                + (
+                    self.input_args_container.total_weight
+                    - self.input_args_container.weight
+                )
+                + Weights.FUNCTION_CALL
+            )
+        else:
+            n = max(where.number_of_input_uses, 1)
+            self.number_of_input_uses = what.number_of_input_uses * n
+            self.total_weight = where.total_weight + what.total_weight * n
+
+        mask = (
+            self.ContentTypes.FUNCTION_OF_INPUT
+            | self.ContentTypes.HIDDEN_INPUT_USAGE
+        )
+        self.contents = (self.contents & ~mask) | (what.contents & mask)
 
         if self.label_input or self.label_output:
             self.input_args_container.contents |= (

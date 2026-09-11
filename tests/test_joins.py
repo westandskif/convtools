@@ -942,6 +942,29 @@ def test_join_sentinel_literal_in_bit_carrying_term_compiles():
     ).gen_converter()
 
 
+def test_join_comprehension_in_row_bound_term_passes_probe():
+    # the element carries FUNCTION_OF_INPUT but renders against the loop
+    # variable, so the sentinel probe must let the term through
+    result = (
+        c.join(
+            c.item(0),
+            c.item(1),
+            c.and_(
+                c.LEFT.item("id") == c.RIGHT.item("id"),
+                c.LEFT.item("xs").iter(c.this * 2).as_type(list).len() > 1,
+            ),
+        )
+        .as_type(list)
+        .execute(
+            (
+                [{"id": 1, "xs": [1, 2]}, {"id": 2, "xs": [1]}],
+                [{"id": 1}, {"id": 2}],
+            )
+        )
+    )
+    assert result == [({"id": 1, "xs": [1, 2]}, {"id": 1})]
+
+
 def test_join_inside_cumulative_reduce_with_prev_compiles():
     c.cumulative(
         c.this,

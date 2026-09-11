@@ -2,6 +2,16 @@
 
 **Changed**
 
+- an index of `c.item(..., default=...)` that is an input-independent pipe or
+  `if_` (e.g. `c.naive(1).pipe(c.this + 1)`) is now evaluated before the
+  lookup, like any other constant expression; an exception it raises is no
+  longer swallowed into the default
+- a reducer `initial` that is an input-independent pipe or `if_` is now the
+  empty-input result, like any other constant `initial`
+  (`Sum(..., initial=c.naive(5).pipe(c.this + 1))` on `[]` returns `6`, not
+  `0`)
+- `c.if_` no longer accepts `no_input_caching` (the identity pipe it disabled
+  had no effect on generated code)
 - `iter_windows` follows the sliding-window model for `len < width` (partial
   windows stay full until the frame has something to drop) and raises
   `ValueError` when `width < 1` or `step < 1`
@@ -63,6 +73,13 @@
 
 **Fixed**
 
+- `PipeConversion` reported the input uses of its `where` (and the wrapped
+  helper) as uses of its own input, so parents wrapped cheap left sides in an
+  extra helper function
+- a pipe whose `where` is itself a pipe over a constant (or an
+  input-independent `if_`) no longer drops its left side
+  (`c.item("a").pipe(c.naive(5).pipe(c.this + 1))` returned `6` on `{}`
+  instead of raising `KeyError`); `ignores_input()` of such pipes is now True
 - `gen_converter(signature=...)` isolates the body from signature names that
   shadow builtins, reserves those names against generated helpers, rejects
   internal names (`__none__`, `_none`, `_labels`, `__convtools__...`), and

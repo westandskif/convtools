@@ -15,6 +15,7 @@ from convtools._base import (
     NaiveConversion,
     Namespace,
 )
+from convtools._heuristics import Weights
 from convtools._utils import Code
 
 from .utils import get_code_str
@@ -147,7 +148,7 @@ def test_gen_converter():
                         c.this()
                         * LazyEscapedString("abc")
                         * c.input_arg("abc"),
-                        c.this,
+                        c.this + c.this,
                     )
                 ),
                 {"abc": "(0 + 1)"},
@@ -1023,16 +1024,7 @@ def test_if():
     conv2 = c.list_comp(
         c.if_(c.this % 2 == 0, c.this * 10, c.this * 100)
     ).gen_converter(debug=False)
-    conv3 = c.list_comp(
-        c.if_(
-            c.this % 2 == 0,
-            c.this * 10,
-            c.this * 100,
-            no_input_caching=True,
-        )
-    ).gen_converter(debug=False)
     assert conv2([1, 2, 3, 4]) == [100, 20, 300, 40]
-    assert conv3([1, 2, 3, 4]) == [100, 20, 300, 40]
 
     conv4 = c.list_comp(
         (c.this - 5).pipe(c.if_(c.this % 2 == 0, c.this * 10, c.this * 100))
@@ -1042,9 +1034,7 @@ def test_if():
     conv5 = c.if_().gen_converter(debug=False)
     assert conv5(0) == 0 and conv5(1) == 1
 
-    conv6 = c.list_comp(
-        c.if_(c.this, None, c.this, no_input_caching=True)
-    ).gen_converter(debug=False)
+    conv6 = c.list_comp(c.if_(c.this, None, c.this)).gen_converter(debug=False)
     assert conv6([1, False, 2, None, 3, 0]) == [
         None,
         False,
@@ -1053,6 +1043,128 @@ def test_if():
         None,
         0,
     ]
+
+
+def test_pipe_input_uses_and_if_no_op_pipe():
+    heavy = c.item("a").item("b").item("c").item("d")
+    p = heavy.pipe(c.this + c.this)
+    assert not p.to_be_inlined
+    assert p.number_of_input_uses == 1
+    assert p.total_weight == (
+        heavy.total_weight
+        + (c.this + c.this).total_weight
+        + Weights.FUNCTION_CALL
+    )
+
+    q = c.item("a").pipe(c.this + c.this)
+    assert q.number_of_input_uses == 2
+    assert c.item("a").pipe(c.naive(0)).number_of_input_uses == 1
+
+    outer = c.item("x").pipe(heavy.pipe(c.this + c.this))
+    source = get_code_str(outer.gen_converter())
+    assert source.count("def pipe") == 1
+    assert outer.execute({"x": {"a": {"b": {"c": {"d": 3}}}}}) == 6
+
+    assert c.if_(c.this, c.this + 1, c.this + 2).number_of_input_uses == 2
+    with pytest.raises(TypeError):
+        c.if_(c.this, 1, 2, no_input_caching=True)
+
+    nested_sum = c.naive(5).pipe(c.this + c.this)
+    with pytest.raises(KeyError):
+        heavy.pipe(nested_sum).execute({})
+    with pytest.raises(KeyError):
+        heavy.pipe(
+            c.naive(5).pipe(c.if_multiple((c.this > 0, c.this), else_=0))
+        ).execute({})
+    with pytest.raises(KeyError):
+        heavy.pipe(
+            c.naive(5).pipe(
+                c.this.dispatch(c.this, {5: c.this * 2}, default=0)
+            )
+        ).execute({})
+    populated = {"a": {"b": {"c": {"d": 1}}}}
+    assert (
+        heavy.pipe(
+            c.naive(5).pipe(c.if_multiple((c.this > 0, c.this), else_=0))
+        ).execute(populated)
+        == 5
+    )
+    assert (
+        heavy.pipe(
+            c.naive(5).pipe(
+                c.this.dispatch(c.this, {5: c.this * 2}, default=0)
+            )
+        ).execute(populated)
+        == 10
+    )
+    assert (
+        c.naive(5)
+        .pipe(c.if_multiple((c.this > 0, c.this), else_=0))
+        .ignores_input()
+    )
+    assert (
+        c.item("missing", c.naive(1).pipe(c.this + 1), default=0).execute({})
+        == 0
+    )
+    with pytest.raises(ZeroDivisionError):
+        c.item("missing", c.naive(1).pipe(c.this / 0), default=0).execute({})
+    with pytest.raises(ZeroDivisionError):
+        c.item(
+            "missing",
+            c.if_(c.naive(True), c.naive(1) / 0, 2),
+            default=0,
+        ).execute({})
+    lazy_default = c.item("x", default=c.naive(1).pipe(c.this / 0))
+    assert lazy_default.execute({"x": 5}) == 5
+    with pytest.raises(ZeroDivisionError):
+        lazy_default.execute({})
+    nested_default = c.item("a").item("x", default=c.naive(1).pipe(c.this + 1))
+    assert nested_default.execute({"a": {}}) == 2
+    assert nested_default.execute({"a": {"x": 5}}) == 5
+    agg_pipe = c.aggregate(
+        c.ReduceFuncs.Array(c.this, default=c.naive(0).pipe(c.this + 1))
+    )
+    agg_if = c.aggregate(
+        c.ReduceFuncs.Array(c.this, default=c.if_(c.naive(True), 1, 2))
+    )
+    assert agg_pipe.execute([]) == 1
+    assert agg_if.execute([]) == 1
+    assert agg_pipe.execute([1, 2]) == [1, 2]
+    assert agg_if.execute([1, 2]) == [1, 2]
+    sum_initial = c.aggregate(
+        c.reduce(
+            c.ReduceFuncs.Sum, c.this, initial=c.naive(5).pipe(c.this + 1)
+        )
+    )
+    assert sum_initial.execute([]) == 6
+    assert sum_initial.execute([1, 2]) == 9
+    assert (
+        c.aggregate(
+            c.reduce(
+                c.ReduceFuncs.Max, c.this, initial=c.naive(5).pipe(c.this + 1)
+            )
+        ).execute([])
+        == 6
+    )
+    assert (
+        c.aggregate(
+            c.reduce(
+                c.ReduceFuncs.Sum, c.this, initial=c.if_(c.naive(True), 7, 8)
+            )
+        ).execute([])
+        == 7
+    )
+    assert heavy.pipe(nested_sum).execute(populated) == 10
+    with pytest.raises(KeyError):
+        c.item("a").pipe(c.naive(5).pipe(c.this + 1)).execute({})
+    with pytest.raises(KeyError):
+        c.item("a").pipe(c.if_(c.naive(True), 1, 2)).execute({})
+    assert c.item("a").pipe(c.if_(c.naive(True), 1, 2)).execute({"a": 0}) == 1
+
+    fused = c.iter(c.item("x")).iter(c.if_(c.this, 1, 2)).as_type(list)
+    fused_source = get_code_str(fused.gen_converter())
+    assert fused_source.count("for ") == 1
+    assert fused.execute([{"x": 1}, {"x": 0}]) == [1, 2]
 
 
 def test_if_multiple():
@@ -1455,7 +1567,7 @@ def test_caching_conversion():
 
     with pytest.raises(CustomException):
         c.call_func(f, c.this).pipe(
-            c.if_(c.this, c.this + 1, c.this + 2, no_input_caching=True)
+            c.if_(c.this, c.this + 1, c.this + 2)
         ).execute(0)
 
 
