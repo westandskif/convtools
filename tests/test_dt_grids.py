@@ -645,3 +645,32 @@ def test_datetime_grid_2d_1h_repro():
             )
         ]
         assert got == ref
+
+
+def test_to_step_two_day_of_week_types():
+    from convtools._dt import to_step
+
+    with pytest.raises(ValueError):
+        to_step("1mon1tue")
+
+
+def test_grid_around_end_before_start():
+    with pytest.raises(ValueError):
+        DateGrid("1d").around(date(2020, 1, 2), date(2020, 1, 1))
+    with pytest.raises(ValueError):
+        DateGrid("mo").around(datetime(2020, 1, 2, 5), date(2020, 1, 1))
+    with pytest.raises(ValueError):
+        DateTimeGrid("1h").around(datetime(2020, 1, 2), datetime(2020, 1, 1))
+
+    assert list(DateGrid("1d").around(date(2020, 1, 1), date(2020, 1, 1))) == [
+        date(2020, 1, 1)
+    ]
+
+    start = datetime(2020, 1, 1, 0, tzinfo=timezone.utc)
+    naive_end = datetime(2020, 1, 1, 1)
+    assert list(DateTimeGrid("1h").around(start, naive_end))
+
+    wall_end = datetime(2020, 1, 1, 1, tzinfo=timezone(timedelta(hours=5)))
+    DateTimeGrid("1h").around(
+        datetime(2020, 1, 1, 0, tzinfo=timezone.utc), wall_end
+    )

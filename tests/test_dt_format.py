@@ -1,9 +1,9 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 import pytest
 
 from convtools import conversion as c
-from convtools._dt import LOCALE_BASED_MAPS, DatetimeFormat
+from convtools._dt import LOCALE_BASED_MAPS, DatetimeFormat, _LocaleBasedMaps
 
 from .test_dt_utils import (
     ALL_FMT_TOKENS,
@@ -121,3 +121,31 @@ def test_datetime_format_exceptions():
             exc_2 = e
 
         assert exc_1.__class__ is exc_2.__class__
+
+
+def test_datetime_format_time_uses_strftime():
+    t = time(5, 6, 7)
+    assert c.format_dt("%H:%M:%S").execute(t) == "05:06:07"
+    fmt = "%H:%M:%S %c"
+    assert c.format_dt(fmt).execute(t) == t.strftime(fmt)
+    assert c.format_dt("%Y-%m-%d").execute(t) == t.strftime("%Y-%m-%d")
+
+
+def test_strftime_fix_init_does_not_capture_locale_names():
+    maps = _LocaleBasedMaps()
+    maps.fix_strftime_format("%H:%M")
+    assert maps.late_initialized is False
+    assert maps._strftime_fix_initialized is True
+    maps.fix_strftime_format("%Y")
+    _ = maps.upper_y_format_is_supported
+    assert maps.late_initialized is False
+
+    maps_y = _LocaleBasedMaps()
+    _ = maps_y.upper_y_format_is_supported
+    assert maps_y.late_initialized is False
+    assert maps_y._strftime_fix_initialized is True
+
+    maps_names = _LocaleBasedMaps()
+    _ = maps_names.hour_to_pct_lower_p
+    assert maps_names.late_initialized is True
+    assert maps_names._strftime_fix_initialized is True

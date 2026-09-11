@@ -3,7 +3,7 @@ from datetime import date, datetime
 import pytest
 
 from convtools import conversion as c
-from convtools._dt import DatetimeParse
+from convtools._dt import LOCALE_BASED_MAPS, DatetimeParse
 from convtools._utils import PY_VERSION
 
 from .test_dt_utils import (
@@ -304,3 +304,14 @@ def test_datetime_parse_repeated_directive():
     assert c.datetime_parse("%Y%%%%%m").execute("2024%%01") == datetime(
         2024, 1, 1
     )
+
+
+def test_datetime_parse_empty_ampm_falls_back_to_strptime(monkeypatch):
+    _ = LOCALE_BASED_MAPS.hour_to_pct_lower_p
+    monkeypatch.setattr(LOCALE_BASED_MAPS, "hour_to_pct_lower_p", ["", ""])
+
+    fmt = "%Y %I%p x"
+    assert DatetimeParse(fmt).re_pattern is None
+
+    s = datetime(2020, 1, 1, 5).strftime(fmt)
+    assert c.datetime_parse(fmt).execute(s) == datetime.strptime(s, fmt)

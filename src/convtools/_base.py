@@ -8,7 +8,7 @@ import sys
 from collections import deque
 from contextlib import ExitStack
 from copy import copy
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from io import StringIO
 from itertools import chain
@@ -1490,9 +1490,19 @@ class BaseConversion(Generic[CT]):
         if fmt == "%Y-%m-%d":
             return self.pipe(
                 If(
-                    CallFunc(isinstance, This, datetime),
-                    This.call_method("date").call_method("isoformat"),
+                    InlineExpr("type({}) is {}").pass_args(This, date),
                     This.call_method("isoformat"),
+                    If(
+                        CallFunc(isinstance, This, datetime),
+                        This.call_method("date").call_method("isoformat"),
+                        If(
+                            CallFunc(isinstance, This, date),
+                            This.call_method("isoformat"),
+                            This.call_method("strftime", "%Y-%m-%d"),
+                            no_input_caching=True,
+                        ),
+                        no_input_caching=True,
+                    ),
                     no_input_caching=True,
                 )
             )

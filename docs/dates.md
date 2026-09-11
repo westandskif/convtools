@@ -12,6 +12,15 @@ If any other are passed, the implementation falls back to `datetime.strftime`.
 See [performance section of Benefits page](benefits.md) for details.
 ///
 
+/// admonition | Locale names are captured on first use
+    type: note
+
+Locale-dependent names for formatting `%a %A %b %B %p` and parsing `%p`
+are captured the first time any of them is used in the process; a later
+`locale.setlocale` is not picked up, unlike `datetime.strftime` /
+`strptime`.
+///
+
 `c.format_dt(fmt)` accepts same format codes as
 [datetime.strftime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes) does.
 
@@ -26,6 +35,9 @@ Many format codes are optimized for speed: `%% %Y %m %d %H %I %p %M %S %f`.
 If any other are passed, the implementation falls back to `datetime.strptime`.
 See [performance section of Benefits page](benefits.md) for details.
 ///
+
+See the locale-names note under Formatting dates: parsing `%p` uses the
+same first-use snapshot.
 
 
 1. `c.date_parse(main_format, *other_formats, default=_none)` and `date_parse`

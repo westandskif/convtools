@@ -99,7 +99,7 @@ class DayOfWeekStep(BaseStep):
 
     def __init__(self, params):
         if len(params) != 1:
-            raise AssertionError
+            raise ValueError("only one day-of-week type is allowed", params)
         self.days = 7
         self.day_of_week_offset = 0
         for type_, number in params.items():
@@ -584,6 +584,10 @@ class DateGrid:
         dt_start: "Union[date, datetime]",
         dt_end: "Union[date, datetime]",
     ) -> "Iterator[date]":
+        start = dt_start.date() if isinstance(dt_start, datetime) else dt_start
+        end = dt_end.date() if isinstance(dt_end, datetime) else dt_end
+        if end < start:
+            raise ValueError("dt_end is before dt_start", dt_start, dt_end)
         return self.f(dt_start, dt_end, self.step, self.offset, self.mode)
 
 
@@ -689,6 +693,8 @@ class DateTimeGrid:
     def around(
         self, dt_start: datetime, dt_end: datetime
     ) -> "Iterator[datetime]":
+        if dt_end.replace(tzinfo=dt_start.tzinfo) < dt_start:
+            raise ValueError("dt_end is before dt_start", dt_start, dt_end)
         return self.f(dt_start, dt_end, self.step, self.offset, self.mode)
 
 
@@ -703,6 +709,27 @@ class _LocaleBasedMaps:
     upper_y_strftime_fix_needed: bool
     upper_y_format_is_supported: bool
     late_initialized = False
+    _strftime_fix_initialized = False
+
+    def _init_strftime_fix(self):
+        if self._strftime_fix_initialized:
+            return
+        self._strftime_fix_initialized = True
+        # https://github.com/python/cpython/issues/57514
+        dt = date(1, 1, 1)
+        self.upper_y_strftime_fix_needed = False
+        try:
+            if (
+                dt.strftime("%Y") == "1" and dt.strftime("%4Y") == "0001"
+            ):  # pragma: no cover
+                self.upper_y_strftime_fix_needed = True
+        except (  # pragma: no cover # pylint: disable=broad-exception-caught
+            Exception
+        ):
+            pass  # pragma: no cover
+        self.upper_y_format_is_supported = (
+            dt.strftime("%Y") == "0001" or self.upper_y_strftime_fix_needed
+        )
 
     def late_init(self):
         self.late_initialized = True
@@ -726,29 +753,21 @@ class _LocaleBasedMaps:
         self.hour_to_pct_lower_p = [
             datetime(2020, 1, 1, i).strftime("%p") for i in (0, 12)
         ]
-
-        # https://github.com/python/cpython/issues/57514
-        dt = date(1, 1, 1)
-        self.upper_y_strftime_fix_needed = False
-        try:
-            if (
-                dt.strftime("%Y") == "1" and dt.strftime("%4Y") == "0001"
-            ):  # pragma: no cover
-                self.upper_y_strftime_fix_needed = True
-        except (  # pragma: no cover # pylint: disable=broad-exception-caught
-            Exception
-        ):
-            pass  # pragma: no cover
-        self.upper_y_format_is_supported = (
-            dt.strftime("%Y") == "0001" or self.upper_y_strftime_fix_needed
-        )
+        self._init_strftime_fix()
 
     def __getattr__(self, attr):
+        if attr in (
+            "upper_y_strftime_fix_needed",
+            "upper_y_format_is_supported",
+        ):
+            self._init_strftime_fix()
+            return object.__getattribute__(self, attr)
         if not self.late_initialized:
             self.late_init()
         return object.__getattribute__(self, attr)
 
     def fix_strftime_format(self, fmt):
+        self._init_strftime_fix()
         if self.upper_y_strftime_fix_needed:
             fmt = fmt.replace("%Y", "%4Y")  # pragma: no cover
         return fmt  # pragma: no cover
@@ -901,7 +920,14 @@ class DatetimeFormat(BaseConversion):
         if match:
             return None
 
+        date_code = code_params.naive_code(date, ctx)
+        fmt_literal = repr(LOCALE_BASED_MAPS.fix_strftime_format(self.fmt))
         code = Code()
+        code.add_line(
+            f"if not isinstance({code_input}, {date_code}): "
+            f"return {code_input}.strftime({fmt_literal})",
+            0,
+        )
         for assignment_code in code_params.iter_assignments():
             code.add_line(assignment_code, 0)
 
@@ -934,10 +960,8 @@ class DatetimeFormat(BaseConversion):
             ).gen_code_and_update_ctx(code_input, ctx)
 
         except UnsupportedFormatCode:
-            return CallFunc(
-                datetime.strftime,
-                This,
-                LOCALE_BASED_MAPS.fix_strftime_format(self.fmt),
+            return This.call_method(
+                "strftime", LOCALE_BASED_MAPS.fix_strftime_format(self.fmt)
             ).gen_code_and_update_ctx(code_input, ctx)
 
 
@@ -1028,13 +1052,14 @@ class DatetimeParse(BaseConversion):
                     )
                     group_index += 1
                 elif ch == "p":
+                    ampm_names = LOCALE_BASED_MAPS.hour_to_pct_lower_p
+                    if all(name == "" for name in ampm_names):
+                        raise UnsupportedFormatCode("%p")
                     re_pieces.append(
-                        DatetimeParse._seq_to_re_group_str(
-                            LOCALE_BASED_MAPS.hour_to_pct_lower_p
-                        )
+                        DatetimeParse._seq_to_re_group_str(ampm_names)
                     )
                     code_params.create(
-                        f"12 if groups_[{group_index}].lower() == {LOCALE_BASED_MAPS.hour_to_pct_lower_p[1].lower()!r} else 0",
+                        f"12 if groups_[{group_index}].lower() == {ampm_names[1].lower()!r} else 0",
                         "ampm_h_delay",
                     )
                     group_index += 1

@@ -2,6 +2,9 @@
 
 **Changed**
 
+- `to_step("1mon1tue")` raises `ValueError` (was `AssertionError`)
+- `DateGrid.around` / `DateTimeGrid.around` raise `ValueError` when
+  `end < start`
 - unknown columns in `Table.update` / `filter` / `join` / `pivot` /
   `wide_to_long` raise `ValueError("missing columns", {names})` (was
   `KeyError` or `list.index` `ValueError`)
@@ -48,6 +51,10 @@
 
 **Fixed**
 
+- `datetime_parse` with `%p` under a locale whose AM/PM names are empty no
+  longer shifts hours by 12 (falls back to `strptime`)
+- `format_dt` on a non-`date` input (e.g. `datetime.time`) delegates to its
+  `.strftime` instead of formatting zeros
 - `Table.update_all`: `c.col("x")` now reads the row's column value (`c.this`
   remains the cell); it previously subscripted the cell
 - `Table.from_rows(header=True)` takes `row_type` from the first data row
