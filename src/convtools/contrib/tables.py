@@ -38,6 +38,7 @@ from .._base import (
     InlineExpr,
     InputArg,
     NaiveConversion,
+    Namespace,
     This,
     Tuple_,
     ensure_conversion,
@@ -48,6 +49,11 @@ from .._reducers import ReduceFuncs
 
 _none = BaseConversion._none
 _UPDATE_ALL = "__update_all"
+# Bound to the row for c.col inside update_all. A pipe nested inside the
+# user's conversion that wraps its own function does not receive this row
+# (dependencies are fixed at that pipe's construction); same limitation as
+# update. That case must fail, never silently read the cell.
+_UPDATE_ALL_ROW = "__update_all_row"
 
 
 class CloseFileIterator:
@@ -279,24 +285,26 @@ class Table:
             if header is True:
                 for index, column_name in enumerate(first_row):
                     pending_changes |= columns.add(column_name, index, None)[1]
-                first_row = _none
+                first_row = next(rows, _none)
+                input_exhausted = first_row is _none
+                row_type = tuple if first_row is _none else type(first_row)
 
             else:
                 for index in range(len(first_row)):
                     pending_changes |= columns.add(None, index, None)[1]
 
-        else:
-            if header is True:
-                if first_row is _none:
-                    raise ValueError(
-                        "impossible to infer header of an empty sequence"
-                    )
-                else:
-                    pending_changes |= columns.add(first_row, None, This())[1]
-                    first_row = _none
-            else:
-                pending_changes |= columns.add(None, None, This())[1]
-
+        elif header is True:
+            if first_row is _none:
+                raise ValueError(
+                    "impossible to infer header of an empty sequence"
+                )
+            pending_changes |= columns.add(first_row, None, This())[1]
+            first_row = next(rows, _none)
+            input_exhausted = first_row is _none
+            row_type = tuple if first_row is _none else type(first_row)
+            pending_changes |= ColumnChanges.MUTATE
+        elif first_row is not _none:
+            pending_changes |= columns.add(None, None, This())[1]
             pending_changes |= ColumnChanges.MUTATE
 
         if isinstance(header, (tuple, list, dict)) and first_row is not _none:
@@ -575,13 +583,19 @@ class Table:
     def _set_col_indexes(self, name_to_column, conversions):
         refs = []
         needs_embedding = False
+        missing_columns = set()
         for conversion in conversions:
             for ref in conversion.get_dependencies(types=ColumnRef):
+                column = name_to_column.get(ref.name)
+                if column is None:
+                    missing_columns.add(ref.name)
+                    continue
                 needs_embedding = (
-                    needs_embedding
-                    or name_to_column[ref.name].conversion is not None
+                    needs_embedding or column.conversion is not None
                 )
                 refs.append(ref)
+        if missing_columns:
+            raise ValueError("missing columns", missing_columns)
         if needs_embedding:
             self.embed_conversions()
 
@@ -654,10 +668,24 @@ class Table:
         mapping = self._set_col_indexes(name_to_column, (conversion,))
 
         for column in self.meta_columns.columns:
-            column.conversion = ColumnScope(
-                ColumnRef(column.name, id_=_UPDATE_ALL).pipe(conversion),
-                {**mapping, (_UPDATE_ALL, column.name): column.index},
-            )
+            cell_ref = ColumnRef(column.name, id_=_UPDATE_ALL)
+            if mapping:
+                column.conversion = Namespace(
+                    ColumnScope(
+                        cell_ref.pipe(
+                            ColumnScope(
+                                conversion, mapping, row_name=_UPDATE_ALL_ROW
+                            )
+                        ),
+                        {(_UPDATE_ALL, column.name): column.index},
+                    ),
+                    {_UPDATE_ALL_ROW: True},
+                )
+            else:
+                column.conversion = ColumnScope(
+                    cell_ref.pipe(conversion),
+                    {(_UPDATE_ALL, column.name): column.index},
+                )
             column.index = None
 
         self.pending_changes |= ColumnChanges.MUTATE
@@ -914,18 +942,33 @@ class Table:
             join_columns = set()
             join_condition = on
             mapping = {}
+            missing_columns = set()
             for ref in join_condition.get_dependencies(types=ColumnRef):
                 if ref.id_ == left_join_conversion.NAME:
-                    column = left_column_name_to_column[ref.name]
+                    name_to_column = left_column_name_to_column
                 elif ref.id_ == right_join_conversion.NAME:
-                    column = right_column_name_to_column[ref.name]
+                    name_to_column = right_column_name_to_column
                 else:
                     raise ValueError("ambiguous column", ref.name)
+                column = name_to_column.get(ref.name)
+                if column is None:
+                    missing_columns.add(ref.name)
+                    continue
                 mapping[(ref.id_, ref.name)] = column.index
+            if missing_columns:
+                raise ValueError("missing columns", missing_columns)
         else:
             mapping = {}
             on = [on] if isinstance(on, str) else list(on)
             join_columns = set(on)
+            missing_columns = set()
+            for column_name in on:
+                if column_name not in left_column_name_to_column:
+                    missing_columns.add(column_name)
+                if column_name not in right_column_name_to_column:
+                    missing_columns.add(column_name)
+            if missing_columns:
+                raise ValueError("missing columns", missing_columns)
             join_condition = And(
                 *(
                     left_join_conversion.item(
@@ -1192,7 +1235,17 @@ class Table:
             if name in seen:
                 raise ValueError("such column already exists", name)
             seen.add(name)
-        keep_indexes = {columns.index(name) for name in keep_cols}
+        name_to_index = {}
+        for index, name in enumerate(columns):
+            if name not in name_to_index:
+                name_to_index[name] = index
+        missing_columns = set()
+        for name in keep_cols:
+            if name not in name_to_index:
+                missing_columns.add(name)
+        if missing_columns:
+            raise ValueError("missing columns", missing_columns)
+        keep_indexes = {name_to_index[name] for name in keep_cols}
         collapse_items = tuple(
             (i, col) for i, col in enumerate(columns) if i not in keep_indexes
         )
@@ -1209,7 +1262,7 @@ class Table:
                         (
                             *(
                                 EscapedString("row_").item(
-                                    columns.index(keep_col)
+                                    name_to_index[keep_col]
                                 )
                                 for keep_col in keep_cols
                             ),

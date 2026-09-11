@@ -3,7 +3,12 @@
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
-from ._base import BaseConversion, ConversionException, GetItem
+from ._base import (
+    BaseConversion,
+    ConversionException,
+    GetItem,
+    LazyEscapedString,
+)
 
 
 class ColumnRef(BaseConversion):
@@ -21,8 +26,12 @@ class ColumnRef(BaseConversion):
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         key = (self.id_, self.name)
-        for mapping in reversed(ctx.get(self.SCOPES, ())):
+        for mapping, row_name in reversed(ctx.get(self.SCOPES, ())):
             if key in mapping:
+                if row_name:
+                    code_input = LazyEscapedString(
+                        row_name
+                    ).gen_code_and_update_ctx(code_input, ctx)
                 return GetItem(mapping[key]).gen_code_and_update_ctx(
                     code_input, ctx
                 )
@@ -40,14 +49,17 @@ class ColumnScope(BaseConversion):
         & ~BaseConversion.ContentTypes.FUNCTION_OF_INPUT
     )
 
-    def __init__(self, conversion, name_to_index):
+    def __init__(self, conversion, name_to_index, row_name=None):
         super().__init__()
         self.name_to_index = name_to_index
+        self.row_name = row_name
         self.conversion = self.ensure_conversion(conversion)
+        if row_name:
+            self.depends_on(LazyEscapedString(row_name))
 
     def gen_code_and_update_ctx(self, code_input, ctx):
         scopes = ctx.setdefault(ColumnRef.SCOPES, [])
-        scopes.append(self.name_to_index)
+        scopes.append((self.name_to_index, self.row_name))
         try:
             return self.conversion.gen_code_and_update_ctx(code_input, ctx)
         finally:

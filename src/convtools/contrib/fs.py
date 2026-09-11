@@ -14,6 +14,12 @@ def split_buffer(buffer, delimiter, chunk_size=32768):
       delimiter: delimiter to use for splitting
       chunk_size: chunk size to read at every iteration
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    return _iter_split_buffer(buffer, delimiter, chunk_size)
+
+
+def _iter_split_buffer(buffer, delimiter, chunk_size):
     delimiter_length = len(delimiter)
     chunk = buffer.read(chunk_size)
     if not chunk:
@@ -54,6 +60,12 @@ def split_buffer_n_decode(
       chunk_size: chunk size to read at every iteration
       encoding: encoding to use when decoding a chunk
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    return _iter_split_buffer_n_decode(buffer, delimiter, chunk_size, encoding)
+
+
+def _iter_split_buffer_n_decode(buffer, delimiter, chunk_size, encoding):
     delimiter_length = len(delimiter)
     chunk = buffer.read(chunk_size)
     if not chunk:

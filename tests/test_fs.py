@@ -1,5 +1,7 @@
 from io import BytesIO, StringIO
 
+import pytest
+
 from convtools.contrib.fs import split_buffer, split_buffer_n_decode
 
 
@@ -81,3 +83,17 @@ def test_split_buffer_leaves_caller_buffer_open():
     buf = BytesIO(b"12345")
     list(split_buffer_n_decode(buf, b"3", 10))
     assert buf.closed is False
+
+
+def test_split_buffer_rejects_non_positive_chunk_size():
+    buf = StringIO("abc")
+    with pytest.raises(ValueError):
+        split_buffer(buf, "a", 0)
+    with pytest.raises(ValueError):
+        split_buffer(buf, "a", -1)
+
+    buf = BytesIO(b"abc")
+    with pytest.raises(ValueError):
+        split_buffer_n_decode(buf, b"a", 0)
+    with pytest.raises(ValueError):
+        split_buffer_n_decode(buf, b"a", -1)

@@ -2,6 +2,9 @@
 
 **Changed**
 
+- unknown columns in `Table.update` / `filter` / `join` / `pivot` /
+  `wide_to_long` raise `ValueError("missing columns", {names})` (was
+  `KeyError` or `list.index` `ValueError`)
 - `Table.from_csv` skips blank lines and raises `ValueError` on ragged rows
   (physical line number, actual vs expected width)
 - `Table.drop` removes only the first column of each given name (under
@@ -45,6 +48,13 @@
 
 **Fixed**
 
+- `Table.update_all`: `c.col("x")` now reads the row's column value (`c.this`
+  remains the cell); it previously subscripted the cell
+- `Table.from_rows(header=True)` takes `row_type` from the first data row
+  (the first data row is now read at construction)
+- empty CSV / JSONL / rows with `header=None` no longer fabricate `COLUMN_0`
+- `split_buffer` / `split_buffer_n_decode` raise `ValueError` for
+  `chunk_size <= 0`
 - `c.attr(..., default=)` with the C extension no longer returns the default
   when an intermediate value is `None`; both the C and Python paths follow
   `getattr` semantics (`None` has real attributes)

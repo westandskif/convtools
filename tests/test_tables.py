@@ -7,6 +7,8 @@ from convtools import conversion as c
 from convtools._columns import ColumnDef, ColumnScope, MetaColumns
 from convtools.contrib.tables import CloseFileIterator, Table
 
+from .utils import get_code_str
+
 
 def test_table_base_init():
     list(
@@ -1047,6 +1049,7 @@ def test_from_csv_closes_opened_file_on_empty_and_skip_past_end(
     closed = _patch_open_tracking(monkeypatch)
     table = Table.from_csv(str(empty))
     assert closed
+    assert table.columns == []
     assert list(table.into_iter_rows(tuple)) == []
 
     short = tmp_path / "short.csv"
@@ -1265,7 +1268,7 @@ def test_table_update_all_keep_duplicates():
         .update_all(c.col("b"))
         .into_iter_rows(tuple)
     )
-    assert result == [(2, 4)]
+    assert result == [([3, 4], [3, 4])]
 
 
 def test_table_explode():
@@ -2118,3 +2121,169 @@ def test_skip_rows_past_end_empty_and_header_true_by_path_yields_data(
     assert list(
         Table.from_jsonl(str(jsonl_path), header=True).into_iter_rows(dict)
     ) == [{"a": 1}, {"a": 2}]
+
+
+def test_update_all_col_reads_row():
+    result = list(
+        Table.from_rows([("a", "b"), ("xy", "zw")], header=True)
+        .update_all(c.this + c.col("b"))
+        .into_iter_rows(dict)
+    )
+    assert result == [{"a": "xyzw", "b": "zwzw"}]
+
+    table = Table.from_rows(
+        [("a", "b"), ("xy", "zw")], header=True
+    ).update_all(c.this + c.col("b"))
+    assert "def pipe" in get_code_str(table.meta_columns.columns[0].conversion)
+
+    nested = Table.from_rows(
+        [("a", "b"), ("xy", "zw")], header=True
+    ).update_all(c.col("a").pipe(c.this + c.col("b")))
+    nested_code = get_code_str(nested.meta_columns.columns[0].conversion)
+    assert nested_code.count("def ") >= 2
+    assert "def pipe" in nested_code
+    with pytest.raises(NameError):
+        list(
+            Table.from_rows([("a", "b"), ("xy", "zw")], header=True)
+            .update_all(c.col("a").pipe(c.this + c.col("b")))
+            .into_iter_rows(tuple)
+        )
+
+    result = list(
+        Table.from_rows([("a", "b"), ("xy", "zw")], header=True)
+        .update(c=c.col("a") + c.col("b"))
+        .update_all(c.this + c.col("b"))
+        .into_iter_rows(dict)
+    )
+    assert result == [
+        {"a": "xyzw", "b": "zwzw", "c": "xyzwzw"},
+    ]
+
+
+def test_from_rows_header_true_row_type_from_first_data_row(tmp_path):
+    types = [
+        type(r)
+        for r in Table.from_rows(
+            [("a", "b"), [1, 2], [3, 4]], header=True
+        ).into_iter_rows(tuple)
+    ]
+    assert types == [tuple, tuple]
+
+    table = Table.from_rows([("a", "b")], header=True)
+    assert table.columns == ["a", "b"]
+    assert list(table.into_iter_rows(tuple)) == []
+
+    csv_path = tmp_path / "header_only.csv"
+    csv_path.write_text("a,b\n", encoding="utf-8")
+    table = Table.from_csv(str(csv_path), header=True)
+    assert table.columns == ["a", "b"]
+    assert list(table.into_iter_rows(tuple)) == []
+
+    assert list(
+        Table.from_csv(io.StringIO("a,b\n1,2\n"), header=True).into_iter_rows(
+            list
+        )
+    ) == [["1", "2"]]
+
+    with pytest.raises(
+        ValueError, match="row on line 2 has 3 columns, expected 2"
+    ):
+        Table.from_csv(io.StringIO("a,b\n1,2,3\n"), header=True)
+
+    assert list(
+        Table.from_rows(["name", "cde"], header=True).into_iter_rows(dict)
+    ) == [{"name": "cde"}]
+    assert list(
+        Table.from_rows([{"a": 1, "b": 2}], header=True).into_iter_rows(dict)
+    ) == [{"a": 1, "b": 2}]
+
+
+def test_from_csv_header_only_by_path_closes_file(monkeypatch, tmp_path):
+    path = tmp_path / "header_only.csv"
+    path.write_text("a,b\n", encoding="utf-8")
+    closed = _patch_open_tracking(monkeypatch)
+    table = Table.from_csv(str(path), header=True)
+    assert closed
+    assert table.columns == ["a", "b"]
+    assert list(table.into_iter_rows(tuple)) == []
+
+
+def test_empty_input_header_none_has_no_columns(tmp_path):
+    table = Table.from_rows([], header=None)
+    assert table.columns == []
+    assert list(table.into_iter_rows(dict)) == []
+
+    empty_csv = tmp_path / "empty.csv"
+    empty_csv.write_text("", encoding="utf-8")
+    table = Table.from_csv(str(empty_csv))
+    assert table.columns == []
+    assert list(table.into_iter_rows(dict)) == []
+
+    table = Table.from_jsonl(io.StringIO(""), header=None)
+    assert table.columns == []
+    assert list(table.into_iter_rows(dict)) == []
+
+    empty_jsonl = tmp_path / "empty.jsonl"
+    empty_jsonl.write_text("", encoding="utf-8")
+    table = Table.from_jsonl(str(empty_jsonl))
+    assert table.columns == []
+    assert list(table.into_iter_rows(dict)) == []
+
+    with pytest.raises(ValueError):
+        Table.from_rows([], header=True)
+
+
+def test_unknown_columns_raise_missing_columns():
+    table = Table.from_rows([(1, 2)], header=["a", "b"])
+
+    with pytest.raises(ValueError) as exc:
+        table.update(x=c.col("z"))
+    assert exc.value.args == ("missing columns", {"z"})
+
+    with pytest.raises(ValueError) as exc:
+        Table.from_rows([(1, 2)], header=["a", "b"]).update(
+            x=c.col("z") + c.col("w")
+        )
+    assert exc.value.args == ("missing columns", {"z", "w"})
+
+    with pytest.raises(ValueError) as exc:
+        Table.from_rows([(1, 2)], header=["a", "b"]).filter(c.col("z"))
+    assert exc.value.args == ("missing columns", {"z"})
+
+    with pytest.raises(ValueError) as exc:
+        Table.from_rows([(1, 2)], header=["a", "b"]).pivot(
+            rows=["z"],
+            columns=["b"],
+            values={"s": c.ReduceFuncs.Sum(c.col("a"))},
+        )
+    assert exc.value.args == ("missing columns", {"z"})
+
+    with pytest.raises(ValueError) as exc:
+        Table.from_rows([(1, 2)], header=["a", "b"]).wide_to_long(
+            keep_cols=["z"]
+        )
+    assert exc.value.args == ("missing columns", {"z"})
+
+    left = Table.from_rows([(1, 2)], header=["a", "b"])
+    right = Table.from_rows([(1, 3)], header=["a", "c"])
+    with pytest.raises(ValueError) as exc:
+        left.join(right, on=c.LEFT.col("z") == c.RIGHT.col("a"), how="inner")
+    assert exc.value.args == ("missing columns", {"z"})
+
+    left = Table.from_rows([(1, 2)], header=["a", "b"])
+    right = Table.from_rows([(1, 3)], header=["a", "c"])
+    with pytest.raises(ValueError) as exc:
+        left.join(right, on=c.LEFT.col("a") == c.RIGHT.col("z"), how="inner")
+    assert exc.value.args == ("missing columns", {"z"})
+
+    left = Table.from_rows([(1, 2)], header=["a", "b"])
+    right = Table.from_rows([(1, 3)], header=["a", "c"])
+    with pytest.raises(ValueError) as exc:
+        left.join(right, on=["c"], how="inner")
+    assert exc.value.args == ("missing columns", {"c"})
+
+    left = Table.from_rows([(1, 2)], header=["a", "b"])
+    right = Table.from_rows([(1, 3)], header=["a", "c"])
+    with pytest.raises(ValueError) as exc:
+        left.join(right, on=["b"], how="inner")
+    assert exc.value.args == ("missing columns", {"b"})
