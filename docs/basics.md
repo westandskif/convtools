@@ -115,6 +115,16 @@ equivalent conversion wrap an object to be exposed into `c.naive`:
 _And yes, you can pass conversions as arguments to other conversions (notice
 `.item(c.this)` part)._
 
+Subclasses of `dict` / `list` / `tuple` / `set` (`OrderedDict`,
+`defaultdict`, namedtuples, …) passed as literals are rebuilt as the base
+type on every call. Wrap the object in `c.naive(...)` to pass it through
+itself:
+
+```python
+c({"m": OrderedDict([("a", 1)])}).execute(None)["m"]  # dict
+c({"m": c.naive(OrderedDict([("a", 1)]))}).execute(None)["m"]  # OrderedDict
+```
+
 
 ## c.input_arg
 

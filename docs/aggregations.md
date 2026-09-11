@@ -207,6 +207,8 @@ Notes:
    O(n^2); pass `initial=list` for linear in-place list accumulation, e.g.
    `c.ReduceFuncs.Sum(c.item("tags"), initial=list)` (`Sum` still treats
    empty lists as `0`, which then raises). `DictSum` ignores `initial=`.
+   To sum `timedelta`s (or other types where a zero value is falsy) use
+   `c.reduce(lambda a, b: a + b, c.item("d"), initial=timedelta())`.
 
 Special parameters:
 

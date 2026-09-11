@@ -480,9 +480,11 @@ class BaseConversion(Generic[CT]):
     def compile_converter(
         self, converter_name: str, code: str, ctx: dict
     ) -> str:
-        is_debug = ctx.get(
-            "__debug", False
-        ) or ConverterOptionsCtx.get_option_value("debug")
+        debug = ctx.get("__debug")
+        if debug is None:
+            is_debug = ConverterOptionsCtx.get_option_value("debug")
+        else:
+            is_debug = debug
         if is_debug:
             code = format_code(code)
 
@@ -609,9 +611,10 @@ class BaseConversion(Generic[CT]):
             raise ConversionException("choose either method or a class_method")
 
         with ExitStack() as stack:
-            if debug and not ConverterOptionsCtx.get_option_value("debug"):
+            global_debug = ConverterOptionsCtx.get_option_value("debug")
+            if debug is not None and debug != global_debug:
                 options = stack.enter_context(ConverterOptionsCtx())
-                options.debug = True
+                options.debug = debug
 
             # signature should contain "data_" argument
             initial_code_input = "data_"
@@ -791,7 +794,11 @@ class BaseConversion(Generic[CT]):
     def execute(self, *args, debug=None, **kwargs) -> Any:
         """Shortcut for `gen_converter()` and running it."""
         return self.gen_converter(
-            debug=debug or ConverterOptionsCtx.get_option_value("debug")
+            debug=(
+                debug
+                if debug is not None
+                else ConverterOptionsCtx.get_option_value("debug")
+            )
         )(*args, **kwargs)
 
     def to_iter(self):

@@ -1,7 +1,9 @@
 import ast
+import asyncio
 import os
 import shutil
 import tempfile
+import threading
 
 import pytest
 
@@ -76,6 +78,115 @@ def test_code_generation_ctx_deep_nesting():
         assert ConverterOptionsCtx.get_option_value("debug") is True
 
     assert ConverterOptionsCtx.get_option_value("debug") is False
+
+
+def test_options_ctx_asyncio_isolation():
+    async def run():
+        started = asyncio.Event()
+        release = asyncio.Event()
+        results = {}
+
+        async def task_a():
+            with ConverterOptionsCtx() as options:
+                options.debug = True
+                started.set()
+                await release.wait()
+                results["a"] = ConverterOptionsCtx.get_option_value("debug")
+
+        async def task_b():
+            await started.wait()
+            results["b"] = ConverterOptionsCtx.get_option_value("debug")
+            release.set()
+
+        await asyncio.gather(task_a(), task_b())
+        assert results["a"] is True
+        assert results["b"] is False
+
+    asyncio.run(run())
+
+
+def test_options_ctx_thread_isolation():
+    seen = []
+
+    def other():
+        seen.append(ConverterOptionsCtx.get_option_value("debug"))
+
+    with ConverterOptionsCtx() as options:
+        options.debug = True
+        thread = threading.Thread(target=other)
+        thread.start()
+        thread.join()
+        assert ConverterOptionsCtx.get_option_value("debug") is True
+    assert seen == [False]
+
+
+def test_options_ctx_reentrancy():
+    ctx = ConverterOptionsCtx()
+    with ctx as options:
+        options.debug = True
+        with ctx as inner:
+            assert inner.debug is True
+            inner.debug = False
+            assert ConverterOptionsCtx.get_option_value("debug") is False
+        assert ConverterOptionsCtx.get_option_value("debug") is True
+    assert ConverterOptionsCtx.get_option_value("debug") is False
+
+
+def test_base_ctx_import_fallback(monkeypatch):
+    from convtools import _utils as u
+
+    monkeypatch.setattr(u, "contextvars", None)
+
+    class FallbackOptions(u.BaseOptions):
+        debug = False
+
+    class FallbackCtx(u.BaseCtx):
+        options_cls = FallbackOptions
+
+    assert FallbackCtx._use_contextvars is False
+    assert FallbackCtx.get_option_value("debug") is False
+    ctx = FallbackCtx()
+    with ctx as opts:
+        opts.debug = True
+        assert FallbackCtx.get_option_value("debug") is True
+        with ctx as opts2:
+            assert opts2.debug is True
+            opts2.debug = False
+            assert FallbackCtx.get_option_value("debug") is False
+        assert FallbackCtx.get_option_value("debug") is True
+    assert FallbackCtx.get_option_value("debug") is False
+
+
+def test_explicit_debug_false_overrides_global(capsys):
+    with ConverterOptionsCtx() as options:
+        options.debug = True
+        This().gen_converter(debug=False)
+        assert capsys.readouterr().out == ""
+        This().execute(1, debug=False)
+        assert capsys.readouterr().out == ""
+        This().gen_converter()
+        assert capsys.readouterr().out != ""
+
+    This().gen_converter(debug=True)
+    assert capsys.readouterr().out != ""
+
+
+def test_global_debug_execute_dumps_sources(monkeypatch):
+    tmp = tempfile.mkdtemp()
+    monkeypatch.setenv("PY_CONVTOOLS_DEBUG_DIR", tmp)
+    monkeypatch.setattr(debug_dir, "debug_dir", None)
+    monkeypatch.setattr(debug_dir, "dir_initialized", False)
+    try:
+        with ConverterOptionsCtx() as options:
+            options.debug = True
+            This().gen_converter()
+            assert not [
+                name for name in os.listdir(tmp) if name.endswith(".py")
+            ]
+            assert This().execute(1) == 1
+            assert [name for name in os.listdir(tmp) if name.endswith(".py")]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_replace_word():

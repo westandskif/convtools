@@ -80,6 +80,11 @@
 
 **Fixed**
 
+- `c.OptionsCtx()` spanning an `await` no longer leaks options into sibling
+  asyncio tasks (options context is a `contextvars.ContextVar`; child tasks
+  inherit the current options)
+- an explicit `gen_converter(debug=False)` / `execute(debug=False)` now
+  overrides a global `OptionsCtx` `debug=True`
 - `PipeConversion` reported the input uses of its `where` (and the wrapped
   helper) as uses of its own input, so parents wrapped cheap left sides in an
   extra helper function

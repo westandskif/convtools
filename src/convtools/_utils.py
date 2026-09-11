@@ -15,6 +15,12 @@ from importlib import import_module
 from io import StringIO
 from weakref import finalize
 
+try:
+    import contextvars
+except ImportError:
+    contextvars = None  # type: ignore[assignment]
+
+
 PY_VERSION = sys.version_info[:2]
 if PY_VERSION == (3, 6):
 
@@ -39,6 +45,7 @@ if PY_VERSION == (3, 6):
         ):  # pylint: disable=no-self-argument
             super().__init__(name, bases, kwargs)
             cls._ctx = threading.local()
+            cls._use_contextvars = False
 
 else:
     from typing import (
@@ -56,9 +63,18 @@ else:
     )
 
     class BaseCtxMeta(type):  # type: ignore
+        """Attach a ContextVar or threading.local stack to each BaseCtx subclass."""
+
         def __init__(cls, name, bases, kwargs):
             super().__init__(name, bases, kwargs)
-            cls._ctx = threading.local()
+            if contextvars is not None:
+                cls._options_var = contextvars.ContextVar(
+                    "{}.options_stack".format(cls.__name__), default=()
+                )
+                cls._use_contextvars = True
+            else:
+                cls._ctx = threading.local()
+                cls._use_contextvars = False
 
 
 black: "Optional[Any]" = None
@@ -108,9 +124,18 @@ class BaseCtx(
     """Context manager to manage option objects."""
 
     options_cls: Type[OT]
-    _ctx: threading.local
+    _use_contextvars: bool
+    _options_var: Any
+    _ctx: Any
 
     def __enter__(self) -> OT:
+        cls = type(self)
+        if cls._use_contextvars:
+            stack = cls._options_var.get()
+            new = stack[-1].clone() if stack else self.options_cls()
+            cls._options_var.set(stack + (new,))
+            return new
+
         if not hasattr(self._ctx, "options_stack"):
             self._ctx.options_stack = []
         prev_options = getattr(self._ctx, "options", None)
@@ -122,11 +147,24 @@ class BaseCtx(
         return self._ctx.options
 
     def __exit__(self, exc_type, exc_value, tb):
+        cls = type(self)
+        if cls._use_contextvars:
+            cls._options_var.set(cls._options_var.get()[:-1])
+            return
         self._ctx.options = self._ctx.options_stack.pop()
 
     @classmethod
+    def _get_options(cls):
+        if cls._use_contextvars:
+            stack = cls._options_var.get()
+            if stack:
+                return stack[-1]
+            return None
+        return getattr(cls._ctx, "options", None)
+
+    @classmethod
     def get_option_value(cls, option_name):
-        options = getattr(cls._ctx, "options", None)
+        options = cls._get_options()
         if not options:
             options = cls.options_cls
         return getattr(options, option_name)
