@@ -12,6 +12,7 @@ from typing import MutableMapping, cast
 
 from ._aggregations import Aggregate, GroupBy, Grouper
 from ._base import (
+    And,
     BaseConversion,
     CallFunc,
     GetItem,
@@ -62,6 +63,7 @@ class Offset:
         elif (
             isinstance(value, (tuple, list))
             and len(value) == 2
+            and value[0] is not None
             and value[1] in ("PRECEDING", "FOLLOWING")
         ):
             self.offset, offset_type = value
@@ -70,6 +72,13 @@ class Offset:
             )
         else:
             raise ValueError("unsupported window frame offset", value)
+
+
+# Callers guarantee 0 <= start and end <= len(data);
+# start > end yields nothing.
+def iter_frame(data, start, end):
+    for index in range(start, end):
+        yield data[index]
 
 
 SORT_KEY_CODE = """
@@ -535,22 +544,46 @@ class AppliedWindow(BaseConversion):
     def _init_yield_results_code(
         self, code, _, frame_start_code, frame_end_code, extra_results_code
     ):
+        # First-leg start is the frame start. UNBOUNDED PRECEDING is always
+        # index 0 (no prefix to walk), so keep C-level islice there; every
+        # other bound uses iter_frame. Tails never start at 0.
+        if self.frame_start.unbounded_preceding:
+            whole = "itertools_islice(data_, 0, {end})"
+            to_cur = "itertools_islice(data_, 0, index_cur)"
+            to_peer_start = (
+                "itertools_islice(data_, 0, min({end}, index_start))"
+            )
+        else:
+            whole = "iter_frame(data_, {start}, {end})"
+            to_cur = "iter_frame(data_, {start}, index_cur)"
+            to_peer_start = (
+                "iter_frame(data_, {start}, min({end}, index_start))"
+            )
+        from_cur = "iter_frame(data_, index_cur + 1, {end})"
+        from_peer_end = "iter_frame(data_, max({start}, index_end), {end})"
+        fmt = {
+            "start": frame_start_code,
+            "end": frame_end_code,
+        }
         if self.frame_exclusion == FrameExclusion.NO_OTHERS:
             code.add_line(
-                "yield itertools_islice(data_, {0}, {1}){2}".format(
-                    frame_start_code, frame_end_code, extra_results_code
-                ),
+                "yield {0}{1}".format(whole.format(**fmt), extra_results_code),
                 0,
             )
         elif self.frame_exclusion == FrameExclusion.CURRENT_ROW:
             code.add_line(
                 (
                     "yield (itertools_chain("
-                    " itertools_islice(data_, {0}, index_cur), "
-                    " itertools_islice(data_, index_cur + 1, {1})"
-                    ") if {0} <= index_cur <= {1} "
-                    "else itertools_islice(data_, {0}, {1})){2}".format(
-                        frame_start_code, frame_end_code, extra_results_code
+                    " {0}, "
+                    " {1}"
+                    ") if {2} <= index_cur <= {3} "
+                    "else {4}){5}".format(
+                        to_cur.format(**fmt),
+                        from_cur.format(**fmt),
+                        frame_start_code,
+                        frame_end_code,
+                        whole.format(**fmt),
+                        extra_results_code,
                     )
                 ),
                 0,
@@ -558,21 +591,27 @@ class AppliedWindow(BaseConversion):
         elif self.frame_exclusion == FrameExclusion.GROUP:
             code.add_line(
                 "yield itertools_chain("
-                "itertools_islice(data_, {0}, min({1}, index_start)),"
-                "itertools_islice(data_, max({0}, index_end), {1}),"
+                "{0},"
+                "{1},"
                 "){2}".format(
-                    frame_start_code, frame_end_code, extra_results_code
+                    to_peer_start.format(**fmt),
+                    from_peer_end.format(**fmt),
+                    extra_results_code,
                 ),
                 0,
             )
         elif self.frame_exclusion == FrameExclusion.TIES:
             code.add_line(
                 "yield itertools_chain("
-                "itertools_islice(data_, {0}, min({1}, index_start)),"
-                "(data_[index_cur],) if {0} <= index_cur < {1} else (),"
-                "itertools_islice(data_, max({0}, index_end), {1}),"
-                "){2}".format(
-                    frame_start_code, frame_end_code, extra_results_code
+                "{0},"
+                "(data_[index_cur],) if {1} <= index_cur < {2} else (),"
+                "{3},"
+                "){4}".format(
+                    to_peer_start.format(**fmt),
+                    frame_start_code,
+                    frame_end_code,
+                    from_peer_end.format(**fmt),
+                    extra_results_code,
                 ),
                 0,
             )
@@ -582,6 +621,7 @@ class AppliedWindow(BaseConversion):
     def _gen_groups_frames_finder(self, ctx):
         ctx["itertools_islice"] = islice
         ctx["itertools_chain"] = chain
+        ctx["iter_frame"] = iter_frame
         converter_name = self.gen_random_name("iter_groups_frames", ctx)
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", This)
@@ -671,6 +711,7 @@ class AppliedWindow(BaseConversion):
     def _gen_rows_frames_finder(self, ctx):
         ctx["itertools_islice"] = islice
         ctx["itertools_chain"] = chain
+        ctx["iter_frame"] = iter_frame
         converter_name = self.gen_random_name("iter_rows_frames", ctx)
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", This)
@@ -795,6 +836,7 @@ class AppliedWindow(BaseConversion):
     def _gen_range_frames_finder(self, ctx):
         ctx["itertools_islice"] = islice
         ctx["itertools_chain"] = chain
+        ctx["iter_frame"] = iter_frame
         converter_name = self.gen_random_name("iter_range_frames", ctx)
         function_ctx = self.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("data_", This)
@@ -893,20 +935,20 @@ def row():
     return FrameData.PARTITION.item(FrameData.ROW_INDEX)
 
 
-def row_preceding(offset, default=None):
+def _row_at_offset(idx, default=None):
     return If(
-        FrameData.ROW_INDEX - offset < 0,
+        And(idx >= 0, idx < FrameData.PARTITION.pipe(len)),
+        FrameData.PARTITION.item(idx),
         default,
-        FrameData.PARTITION.item(FrameData.ROW_INDEX - offset),
     )
+
+
+def row_preceding(offset, default=None):
+    return _row_at_offset(FrameData.ROW_INDEX - offset, default)
 
 
 def row_following(offset, default=None):
-    return If(
-        FrameData.ROW_INDEX + offset >= FrameData.PARTITION.pipe(len),
-        default,
-        FrameData.PARTITION.item(FrameData.ROW_INDEX + offset),
-    )
+    return _row_at_offset(FrameData.ROW_INDEX + offset, default)
 
 
 def peer_group_first_row_index():

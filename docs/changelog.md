@@ -52,9 +52,17 @@
 - a reducer that reads a label written by a sibling reducer of the same
   aggregate now raises `ConversionException` at compile time (cross-reducer
   label order was never defined)
+- bounded window frames are iterated by index instead of
+  `itertools.islice` (`ROWS n PRECEDING .. CURRENT ROW` no longer walks the
+  prefix each row; linear instead of quadratic)
 
 **Fixed**
 
+- `RowFollowing` / `RowPreceding` with a negative offset no longer wrap
+  around or raise `IndexError`; the offset flips direction, `default`
+  applies at both ends
+- `over(frame_start=(None, "PRECEDING"))` (and `frame_end`) raise
+  `ValueError` at construction (was a runtime `TypeError`)
 - a plain callable inside a `sort(key=(...))` sequence or `c.sorting_key(...)`
   raises `TypeError` at construction, and inside `over(order_by=...)` when the
   converter is generated (it was silently used as a constant key)

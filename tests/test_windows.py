@@ -6,6 +6,7 @@ from fractions import Fraction
 import pytest
 
 from convtools import conversion as c
+from convtools._window import iter_frame
 
 from .utils import get_code_str
 
@@ -331,6 +332,98 @@ def test_window_func_inside_agg():
     assert result == [45, 45, 45, 45, 45, 45, 45, 45, 45, 45]
 
 
+def test_row_preceding_following_signed_offset():
+    data = list(range(10))
+    following_neg2 = (
+        c.this.window(c.WindowFuncs.RowFollowing(-2))
+        .over(order_by=c.this)
+        .execute(data)
+    )
+    preceding_2 = (
+        c.this.window(c.WindowFuncs.RowPreceding(2))
+        .over(order_by=c.this)
+        .execute(data)
+    )
+    assert following_neg2 == [None, None, 0, 1, 2, 3, 4, 5, 6, 7]
+    assert following_neg2 == preceding_2
+
+    preceding_neg2 = (
+        c.this.window(c.WindowFuncs.RowPreceding(-2))
+        .over(order_by=c.this)
+        .execute(data)
+    )
+    following_2 = (
+        c.this.window(c.WindowFuncs.RowFollowing(2))
+        .over(order_by=c.this)
+        .execute(data)
+    )
+    assert preceding_neg2 == [2, 3, 4, 5, 6, 7, 8, 9, None, None]
+    assert preceding_neg2 == following_2
+
+    following_neg2_default = (
+        c.this.window(c.WindowFuncs.RowFollowing(-2, default=-1))
+        .over(order_by=c.this)
+        .execute(data)
+    )
+    preceding_2_default = (
+        c.this.window(c.WindowFuncs.RowPreceding(2, default=-1))
+        .over(order_by=c.this)
+        .execute(data)
+    )
+    assert following_neg2_default == [-1, -1, 0, 1, 2, 3, 4, 5, 6, 7]
+    assert following_neg2_default == preceding_2_default
+
+    preceding_neg2_default = (
+        c.this.window(c.WindowFuncs.RowPreceding(-2, default=-1))
+        .over(order_by=c.this)
+        .execute(data)
+    )
+    following_2_default = (
+        c.this.window(c.WindowFuncs.RowFollowing(2, default=-1))
+        .over(order_by=c.this)
+        .execute(data)
+    )
+    assert preceding_neg2_default == [2, 3, 4, 5, 6, 7, 8, 9, -1, -1]
+    assert preceding_neg2_default == following_2_default
+
+    offset_0 = (
+        c.this.window(c.WindowFuncs.RowFollowing(0))
+        .over(order_by=c.this)
+        .execute(data)
+    )
+    assert offset_0 == data
+    assert (
+        c.this.window(c.WindowFuncs.RowPreceding(0))
+        .over(order_by=c.this)
+        .execute(data)
+    ) == data
+
+    n = len(data)
+    for helper, k in (
+        (c.WindowFuncs.RowFollowing, n),
+        (c.WindowFuncs.RowFollowing, n + 1),
+        (c.WindowFuncs.RowPreceding, n),
+        (c.WindowFuncs.RowPreceding, n + 1),
+        (c.WindowFuncs.RowFollowing, -n),
+        (c.WindowFuncs.RowFollowing, -(n + 1)),
+        (c.WindowFuncs.RowPreceding, -n),
+        (c.WindowFuncs.RowPreceding, -(n + 1)),
+    ):
+        result = (
+            c.this.window(helper(k, default=-1))
+            .over(order_by=c.this)
+            .execute(data)
+        )
+        assert result == [-1] * n
+
+    conv_offset = (
+        c.this.window(c.WindowFuncs.RowFollowing(c.input_arg("k")))
+        .over(order_by=c.this)
+        .execute(data, k=-2)
+    )
+    assert conv_offset == following_neg2
+
+
 def test_rows_frame_end_preceding_early_rows():
     # frame_end N PRECEDING (N>=2) must not pass a negative stop to islice.
     # Empty frames yield Sum default 0 (PostgreSQL would use NULL here).
@@ -398,6 +491,196 @@ def test_window_func_exceptions():
             order_by=c.this,
             frame_start=("x", "PRECEDING"),
         )
+
+
+@pytest.mark.parametrize("frame_mode", ["ROWS", "GROUPS", "RANGE"])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"frame_start": (None, "PRECEDING")},
+        {"frame_end": (None, "FOLLOWING")},
+    ],
+)
+def test_window_none_frame_offset_rejected(frame_mode, kwargs):
+    with pytest.raises(ValueError, match="unsupported window frame offset"):
+        c.this.window(1).over(frame_mode=frame_mode, **kwargs)
+
+
+def test_iter_frame_binds_args_not_loop_vars():
+    data = [0, 1, 2, 3, 4]
+    start, end = 1, 4
+    gen = iter_frame(data, start, end)
+    start, end = 0, 1
+    other = [9, 9, 9, 9, 9]
+    other[:] = other
+    assert list(gen) == [1, 2, 3]
+
+    assert list(iter_frame(data, 3, 1)) == []
+
+    class ObservingList(list):
+        def __init__(self, *args):
+            super().__init__(*args)
+            self.accessed = []
+
+        def __getitem__(self, index):
+            self.accessed.append(index)
+            return list.__getitem__(self, index)
+
+    observed = ObservingList([10, 20, 30, 40])
+    gen = iter_frame(observed, 0, 4)
+    assert next(gen) == 10
+    del gen
+    assert observed.accessed == [0]
+
+
+def test_window_frame_iter_generated_code():
+    bounded = get_code_str(
+        c.this.window(c.ReduceFuncs.Sum(c.this)).over(
+            frame_mode="ROWS",
+            frame_start=(1, "PRECEDING"),
+            frame_end="CURRENT ROW",
+        )
+    )
+    assert "iter_frame(" in bounded
+    assert "itertools_islice(" not in bounded
+
+    for frame_mode in ("ROWS", "GROUPS", "RANGE"):
+        default = get_code_str(
+            c.this.window(c.ReduceFuncs.Sum(c.this)).over(
+                frame_mode=frame_mode
+            )
+        )
+        assert "itertools_islice(data_, 0," in default
+        assert "iter_frame(" not in default
+
+    unbounded_excl = get_code_str(
+        c.this.window(c.ReduceFuncs.Sum(c.this)).over(
+            frame_mode="ROWS",
+            frame_exclusion="CURRENT ROW",
+        )
+    )
+    assert "itertools_islice(data_, 0," in unbounded_excl
+    assert "iter_frame(" in unbounded_excl
+
+    bounded_excl = get_code_str(
+        c.this.window(c.ReduceFuncs.Sum(c.this)).over(
+            frame_mode="ROWS",
+            frame_start=(1, "PRECEDING"),
+            frame_end="CURRENT ROW",
+            frame_exclusion="CURRENT ROW",
+        )
+    )
+    assert "iter_frame(" in bounded_excl
+    assert "itertools_islice(" not in bounded_excl
+
+
+@pytest.mark.parametrize("frame_mode", ["ROWS", "GROUPS", "RANGE"])
+@pytest.mark.parametrize(
+    "frame_exclusion, expected_array, expected_first, expected_last",
+    [
+        (
+            "NO OTHERS",
+            {
+                "ROWS": [[1], [1, 1], [1, 2]],
+                "GROUPS": [[1, 1], [1, 1], [1, 1, 2]],
+                "RANGE": [[1, 1], [1, 1], [1, 1, 2]],
+            },
+            {
+                "ROWS": [1, 1, 1],
+                "GROUPS": [1, 1, 1],
+                "RANGE": [1, 1, 1],
+            },
+            {
+                "ROWS": [1, 1, 2],
+                "GROUPS": [1, 1, 2],
+                "RANGE": [1, 1, 2],
+            },
+        ),
+        (
+            "CURRENT ROW",
+            {
+                "ROWS": [None, [1], [1]],
+                "GROUPS": [[1], [1], [1, 1]],
+                "RANGE": [[1], [1], [1, 1]],
+            },
+            {
+                "ROWS": [None, 1, 1],
+                "GROUPS": [1, 1, 1],
+                "RANGE": [1, 1, 1],
+            },
+            {
+                "ROWS": [None, 1, 1],
+                "GROUPS": [1, 1, 1],
+                "RANGE": [1, 1, 1],
+            },
+        ),
+        (
+            "GROUP",
+            {
+                "ROWS": [None, None, [1]],
+                "GROUPS": [None, None, [1, 1]],
+                "RANGE": [None, None, [1, 1]],
+            },
+            {
+                "ROWS": [None, None, 1],
+                "GROUPS": [None, None, 1],
+                "RANGE": [None, None, 1],
+            },
+            {
+                "ROWS": [None, None, 1],
+                "GROUPS": [None, None, 1],
+                "RANGE": [None, None, 1],
+            },
+        ),
+        (
+            "TIES",
+            {
+                "ROWS": [[1], [1], [1, 2]],
+                "GROUPS": [[1], [1], [1, 1, 2]],
+                "RANGE": [[1], [1], [1, 1, 2]],
+            },
+            {
+                "ROWS": [1, 1, 1],
+                "GROUPS": [1, 1, 1],
+                "RANGE": [1, 1, 1],
+            },
+            {
+                "ROWS": [1, 1, 2],
+                "GROUPS": [1, 1, 2],
+                "RANGE": [1, 1, 2],
+            },
+        ),
+    ],
+)
+def test_window_bounded_frame_exclusions_with_ties(
+    frame_mode, frame_exclusion, expected_array, expected_first, expected_last
+):
+    data = [1, 1, 2]
+    over_kwargs = dict(
+        frame_mode=frame_mode,
+        order_by=c.this,
+        frame_start=(1, "PRECEDING"),
+        frame_end="CURRENT ROW",
+        frame_exclusion=frame_exclusion,
+    )
+    array_result = (
+        c.this.window(c.ReduceFuncs.Array(c.this))
+        .over(**over_kwargs)
+        .execute(data)
+    )
+    first_result = (
+        c.this.window(c.WindowFuncs.FrameFirstRow())
+        .over(**over_kwargs)
+        .execute(data)
+    )
+    last_result = (
+        c.this.window(c.WindowFuncs.FrameLastRow())
+        .over(**over_kwargs)
+        .execute(data)
+    )
+    assert array_result == expected_array[frame_mode]
+    assert first_result == expected_first[frame_mode]
+    assert last_result == expected_last[frame_mode]
 
 
 @pytest.mark.parametrize(

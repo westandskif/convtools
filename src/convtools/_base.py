@@ -576,6 +576,7 @@ class BaseConversion(Generic[CT]):
             "ReversedOrdering",
             "itertools_islice",
             "itertools_chain",
+            "iter_frame",
             "ExpectException",
             "__BROKEN_EARLY__",
         }

@@ -55,7 +55,9 @@ preceding and current row)`.
 ### Lag and lead
 
 `RowPreceding(offset)` is equivalent to `lag(...)`, and
-`RowFollowing(offset)` is equivalent to `lead(...)`.
+`RowFollowing(offset)` is equivalent to `lead(...)`. A negative offset flips
+direction (`RowFollowing(-n)` is `RowPreceding(n)`, as `lead(x, -n)` =
+`lag(x, n)`). Out-of-range rows yield `default` in both directions.
 
 {!examples-md/api__window_funcs_lag_lead.md!}
 
@@ -65,8 +67,8 @@ preceding and current row)`.
 | --- | --- | --- | --- |
 | `Row()` | none | The current row from the current partition. | Current row reference |
 | `RowIndex()` | none | Zero-based row index within the current partition. | `row_number() - 1` |
-| `RowPreceding(offset, default=None)` | `offset`: rows before current row; `default`: value when missing | The row at `offset` rows before the current row, or `default`. | `lag(row, offset, default)` |
-| `RowFollowing(offset, default=None)` | `offset`: rows after current row; `default`: value when missing | The row at `offset` rows after the current row, or `default`. | `lead(row, offset, default)` |
+| `RowPreceding(offset, default=None)` | `offset`: rows before the current row (negative flips to following); `default`: value when missing | The row at `offset` rows before the current row, or `default`. | `lag(row, offset, default)` |
+| `RowFollowing(offset, default=None)` | `offset`: rows after the current row (negative flips to preceding); `default`: value when missing | The row at `offset` rows after the current row, or `default`. | `lead(row, offset, default)` |
 | `PeerGroupFirstRow()` | none | The first row in the current peer group. | First row among ties |
 | `PeerGroupLastRow()` | none | The last row in the current peer group. | Last row among ties |
 | `PeerGroupFirstRowIndex()` | none | Zero-based index of the first row in the current peer group. | `rank() - 1` |
@@ -102,9 +104,10 @@ Frame modes follow PostgreSQL terminology:
 | `"ROWS"` | Offsets are non-negative int row counts before or after the current row. |
 | `"GROUPS"` | Offsets are non-negative int peer-group counts before or after the current peer group. |
 
-Offsets are non-negative (int for ROWS/GROUPS). Same-direction frames with
-non-zero offsets whose start lies past the end are valid and empty, as in
-PostgreSQL.
+Offsets are non-negative (int for ROWS/GROUPS). The offset in
+`(offset, "PRECEDING" / "FOLLOWING")` cannot be `None`. Same-direction frames
+with non-zero offsets whose start lies past the end are valid and empty, as
+in PostgreSQL.
 
 A `0` offset is treated as `CURRENT ROW` and the `PRECEDING` / `FOLLOWING`
 keyword no longer decides validity. This diverges from PostgreSQL in four
@@ -112,6 +115,11 @@ cases: accepted here but rejected by PostgreSQL: `CURRENT ROW .. 0 PRECEDING`
 and `0 FOLLOWING .. CURRENT ROW`; rejected here ("frame start cannot be after
 frame end") but accepted by PostgreSQL as an empty frame: `0 PRECEDING .. 1
 PRECEDING` and `1 FOLLOWING .. 0 FOLLOWING`.
+
+Each frame is aggregated independently, so a full-frame reducer (e.g. `Sum`)
+over the default `UNBOUNDED PRECEDING .. CURRENT ROW` frame is quadratic in
+partition size. Bounded frames cost O(rows × frame width). Early-terminating
+reducers (`First`, `FrameFirstRow`) stop at the first row.
 
 For available reducers, see [`c.ReduceFuncs`](./aggregations.md#creducefuncs).
 
