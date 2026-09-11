@@ -4,7 +4,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from convtools import conversion as c
-from convtools._columns import ColumnDef, ColumnScope, MetaColumns
+from convtools._columns import (
+    ColumnChanges,
+    ColumnDef,
+    ColumnScope,
+    MetaColumns,
+)
 from convtools.contrib.tables import CloseFileIterator, Table
 
 from .utils import get_code_str
@@ -388,6 +393,36 @@ def test_table_drop():
         ("b",),
         (2,),
         (3,),
+    ]
+
+
+def test_identity_take_tuple_skips_rearrange():
+    table = Table.from_rows([(1, 2), (3, 4)], ["a", "b"])
+    table.take("a", "b")
+    assert not table.pending_changes & ColumnChanges.REARRANGE
+    assert list(table.into_iter_rows(tuple)) == [(1, 2), (3, 4)]
+
+    table = Table.from_rows([(1, 2), (3, 4)], ["a", "b"])
+    table.take("b", "a")
+    assert table.pending_changes & ColumnChanges.REARRANGE
+    assert list(table.into_iter_rows(tuple)) == [(2, 1), (4, 3)]
+
+    table = Table.from_rows([(1, 2)], ["a", "a"], duplicate_columns="keep")
+    table.take("a", "a")
+    assert table.pending_changes & ColumnChanges.REARRANGE
+    assert list(table.into_iter_rows(tuple)) == [(1, 1)]
+
+    rows = list(
+        Table.from_rows([{"a": 1}, {"a": 2, "b": 3}])
+        .take("a")
+        .into_iter_rows(dict)
+    )
+    assert rows == [{"a": 1}, {"a": 2}]
+
+    table = Table.from_rows([(1, 2), (3, 4, 5)], ["a", "b"])
+    assert list(table.take("a", "b").into_iter_rows(tuple)) == [
+        (1, 2),
+        (3, 4, 5),
     ]
 
 

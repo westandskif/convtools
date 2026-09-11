@@ -2,6 +2,8 @@
 
 **Changed**
 
+- identity `Table.take(...)` on tuple/list rows no longer rebuilds rows; rows
+  longer than the header are passed through as they are without `take`
 - an index of `c.item(..., default=...)` that is an input-independent pipe or
   `if_` (e.g. `c.naive(1).pipe(c.this + 1)`) is now evaluated before the
   lookup, like any other constant expression; an exception it raises is no

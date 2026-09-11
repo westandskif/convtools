@@ -745,8 +745,13 @@ class Table:
         Args:
           column_names: columns to keep
         """
-        self.meta_columns = self.meta_columns.take(*column_names)
-        self.pending_changes |= ColumnChanges.REARRANGE
+        old_columns = self.meta_columns
+        self.meta_columns = old_columns.take(*column_names)
+        if not (
+            self.row_type is not dict
+            and self.meta_columns.is_same_as(old_columns)
+        ):
+            self.pending_changes |= ColumnChanges.REARRANGE
         return self
 
     def drop(self, *column_names: str) -> "Table":
