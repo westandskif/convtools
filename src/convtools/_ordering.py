@@ -11,6 +11,7 @@ from ._base import (
     InputArg,
     NaiveConversion,
     ThisConversion,
+    ensure_conversion,
 )
 from ._utils import Code
 
@@ -49,9 +50,11 @@ class SortingKeyConversion(BaseConversion):
         super().__init__()
         self.ignore_hints = ignore_hints
         if common_conv is not None and len(keys) == 1:
+            # module-level ensure_conversion: registering common_conv on
+            # self as well would double-count its input uses / weight
             self.keys = [
                 self.ensure_conversion(
-                    self.ensure_conversion(common_conv).pipe(keys[0])
+                    ensure_conversion(common_conv).pipe(keys[0])
                 )
             ]
             self.common_conv = None

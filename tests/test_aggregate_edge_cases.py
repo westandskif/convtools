@@ -2,7 +2,7 @@ import math
 import random
 import statistics
 from collections import Counter
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from fractions import Fraction
 from itertools import chain, cycle
@@ -1474,3 +1474,10 @@ def test_percentile_interpolation_with_infinities_and_overflow():
     assert c.aggregate(
         R.Percentile(50, c.this, interpolation="midpoint")
     ).execute([Decimal(1), Decimal(4)]) == Decimal("2.5")
+    # orderable non-numeric types keep working via `left + (right - left) * f`
+    assert c.aggregate(R.Median(c.this)).execute(
+        [datetime(2020, 1, 1), datetime(2020, 1, 3)]
+    ) == datetime(2020, 1, 2)
+    assert c.aggregate(
+        R.Percentile(50, c.this, interpolation="midpoint")
+    ).execute([date(2020, 1, 1), date(2020, 1, 3)]) == date(2020, 1, 2)

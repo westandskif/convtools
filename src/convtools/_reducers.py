@@ -528,9 +528,12 @@ def _interpolate(left, right, fraction):
     endpoints and yields the infinite endpoint when only one is infinite
     (``-inf`` / ``+inf`` gives ``nan``, as numpy does).
     """
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return left * (1 - fraction) + right * fraction
     if isinstance(left, Decimal) or isinstance(right, Decimal):
-        return left + (right - left) * Decimal(str(fraction))
-    return left * (1 - fraction) + right * fraction
+        fraction = Decimal(str(fraction))
+    # datetime / date and other orderable types with `-` and `+`
+    return left + (right - left) * fraction
 
 
 class WelfordAccumulator:

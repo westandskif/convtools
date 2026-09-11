@@ -90,3 +90,10 @@ def test_attr_default_on_intermediate_none_parity(monkeypatch, use_cext):
         c.attr("n", "missing", default=c.input_arg("d")).execute(obj, d=-1)
         == -1
     )
+    # callable getter path
+    assert c.attr("n", "__class__", default=c.naive(int).call()).execute(
+        obj
+    ) is type(None)
+    assert (
+        c.attr("n", "missing", default=c.naive(int).call()).execute(obj) == 0
+    )
