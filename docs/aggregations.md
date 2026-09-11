@@ -115,7 +115,10 @@ Reducers accept the following keyword arguments:
    compile time).
  * `initial` - an initial accumulator value for reducers that support it.
    Evaluated against the same input as the reducer's value expressions (the
-   piped value when a conversion is piped into the reducer).
+   piped value when a conversion is piped into the reducer). When `default`
+   is not passed and `initial` does not read the input (a constant or a
+   factory like `list`), it is also the result for empty input / all rows
+   rejected by `where` (the factory is called fresh per group).
    `Average` does not accept this argument. For other reducers that do not
    support it, passing `initial` is deprecated and v2 will raise `ValueError`;
    prefer `default=` unless the table marks `initial` as supported.

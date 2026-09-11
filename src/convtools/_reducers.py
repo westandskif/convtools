@@ -31,6 +31,7 @@ from ._base import (
     Tuple_,
     _None,
     _none,
+    ensure_conversion,
 )
 from ._reducer_sharing import ReducerRecord
 
@@ -95,9 +96,8 @@ class BaseReducer(BaseConversion):
             )
 
     def prepare_default_n_initial(self, default, initial):
-        if default is _none:
-            default = self.default
-        if initial is _none:
+        initial_from_caller = initial is not _none
+        if not initial_from_caller:
             initial = self.initial
 
         if initial is not _none:
@@ -110,9 +110,17 @@ class BaseReducer(BaseConversion):
                 initial = initial.call()
                 self.owns_accumulator = True
 
-            if default is _none and initial.ignores_input():
+            # a caller-passed initial (or a class initial with no class
+            # default) that ignores the input is the empty-input result
+            if (
+                default is _none
+                and (initial_from_caller or self.default is _none)
+                and initial.ignores_input()
+            ):
                 default = initial
 
+        if default is _none:
+            default = self.default
         if default is _none:
             raise ValueError("default is not provided")
 
@@ -513,11 +521,16 @@ def _safe_sqrt(x):
     return x**0.5
 
 
-def _decimal_safe_mul(value, multiplier):
-    """Multiply that works with both float and Decimal values."""
-    if isinstance(value, Decimal):
-        return value * Decimal(str(multiplier))
-    return value * multiplier
+def _interpolate(left, right, fraction):
+    """Interpolate between neighbours (numpy semantics for float inputs).
+
+    ``left * (1 - f) + right * f`` cannot overflow on opposite-sign finite
+    endpoints and yields the infinite endpoint when only one is infinite
+    (``-inf`` / ``+inf`` gives ``nan``, as numpy does).
+    """
+    if isinstance(left, Decimal) or isinstance(right, Decimal):
+        return left + (right - left) * Decimal(str(fraction))
+    return left * (1 - fraction) + right * fraction
 
 
 class WelfordAccumulator:
@@ -1044,6 +1057,12 @@ class AverageReducerDispatcher(ReducerDispatcher):
     def __call__(
         self, value, weight=1, default=None, where=None
     ) -> "BaseConversion":
+        if default is not None:
+            default = ensure_conversion(default)
+            if isinstance(default, NaiveConversion) and callable(
+                default.value
+            ):
+                default = default.call()
         if isinstance(weight, (int, float, Decimal)) and weight:
             return If(
                 CountReducer(value, where=where),
@@ -1149,15 +1168,14 @@ class PercentileReducer(ArraySortedReducer):
 
     @staticmethod
     def percentile_linear(data, percentile):
-        max_index = len(data) - 1
         index = PercentileReducer._percentile_index(data, percentile)
         left_index = int(index)
         left_value = data[left_index]
-        if left_index == max_index:
+        if left_index == index:
             return left_value
 
-        return left_value + _decimal_safe_mul(
-            data[left_index + 1] - left_value, index - left_index
+        return _interpolate(
+            left_value, data[left_index + 1], index - left_index
         )
 
     @staticmethod
@@ -1177,10 +1195,7 @@ class PercentileReducer(ArraySortedReducer):
         if left_index == index:
             return data[left_index]
 
-        left_value = data[left_index]
-        return left_value + _decimal_safe_mul(
-            data[left_index + 1] - left_value, 0.5
-        )
+        return _interpolate(data[left_index], data[left_index + 1], 0.5)
 
     @staticmethod
     def percentile_nearest(data, percentile):

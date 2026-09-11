@@ -1,3 +1,4 @@
+import math
 import random
 import statistics
 from collections import Counter
@@ -282,11 +283,16 @@ def test_weighted_average_group_key_and_callable_default():
     assert c.group_by(c.item(0)).aggregate(
         c.ReduceFuncs.Average(c.item(1), weight=c.item(2), default=c.item(0))
     ).execute([(1, 2, 0)]) == [1]
+    # a callable default is called, like every other reducer
     assert (
         c.aggregate(
             c.ReduceFuncs.Average(c.item(0), weight=c.item(1), default=list)
         ).execute([])
-        is list
+        == []
+    )
+    assert (
+        c.aggregate(c.ReduceFuncs.Average(c.item(0), default=list)).execute([])
+        == []
     )
 
 
@@ -1399,3 +1405,72 @@ def test_piped_reducer_where_initial_and_maxrow():
     assert c.aggregate(c.item("a").pipe(R.MaxRow(c.item("x")))).execute(
         [{"a": {"x": 1}}, {"a": {"x": 5}}]
     ) == {"x": 5}
+
+
+def test_initial_is_the_empty_input_result():
+    R = c.ReduceFuncs
+    assert c.aggregate(R.Sum(c.this, initial=list)).execute([]) == []
+    assert c.aggregate(R.Sum(c.this, initial=100)).execute([]) == 100
+    assert c.aggregate(R.Array(c.this, initial=lambda: [0])).execute([]) == [0]
+    # an explicit default still wins
+    assert (
+        c.aggregate(R.Sum(c.this, initial=100, default=-1)).execute([]) == -1
+    )
+    # a factory is called fresh per group; all-rejected groups get initial
+    result = (
+        c.group_by(c.item(0))
+        .aggregate(R.Array(c.item(1), initial=list, where=c.item(1) > 0))
+        .execute([(1, 0), (2, 1), (3, 0)])
+    )
+    assert result == [[], [1], []]
+    assert result[0] is not result[2]
+    # initial that reads the input cannot be the default
+    assert c.aggregate(R.Sum(c.this, initial=c.this)).execute([]) == 0
+
+
+def test_not_none_hint_only_for_never_none_calls():
+    R = c.ReduceFuncs
+    assert (
+        c.aggregate(R.Max(c.call_func(max, c.this, default=None))).execute(
+            [[], [1], []]
+        )
+        == 1
+    )
+    assert c.aggregate(R.Max(c.this.pipe(max))).execute([[None], [1]]) == 1
+    assert c.aggregate(R.Min(c.this.pipe(min))).execute([[None], [1]]) == 1
+    assert (
+        c.aggregate(R.Sum(c.this.pipe(max, default=None))).execute([[], [1]])
+        == 1
+    )
+    not_none = c.BaseConversion.OutputHints.NOT_NONE
+    assert c.call_func(sum, c.this).has_hint(not_none)
+    assert c.call_func(len, c.this).has_hint(not_none)
+    assert not c.call_func(sum, c.this, 0).has_hint(not_none)
+    assert not c.call_func(sum, c.this, start=0).has_hint(not_none)
+    assert not c.call_func(max, c.this).has_hint(not_none)
+
+
+def test_percentile_interpolation_with_infinities_and_overflow():
+    R = c.ReduceFuncs
+    inf = float("inf")
+    assert c.aggregate(R.Percentile(0, c.this)).execute([1.0, inf]) == 1.0
+    assert c.aggregate(R.Median(c.this)).execute([1.0, 2.0, inf]) == 2.0
+    assert c.aggregate(R.Median(c.this)).execute([1.0, inf]) == inf
+    assert c.aggregate(R.Median(c.this)).execute([-inf, 1.0]) == -inf
+    assert math.isnan(c.aggregate(R.Median(c.this)).execute([-inf, inf]))
+    assert c.aggregate(R.Median(c.this)).execute([-1e308, 1e308]) == 0.0
+    assert (
+        c.aggregate(
+            R.Percentile(50, c.this, interpolation="midpoint")
+        ).execute([-1e308, 1e308])
+        == 0.0
+    )
+    assert (
+        c.aggregate(
+            R.Percentile(25, c.this, interpolation="midpoint")
+        ).execute([1.0, inf, 3.0, 4.0])
+        == 2.0
+    )
+    assert c.aggregate(
+        R.Percentile(50, c.this, interpolation="midpoint")
+    ).execute([Decimal(1), Decimal(4)]) == Decimal("2.5")

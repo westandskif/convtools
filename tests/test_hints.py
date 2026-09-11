@@ -15,17 +15,11 @@ def test_hints():
         c.item(0) / 1,
         c.item(0) % 1,
         c.item(0) // 1,
-        c.max(c.this, c.this + 1),
-        c.min(c.this, c.this + 1),
-        c.call_func(min, c.this),
-        c.call_func(max, c.this),
         c.call_func(sum, c.this),
         c.call_func(len, c.this),
         c.call_func(int, c.this),
         c.call_func(float, c.this),
         c.call_func(Decimal, c.this),
-        c.naive(min).call(c.this),
-        c.naive(max).call(c.this),
         c.naive(sum).call(c.this),
         c.naive(len).call(c.this),
         c.naive(int).call(c.this),
@@ -37,9 +31,14 @@ def test_hints():
     ]:
         assert conv.has_hint(c.BaseConversion.OutputHints.NOT_NONE)
 
-    assert (
-        not c.naive([]).call().has_hint(c.BaseConversion.OutputHints.NOT_NONE)
-    )
+    for conv in [
+        c.naive([]).call(),
+        c.call_func(min, c.this),
+        c.call_func(max, c.this),
+        c.call_func(sum, c.this, None),
+        c.call_func(sum, c.this, start=None),
+    ]:
+        assert not conv.has_hint(c.BaseConversion.OutputHints.NOT_NONE)
 
     pipe_this = c.item("x").pipe(c.this)
     pipe_this.add_hint(c.BaseConversion.OutputHints.NOT_NONE)

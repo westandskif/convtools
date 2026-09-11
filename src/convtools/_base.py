@@ -1628,7 +1628,7 @@ def var_name_from_string(s):
     return s
 
 
-NOT_NONE_FUNCS = {sum, min, max, len, int, float, Decimal}
+NOT_NONE_FUNCS = {len, int, float, Decimal}
 
 
 class NaiveConversion(BaseConversion):
@@ -1709,7 +1709,10 @@ class NaiveConversion(BaseConversion):
     def call(self, *args, **kwargs) -> "Call":
         conv = super().call(*args, **kwargs)
         try:
-            if self.value in NOT_NONE_FUNCS:
+            # sum(x, None) returns None; min / max can return None too
+            if self.value in NOT_NONE_FUNCS or (
+                self.value is sum and len(args) == 1 and not kwargs
+            ):
                 conv.add_hint(BaseConversion.OutputHints.NOT_NONE)
         except TypeError:
             pass

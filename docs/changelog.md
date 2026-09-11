@@ -42,6 +42,16 @@
 
 **Fixed**
 
+- `initial=` passed to a built-in reducer without `default=` is now the
+  empty-input / all-rejected result (e.g. `Sum(..., initial=list)` on empty
+  input gives `[]`, not `0`)
+- `NOT_NONE` hint: `min` / `max` calls and `sum` calls with a start argument
+  are no longer assumed to never return `None` (reducers keep their guards)
+- `Percentile` / `Median` interpolation returns the element at an exact
+  index, returns the infinite endpoint when only one neighbour is infinite,
+  `nan` for `-inf` / `+inf` (numpy semantics), and no longer overflows on
+  opposite-sign endpoints (`Median([-1e308, 1e308]) == 0.0`)
+- `Average(default=callable)` calls the callable like every other reducer
 - join conditions containing an aggregate or a nested join no longer fail to
   compile with `duplicate argument '_none'`
 - window `order_by` with a single key using `c.input_arg` / `c.label` no
