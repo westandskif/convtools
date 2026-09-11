@@ -9,9 +9,9 @@ from convtools import conversion as c
 from convtools._base import BaseConversion
 from convtools._reducer_sharing import (
     _analyze_template_block,
+    _check_temp_order,
     _replace_by_key,
     _structural_keys,
-    _topo_temp_order,
 )
 from convtools._reducers import SumReducer
 
@@ -429,7 +429,7 @@ def test_one_branch_value_is_not_hoisted():
     assert spec.execute([{"g": 1, "x": 1}, {"g": 1}]) == [{"g": 1, "v": 0}]
 
 
-def _assert_comp_iter_is_tmp_not_target(code_str):
+def _assert_comp_iter_is_tmp_not_target(code_str, expected_target=None):
     found = False
     for line in code_str.splitlines():
         if " for " not in line or " in " not in line or "lambda" in line:
@@ -439,7 +439,10 @@ def _assert_comp_iter_is_tmp_not_target(code_str):
         found = True
         after_for = line.split(" for ", 1)[1]
         target, rest = after_for.split(" in ", 1)
-        assert "_tmp" not in target
+        if expected_target is None:
+            assert "_tmp" not in target
+        else:
+            assert target.strip() == expected_target
         assert "_tmp" in rest
     assert found
 
@@ -706,14 +709,14 @@ def test_piped_maxrow_minrow_share_row_expr():
     )
 
 
-def test_user_cse_name_in_lambda_is_not_renamed():
+def test_user_tmp_name_in_lambda_is_not_replaced():
     data = [{"x": 1, "y": 6}, {"x": 2, "y": 7}]
     spec = c.aggregate(
         {
             "s": c.ReduceFuncs.Sum(c.item("x")),
             "m": c.ReduceFuncs.Max(c.item("x")),
             "b": c.ReduceFuncs.Array(
-                c.inline_expr("(lambda __cse0_: __cse0_ * 10)({v})").pass_args(
+                c.inline_expr("(lambda _tmp0_: _tmp0_ * 10)({v})").pass_args(
                     v=c.item("y")
                 )
             ),
@@ -723,52 +726,46 @@ def test_user_cse_name_in_lambda_is_not_renamed():
     converter = spec.gen_converter()
     assert converter(data)["b"] == [60, 70]
     code_str = get_code_str(converter)
-    assert "lambda __cse0_:" in code_str
-    for line in code_str.splitlines():
-        if "lambda" in line:
-            assert "__cse0_" in line.split("lambda", 1)[1]
+    assert "lambda _tmp0_:" in code_str
+    assert "(lambda _tmp0_: _tmp0_ * 10)(_tmp1_)" in code_str
 
 
-def test_user_cse_name_in_comprehension_target_is_not_renamed():
+def test_user_tmp_name_in_comprehension_target_is_not_replaced():
     data = [{"x": 1, "y": [6, 7]}, {"x": 2, "y": [8]}]
     spec = c.aggregate(
         {
             "s": c.ReduceFuncs.Sum(c.item("x")),
             "m": c.ReduceFuncs.Max(c.item("x")),
             "b": c.ReduceFuncs.Array(
-                c.inline_expr("[__cse0_ * 10 for __cse0_ in {v}]").pass_args(
+                c.inline_expr("[_tmp0_ * 10 for _tmp0_ in {v}]").pass_args(
                     v=c.item("y")
                 )
             ),
-            "t": c.ReduceFuncs.Max(c.item("y")),
+            "t": c.ReduceFuncs.Sum(c.item("y")),
         }
     )
     converter = spec.gen_converter()
     assert converter(data)["b"] == [[60, 70], [80]]
     code_str = get_code_str(converter)
-    _assert_comp_iter_is_tmp_not_target(code_str)
-    assert "for __cse0_ in" in code_str
+    _assert_comp_iter_is_tmp_not_target(code_str, expected_target="_tmp0_")
+    assert "for _tmp0_ in _tmp1_" in code_str
 
 
-def _marked_cse_ref_tree(code):
+def _marked_tmp_ref_tree(code):
     tree = ast.parse(code, mode="eval").body
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and node.id.startswith("__cse"):
+        if isinstance(node, ast.Name) and node.id.startswith("_tmp"):
             node._cse_temp = True
     return tree
 
 
-def test_topo_temp_order_cycle_raises():
-    left = _marked_cse_ref_tree("__cse1_ + 1")
-    right = _marked_cse_ref_tree("__cse0_ + 1")
-    with pytest.raises(RuntimeError, match="cyclic reducer-sharing temps"):
-        _topo_temp_order([("__cse0_", left), ("__cse1_", right)])
-
-
-def test_topo_temp_order_name_root():
-    tree = ast.parse("x", mode="eval").body
-    ordered = _topo_temp_order([("__cse0_", tree)])
-    assert [name for name, _tree in ordered] == ["__cse0_"]
+def test_check_temp_order_forward_ref_raises():
+    left = _marked_tmp_ref_tree("_tmp1_ + 1")
+    right = _marked_tmp_ref_tree("_tmp0_ + 1")
+    with pytest.raises(
+        RuntimeError, match="reducer-sharing temp .* references a later temp"
+    ):
+        _check_temp_order([("_tmp0_", left), ("_tmp1_", right)])
 
 
 def test_analyze_template_block_empty_lines():
@@ -847,7 +844,7 @@ def _spec_lambda_bind():
             "s": c.ReduceFuncs.Sum(c.item("x")),
             "m": c.ReduceFuncs.Max(c.item("x")),
             "b": c.ReduceFuncs.Array(
-                c.inline_expr("(lambda __cse0_: __cse0_ * 10)({v})").pass_args(
+                c.inline_expr("(lambda _tmp0_: _tmp0_ * 10)({v})").pass_args(
                     v=c.item("y")
                 )
             ),
@@ -860,7 +857,7 @@ def _spec_comprehension_bind():
     return c.aggregate(
         {
             "arr": c.ReduceFuncs.Array(
-                c.inline_expr("[__cse0_ for __cse0_ in {0}]").pass_args(
+                c.inline_expr("[_tmp0_ for _tmp0_ in {0}]").pass_args(
                     c.item("k")
                 )
             ),

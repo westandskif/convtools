@@ -231,21 +231,6 @@ def _replace_by_key(node, key_to_name, keys):
     return new_node, transformer.changed
 
 
-def _rename_names(node, old_to_new):
-    class _Renamer(ast.NodeTransformer):
-        def visit_Name(self, name_node):
-            if not getattr(name_node, "_cse_temp", False):
-                return name_node
-            new_id = old_to_new.get(name_node.id)
-            if new_id is None:
-                return name_node
-            renamed = ast.Name(id=new_id, ctx=name_node.ctx)
-            renamed._cse_temp = True
-            return renamed
-
-    return _Renamer().visit(node)
-
-
 def _if_has_complete_else(if_stmt):
     orelse = if_stmt.orelse
     if not orelse:
@@ -595,43 +580,26 @@ def _collect_count_items(scope, plan, with_init, self_scope, signature, items):
         items.append(_CountItem(plan.signature, 1, True, "signature"))
 
 
-def _topo_temp_order(temp_entries):
-    names = [name for name, _tree in temp_entries]
-    name_set = set(names)
-    depends = {name: set() for name in names}
-    for name, tree in temp_entries:
-        found = []
-        nodes = []
-        if isinstance(tree, ast.Name):
-            nodes.append(tree)
-        nodes.extend(_walk_tree(tree, eager_only=False))
-        for child in nodes:
-            if (
+def _check_temp_order(name_to_tree_pairs):
+    """Raise if a temp's RHS references a temp not yet emitted.
+
+    Walks each RHS once (``O(size of RHS)`` per temp). Roots are never
+    ``ast.Name`` (``_HOISTABLE_TYPES`` has none).
+    """
+    emitted = set()
+    for name, tree in name_to_tree_pairs:
+        for child in _walk_tree(tree, eager_only=False):
+            if not (
                 isinstance(child, ast.Name)
                 and getattr(child, "_cse_temp", False)
-                and child.id in name_set
             ):
-                found.append(child.id)
-        depends[name].update(found)
-    remaining = set(names)
-    ordered = []
-    while remaining:
-        ready = [
-            name
-            for name in names
-            if name in remaining and not (depends[name] & remaining)
-        ]
-        if not ready:
-            raise RuntimeError(
-                "cyclic reducer-sharing temps: {}".format(
-                    ", ".join(sorted(remaining))
+                continue
+            if child.id not in emitted:
+                raise RuntimeError(
+                    "reducer-sharing temp {} references a later temp"
+                    " {}".format(name, child.id)
                 )
-            )
-        for name in ready:
-            remaining.remove(name)
-            ordered.append(name)
-    by_name = dict(temp_entries)
-    return [(name, by_name[name]) for name in ordered]
+        emitted.add(name)
 
 
 def analyze_scope(scope, plan, with_init, signature, tmp_index):
@@ -649,15 +617,14 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
     its tree is rewritten (then re-added). ``rhs_tree`` is the original
     matched node, orphaned from every item tree after substitution, so
     items and temps never alias AST nodes.
-    Provisional names ``__cse<N>_`` are renamed to ``_tmp<N>_`` in
-    topological emission order. Optimizer temps are recognised only by
-    the ``_cse_temp`` marker on ``ast.Name`` nodes, never by identifier
-    spelling.
+    Temps are named at extraction, emitted in creation order, and the
+    assert guards the invariant that a temp's RHS only references earlier
+    temps. ``_cse_temp`` marks optimizer temps for structural identity
+    and for that assert.
     """
     items = []
     _collect_count_items(scope, plan, with_init, scope, signature, items)
     local_temps = []
-    local_i = 0
     intern = {}
     item_keys = {}  # id(item) -> structural keys; dropped when rewritten
     item_contribs = {}
@@ -722,10 +689,10 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
         if best_key is None:
             break
         rec = candidates[best_key]
-        internal_name = "__cse{}_".format(local_i)
-        local_i += 1
+        public_name = "_tmp{}_".format(tmp_index)
+        tmp_index += 1
         rhs_tree = next(iter(rec["contributors"].values()))[1]
-        mapping = {best_key: internal_name}
+        mapping = {best_key: public_name}
         rewritten_items = []
         for item, _node in list(rec["contributors"].values()):
             new_tree, changed = _replace_by_key(
@@ -750,25 +717,11 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
             )
         )
         _add_item_contributions(items[-1])
-        local_temps.append((internal_name, rhs_tree))
+        local_temps.append((public_name, rhs_tree))
 
-    ordered = _topo_temp_order(local_temps)
-    old_to_new = {}
-    emitted = []
-    for internal_name, tree in ordered:
-        public_name = "_tmp{}_".format(tmp_index)
-        tmp_index += 1
-        old_to_new[internal_name] = public_name
-        emitted.append((public_name, tree))
-    if old_to_new:
-        for item in items:
-            item.tree = _rename_names(item.tree, old_to_new)
-        emitted = [
-            (name, _rename_names(tree, old_to_new)) for name, tree in emitted
-        ]
-
+    _check_temp_order(local_temps)
     plan.temps[id(scope)] = [
-        (name, _fmt_expr(tree, rewritten=True)) for name, tree in emitted
+        (name, _fmt_expr(tree, rewritten=True)) for name, tree in local_temps
     ]
 
     for item in items:

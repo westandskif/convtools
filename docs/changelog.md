@@ -48,7 +48,8 @@
   substituted into a scope that may rebind a name. A node's unguarded
   reducers run before its guarded (`where=`) children, so side effects and
   the first raised exception can move between reducers; declaration order
-  was not honoured before either.
+  was not honoured before either; in-row evaluation order across reducers
+  is unspecified.
 - `Percentile(..., interpolation="nearest")` now rounds half to even
   (Python `round`, matching numpy `method="nearest"`); previously half rounded
   down. Only exact-`.5` indexes change
