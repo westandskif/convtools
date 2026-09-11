@@ -569,6 +569,7 @@ class BaseConversion(Generic[CT]):
             "__deque__",
             "operator_itemgetter",
             "operator_attrgetter",
+            "operator_index",
             "ListSortedOnceWrapper",
             "WelfordAccumulator",
             "WelfordCovarianceAccumulator",
@@ -1119,9 +1120,10 @@ class BaseConversion(Generic[CT]):
             a sorting key, to be passed to sorted. A list is a sequence of
             keys (same as a tuple); wrap with c.list(...) for a single
             composite key. A Python callable is passed to sorted as is; a
-            conversion is evaluated per element as the key. To use a callable
-            known only at runtime, wrap it:
-            key=c.input_arg("f").call(c.this).
+            conversion is evaluated per element as the key. Sequence elements
+            must be conversions (a plain callable raises TypeError; wrap it
+            as c.call_func(f, c.this)). To use a callable known only at
+            runtime, wrap it: key=c.input_arg("f").call(c.this).
           reverse (bool): to be passed to sorted
 
         >>> c.this.sort(key=c.input_arg("f").call(c.this))

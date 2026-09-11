@@ -120,6 +120,13 @@ none_first/none_last configuration:
 
 The last `asc()` / `desc()` wins and resets `none_first` / `none_last`.
 
+Keys inside a key sequence (and `c.sorting_key` / `order_by`) must be
+conversions: a plain callable raises `TypeError`; wrap it as
+`c.call_func(f, c.this)`. When the keys' directions are mixed, `sort` runs as
+several stable `list.sort` passes (later keys first), so every key must be
+comparable across all elements — not only within ties of the preceding keys —
+and keys are evaluated per pass.
+
 {!examples-md/api__sort.md!}
 
 ##### sorting_key

@@ -2,6 +2,10 @@
 
 **Changed**
 
+- `sort` with `desc()` keys uses `sorted(..., reverse=True)` and, for mixed
+  directions, stable multi-pass `list.sort`; results are the same for mutually
+  comparable keys, but secondary keys are now compared across all elements and
+  keys are evaluated per pass (later keys first). `c.sorting_key` is unchanged
 - `to_step("1mon1tue")` raises `ValueError` (was `AssertionError`)
 - `DateGrid.around` / `DateTimeGrid.around` raise `ValueError` when
   `end < start`
@@ -51,6 +55,11 @@
 
 **Fixed**
 
+- a plain callable inside a `sort(key=(...))` sequence or `c.sorting_key(...)`
+  raises `TypeError` at construction, and inside `over(order_by=...)` when the
+  converter is generated (it was silently used as a constant key)
+- `none_first` / `none_last` keys evaluate the key expression once per
+  element (was twice)
 - `datetime_parse` with `%p` under a locale whose AM/PM names are empty no
   longer shifts hours by 12 (falls back to `strptime`)
 - `format_dt` on a non-`date` input (e.g. `datetime.time`) delegates to its

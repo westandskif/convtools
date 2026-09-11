@@ -345,6 +345,11 @@ def test_sort_key_list_equals_tuple():
     assert none_list == none_expected
 
 
+def test_sort_without_key():
+    assert c.this.sort().execute([3, 1, 2]) == [1, 2, 3]
+    assert c.this.sort(reverse=True).execute([3, 1, 2]) == [3, 2, 1]
+
+
 def test_sort_unsupported_key_type():
     with pytest.raises(TypeError, match="callable"):
         c.this.sort(key=123)
@@ -355,3 +360,191 @@ def test_sort_empty_key_sequence():
         c.this.sort(key=[])
     with pytest.raises(ValueError, match="key sequence is empty"):
         c.this.sort(key=())
+
+
+def test_sort_rejects_callable_in_key_sequence():
+    with pytest.raises(TypeError, match="key sequence elements"):
+        c.this.sort(key=(c.item("a"), lambda x: -x["b"]))
+    with pytest.raises(TypeError, match="key sequence elements"):
+        c.this.sort(key=[c.item("a"), str])
+    with pytest.raises(TypeError, match="key sequence elements"):
+        c.sorting_key(c.item("a"), lambda x: 1)
+
+    assert c.this.sort(key=(c.item(0), c.this)).execute(
+        [(1, "b"), (1, "a"), (0, "c")]
+    ) == [(0, "c"), (1, "a"), (1, "b")]
+    assert c.this.sort(key=(c.item("a").desc(), 5)).execute(
+        [{"a": 1}, {"a": 3}, {"a": 2}]
+    ) == [{"a": 3}, {"a": 2}, {"a": 1}]
+
+
+def test_none_hint_key_evaluated_once():
+    data = [{"a": 2}, {"a": 1}, {"a": None}]
+    n = {"n": 0}
+
+    def counter(row):
+        n["n"] += 1
+        return row["a"]
+
+    result = c.this.sort(
+        key=c.call_func(counter, c.this).asc(none_last=True)
+    ).execute(data)
+    assert n["n"] == len(data)
+    assert result == [{"a": 1}, {"a": 2}, {"a": None}]
+
+    n["n"] = 0
+    result = sorted(
+        data,
+        key=c.sorting_key(c.call_func(counter, c.this).asc(none_last=True)),
+    )
+    assert n["n"] == len(data)
+    assert result == [{"a": 1}, {"a": 2}, {"a": None}]
+
+    data = [
+        {"id": "a", "it": iter([2, None])},
+        {"id": "b", "it": iter([1, 1])},
+    ]
+    result = c.this.sort(
+        key=c.call_func(next, c.item("it")).asc(none_last=True)
+    ).execute(data)
+    assert [row["id"] for row in result] == ["b", "a"]
+
+
+def test_none_hint_key_sees_preceding_label():
+    key = c.sorting_key(
+        c.this.pipe(c.this, label_output="x"),
+        c.label("x").asc(none_last=True),
+    )
+    assert key(1) == (1, False, 1)
+    assert key(None) == (None, True, None)
+
+    result = c.this.sort(
+        key=(
+            c.item("a").pipe(c.naive(0), label_input="a"),
+            c.label("a").asc(none_last=True),
+        )
+    ).execute([{"a": 2}, {"a": None}, {"a": 1}])
+    assert result == [{"a": 1}, {"a": 2}, {"a": None}]
+
+
+def test_sort_desc_uses_reverse_fast_path():
+    converter = c.this.sort(key=c.item("a").desc()).gen_converter()
+    code = get_code_str(converter)
+    assert "operator_itemgetter" in code
+    assert "reverse=True" in code
+    assert "ReversedOrdering" not in code
+    assert converter([{"a": 1}, {"a": 3}, {"a": 2}]) == [
+        {"a": 3},
+        {"a": 2},
+        {"a": 1},
+    ]
+
+    attr_code = get_code_str(
+        c.this.sort(key=c.attr("a").desc()).gen_converter()
+    )
+    assert "operator_attrgetter" in attr_code
+    assert "reverse=True" in attr_code
+    assert "ReversedOrdering" not in attr_code
+
+
+def test_sort_mixed_direction_multi_pass_code():
+    mixed = c.this.sort(key=(c.item("a").desc(), c.item("b"))).gen_converter()
+    mixed_code = get_code_str(mixed)
+    assert mixed_code.count("data_.sort(") == 2
+    assert mixed_code.index("itemgetter('b')") < mixed_code.index(
+        "itemgetter('a')"
+    )
+    assert "ReversedOrdering" not in mixed_code
+    assert mixed([{"a": 1, "b": 2}, {"a": 2, "b": 1}, {"a": 1, "b": 1}]) == [
+        {"a": 2, "b": 1},
+        {"a": 1, "b": 1},
+        {"a": 1, "b": 2},
+    ]
+
+    both_desc = c.this.sort(
+        key=(c.item("a").desc(), c.item("b").desc())
+    ).gen_converter()
+    both_code = get_code_str(both_desc)
+    assert "sorted(" in both_code
+    assert "reverse=True" in both_code
+    assert "data_.sort(" not in both_code
+    assert "ReversedOrdering" not in both_code
+
+    three = c.this.sort(
+        key=(c.item("a").desc(), c.item("b"), c.item("c").desc()),
+        reverse=True,
+    ).gen_converter()
+    three_code = get_code_str(three)
+    assert three_code.count("data_.sort(") == 3
+    # last-to-first: c ascending, b reversed, a ascending
+    c_pos = three_code.index("itemgetter('c')")
+    b_pos = three_code.index("itemgetter('b')")
+    a_pos = three_code.index("itemgetter('a')")
+    assert c_pos < b_pos < a_pos
+    assert "reverse=True" in three_code[b_pos:a_pos]
+    assert "ReversedOrdering" not in three_code
+
+    gen_result = c.this.sort(key=(c.item("a").desc(), c.item("b"))).execute(
+        {"a": i, "b": -i} for i in range(3)
+    )
+    assert gen_result == [
+        {"a": 2, "b": -2},
+        {"a": 1, "b": -1},
+        {"a": 0, "b": 0},
+    ]
+
+
+def test_sort_runtime_and_static_reverse():
+    data = [{"a": 1, "b": 2}, {"a": 2, "b": 1}, {"a": 1, "b": 0}]
+    desc_key = c.item("a").desc()
+    mixed_key = (c.item("a").desc(), c.item("b"))
+    static_desc_true = c.this.sort(key=desc_key, reverse=True).execute(data)
+    static_desc_false = c.this.sort(key=desc_key, reverse=False).execute(data)
+    static_mixed_true = c.this.sort(key=mixed_key, reverse=True).execute(data)
+    static_mixed_false = c.this.sort(key=mixed_key, reverse=False).execute(
+        data
+    )
+
+    runtime = c.this.sort(key=desc_key, reverse=c.input_arg("r"))
+    runtime_mixed = c.this.sort(key=mixed_key, reverse=c.input_arg("r"))
+    assert runtime.execute(data, r=True) == static_desc_true
+    assert runtime.execute(data, r=False) == static_desc_false
+    assert runtime_mixed.execute(data, r=True) == static_mixed_true
+    assert runtime_mixed.execute(data, r=False) == static_mixed_false
+    assert "ReversedOrdering" not in get_code_str(runtime.gen_converter())
+    assert "ReversedOrdering" not in get_code_str(
+        runtime_mixed.gen_converter()
+    )
+
+    assert c.this.sort(key=c.item("a"), reverse=1).execute(
+        [{"a": 1}, {"a": 2}]
+    ) == [{"a": 2}, {"a": 1}]
+    assert c.this.sort(key=c.item("a"), reverse=2).execute(
+        [{"a": 1}, {"a": 2}]
+    ) == [{"a": 2}, {"a": 1}]
+    assert c.this.sort(key=c.item("a"), reverse=None).execute(
+        [{"a": 2}, {"a": 1}]
+    ) == [{"a": 1}, {"a": 2}]
+    with pytest.raises(TypeError):
+        c.this.sort(key=c.item("a"), reverse=1.5)
+
+    class IndexZero:
+        def __bool__(self):
+            return True
+
+        def __index__(self):
+            return 0
+
+    assert c.this.sort(key=c.this, reverse=c.input_arg("r")).execute(
+        [2, 1, 3], r=IndexZero()
+    ) == [1, 2, 3]
+
+
+def test_sorting_key_still_uses_reversed_ordering():
+    sk = SortingKeyConversion((c.item("a").desc(),))
+    assert "ReversedOrdering" in get_code_str(sk.gen_converter())
+    result = sorted(
+        [{"a": 1}, {"a": 3}, {"a": 2}],
+        key=c.sorting_key(c.item("a").desc()),
+    )
+    assert result == [{"a": 3}, {"a": 2}, {"a": 1}]

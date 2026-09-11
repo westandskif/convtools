@@ -7,6 +7,8 @@ import pytest
 
 from convtools import conversion as c
 
+from .utils import get_code_str
+
 
 def test_iter_window():
     assert list(c.iter_windows(2, step=1).execute(range(3))) == [
@@ -1176,3 +1178,25 @@ def test_window_single_key_order_by_input_arg_and_label():
         .over(order_by=c.item("k") * c.label("rows").pipe(len))
         .execute(data)
     ) == [0, 3, 5, 2, 4, 1]
+
+
+def test_window_order_by_rejects_plain_callable():
+    with pytest.raises(TypeError, match="key sequence elements"):
+        (
+            c.this.window(c.ReduceFuncs.Count())
+            .over(order_by=(c.item("a"), lambda x: 1))
+            .gen_converter()
+        )
+
+
+def test_window_order_by_none_hint_binds_once():
+    data = [{"a": None}, {"a": 2}, {"a": 1}]
+    spec = c.this.window(c.ReduceFuncs.Count()).over(
+        order_by=c.item("a").desc(none_last=True)
+    )
+    converter = spec.gen_converter()
+    code = get_code_str(converter)
+    assert "ReversedOrdering" in code
+    assert "is None, ReversedOrdering(data_" not in code
+    assert "v0 = " in code
+    assert spec.execute(data) == [3, 1, 2]
