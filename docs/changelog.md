@@ -50,6 +50,9 @@
   the first raised exception can move between reducers; declaration order
   was not honoured before either; in-row evaluation order across reducers
   is unspecified.
+- reducer-sharing planning cost no longer grows with the number of
+  candidate expressions per extraction (heap-based candidate selection);
+  many distinct deep getters in one aggregate compile noticeably faster
 - `Percentile(..., interpolation="nearest")` now rounds half to even
   (Python `round`, matching numpy `method="nearest"`); previously half rounded
   down. Only exact-`.5` indexes change

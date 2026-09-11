@@ -9,6 +9,7 @@ must not mutate the values they receive.
 """
 
 import ast
+import heapq
 from functools import lru_cache
 
 from ._utils import ast_unparse
@@ -603,6 +604,11 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
     item_keys = {}  # id(item) -> structural keys; dropped when rewritten
     item_contribs = {}
     candidates = {}
+    heap = []
+
+    def _push_if_eligible(key, rec):
+        if rec["count"] >= 2 and rec["eager_ok"] > 0:
+            heapq.heappush(heap, (-rec["count"], -rec["size"], -key))
 
     def _add_item_contributions(item):
         keys = _structural_keys(item.tree, intern)
@@ -632,6 +638,7 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
             if eager_flag:
                 rec["eager_ok"] += 1
             rec["contributors"][id(item)] = (item, node)
+            _push_if_eligible(key, rec)
         item_contribs[id(item)] = contribs
 
     def _subtract_item_contributions(item):
@@ -647,19 +654,29 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
             rec["contributors"].pop(item_id, None)
             if rec["live"] == 0:
                 del candidates[key]
+            else:
+                _push_if_eligible(key, rec)
 
     for item in items:
         _add_item_contributions(item)
     while True:
-        best = None
         best_key = None
-        for key, rec in candidates.items():
+        while heap:
+            snapshot = heapq.heappop(heap)
+            key = -snapshot[2]
+            rec = candidates.get(key)
+            if rec is None:
+                continue
             if rec["count"] < 2 or rec["eager_ok"] <= 0:
                 continue
-            order = (rec["count"], rec["size"], key)
-            if best is None or order > best:
-                best = order
-                best_key = key
+            if (
+                -rec["count"],
+                -rec["size"],
+                -key,
+            ) != snapshot:
+                continue
+            best_key = key
+            break
         if best_key is None:
             break
         rec = candidates[best_key]

@@ -837,6 +837,49 @@ def test_sharing_plan_scales_roughly_linearly():
     )
     assert t800 < t400 * 3 + 0.5
 
+    def deep_seconds(n):
+        spec = c.aggregate(
+            {
+                i: c.ReduceFuncs.Max(
+                    c.item(*["k{}_{}".format(i, j) for j in range(20)])
+                )
+                for i in range(n)
+            }
+        )
+        started = time.perf_counter()
+        spec.gen_converter()
+        return time.perf_counter() - started
+
+    t150 = deep_seconds(150)
+    t300 = deep_seconds(300)
+    print(
+        "sharing plan 150 deep getters: {:.4f}s; 300: {:.4f}s".format(
+            t150, t300
+        )
+    )
+    assert t300 < 3 * t150
+
+
+def test_sharing_selects_count_size_key_order():
+    # x['a']['b'] ×2, x['a'] ×3, x['c'] ×2 → (count, size, key) max is a,
+    # then _tmp0_['b'] over c (equal count/size, later interned key wins).
+    spec = c.aggregate(
+        {
+            "s_ab": c.ReduceFuncs.Sum(c.item("a", "b")),
+            "m_ab": c.ReduceFuncs.Max(c.item("a", "b")),
+            "s_a": c.ReduceFuncs.Sum(c.item("a")),
+            "s_c": c.ReduceFuncs.Sum(c.item("c")),
+            "m_c": c.ReduceFuncs.Max(c.item("c")),
+        }
+    )
+    code_str = get_code_str(spec.gen_converter())
+    assert "_tmp0_ = row_['a']" in code_str or '_tmp0_ = row_["a"]' in code_str
+    assert (
+        "_tmp1_ = _tmp0_['b']" in code_str
+        or '_tmp1_ = _tmp0_["b"]' in code_str
+    )
+    assert "_tmp2_ = row_['c']" in code_str or '_tmp2_ = row_["c"]' in code_str
+
 
 def _spec_lambda_bind():
     return c.aggregate(
