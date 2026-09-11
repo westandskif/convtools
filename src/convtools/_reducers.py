@@ -470,7 +470,7 @@ class FirstNReducer(SingleExpressionReducer):
     """Return the first N values."""
 
     default = NaiveConversion(None)
-    internals_are_public = True
+    internals_are_public = False
     works_with_not_none_only = (False,)
 
     def __init__(self, n: int, expr, *args, **kwargs):
@@ -541,16 +541,6 @@ class MinRowReducer(SingleExpressionReducer):
         "    %(result)s = (%(value0)s, %(row)s)",
     )
     post_conversion = GetItem(1)
-
-    def check_expressions(self):
-        super().check_expressions()
-        if not isinstance(self.initial, _None):
-            warnings.warn(
-                "2.0 will raise ValueError if initial is "
-                f"passed to {self.__class__.__name__}",
-                DeprecationWarning,
-                stacklevel=1,
-            )
 
 
 class ArrayReducer(SingleExpressionReducer):

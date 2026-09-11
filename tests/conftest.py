@@ -3,4 +3,6 @@
 
 from convtools._base import BaseConversion
 
-BaseConversion.strict_ctx = True
+from .utils import _StrictCtx
+
+BaseConversion.ctx_factory = _StrictCtx

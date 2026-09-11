@@ -18,7 +18,7 @@ from convtools._base import (
 from convtools._heuristics import Weights
 from convtools._utils import Code
 
-from .utils import get_code_str
+from .utils import _StrictCtx, get_code_str
 
 
 def test_docs():
@@ -1736,7 +1736,7 @@ def test_generated_helper_skips_reserved_input_arg():
 def test_input_arg_reservation_not_generated():
     class ReservationConversion(c.BaseConversion):
         def gen_code_and_update_ctx(self, code_input, ctx):
-            assert c.BaseConversion.strict_ctx
+            assert c.BaseConversion.ctx_factory is _StrictCtx
             for key in ("x", "_input_arg_x"):
                 with pytest.raises(
                     AssertionError, match="unregistered ctx key"

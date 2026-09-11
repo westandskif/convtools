@@ -1,6 +1,7 @@
 import math
 import random
 import statistics
+import warnings
 from collections import Counter
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -1108,6 +1109,44 @@ def test_lastn_with_default():
         c.aggregate(c.ReduceFuncs.LastN(3, c.this, default=[])).execute([])
         == []
     )
+
+
+def test_minrow_initial_warns_once():
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        c.aggregate(c.ReduceFuncs.MinRow(c.this, initial=1))
+    deprecations = [
+        w for w in caught if issubclass(w.category, DeprecationWarning)
+    ]
+    assert len(deprecations) == 1
+
+
+def test_firstn_initial_no_longer_seeds():
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        conv = c.aggregate(
+            c.ReduceFuncs.FirstN(2, c.this, initial=[0])
+        ).gen_converter()
+    deprecations = [
+        w for w in caught if issubclass(w.category, DeprecationWarning)
+    ]
+    assert len(deprecations) == 1
+    assert conv([1, 2, 3]) == [1, 2]
+    assert conv([]) == [0]
+
+
+def test_lastn_initial_empty_input():
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        conv = c.aggregate(
+            c.ReduceFuncs.LastN(2, c.this, initial=[0])
+        ).gen_converter()
+    deprecations = [
+        w for w in caught if issubclass(w.category, DeprecationWarning)
+    ]
+    assert len(deprecations) == 1
+    assert conv([1, 2, 3]) == [2, 3]
+    assert conv([]) == [0]
 
 
 # DictFirstN / DictLastN reducer tests

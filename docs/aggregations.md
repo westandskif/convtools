@@ -159,7 +159,7 @@ The table below gives the following info on builtin reducers:
 | Sum               |         | v      |         |         | 0       | note 8     | v                |
 | SumOrNone         |         | v      |         |         | None    |            | v                |
 | TopK              |         |        | note 4  |         | None    | v          |                  |
-| FirstN            |         |        | note 5  |         | None    |            | v                |
+| FirstN            |         |        | note 5  |         | None    |            |                  |
 | LastN             |         |        | note 5  |         | None    |            |                  |
 | Variance          |         | v      |         |         | None    | v          |                  |
 | StdDev            |         | v      |         |         | None    | v          |                  |

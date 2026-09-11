@@ -98,9 +98,7 @@ class ChunkBy(BaseChunkBy):
             ).gen_code_and_update_ctx(code_input, ctx)
 
         converter_name = self.gen_random_name("chunk_by", ctx)
-        function_ctx = (self.by or This()).as_function_ctx(
-            ctx, optimize_naive=True
-        )
+        function_ctx = self.by.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("items_", This())
         with function_ctx:
             code = Code()
@@ -148,12 +146,8 @@ class ChunkBy(BaseChunkBy):
 
             if self.size:
                 code_before_for.add_line("size_ = 1", 0)
-                code_if_condition = code_if_condition or f"size_ < {self.size}"
                 code_if_continue_chunk.add_line("size_ = size_ + 1", 0)
                 code_if_new_chunk.add_line("size_ = 1", 0)
-
-            if not code_if_condition:
-                raise AssertionError("impossible case")
 
             code.add_code(code_before_for)
             code.add_line("for item_ in items_:", 1)
@@ -262,15 +256,11 @@ class UnorderedChunkBy(BaseChunkBy):
     def gen_code_and_update_ctx(self, code_input, ctx):
         ctx["defaultdict"] = defaultdict
         converter_name = self.gen_random_name("unordered_chunk_by", ctx)
-        function_ctx = (self.by or This).as_function_ctx(
-            ctx, optimize_naive=True
-        )
+        function_ctx = self.by.as_function_ctx(ctx, optimize_naive=True)
         function_ctx.add_arg("items_", This)
         with function_ctx:
-            code_item_to_signature = (
-                self.by.gen_code_and_update_ctx("item_", ctx)
-                if self.by
-                else None
+            code_item_to_signature = self.by.gen_code_and_update_ctx(
+                "item_", ctx
             )
 
             code = Code()

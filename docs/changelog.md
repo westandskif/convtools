@@ -74,6 +74,9 @@
 - bounded window frames are iterated by index instead of
   `itertools.islice` (`ROWS n PRECEDING .. CURRENT ROW` no longer walks the
   prefix each row; linear instead of quadratic)
+- `FirstN(..., initial=)` no longer seeds the collected list (it was the only
+  N-reducer honouring `initial`); like `LastN`, `initial` is deprecated and
+  only serves as the empty-input result
 
 **Fixed**
 

@@ -502,7 +502,6 @@ class AppliedWindow(BaseConversion):
         code.add_line("data_len_ = len(data_)", 0)
 
         code.add_line("if data_:", 1)
-        code.add_line("data_len_ = len(data_)", 0)
         code.add_line("groups_ = []", 0)
         code.add_line("append_ = groups_.append", 0)
         code.add_line("prev_index = 0", 0)

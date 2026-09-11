@@ -15,6 +15,8 @@ from convtools._base import (
 )
 from convtools._utils import CodeParams, CodeStorage, debug_dir
 
+from .utils import _StrictCtx
+
 
 def test_code_generation_ctx():
     with ConverterOptionsCtx() as options:
@@ -152,7 +154,7 @@ def test_dump_sources_recreates_removed_dir(monkeypatch):
 
 
 def test_strict_ctx_guard():
-    assert BaseConversion.strict_ctx
+    assert BaseConversion.ctx_factory is _StrictCtx
     conv = This()
     ctx = conv._init_ctx()
     with pytest.raises(AssertionError, match="unregistered ctx key"):
@@ -177,13 +179,13 @@ def test_strict_ctx_guard():
 
 
 def test_init_ctx_is_exact_dict_when_strict_off():
-    prev = BaseConversion.strict_ctx
+    prev = BaseConversion.ctx_factory
     try:
-        BaseConversion.strict_ctx = False
+        BaseConversion.ctx_factory = dict
         ctx = This()._init_ctx()
         assert type(ctx) is dict
     finally:
-        BaseConversion.strict_ctx = prev
+        BaseConversion.ctx_factory = prev
 
 
 def test_gen_random_suffix_retries_on_composed_collision():

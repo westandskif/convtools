@@ -166,49 +166,6 @@ _random = Random(1)
 choice = _random.choice
 
 
-class _StrictCtx(dict):
-    """Test-only ctx that allows only declared or generated keys."""
-
-    def _allowed(self, key):
-        if key in BaseConversion.FIXED_CTX_NAMES:
-            return True
-        generated = dict.get(self, BaseConversion.GENERATED_NAMES)
-        return generated is not None and key in generated
-
-    def __setitem__(self, key, value):
-        if not self._allowed(key):
-            raise AssertionError(f"unregistered ctx key {key!r}")
-        dict.__setitem__(self, key, value)
-
-    def __delitem__(self, key):
-        if not self._allowed(key):
-            raise AssertionError(f"unregistered ctx key {key!r}")
-        dict.__delitem__(self, key)
-
-    def setdefault(self, key, default=None):
-        if key not in self:
-            self[key] = default
-        return self[key]
-
-    def update(self, *args, **kwargs):
-        raise AssertionError("ctx.update is not allowed")
-
-    def __or__(self, other):
-        raise AssertionError("ctx | is not allowed")
-
-    def __ior__(self, other):
-        raise AssertionError("ctx |= is not allowed")
-
-    def pop(self, *args, **kwargs):
-        raise AssertionError("ctx.pop is not allowed")
-
-    def popitem(self):
-        raise AssertionError("ctx.popitem is not allowed")
-
-    def clear(self):
-        raise AssertionError("ctx.clear is not allowed")
-
-
 class BaseConversion(Generic[CT]):
     """Base class of every conversion.
 
@@ -356,7 +313,7 @@ class BaseConversion(Generic[CT]):
         signature_names = ctx[self.SIGNATURE_PARAM_NAMES]
         name = prefix if prefix.startswith("_") else f"_{prefix}"
         for _ in range(10):
-            if _ or iskeyword(name):
+            if _:
                 if name == "_":
                     name = f"{name}{choice(self.allowed_symbols)}"
                 else:
@@ -590,11 +547,11 @@ class BaseConversion(Generic[CT]):
     )
 
     exceptions_to_dump_sources = (Exception, KeyboardInterrupt)
-    strict_ctx = False
+    ctx_factory = dict
 
     @classmethod
     def _init_ctx(cls, debug=None):
-        ctx = _StrictCtx() if cls.strict_ctx else {}
+        ctx = cls.ctx_factory()
         ctx["sys"] = sys
         ctx["__debug"] = debug
         ctx["__name__"] = "_convtools"
@@ -1303,6 +1260,20 @@ class BaseConversion(Generic[CT]):
 
         return _cumulative.CumulativeReset(self, label_name)
 
+    def _dt_parse(self, main_format, other_formats, default, to_date):
+        from convtools import _dt, _exceptions
+
+        parse_exc_pairs = []
+        for fmt in chain((main_format,), other_formats):
+            conversion = _dt.DatetimeParse(fmt)
+            if to_date:
+                conversion = conversion.call_method("date")
+            parse_exc_pairs.append((conversion, (ValueError, TypeError)))
+
+        return self.pipe(
+            _exceptions.try_multiple(*parse_exc_pairs, default=default)
+        )
+
     def date_parse(self, main_format, *other_formats, default=_none):
         """datetime.strptime with multi-format and default support.
 
@@ -1311,16 +1282,7 @@ class BaseConversion(Generic[CT]):
           - returns `default if provided
           - or raises ValueError
         """
-        from convtools import _dt, _exceptions
-
-        parse_exc_pairs = []
-        for fmt in chain((main_format,), other_formats):
-            conversion = _dt.DatetimeParse(fmt).call_method("date")
-            parse_exc_pairs.append((conversion, (ValueError, TypeError)))
-
-        return self.pipe(
-            _exceptions.try_multiple(*parse_exc_pairs, default=default)
-        )
+        return self._dt_parse(main_format, other_formats, default, True)
 
     def datetime_parse(self, main_format, *other_formats, default=_none):
         """datetime.strptime with multi-format and default support.
@@ -1330,16 +1292,7 @@ class BaseConversion(Generic[CT]):
           - returns `default if provided
           - or raises ValueError
         """
-        from convtools import _dt, _exceptions
-
-        parse_exc_pairs = []
-        for fmt in chain((main_format,), other_formats):
-            conversion = _dt.DatetimeParse(fmt)
-            parse_exc_pairs.append((conversion, (ValueError, TypeError)))
-
-        return self.pipe(
-            _exceptions.try_multiple(*parse_exc_pairs, default=default)
-        )
+        return self._dt_parse(main_format, other_formats, default, False)
 
     def date_trunc(self, step, offset=None, mode="start"):
         """Truncate date.
