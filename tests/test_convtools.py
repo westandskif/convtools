@@ -63,6 +63,25 @@ def test_naive_conversion():
         == 2
     )
 
+    class NamedInt:
+        __name__ = 5
+
+        def __call__(self, x):
+            return x + 1
+
+    class NamedNone:
+        __name__ = None
+
+        def __call__(self, x):
+            return x + 2
+
+    named_int = NamedInt()
+    named_none = NamedNone()
+    assert c.call_func(named_int, 1).execute(None) == 2
+    assert c.naive(named_int).call(1).execute(None) == 2
+    assert c.call_func(named_none, 1).execute(None) == 3
+    assert c.naive(named_none).call(1).execute(None) == 3
+
 
 def test_naive_int_literals_are_parenthesized():
     """Bare ints break ** precedence, attr/method access, and inline_expr."""
@@ -690,6 +709,42 @@ def test_input_arg_builtin_and_helper_name_collisions():
     assert conv_with_data([1, 2], 3) == 5
     conv_no_data = c.input_arg("len").gen_converter(signature="len")
     assert conv_no_data(4) == 4
+
+    assert (c.this.len() + 1).gen_converter(signature="data_, len=None")(
+        [1, 2]
+    ) == 3
+    assert (c.this.len() + c.call_func(sum, c.this)).gen_converter(
+        signature="data_, len=None, sum=None"
+    )([1, 2]) == 5
+    assert (
+        c.aggregate(c.ReduceFuncs.Sum(c.this)).gen_converter(
+            signature="data_, aggregate_=None"
+        )([1, 2, 3])
+        == 6
+    )
+    assert (
+        c.this.pipe(
+            c.aggregate(c.ReduceFuncs.Sum(c.this)), label_output="x"
+        ).gen_converter(signature="data_, pipe_=None")([1, 2, 3])
+        == 6
+    )
+    assert c.unordered_chunk_by(c.this, size=2).as_type(list).gen_converter(
+        signature="data_, _unordered_chunk_by=None"
+    )([1, 1, 2]) == [[1, 1], [2]]
+
+    for bad_signature in (
+        "data_, __none__",
+        "data_, _none",
+        "data_, _labels",
+        "data_, __convtools__code_storage",
+    ):
+        with pytest.raises(c.ConversionException) as exc_info:
+            c.this.gen_converter(signature=bad_signature)
+        assert "internal name" in str(exc_info.value)
+
+    with pytest.raises(c.ConversionException) as exc_info:
+        c.input_arg("y").gen_converter(signature="data_, x=y")
+    assert "missing args" in str(exc_info.value)
 
     class A:
         def __init__(self):

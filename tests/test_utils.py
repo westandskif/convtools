@@ -1,4 +1,7 @@
 import ast
+import os
+import shutil
+import tempfile
 
 import pytest
 
@@ -10,7 +13,7 @@ from convtools._base import (
     This,
     _signature_param_names,
 )
-from convtools._utils import CodeParams, CodeStorage
+from convtools._utils import CodeParams, CodeStorage, debug_dir
 
 
 def test_code_generation_ctx():
@@ -122,6 +125,30 @@ def test_add_sources():
     assert added
     _, added = code_storage.add_sources("a", "tst")
     assert not added
+
+
+def test_dump_sources_unwritable_debug_dir(monkeypatch):
+    monkeypatch.setenv("PY_CONVTOOLS_DEBUG_DIR", "/dev/null/x")
+    monkeypatch.setattr(debug_dir, "debug_dir", None)
+    monkeypatch.setattr(debug_dir, "dir_initialized", False)
+    converter = c.item("missing").gen_converter()
+    with pytest.raises(KeyError):
+        converter({})
+
+
+def test_dump_sources_recreates_removed_dir(monkeypatch):
+    tmp = tempfile.mkdtemp()
+    monkeypatch.setenv("PY_CONVTOOLS_DEBUG_DIR", tmp)
+    monkeypatch.setattr(debug_dir, "debug_dir", None)
+    monkeypatch.setattr(debug_dir, "dir_initialized", False)
+    converter = c.item("missing").gen_converter()
+    debug_dir.ensure_initialized()
+    debug_dir.ensure_initialized()
+    shutil.rmtree(tmp)
+    with pytest.raises(KeyError):
+        converter({})
+    assert os.path.isdir(tmp)
+    shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_strict_ctx_guard():

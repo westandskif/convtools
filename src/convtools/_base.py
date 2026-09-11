@@ -353,6 +353,7 @@ class BaseConversion(Generic[CT]):
     def gen_random_name(self, prefix, ctx) -> str:
         generated_names = ctx[self.GENERATED_NAMES]
         reserved = ctx[self.INPUT_ARG_RENAME_MAP]
+        signature_names = ctx[self.SIGNATURE_PARAM_NAMES]
         name = prefix if prefix.startswith("_") else f"_{prefix}"
         for _ in range(10):
             if _ or iskeyword(name):
@@ -364,6 +365,7 @@ class BaseConversion(Generic[CT]):
             if (
                 name not in generated_names
                 and name not in reserved
+                and name not in signature_names
                 and name not in self.FIXED_CTX_NAMES
             ):
                 generated_names.add(name)
@@ -374,11 +376,14 @@ class BaseConversion(Generic[CT]):
     def gen_random_suffix(self, ctx, *global_prefixes) -> str:
         generated_names = ctx[self.GENERATED_NAMES]
         reserved = ctx[self.INPUT_ARG_RENAME_MAP]
+        signature_names = ctx[self.SIGNATURE_PARAM_NAMES]
         for _ in range(10):
             suffix = self.gen_random_name("_", ctx)
             composed = tuple(f"{prefix}{suffix}" for prefix in global_prefixes)
             if any(
-                name in generated_names or name in reserved
+                name in generated_names
+                or name in reserved
+                or name in signature_names
                 for name in composed
             ):
                 continue
@@ -543,6 +548,7 @@ class BaseConversion(Generic[CT]):
     NAIVE_TO_WARM_UP = "_naive_to_warm_up"
     INPUT_ARG_RENAME_MAP = "_input_arg_rename_map"
     INPUT_ARG_RENAMED_STACK = "_input_arg_renamed_stack"
+    SIGNATURE_PARAM_NAMES = "_signature_param_names"
     # Any literal key written into ctx must be listed here, including names
     # generated code assigns at run time; names produced by gen_random_name
     # are exempt. The strict test dict enforces it.
@@ -559,6 +565,7 @@ class BaseConversion(Generic[CT]):
             NAIVE_TO_WARM_UP,
             INPUT_ARG_RENAME_MAP,
             INPUT_ARG_RENAMED_STACK,
+            SIGNATURE_PARAM_NAMES,
             "__convtools__code_storage",
             "__exceptions_to_dump_sources",
             "__builtins__",
@@ -599,6 +606,7 @@ class BaseConversion(Generic[CT]):
         ctx[cls.NAIVE_TO_WARM_UP] = None
         ctx[cls.INPUT_ARG_RENAME_MAP] = {}
         ctx[cls.INPUT_ARG_RENAMED_STACK] = []
+        ctx[cls.SIGNATURE_PARAM_NAMES] = set()
         ctx["__convtools__code_storage"] = CodeStorage()
         ctx["__exceptions_to_dump_sources"] = cls.exceptions_to_dump_sources
         return ctx
@@ -662,8 +670,23 @@ class BaseConversion(Generic[CT]):
                 self_in_scope = "self" in signature_names
                 cls_in_scope = "cls" in signature_names
             else:
+                signature_names = {"data_"}
+                if method:
+                    signature_names.add("self")
+                elif class_method:
+                    signature_names.add("cls")
                 self_in_scope = bool(method)
                 cls_in_scope = bool(class_method)
+            ctx[self.SIGNATURE_PARAM_NAMES] = signature_names
+            internal_names = self.FIXED_CTX_NAMES | {
+                "_none",
+                LabelConversion.labels_code_name,
+            }
+            for name in signature_names:
+                if name in internal_names:
+                    raise ConversionException(
+                        "signature parameter shadows an internal name", name
+                    )
             for dep in self.get_dependencies():
                 if isinstance(dep, InputArg):
                     if dep.name not in input_arg_rename_map:
@@ -685,7 +708,7 @@ class BaseConversion(Generic[CT]):
 
             delegate = any(
                 hasattr(builtins, name) or name in self.FIXED_CTX_NAMES
-                for name in input_arg_rename_map
+                for name in set(input_arg_rename_map) | signature_names
             )
 
             if signature is not None:
@@ -694,9 +717,12 @@ class BaseConversion(Generic[CT]):
                     args_to_skip=InputArg.TOP_LEVEL_ARGS_TO_SKIP,
                     for_top_level_converter=True,
                 )
-                missing_args = set(function_ctx.args_as_def_names).union(
-                    function_ctx.kwargs_as_def_names
-                ) - set(_pattern_word.findall(signature))
+                missing_args = (
+                    set(function_ctx.args_as_def_names).union(
+                        function_ctx.kwargs_as_def_names
+                    )
+                    - signature_names
+                )
                 if missing_args:
                     raise ConversionException(
                         "bad signature, missing args", missing_args
@@ -722,9 +748,7 @@ class BaseConversion(Generic[CT]):
                     for_top_level_converter=False,
                     optimize_naive=signature is None,
                 )
-                if signature is None or "data_" in _pattern_word.findall(
-                    signature
-                ):
+                if "data_" in signature_names:
                     inner_function_ctx.add_arg(initial_code_input, This())
 
             with function_ctx:
@@ -797,6 +821,7 @@ class BaseConversion(Generic[CT]):
             del ctx[self.NAIVE_TO_WARM_UP]
             del ctx[self.INPUT_ARG_RENAME_MAP]
             del ctx[self.INPUT_ARG_RENAMED_STACK]
+            del ctx[self.SIGNATURE_PARAM_NAMES]
 
             if debug or (self.contents & self.ContentTypes.BREAKPOINT):
                 ctx["__convtools__code_storage"].dump_sources()
@@ -1615,7 +1640,6 @@ class BaseMethodConversion(BaseConversion):
 
 _pattern_illegal_chars = re.compile("[^0-9a-zA-Z_]")
 _pattern_illegal_leading_chars = re.compile("^[^a-zA-Z_]+")
-_pattern_word = re.compile(r"(\w+)")
 
 
 def _signature_param_names(signature: str) -> Set[str]:
@@ -1676,6 +1700,8 @@ class NaiveConversion(BaseConversion):
         self.code_str = None
 
         value_name = getattr(value, "__name__", "")
+        if not isinstance(value_name, str):
+            value_name = ""
         if (
             value_name in self._builtin_dict
             and self.value is self._builtin_dict[value_name]
@@ -3041,7 +3067,7 @@ class DictComp(BaseMethodConversion):
         return f"{{{key_code}: {value_code} for {param_code} in {code_iterable} if {condition_code}}}"
 
     def filter(self, condition_conv, cast=BaseConversion._none):
-        if cast is self._none:
+        if cast is None or cast is self._none:
             cast = dict
         return self.call_method("items").filter(condition_conv, cast=cast)
 

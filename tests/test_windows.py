@@ -42,6 +42,25 @@ def test_iter_window():
 
     assert list(c.iter_windows(2).execute([])) == []
 
+    assert list(c.iter_windows(3, step=1).execute(range(2))) == [
+        (0,),
+        (0, 1),
+        (0, 1),
+        (1,),
+    ]
+    assert list(c.iter_windows(3, step=1).execute(range(1))) == [
+        (0,),
+        (0,),
+        (0,),
+    ]
+    assert list(c.iter_windows(3, step=2).execute(range(2))) == [
+        (0,),
+        (0, 1),
+    ]
+    for width, step in ((0, 1), (1, 0), (-1, 1)):
+        with pytest.raises(ValueError):
+            c.iter_windows(width, step=step).execute(range(3))
+
 
 def test_accumulators():
     assert (

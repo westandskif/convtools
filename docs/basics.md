@@ -233,7 +233,9 @@ signature. `gen_converter` accepts several parameters for this:
 The generated converter uses `data_` as the input variable. Include `data_` in
 custom `signature=` values when the conversion reads the input. Also include
 any names referenced with `c.input_arg("name")`; otherwise converter generation
-raises an error before compiling the function.
+raises an error before compiling the function. Parameter names may shadow
+builtins (the converter isolates its body); names starting with convtools-internal
+prefixes (`__none__`, `_none`, `_labels`, `__convtools__...`) are rejected.
 
 {!examples-md/getting_started__signature.md!}
 

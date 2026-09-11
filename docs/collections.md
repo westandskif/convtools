@@ -231,7 +231,9 @@ of the provided condition:
 `c.iter_windows` iterates through an iterable and yields tuples, which are
 obtained by sliding a window of a given width and by moving the window by
 specified step size as follows: `c.iter_windows(width=7, step=1)`.
-It yields partial windows at the boundaries.
+A window of `width` slides one position at a time from before the first
+element to past the last; partial windows appear at both ends. `width` and
+`step` must be positive ints.
 
 {!examples-md/api__iter_windows.md!}
 

@@ -2,6 +2,11 @@
 
 **Changed**
 
+- `iter_windows` follows the sliding-window model for `len < width` (partial
+  windows stay full until the frame has something to drop) and raises
+  `ValueError` when `width < 1` or `step < 1`
+- `DictComp.filter(..., cast=None)` returns a `dict` (same as omitting `cast`);
+  it previously yielded a generator of `(key, value)` pairs
 - `sort` with `desc()` keys uses `sorted(..., reverse=True)` and, for mixed
   directions, stable multi-pass `list.sort`; results are the same for mutually
   comparable keys, but secondary keys are now compared across all elements and
@@ -58,6 +63,17 @@
 
 **Fixed**
 
+- `gen_converter(signature=...)` isolates the body from signature names that
+  shadow builtins, reserves those names against generated helpers, rejects
+  internal names (`__none__`, `_none`, `_labels`, `__convtools__...`), and
+  checks required `c.input_arg` names against parsed parameters (not default
+  tokens)
+- `dump_sources` swallows `OSError` (unwritable or removed debug dir) so the
+  original converter exception still propagates
+- `NaiveConversion` treats a non-`str` `__name__` as missing instead of
+  failing at converter build
+- `unordered_chunk_by`: `size` and `max_items_in_memory` must be positive
+  `int` or `None` (floats such as `2.5` raised nothing and never flushed)
 - `RowFollowing` / `RowPreceding` with a negative offset no longer wrap
   around or raise `IndexError`; the offset flips direction, `default`
   applies at both ends

@@ -324,12 +324,15 @@ class CodeStorage:
         return code_piece, True
 
     def dump_sources(self):
-        debug_dir.ensure_initialized()
-        for code_piece in self.key_to_code_piece.values():
-            if not code_piece.is_dumped:
-                with open(code_piece.abs_path, "w", encoding="utf-8") as f:
-                    f.write("".join(code_piece.code_parts))
-                code_piece.is_dumped = True
+        try:
+            os.makedirs(debug_dir.get(), exist_ok=True)
+            for code_piece in self.key_to_code_piece.values():
+                if not code_piece.is_dumped:
+                    with open(code_piece.abs_path, "w", encoding="utf-8") as f:
+                        f.write("".join(code_piece.code_parts))
+                    code_piece.is_dumped = True
+        except OSError:
+            pass
 
 
 def drop_dumped_code(key_to_code_piece):
@@ -344,26 +347,29 @@ def drop_dumped_code(key_to_code_piece):
 T = TypeVar("T")
 
 
-def iter_windows(
-    collection: Iterator[T], width, step
-) -> Generator[Tuple[T, ...], None, None]:
-    window: "deque[T]" = deque(maxlen=width)
-    window_append = window.append
+def iter_windows(collection: Iterator[T], width, step):
+    if width < 1 or step < 1:
+        raise ValueError("width and step have to be positive ints")
 
-    index = 0
-    for index, obj in enumerate(collection):
-        window_append(obj)
-        if index % step == 0:
-            yield tuple(window)
+    def _iter_windows() -> Generator[Tuple[T, ...], None, None]:
+        window: "deque[T]" = deque(maxlen=width)
+        window_append = window.append
 
-    if window:
-        index += 1
-        window.popleft()
-        while window:
+        index = 0
+        for index, obj in enumerate(collection):
+            window_append(obj)
             if index % step == 0:
                 yield tuple(window)
-            index += 1
-            window.popleft()
+
+        if window:
+            n = index + 1
+            for p in range(n, n + width - 1):
+                if p - width >= 0:
+                    window.popleft()
+                if p % step == 0:
+                    yield tuple(window)
+
+    return _iter_windows()
 
 
 obj_getattribute = object.__getattribute__

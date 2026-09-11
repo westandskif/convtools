@@ -234,10 +234,15 @@ class UnorderedChunkBy(BaseChunkBy):
         # --8<-- [end:unordered_chunk_by_args_docs]
         """
         super().__init__()
-        if not (size is None or size > 0):
-            raise ValueError("size has to be positive or None")
-        if not (max_items_in_memory is None or max_items_in_memory > 0):
-            raise ValueError("max_items_in_memory has to be positive or None")
+        if size is not None and (not isinstance(size, int) or size <= 0):
+            raise ValueError("size has to be positive int or None")
+        if max_items_in_memory is not None and (
+            not isinstance(max_items_in_memory, int)
+            or max_items_in_memory <= 0
+        ):
+            raise ValueError(
+                "max_items_in_memory has to be positive int or None"
+            )
         if not 0 < portion_to_pop_on_max_memory_hit <= 1:
             raise ValueError(
                 "portion_to_pop_on_max_memory_hit has to be in (0, 1]"
