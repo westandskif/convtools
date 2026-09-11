@@ -52,7 +52,9 @@ def _structural_keys(root, intern):
     """Map id(node) -> (key, size) for every node under root.
 
     ``key`` is a small int interned via ``intern`` so that two subtrees get
-    the same key if their ``ast.dump`` would be equal; computed bottom-up in
+    the same key if their ``ast.dump`` would be equal; ``ast.Name`` nodes
+    also include the optimizer-temp marker so a CSE temp and a user
+    identifier of the same spelling do not collide. Computed bottom-up in
     one pass instead of dumping every subtree separately.
     """
     keys = {}
@@ -78,6 +80,8 @@ def _structural_keys(root, intern):
             else:
                 parts.append((field, repr(value)))
         raw = (type(node), tuple(parts))
+        if isinstance(node, ast.Name):
+            raw = (raw, getattr(node, "_cse_temp", False))
         key = intern.get(raw)
         if key is None:
             key = len(intern)
@@ -159,7 +163,7 @@ def _fmt_expr(node, original=None, rewritten=False):
     return "({})".format(code)
 
 
-class _ReplaceDumps(ast.NodeTransformer):
+class _ReplaceByKey(ast.NodeTransformer):
     def __init__(self, key_to_name, keys):
         self.key_to_name = key_to_name
         self.keys = keys
@@ -170,7 +174,9 @@ class _ReplaceDumps(ast.NodeTransformer):
             name = self.key_to_name.get(self.keys[id(node)][0])
             if name is not None:
                 self.changed = True
-                return ast.Name(id=name, ctx=ast.Load())
+                replacement = ast.Name(id=name, ctx=ast.Load())
+                replacement._cse_temp = True
+                return replacement
         if _is_binder(node):
             return self._visit_binder(node)
         return self.generic_visit(node)
@@ -220,8 +226,8 @@ class _ReplaceDumps(ast.NodeTransformer):
         return ast.arguments(**kwargs)
 
 
-def _replace_dumps(node, key_to_name, keys):
-    transformer = _ReplaceDumps(key_to_name, keys)
+def _replace_by_key(node, key_to_name, keys):
+    transformer = _ReplaceByKey(key_to_name, keys)
     new_node = transformer.visit(node)
     return new_node, transformer.changed
 
@@ -229,10 +235,14 @@ def _replace_dumps(node, key_to_name, keys):
 def _rename_names(node, old_to_new):
     class _Renamer(ast.NodeTransformer):
         def visit_Name(self, name_node):
+            if not getattr(name_node, "_cse_temp", False):
+                return name_node
             new_id = old_to_new.get(name_node.id)
             if new_id is None:
                 return name_node
-            return ast.Name(id=new_id, ctx=name_node.ctx)
+            renamed = ast.Name(id=new_id, ctx=name_node.ctx)
+            renamed._cse_temp = True
+            return renamed
 
     return _Renamer().visit(node)
 
@@ -592,8 +602,16 @@ def _topo_temp_order(temp_entries):
     depends = {name: set() for name in names}
     for name, tree in temp_entries:
         found = []
-        for child in _walk_tree(tree, eager_only=False):
-            if isinstance(child, ast.Name) and child.id in name_set:
+        nodes = []
+        if isinstance(tree, ast.Name):
+            nodes.append(tree)
+        nodes.extend(_walk_tree(tree, eager_only=False))
+        for child in nodes:
+            if (
+                isinstance(child, ast.Name)
+                and getattr(child, "_cse_temp", False)
+                and child.id in name_set
+            ):
                 found.append(child.id)
         depends[name].update(found)
     remaining = set(names)
@@ -604,6 +622,12 @@ def _topo_temp_order(temp_entries):
             for name in names
             if name in remaining and not (depends[name] & remaining)
         ]
+        if not ready:
+            raise RuntimeError(
+                "cyclic reducer-sharing temps: {}".format(
+                    ", ".join(sorted(remaining))
+                )
+            )
         for name in ready:
             remaining.remove(name)
             ordered.append(name)
@@ -612,6 +636,24 @@ def _topo_temp_order(temp_entries):
 
 
 def analyze_scope(scope, plan, with_init, signature, tmp_index):
+    """Share repeated eager expressions in ``scope`` into temporaries.
+
+    Candidate records in the working set:
+
+    * ``count``: weight-summed occurrences of a structural key
+    * ``live``: number of items still contributing that key
+    * ``eager_ok``: contributing occurrences that are eagerly evaluated
+      in their item
+
+    A key is extracted while ``count >= 2 and eager_ok > 0``. An item's
+    structural keys are computed once when it is added and discarded when
+    its tree is rewritten (then re-added). ``rhs_tree`` is a deep copy
+    owned by the plan, so items and temps never alias AST nodes.
+    Provisional names ``__cse<N>_`` are renamed to ``_tmp<N>_`` in
+    topological emission order. Optimizer temps are recognised only by
+    the ``_cse_temp`` marker on ``ast.Name`` nodes, never by identifier
+    spelling.
+    """
     items = []
     _collect_count_items(scope, plan, with_init, scope, signature, items)
     local_temps = []
@@ -648,7 +690,7 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
             rec["live"] += 1
             if eager_flag:
                 rec["eager_ok"] += 1
-            rec["contributors"][id(item)] = node
+            rec["contributors"][id(item)] = (item, node)
         item_contribs[id(item)] = contribs
 
     def _subtract_item_contributions(item):
@@ -682,14 +724,11 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
         rec = candidates[best_key]
         internal_name = "__cse{}_".format(local_i)
         local_i += 1
-        rhs_tree = copy.deepcopy(next(iter(rec["contributors"].values())))
+        rhs_tree = copy.deepcopy(next(iter(rec["contributors"].values()))[1])
         mapping = {best_key: internal_name}
-        contributor_ids = rec["contributors"]
         rewritten_items = []
-        for item in items:
-            if id(item) not in contributor_ids:
-                continue
-            new_tree, changed = _replace_dumps(
+        for item, _node in list(rec["contributors"].values()):
+            new_tree, changed = _replace_by_key(
                 item.tree, mapping, item_keys[id(item)]
             )
             if changed:

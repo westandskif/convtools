@@ -1,11 +1,18 @@
+import ast
 import sys
+import time
 from collections import deque
 
 import pytest
 
 from convtools import conversion as c
 from convtools._base import BaseConversion
-from convtools._reducer_sharing import _analyze_template_block
+from convtools._reducer_sharing import (
+    _analyze_template_block,
+    _replace_by_key,
+    _structural_keys,
+    _topo_temp_order,
+)
 from convtools._reducers import SumReducer
 
 from .utils import get_code_str
@@ -697,3 +704,258 @@ def test_piped_maxrow_minrow_share_row_expr():
         ).execute(losing)
         == 2
     )
+
+
+def test_user_cse_name_in_lambda_is_not_renamed():
+    data = [{"x": 1, "y": 6}, {"x": 2, "y": 7}]
+    spec = c.aggregate(
+        {
+            "s": c.ReduceFuncs.Sum(c.item("x")),
+            "m": c.ReduceFuncs.Max(c.item("x")),
+            "b": c.ReduceFuncs.Array(
+                c.inline_expr("(lambda __cse0_: __cse0_ * 10)({v})").pass_args(
+                    v=c.item("y")
+                )
+            ),
+            "t": c.ReduceFuncs.Sum(c.item("y")),
+        }
+    )
+    converter = spec.gen_converter()
+    assert converter(data)["b"] == [60, 70]
+    code_str = get_code_str(converter)
+    assert "lambda __cse0_:" in code_str
+    for line in code_str.splitlines():
+        if "lambda" in line:
+            assert "__cse0_" in line.split("lambda", 1)[1]
+
+
+def test_user_cse_name_in_comprehension_target_is_not_renamed():
+    data = [{"x": 1, "y": [6, 7]}, {"x": 2, "y": [8]}]
+    spec = c.aggregate(
+        {
+            "s": c.ReduceFuncs.Sum(c.item("x")),
+            "m": c.ReduceFuncs.Max(c.item("x")),
+            "b": c.ReduceFuncs.Array(
+                c.inline_expr("[__cse0_ * 10 for __cse0_ in {v}]").pass_args(
+                    v=c.item("y")
+                )
+            ),
+            "t": c.ReduceFuncs.Max(c.item("y")),
+        }
+    )
+    converter = spec.gen_converter()
+    assert converter(data)["b"] == [[60, 70], [80]]
+    code_str = get_code_str(converter)
+    _assert_comp_iter_is_tmp_not_target(code_str)
+    assert "for __cse0_ in" in code_str
+
+
+def _marked_cse_ref_tree(code):
+    tree = ast.parse(code, mode="eval").body
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id.startswith("__cse"):
+            node._cse_temp = True
+    return tree
+
+
+def test_topo_temp_order_cycle_raises():
+    left = _marked_cse_ref_tree("__cse1_ + 1")
+    right = _marked_cse_ref_tree("__cse0_ + 1")
+    with pytest.raises(RuntimeError, match="cyclic reducer-sharing temps"):
+        _topo_temp_order([("__cse0_", left), ("__cse1_", right)])
+
+
+def test_topo_temp_order_name_root():
+    tree = ast.parse("x", mode="eval").body
+    ordered = _topo_temp_order([("__cse0_", tree)])
+    assert [name for name, _tree in ordered] == ["__cse0_"]
+
+
+def test_analyze_template_block_empty_lines():
+    eager, weights = _analyze_template_block((), 2)
+    assert eager == [False, False]
+    assert weights == [0, 0]
+    eager, weights, row_eager, row_weight = _analyze_template_block(
+        (), 1, include_row=True
+    )
+    assert eager == [False]
+    assert weights == [0]
+    assert row_eager is False
+    assert row_weight == 0
+
+
+def test_replace_by_key_unmatched_comprehension_iter():
+    tree = ast.parse("[x for x in y]", mode="eval").body
+    keys = _structural_keys(tree, {})
+    new_tree, changed = _replace_by_key(tree, {}, keys)
+    assert changed is False
+    assert new_tree is tree
+
+
+def test_contributor_unchanged_replace_is_skipped(monkeypatch):
+    import convtools._reducer_sharing as rs
+
+    real = rs._replace_by_key
+    calls = []
+
+    def wrapped(node, key_to_name, keys):
+        tree, changed = real(node, key_to_name, keys)
+        if not calls:
+            calls.append(True)
+            return node, False
+        return tree, changed
+
+    monkeypatch.setattr(rs, "_replace_by_key", wrapped)
+    spec = c.aggregate(
+        {
+            "s": c.ReduceFuncs.Sum(c.item("a") + 1),
+            "m": c.ReduceFuncs.Max(c.item("a") + 1),
+        }
+    )
+    assert spec.execute([{"a": 1}, {"a": 2}]) == {"s": 5, "m": 3}
+
+
+def _shared_pairs_spec(n):
+    reducers = {}
+    for i in range(n):
+        expr = c.item(i) + 1
+        reducers["s{}".format(i)] = c.ReduceFuncs.Sum(expr)
+        reducers["m{}".format(i)] = c.ReduceFuncs.Max(expr)
+    return c.aggregate(reducers)
+
+
+def test_sharing_plan_scales_roughly_linearly():
+    def plan_seconds(n):
+        spec = _shared_pairs_spec(n)
+        started = time.perf_counter()
+        spec.gen_converter()
+        return time.perf_counter() - started
+
+    t400 = plan_seconds(400)
+    t800 = plan_seconds(800)
+    print(
+        "sharing plan 400 pairs: {:.4f}s; 800 pairs: {:.4f}s".format(
+            t400, t800
+        )
+    )
+    assert t800 < t400 * 3 + 0.5
+
+
+def _spec_lambda_bind():
+    return c.aggregate(
+        {
+            "s": c.ReduceFuncs.Sum(c.item("x")),
+            "m": c.ReduceFuncs.Max(c.item("x")),
+            "b": c.ReduceFuncs.Array(
+                c.inline_expr("(lambda __cse0_: __cse0_ * 10)({v})").pass_args(
+                    v=c.item("y")
+                )
+            ),
+            "t": c.ReduceFuncs.Sum(c.item("y")),
+        }
+    )
+
+
+def _spec_comprehension_bind():
+    return c.aggregate(
+        {
+            "arr": c.ReduceFuncs.Array(
+                c.inline_expr("[__cse0_ for __cse0_ in {0}]").pass_args(
+                    c.item("k")
+                )
+            ),
+            "m": c.ReduceFuncs.Max(c.item("k")),
+        }
+    )
+
+
+def _spec_where_guards():
+    return c.aggregate(
+        {
+            "all_": c.ReduceFuncs.Sum(c.item("x")),
+            "ok": c.ReduceFuncs.Sum(c.item("x"), where=c.item("ok")),
+        }
+    )
+
+
+def _spec_nested_aggregate():
+    inner = c.item("xs").pipe(
+        c.aggregate(
+            {
+                "s": c.ReduceFuncs.Sum(c.item("a")),
+                "m": c.ReduceFuncs.Max(c.item("a")),
+            }
+        )
+    )
+    return c.aggregate(
+        {
+            "inner": c.ReduceFuncs.Array(inner),
+            "n": c.ReduceFuncs.Count(),
+        }
+    )
+
+
+def _spec_piped_deferred():
+    return c.aggregate(
+        (
+            c.item("a").pipe(c.ReduceFuncs.MaxRow(c.item("x"))),
+            c.item("a").pipe(c.ReduceFuncs.MinRow(c.item("x"))),
+        )
+    )
+
+
+def _spec_group_by_signature():
+    return c.group_by(c.item("g")).aggregate(
+        {
+            "g": c.item("g"),
+            "s": c.ReduceFuncs.Sum(c.item("g")),
+            "x": c.ReduceFuncs.Sum(c.item("x")),
+            "m": c.ReduceFuncs.Max(c.item("x")),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "make_spec, data",
+    [
+        (
+            _spec_lambda_bind,
+            [{"x": 1, "y": 6}, {"x": 2, "y": 7}],
+        ),
+        (
+            _spec_comprehension_bind,
+            [{"k": [("a", 1), ("b", 2)]}, {"k": [("c", 3)]}],
+        ),
+        (
+            _spec_where_guards,
+            [
+                {"ok": True, "x": 1},
+                {"ok": False, "x": 2},
+                {"ok": True, "x": 3},
+            ],
+        ),
+        (
+            _spec_nested_aggregate,
+            [{"xs": [{"a": 1}, {"a": 2}]}, {"xs": [{"a": 3}]}],
+        ),
+        (
+            _spec_piped_deferred,
+            [
+                {"a": {"x": 1, "k": "first"}},
+                {"a": {"x": 3, "k": "second"}},
+                {"a": {"x": 2, "k": "mid"}},
+            ],
+        ),
+        (
+            _spec_group_by_signature,
+            [{"g": 1, "x": 10}, {"g": 1, "x": 11}, {"g": 2, "x": 20}],
+        ),
+    ],
+)
+def test_sharing_on_off_same_output(monkeypatch, make_spec, data):
+    with_sharing = make_spec().execute(data)
+    monkeypatch.setattr(
+        "convtools._aggregations.analyze_scope", lambda *a, **k: 0
+    )
+    without_sharing = make_spec().execute(data)
+    assert with_sharing == without_sharing

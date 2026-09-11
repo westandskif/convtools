@@ -1,3 +1,5 @@
+import ast
+
 import pytest
 
 from convtools import conversion as c
@@ -6,6 +8,7 @@ from convtools._base import (
     ConverterOptions,
     ConverterOptionsCtx,
     This,
+    _signature_param_names,
 )
 from convtools._utils import CodeParams, CodeStorage
 
@@ -163,6 +166,20 @@ def test_gen_random_suffix_retries_on_composed_collision():
     suffix = conv.gen_random_suffix(ctx, "foo")
     assert suffix != "_"
     assert f"foo{suffix}" in ctx[BaseConversion.GENERATED_NAMES]
+
+
+def test_signature_param_names_non_function(monkeypatch):
+    import convtools._base as base
+
+    real_parse = ast.parse
+
+    def fake_parse(source, *args, **kwargs):
+        if isinstance(source, str) and source.startswith("def _("):
+            return real_parse("x = 1")
+        return real_parse(source, *args, **kwargs)
+
+    monkeypatch.setattr(base.ast, "parse", fake_parse)
+    assert _signature_param_names("x") == set()
 
 
 def test_ignores_input():

@@ -41,6 +41,10 @@ def test_hints():
         not c.naive([]).call().has_hint(c.BaseConversion.OutputHints.NOT_NONE)
     )
 
+    pipe_this = c.item("x").pipe(c.this)
+    pipe_this.add_hint(c.BaseConversion.OutputHints.NOT_NONE)
+    assert pipe_this.has_hint(c.BaseConversion.OutputHints.NOT_NONE)
+
 
 def test_pipe_ordering_does_not_mask_not_none():
     data = [{"x": []}, {"x": [1]}]
