@@ -102,11 +102,6 @@ static PyObject *get_attr_deep_default_simple(PyObject *self, PyObject *args[],
     Py_INCREF(item);
 
     for (i = 1; i < default_index; i++) {
-        if (item == Py_None) {
-            Py_DECREF(item);
-            goto return_default;
-        }
-
         a = PyObject_GetAttr(item, args[i]);
         Py_DECREF(item);
         if (a == NULL) {
@@ -142,11 +137,6 @@ static PyObject *get_attr_deep_default_callable(PyObject *self,
     Py_INCREF(item);
 
     for (i = 1; i < default_index; i++) {
-        if (item == Py_None) {
-            Py_DECREF(item);
-            goto return_default;
-        }
-
         a = PyObject_GetAttr(item, args[i]);
         Py_DECREF(item);
         if (a == NULL) {

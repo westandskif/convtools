@@ -42,6 +42,9 @@
 
 **Fixed**
 
+- `c.attr(..., default=)` with the C extension no longer returns the default
+  when an intermediate value is `None`; both the C and Python paths follow
+  `getattr` semantics (`None` has real attributes)
 - `initial=` passed to a built-in reducer without `default=` is now the
   empty-input / all-rejected result (e.g. `Sum(..., initial=list)` on empty
   input gives `[]`, not `0`)

@@ -2,6 +2,7 @@ import pytest
 
 from convtools import conversion as c
 from convtools._base import (
+    GetAttr,
     get_attr_deep_default_callable,
     get_attr_deep_default_simple,
     get_item_deep_default_callable,
@@ -66,3 +67,26 @@ if get_attr_deep_default_simple:
         assert get_attr_deep_default_callable(a_b, "a", "b", int) == 1
         assert get_attr_deep_default_callable(a_x, "a", "b", int) == 0
         assert get_attr_deep_default_callable(x_x, "a", "b", int) == 0
+
+
+@pytest.mark.parametrize("use_cext", [True, False])
+def test_attr_default_on_intermediate_none_parity(monkeypatch, use_cext):
+    # both paths follow getattr semantics: None has real attributes
+    if use_cext:
+        if get_attr_deep_default_simple is None:
+            pytest.skip("C extension is not available")
+    else:
+        monkeypatch.setattr(GetAttr, "getter_default_simple", None)
+        monkeypatch.setattr(GetAttr, "getter_default_callable", None)
+    obj = Obj("n", None)
+    assert c.attr("n", "__class__", default="DEFAULT").execute(obj) is type(
+        None
+    )
+    assert c.attr("n", "__class__", default=c.input_arg("d")).execute(
+        obj, d=0
+    ) is type(None)
+    assert c.attr("n", "missing", default="DEFAULT").execute(obj) == "DEFAULT"
+    assert (
+        c.attr("n", "missing", default=c.input_arg("d")).execute(obj, d=-1)
+        == -1
+    )
