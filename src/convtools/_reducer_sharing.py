@@ -182,47 +182,21 @@ class _ReplaceByKey(ast.NodeTransformer):
 
     def _visit_binder(self, node):
         if isinstance(node, ast.Lambda):
-            new_args = self._visit_lambda_args(node.args)
-            if new_args is node.args:
-                return node
-            new_node = ast.Lambda(args=new_args, body=node.body)
-            return ast.copy_location(new_node, node)
+            defaults = node.args.defaults
+            for i, d in enumerate(defaults):
+                defaults[i] = self.visit(d)
+            kw_defaults = node.args.kw_defaults
+            for i, d in enumerate(kw_defaults):
+                if d is not None:
+                    kw_defaults[i] = self.visit(d)
+            return node
         if isinstance(
             node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
         ):
             first = node.generators[0]
-            new_iter = self.visit(first.iter)
-            if new_iter is first.iter:
-                return node
-            new_first = ast.comprehension(
-                target=first.target,
-                iter=new_iter,
-                ifs=first.ifs,
-                is_async=getattr(first, "is_async", 0),
-            )
-            new_gens = [new_first] + list(node.generators[1:])
-            kwargs = {"generators": new_gens}
-            if isinstance(node, ast.DictComp):
-                kwargs["key"] = node.key
-                kwargs["value"] = node.value
-            else:
-                kwargs["elt"] = node.elt
-            return ast.copy_location(type(node)(**kwargs), node)
+            first.iter = self.visit(first.iter)
+            return node
         return node
-
-    def _visit_lambda_args(self, args):
-        new_defaults = [self.visit(d) for d in args.defaults]
-        new_kw = [
-            self.visit(d) if d is not None else d for d in args.kw_defaults
-        ]
-        if new_defaults == list(args.defaults) and new_kw == list(
-            args.kw_defaults
-        ):
-            return args
-        kwargs = {field: getattr(args, field) for field in args._fields}
-        kwargs["defaults"] = new_defaults
-        kwargs["kw_defaults"] = new_kw
-        return ast.arguments(**kwargs)
 
 
 def _replace_by_key(node, key_to_name, keys):
