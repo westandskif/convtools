@@ -14,6 +14,7 @@ from convtools._reducer_sharing import (
     _structural_keys,
 )
 from convtools._reducers import SumReducer
+from convtools._utils import ast_unparse
 
 from .utils import get_code_str
 
@@ -727,7 +728,10 @@ def test_user_tmp_name_in_lambda_is_not_replaced():
     assert converter(data)["b"] == [60, 70]
     code_str = get_code_str(converter)
     assert "lambda _tmp0_:" in code_str
-    assert "(lambda _tmp0_: _tmp0_ * 10)(_tmp1_)" in code_str
+    expected = ast_unparse(
+        ast.parse("(lambda _tmp0_: _tmp0_ * 10)(_tmp1_)", mode="eval").body
+    )
+    assert expected in code_str
 
 
 def test_user_tmp_name_in_comprehension_target_is_not_replaced():
