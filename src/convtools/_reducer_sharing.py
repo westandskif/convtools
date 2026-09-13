@@ -154,9 +154,7 @@ def _iter_eager(node):
         yield child
 
 
-def _fmt_expr(node, original=None, rewritten=False):
-    if not rewritten and original is not None:
-        return original
+def _fmt_expr(node):
     code = ast_unparse(node).strip()
     if isinstance(node, (ast.Name, ast.Attribute, ast.Subscript, ast.Call)):
         return code
@@ -369,43 +367,39 @@ def _template_info(prepare_lines, reduce_lines, n_values):
     )
 
 
-class _CountItem(object):
-    __slots__ = [
-        "code",
-        "tree",
-        "weight",
-        "is_self_eager_root",
-        "kind",
-        "record",
-        "index",
-        "child",
-        "rewritten",
-    ]
+class _Expr(object):
+    """One expression occurrence (value, row, guard, signature or temp RHS).
 
-    def __init__(
-        self,
-        code,
-        weight,
-        is_self_eager_root,
-        kind,
-        record=None,
-        index=None,
-        child=None,
-        tree=None,
-        rewritten=False,
-    ):
+    Lives in the plan for its whole analysis: ``tree`` is parsed on first
+    use and reused by every scope below the one that parsed it, so an
+    occurrence is parsed once per plan. ``rewrite`` swaps the tree and
+    drops ``code``; ``render`` restores it once the owning scope is done,
+    so an occurrence that is never rewritten keeps its original string
+    and a rewritten one is unparsed once. ``weight`` and
+    ``is_self_eager_root`` are set by each scope's analysis.
+    """
+
+    __slots__ = ["code", "_tree", "weight", "is_self_eager_root"]
+
+    def __init__(self, code, tree=None):
         self.code = code
-        self.weight = weight
-        self.is_self_eager_root = is_self_eager_root
-        self.kind = kind
-        self.record = record
-        self.index = index
-        self.child = child
-        self.rewritten = rewritten
-        if tree is not None:
-            self.tree = tree
-        else:
-            self.tree = ast.parse(code, mode="eval").body
+        self._tree = tree
+        self.weight = 1
+        self.is_self_eager_root = True
+
+    @property
+    def tree(self):
+        if self._tree is None:
+            self._tree = ast.parse(self.code, mode="eval").body
+        return self._tree
+
+    def rewrite(self, tree):
+        self._tree = tree
+        self.code = None
+
+    def render(self):
+        if self.code is None:
+            self.code = _fmt_expr(self._tree)
 
 
 class ReducerRecord(object):
@@ -460,6 +454,15 @@ class GuardScope(object):
 
 
 class SharingPlan(object):
+    """Per-plan ``_Expr`` occurrences plus the temps each scope emits.
+
+    ``values``: id(record) -> list of value occurrences; ``rows``:
+    id(record) -> row occurrence; ``guards``: id(child scope) -> guard
+    occurrence (absent until the scope is analyzed; the emitter falls
+    back to the guard string); ``signature``: occurrence or None;
+    ``temps``: id(scope) -> [(name, code)].
+    """
+
     __slots__ = ["values", "guards", "signature", "temps", "rows"]
 
     def __init__(self):
@@ -511,57 +514,42 @@ def _eager_and_weight(record, with_init):
     return list(reduce_eager), list(reduce_weight), reduce_row_eager
 
 
-def _collect_count_items(scope, plan, with_init, self_scope, signature, items):
+def _collect_count_items(
+    scope, plan, with_init, self_scope, with_signature, items
+):
+    is_self = scope is self_scope
     for record in scope.reducers:
         eager_flags, weights, row_eager = _eager_and_weight(record, with_init)
-        codes = plan.values[id(record)]
-        for i, code in enumerate(codes):
-            items.append(
-                _CountItem(
-                    code,
-                    weights[i],
-                    scope is self_scope and eager_flags[i],
-                    "value",
-                    record=record,
-                    index=i,
-                )
-            )
+        for i, item in enumerate(plan.values[id(record)]):
+            item.weight = weights[i]
+            item.is_self_eager_root = is_self and eager_flags[i]
+            items.append(item)
         templates = record.prepare_first_lines + record.reduce_lines
         if any("%(row)s" in line for line in templates):
-            items.append(
-                _CountItem(
-                    plan.rows[id(record)],
-                    1,
-                    scope is self_scope and row_eager,
-                    "row",
-                    record=record,
-                )
-            )
+            item = plan.rows[id(record)]
+            item.is_self_eager_root = is_self and row_eager
+            items.append(item)
     for guard, child in scope.children.items():
-        gcode = plan.guards.get(id(child), guard)
-        items.append(
-            _CountItem(
-                gcode,
-                1,
-                scope is self_scope,
-                "guard",
-                child=child,
-            )
-        )
+        item = plan.guards.get(id(child))
+        if item is None:
+            item = plan.guards[id(child)] = _Expr(guard)
+        item.is_self_eager_root = is_self
+        items.append(item)
         _collect_count_items(
-            child, plan, with_init, self_scope, signature, items
+            child, plan, with_init, self_scope, with_signature, items
         )
-    if signature is not None and scope is self_scope:
-        items.append(_CountItem(plan.signature, 1, True, "signature"))
+    if with_signature and is_self:
+        items.append(plan.signature)
 
 
-def _check_temp_order(name_to_tree_pairs):
+def _check_temp_order(name_to_tree_pairs, outer_temps=()):
     """Raise if a temp's RHS references a temp not yet emitted.
 
-    Walks each RHS once (``O(size of RHS)`` per temp). Roots are never
-    ``ast.Name`` (``_HOISTABLE_TYPES`` has none).
+    ``outer_temps`` are the temps of the enclosing scopes, emitted before
+    this scope's. Walks each RHS once (``O(size of RHS)`` per temp).
+    Roots are never ``ast.Name`` (``_HOISTABLE_TYPES`` has none).
     """
-    emitted = set()
+    emitted = set(outer_temps)
     for name, tree in name_to_tree_pairs:
         for child in _walk_tree(tree, eager_only=False):
             if not (
@@ -577,7 +565,9 @@ def _check_temp_order(name_to_tree_pairs):
         emitted.add(name)
 
 
-def analyze_scope(scope, plan, with_init, signature, tmp_index):
+def analyze_scope(
+    scope, plan, with_init, with_signature, tmp_index, outer_temps=()
+):
     """Share repeated eager expressions in ``scope`` into temporaries.
 
     Candidate records in the working set:
@@ -591,14 +581,20 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
     structural keys are computed once when it is added and discarded when
     its tree is rewritten (then re-added). ``rhs_tree`` is the original
     matched node, orphaned from every item tree after substitution, so
-    items and temps never alias AST nodes.
+    items and temps never alias AST nodes. Items are the plan's ``_Expr``
+    occurrences: a descendant's tree, possibly rewritten here, is picked
+    up as is by the scopes below instead of being re-parsed from its
+    string, so ``_cse_temp`` markers survive into nested scopes; the
+    scope's own occurrences are rendered once it is done, since the
+    scopes below only ever collect their own subtrees.
     Temps are named at extraction, emitted in creation order, and the
     assert guards the invariant that a temp's RHS only references earlier
-    temps. ``_cse_temp`` marks optimizer temps for structural identity
-    and for that assert.
+    temps (its own scope's or, via ``outer_temps``, an enclosing scope's).
+    ``_cse_temp`` marks optimizer temps for structural identity and for
+    that assert.
     """
     items = []
-    _collect_count_items(scope, plan, with_init, scope, signature, items)
+    _collect_count_items(scope, plan, with_init, scope, with_signature, items)
     local_temps = []
     intern = {}
     item_keys = {}  # id(item) -> structural keys; dropped when rewritten
@@ -690,57 +686,45 @@ def analyze_scope(scope, plan, with_init, signature, tmp_index):
                 item.tree, mapping, item_keys[id(item)]
             )
             if changed:
-                item.tree = new_tree
-                item.rewritten = True
+                item.rewrite(new_tree)
                 rewritten_items.append(item)
         for item in rewritten_items:
             _subtract_item_contributions(item)
         for item in rewritten_items:
             _add_item_contributions(item)
-        items.append(
-            _CountItem(
-                None,
-                1,
-                True,
-                "temp_rhs",
-                tree=rhs_tree,
-                rewritten=True,
-            )
-        )
+        items.append(_Expr(None, tree=rhs_tree))
         _add_item_contributions(items[-1])
         local_temps.append((public_name, rhs_tree))
 
-    _check_temp_order(local_temps)
+    _check_temp_order(local_temps, outer_temps)
     plan.temps[id(scope)] = [
-        (name, _fmt_expr(tree, rewritten=True)) for name, tree in local_temps
+        (name, _fmt_expr(tree)) for name, tree in local_temps
     ]
 
-    for item in items:
-        if item.kind == "temp_rhs":
-            continue
-        new_code = _fmt_expr(item.tree, item.code, item.rewritten)
-        if item.kind == "value":
-            codes = list(plan.values[id(item.record)])
-            codes[item.index] = new_code
-            plan.values[id(item.record)] = tuple(codes)
-        elif item.kind == "guard":
-            plan.guards[id(item.child)] = new_code
-        elif item.kind == "row":
-            plan.rows[id(item.record)] = new_code
-        else:
-            plan.signature = new_code
-
+    for record in scope.reducers:
+        for item in plan.values[id(record)]:
+            item.render()
+        plan.rows[id(record)].render()
     for child in scope.children.values():
-        tmp_index = analyze_scope(child, plan, with_init, None, tmp_index)
+        plan.guards[id(child)].render()
+    if with_signature:
+        plan.signature.render()
+
+    inner_temps = outer_temps + tuple(name for name, _ in local_temps)
+    for child in scope.children.values():
+        tmp_index = analyze_scope(
+            child, plan, with_init, False, tmp_index, inner_temps
+        )
     return tmp_index
 
 
 def init_plan(records, signature):
     plan = SharingPlan()
     for record in records:
-        plan.values[id(record)] = record.value_codes
-        plan.rows[id(record)] = record.row_code
-    plan.signature = signature
+        plan.values[id(record)] = [_Expr(code) for code in record.value_codes]
+        plan.rows[id(record)] = _Expr(record.row_code)
+    if signature is not None:
+        plan.signature = _Expr(signature)
     return plan
 
 

@@ -37,7 +37,7 @@ def _analyze_or_unshared(root, records, with_init, signature):
     """Share eager expressions; fall back to the unshared plan on overflow."""
     plan = init_plan(records, signature)
     try:
-        analyze_scope(root, plan, with_init, signature, 0)
+        analyze_scope(root, plan, with_init, signature is not None, 0)
     except RecursionError:
         return init_plan(records, signature)
     return plan
@@ -110,11 +110,10 @@ class ReduceManager:
     def _record_kwargs(self, record, plan):
         kwargs = {
             "result": record.slot,
-            "row": plan.rows[id(record)],
+            "row": plan.rows[id(record)].code,
         }
-        codes = plan.values[id(record)]
-        for i, code in enumerate(codes):
-            kwargs["value{}".format(i)] = code
+        for i, item in enumerate(plan.values[id(record)]):
+            kwargs["value{}".format(i)] = item.code
         return kwargs
 
     def _emit_lines(self, code, lines, record, plan):
@@ -148,8 +147,10 @@ class ReduceManager:
             for record in node.reducers:
                 self._emit_lines(code, record.reduce_lines, record, plan)
         for guard, child in node.children.items():
-            rewritten = plan.guards.get(id(child), guard)
-            code.add_line("if {}:".format(rewritten), 1)
+            item = plan.guards.get(id(child))
+            code.add_line(
+                "if {}:".format(guard if item is None else item.code), 1
+            )
             self._emit_scope(code, child, plan, with_init)
             code.incr_indent_level(-1)
 
@@ -164,7 +165,7 @@ class ReduceManager:
                 "{} = {}[{}]".format(
                     self.var_agg_data,
                     var_signature_to_agg_data,
-                    plan.signature,
+                    plan.signature.code,
                 ),
                 0,
             )
