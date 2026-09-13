@@ -97,8 +97,7 @@ def _structural_keys(root, intern):
 def _opaque_eager_parts(node):
     if isinstance(node, ast.Lambda):
         args = node.args
-        for default in args.defaults:
-            yield default
+        yield from args.defaults
         for kw_default in args.kw_defaults:
             if kw_default is not None:
                 yield kw_default
@@ -111,8 +110,7 @@ def _opaque_eager_parts(node):
 
 def _walk_expr_children_skip_binders(node, eager_only):
     if _is_binder(node):
-        for part in _opaque_eager_parts(node):
-            yield part
+        yield from _opaque_eager_parts(node)
         return
     if eager_only:
         if isinstance(node, ast.BoolOp):
@@ -150,8 +148,7 @@ def _iter_hoistable(node):
 
 def _iter_eager(node):
     yield node
-    for child in _walk_tree(node, eager_only=True):
-        yield child
+    yield from _walk_tree(node, eager_only=True)
 
 
 def _fmt_expr(node):
@@ -162,6 +159,8 @@ def _fmt_expr(node):
 
 
 class _ReplaceByKey(ast.NodeTransformer):
+    """Replace matching subtrees with CSE temps; skip binder interiors."""
+
     def __init__(self, key_to_name, keys):
         self.key_to_name = key_to_name
         self.keys = keys
@@ -173,6 +172,7 @@ class _ReplaceByKey(ast.NodeTransformer):
             if name is not None:
                 self.changed = True
                 replacement = ast.Name(id=name, ctx=ast.Load())
+                # pylint: disable-next=protected-access
                 replacement._cse_temp = True
                 return replacement
         if _is_binder(node):
@@ -265,8 +265,7 @@ def _mark_eager_expr(node, sentinel_to_index, eager):
 def _stmt_evaled_exprs(stmt):
     if isinstance(stmt, ast.Assign):
         yield stmt.value
-        for target in stmt.targets:
-            yield target
+        yield from stmt.targets
         return
     if isinstance(stmt, ast.AugAssign):
         yield stmt.value
@@ -403,6 +402,8 @@ class _Expr(object):
 
 
 class ReducerRecord(object):
+    """One reducer's generated where/value/row snippets and template lines."""
+
     __slots__ = [
         "slot",
         "where_code",
@@ -641,7 +642,7 @@ def analyze_scope(
         item_id = id(item)
         contribs = item_contribs.pop(item_id)
         del item_keys[item_id]
-        for key, weight, eager_flag, _node in contribs:
+        for key, weight, eager_flag, _ in contribs:
             rec = candidates[key]
             rec["count"] -= weight
             rec["live"] -= 1
@@ -681,7 +682,7 @@ def analyze_scope(
         rhs_tree = next(iter(rec["contributors"].values()))[1]
         mapping = {best_key: public_name}
         rewritten_items = []
-        for item, _node in list(rec["contributors"].values()):
+        for item, _ in list(rec["contributors"].values()):
             new_tree, changed = _replace_by_key(
                 item.tree, mapping, item_keys[id(item)]
             )
