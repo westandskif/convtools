@@ -2,6 +2,11 @@
 
 **Changed**
 
+- constant reducer arguments (`c.naive(...)` / plain values such as
+  `MaxRow(1)`, `Sum(1)`) are known to be not-None, so generated code no
+  longer emits a `is not None` guard or an `or 0` fallback for them; this
+  also removes the `SyntaxWarning: "is not" with a literal` Python raised
+  when compiling such converters
 - identity `Table.take(...)` on tuple/list rows no longer rebuilds rows; rows
   longer than the header are passed through as they are without `take`
 - an index of `c.item(..., default=...)` that is an input-independent pipe or

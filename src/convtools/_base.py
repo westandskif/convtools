@@ -1684,6 +1684,9 @@ class NaiveConversion(BaseConversion):
         if not self.code_str:
             self.total_weight = Weights.DICT_LOOKUP
 
+        if value is not None:
+            self.add_hint(self.OutputHints.NOT_NONE)
+
     def gen_code_and_update_ctx(self, code_input, ctx):
         if self.code_str:
             return self.code_str
