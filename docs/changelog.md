@@ -1,7 +1,17 @@
-## Unreleased
+## 1.17.3 (2026-09-13)
 
 **Changed**
 
+- reducer-sharing planning reuses parsed expression trees across scopes,
+  reducing converter generation overhead
+- datetime truncation and fixed-microsecond grids construct datetimes directly;
+  `date_parse` constructs a date directly when the format has no time fields
+- `dispatch` branches bind external constants and callables as function
+  defaults for faster lookup
+- `ReduceFuncs.Mode` selects the most frequent value without sorting all
+  counts, preserving first-encountered tie order
+- `split_buffer` / `split_buffer_n_decode` accumulate fragments of long
+  records without repeatedly copying the entire record
 - constant reducer arguments (`c.naive(...)` / plain values such as
   `MaxRow(1)`, `Sum(1)`) are known to be not-None, so generated code no
   longer emits a `is not None` guard or an `or 0` fallback for them; this
