@@ -1,7 +1,7 @@
 """Defines sorting conversions."""
 
 from operator import attrgetter, index, itemgetter
-from typing import Any, Callable
+from typing import Any, Callable, List, Tuple
 
 from ._base import (
     BaseConversion,
@@ -328,7 +328,7 @@ class SortConversion(BaseConversion):
             self.static_reverse = bool(index(reverse)) if reverse else False
 
         ensured_keys = [ensure_conversion(k) for k in conversion_keys]
-        grouped = []
+        grouped: List[Tuple[bool, List[Any]]] = []
         for k in ensured_keys:
             desc_k = bool(k.has_hint(self.OutputHints.ORDERING_DESC))
             if not grouped or grouped[-1][0] != desc_k:

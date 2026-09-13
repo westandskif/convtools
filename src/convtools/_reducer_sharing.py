@@ -11,6 +11,7 @@ must not mutate the values they receive.
 import ast
 import heapq
 from functools import lru_cache
+from typing import Any, Dict, List, Tuple
 
 from ._utils import ast_unparse
 
@@ -79,7 +80,7 @@ def _structural_keys(root, intern):
                 parts.append((field, tuple(sub_keys)))
             else:
                 parts.append((field, repr(value)))
-        raw = (type(node), tuple(parts))
+        raw: Any = (type(node), tuple(parts))
         if isinstance(node, ast.Name):
             raw = (raw, getattr(node, "_cse_temp", False))
         key = intern.get(raw)
@@ -173,7 +174,7 @@ class _ReplaceByKey(ast.NodeTransformer):
                 self.changed = True
                 replacement = ast.Name(id=name, ctx=ast.Load())
                 # pylint: disable-next=protected-access
-                replacement._cse_temp = True
+                replacement._cse_temp = True  # type: ignore[attr-defined]
                 return replacement
         if _is_binder(node):
             return self._visit_binder(node)
@@ -182,12 +183,12 @@ class _ReplaceByKey(ast.NodeTransformer):
     def _visit_binder(self, node):
         if isinstance(node, ast.Lambda):
             defaults = node.args.defaults
-            for i, d in enumerate(defaults):
-                defaults[i] = self.visit(d)
+            for i, default in enumerate(defaults):
+                defaults[i] = self.visit(default)
             kw_defaults = node.args.kw_defaults
-            for i, d in enumerate(kw_defaults):
-                if d is not None:
-                    kw_defaults[i] = self.visit(d)
+            for i, kw_default in enumerate(kw_defaults):
+                if kw_default is not None:
+                    kw_defaults[i] = self.visit(kw_default)
             return node
         if isinstance(
             node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
@@ -594,14 +595,14 @@ def analyze_scope(
     ``_cse_temp`` marks optimizer temps for structural identity and for
     that assert.
     """
-    items = []
+    items: List[_Expr] = []
     _collect_count_items(scope, plan, with_init, scope, with_signature, items)
     local_temps = []
-    intern = {}
+    intern: Dict[Any, int] = {}
     item_keys = {}  # id(item) -> structural keys; dropped when rewritten
     item_contribs = {}
-    candidates = {}
-    heap = []
+    candidates: Dict[int, Any] = {}
+    heap: List[Tuple[int, int, int]] = []
 
     def _push_if_eligible(key, rec):
         if rec["count"] >= 2 and rec["eager_ok"] > 0:

@@ -553,7 +553,7 @@ class BaseConversion(Generic[CT]):
 
     @classmethod
     def _init_ctx(cls, debug=None):
-        ctx = cls.ctx_factory()
+        ctx: Dict[str, Any] = cls.ctx_factory()
         ctx["sys"] = sys
         ctx["__debug"] = debug
         ctx["__name__"] = "_convtools"

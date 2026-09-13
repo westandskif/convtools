@@ -313,12 +313,11 @@ class Table:
                     column.index != column.name for column in columns.columns
                 ):
                     pending_changes |= ColumnChanges.REARRANGE
-            else:
-                if any(
-                    column.index != index
-                    for index, column in enumerate(columns.columns)
-                ):
-                    pending_changes |= ColumnChanges.REARRANGE
+            elif any(
+                column.index != index
+                for index, column in enumerate(columns.columns)
+            ):
+                pending_changes |= ColumnChanges.REARRANGE
 
         rows_objects: "List[Iterable]" = [] if input_exhausted else [rows]
         if first_row is not _none:

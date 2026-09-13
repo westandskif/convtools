@@ -5,6 +5,8 @@ doesn't support "newlines" (delimiters) in binary mode. The following methods
 should close the gap. The caller owns and closes the buffer.
 """
 
+from typing import Any, List
+
 
 def split_buffer(buffer, delimiter, chunk_size=32768):
     """Reads text or binary buffer and splits it by delimiter.
@@ -60,7 +62,7 @@ def _iter_split_buffer(buffer, delimiter, chunk_size):
             chunk = chunks[-1]
             del chunks
         elif new_chunk:
-            leftover_box = []
+            leftover_box: List[Any] = []
             yield from _iter_split_pending(
                 buffer, delimiter, chunk_size, chunk, leftover_box
             )
@@ -116,7 +118,7 @@ def _iter_split_buffer_n_decode(buffer, delimiter, chunk_size, encoding):
             chunk = chunks[-1]
             del chunks
         elif new_chunk:
-            leftover_box = []
+            leftover_box: List[Any] = []
             yield from (
                 piece.decode(encoding)
                 for piece in _iter_split_pending(
