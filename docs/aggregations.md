@@ -82,8 +82,8 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `PopulationStdDev` | Calculates population standard deviation, skipping `None`. |
 | `PopulationVariance` | Calculates population variance, skipping `None`. |
 | `StdDev` | Calculates sample standard deviation, skipping `None`. |
-| `Sum` | Sums values, treating `None` (and other falsy values) as `0`; default is `0`. |
-| `SumOrNone` | Sums values; any `None` makes the result `None`. |
+| `Sum` | Sums values, treating `None` (and other falsy values) as `0`; default is `0`. Summing lists/tuples uses `result = result + value` (never mutates the first row's object) and is O(n^2); pass `initial=list` for linear in-place list accumulation (`Sum` still treats empty lists as `0`, which then raises). |
+| `SumOrNone` | Sums values; any `None` makes the result `None`. Summing lists/tuples uses `result = result + value` (never mutates the first row's object) and is O(n^2); pass `initial=list` for linear in-place list accumulation. |
 | `TopK` | `TopK(k, value)`: returns a list of the `k` most frequent non-`None` values, sorted by descending frequency. |
 | `Variance` | Calculates sample variance, skipping `None`. |
 
@@ -102,7 +102,7 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `DictLastN` | `DictLastN(n, key, value)`: builds a dict whose values are the last `n` encountered values per key. |
 | `DictMax` | Builds a dict whose values are max values per key, skipping `None`. |
 | `DictMin` | Builds a dict whose values are min values per key, skipping `None`. |
-| `DictSum` | Builds a dict whose values are sums per key, treating `None` as `0`. |
+| `DictSum` | Builds a dict whose values are sums per key, treating `None` as `0`. Summing lists/tuples per key uses `result[k] = result[k] + value` and is O(n^2); `initial=` is ignored (use `DictArray` to collect lists per key). |
 | `DictSumOrNone` | Builds a dict whose values are sums per key; any `None` makes that key's result `None`. |
 
 Dict reducers aggregate into dictionaries whose values are reduced per key. See [Reducers API](#reducers-api) below for argument counts, defaults, `None` handling, `initial=` support, and edge-case notes.
