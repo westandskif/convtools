@@ -39,24 +39,15 @@ def gen_md(results: List[BenchmarkResult], indent="    "):
         c.iter(
             c.this.call_method("_asdict"),
         )
-        .iter_mut(
-            c.Mut.set_item(
-                "convtools_version",
-                c.item("convtools_version").pipe(c_version_to_tuple),
-            ),
-            c.Mut.set_item(
-                "py_version_tup",
-                c.item("py_version").pipe(c_version_to_tuple),
-            ),
-        )
         .sort(
             key=(
-                c.item("py_version_tup").desc(),
-                c.item("convtools_version").desc(),
+                c.item("py_version").pipe(c_version_to_tuple).desc(),
+                c.item("convtools_version").pipe(c_version_to_tuple).desc(),
                 c.item("diff"),
             )
         )
         .iter_unique(c.this, by_=(c.item("name"), c.item("py_version")))
+        .as_type(list)
         .execute(results)
     )
     table_data = list(
@@ -81,8 +72,16 @@ def gen_md(results: List[BenchmarkResult], indent="    "):
         table_str = tabulate(table_data, headers="firstrow", tablefmt="pipe")
         for line in table_str.splitlines(keepends=True):
             f.write(indent + line)
+    return filtered_results
 
 
 if __name__ == "__main__":
-    benchmark_results = BenchmarkResultsStorage().load_results()
-    gen_md(benchmark_results)
+    storage = BenchmarkResultsStorage()
+    benchmark_results = storage.load_results()
+    rendered_results = gen_md(benchmark_results)
+    # Replace the stored history with exactly the rows used in the docs.
+    # storage.save() merges old results back in, so it cannot prune them.
+    rendered_results.sort(key=lambda row: (row["py_version"], row["diff"]))
+    new_filename = f"{storage.FILENAME}_"
+    Table.from_rows(rendered_results).into_csv(new_filename)
+    os.replace(new_filename, storage.FILENAME)
