@@ -1,3 +1,16 @@
+## 1.17.4 (2026-09-23)
+
+**Bugfix**
+
+- `group_by` no longer rewrites key text inside string literals of the
+  aggregate result (e.g. `c.item("row_")` became `signature_["signature_"]`);
+  keys are now substituted by matching expression trees instead of a regex
+  word replace. Substitution respects lambda / comprehension scopes that
+  rebind a name the key reads, and covers f-/t-string interpolations but not
+  their literal parts
+- removed the undocumented `BaseConversion.replace_word` helper (the regex
+  substitution it implemented is no longer used)
+
 ## 1.17.3 (2026-09-13)
 
 **Changed**
