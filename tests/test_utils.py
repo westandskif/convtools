@@ -2,6 +2,7 @@ import ast
 import asyncio
 import os
 import shutil
+import sys
 import tempfile
 import threading
 
@@ -80,6 +81,10 @@ def test_code_generation_ctx_deep_nesting():
     assert ConverterOptionsCtx.get_option_value("debug") is False
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 7),
+    reason="OptionsCtx is thread-local on 3.6: no contextvars",
+)
 def test_options_ctx_asyncio_isolation():
     async def run():
         started = asyncio.Event()

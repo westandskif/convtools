@@ -2,7 +2,7 @@
 
 import ast
 from collections import defaultdict
-from typing import Union
+from typing import FrozenSet, Union
 
 from ._base import (
     BaseConversion,
@@ -86,7 +86,7 @@ class _ReplaceKeys(ast.NodeTransformer):
         self.key_to_index = key_to_index
         self.key_names = key_names
         self.var_signature = var_signature
-        self.shadowed = frozenset()
+        self.shadowed: FrozenSet[str] = frozenset()
         self.free_names = set()
         self.changed = False
 
@@ -104,9 +104,9 @@ class _ReplaceKeys(ast.NodeTransformer):
                 signature = ast.Name(id=self.var_signature, ctx=ast.Load())
                 if len(self.key_names) == 1:
                     return signature
-                slice_: ast.AST = ast.Constant(value=index, kind=None)
+                slice_: ast.expr = ast.Constant(value=index, kind=None)
                 if PY_VERSION < (3, 9):
-                    slice_ = ast.Index(value=slice_)  # pragma: no cover
+                    slice_ = ast.Index(value=slice_)  # type: ignore[assignment] # pragma: no cover
                 return ast.Subscript(
                     value=signature, slice=slice_, ctx=ast.Load()
                 )
@@ -131,7 +131,7 @@ class _ReplaceKeys(ast.NodeTransformer):
                 part.value = self.visit(part.value)
                 if self.changed and hasattr(part, "str"):
                     # 3.14 unparses an Interpolation from its source text
-                    part.str = ast_unparse(part.value)
+                    part.str = ast_unparse(part.value)  # pragma: no cover
                 self.changed = self.changed or changed
                 if part.format_spec is not None:
                     self._visit_string_template(part.format_spec)
