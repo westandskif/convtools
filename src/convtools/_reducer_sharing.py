@@ -720,13 +720,13 @@ def analyze_scope(
     return tmp_index
 
 
-def init_plan(records, signature):
+def init_plan(records, signature, signature_tree=None):
     plan = SharingPlan()
     for record in records:
         plan.values[id(record)] = [_Expr(code) for code in record.value_codes]
         plan.rows[id(record)] = _Expr(record.row_code)
     if signature is not None:
-        plan.signature = _Expr(signature)
+        plan.signature = _Expr(signature, tree=signature_tree)
     return plan
 
 

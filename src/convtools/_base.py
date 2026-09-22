@@ -369,16 +369,6 @@ class BaseConversion(Generic[CT]):
         prefixed_hash_to_name[prefixed_hash] = name
         return name
 
-    _word_pattern_format = r"((?<=\W)|^){}((?=\W)|$)"
-
-    @classmethod
-    def replace_word(cls, where: str, word: str, with_what: str) -> str:
-        return re.sub(
-            cls._word_pattern_format.format(re.escape(word)),
-            with_what,
-            where,
-        )
-
     def as_function_ctx(
         self,
         ctx,

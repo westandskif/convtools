@@ -189,27 +189,6 @@ def test_global_debug_execute_dumps_sources(monkeypatch):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def test_replace_word():
-    cases = [
-        ("abc", "abc", "cde", "cde"),
-        ("aabc", "abc", "cde", "aabc"),
-        ("abcc", "abc", "cde", "abcc"),
-        ("aabcc", "abc", "cde", "aabcc"),
-        ("aabc 1", "abc", "cde", "aabc 1"),
-        ("1 abcc", "abc", "cde", "1 abcc"),
-        ("abc 1", "abc", "cde", "cde 1"),
-        ("1 abc", "abc", "cde", "1 cde"),
-        ("1 abccabc _abc abc 2", "abc", "cde", "1 abccabc _abc cde 2"),
-        (" aabc ", "abc", "cde", " aabc "),
-        (" abcc ", "abc", "cde", " abcc "),
-        (" abc ", "abc", "cde", " cde "),
-        (" abc abc abc abc  ", "abc", "cde", " cde cde cde cde  "),
-    ]
-    for where, word, with_what, expected_result in cases:
-        result = BaseConversion.replace_word(where, word, with_what)
-        assert result == expected_result
-
-
 def test_add_sources():
     converter = This().gen_converter(debug=False)
     code_storage = converter.__globals__["__convtools__code_storage"]

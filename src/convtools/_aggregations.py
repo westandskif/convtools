@@ -19,6 +19,8 @@ from ._base import (
 )
 from ._heuristics import Weights
 from ._reducer_sharing import (
+    _fmt_expr,
+    _structural_keys,
     analyze_scope,
     build_guard_tree,
     count_reducer_nodes,
@@ -30,17 +32,159 @@ from ._reducers import (
     WelfordAccumulator,
     WelfordCovarianceAccumulator,
 )
-from ._utils import Code
+from ._utils import PY_VERSION, Code, ast_unparse
 
 
-def _analyze_or_unshared(root, records, with_init, signature):
+def _analyze_or_unshared(
+    root, records, with_init, signature, signature_tree=None
+):
     """Share eager expressions; fall back to the unshared plan on overflow."""
-    plan = init_plan(records, signature)
+    plan = init_plan(records, signature, signature_tree)
     try:
         analyze_scope(root, plan, with_init, signature is not None, 0)
     except RecursionError:
+        # the first attempt may have rewritten signature_tree in place
         return init_plan(records, signature)
     return plan
+
+
+_DISPLAY_ATOMS = (
+    ast.Dict,
+    ast.List,
+    ast.Set,
+    ast.DictComp,
+    ast.ListComp,
+    ast.SetComp,
+)
+
+
+_STRING_TEMPLATES = tuple(
+    getattr(ast, name)
+    for name in ("JoinedStr", "TemplateStr")
+    if hasattr(ast, name)
+)
+_INTERPOLATIONS = tuple(
+    getattr(ast, name)
+    for name in ("FormattedValue", "Interpolation")
+    if hasattr(ast, name)
+)
+
+
+class _ReplaceKeys(ast.NodeTransformer):
+    """Replace subtrees equal to a group_by key with the signature ref.
+
+    Scope-aware: inside a lambda / comprehension, a key whose free names
+    the binder rebinds is not that key. ``free_names`` collects names read
+    outside any binder that rebinds them; with no keys given, the visitor
+    only collects them.
+    """
+
+    def __init__(
+        self, keys=None, key_to_index=None, key_names=(), var_signature=None
+    ):
+        self.keys = keys
+        self.key_to_index = key_to_index
+        self.key_names = key_names
+        self.var_signature = var_signature
+        self.shadowed = frozenset()
+        self.free_names = set()
+        self.changed = False
+
+    def visit(self, node):
+        if isinstance(node, ast.expr):
+            index = (
+                self.key_to_index.get(self.keys[id(node)][0])
+                if self.key_to_index
+                else None
+            )
+            if index is not None and not (
+                self.key_names[index] & self.shadowed
+            ):
+                self.changed = True
+                signature = ast.Name(id=self.var_signature, ctx=ast.Load())
+                if len(self.key_names) == 1:
+                    return signature
+                slice_: ast.AST = ast.Constant(value=index, kind=None)
+                if PY_VERSION < (3, 9):
+                    slice_ = ast.Index(value=slice_)  # pragma: no cover
+                return ast.Subscript(
+                    value=signature, slice=slice_, ctx=ast.Load()
+                )
+            if isinstance(node, _STRING_TEMPLATES):
+                return self._visit_string_template(node)
+            if isinstance(node, ast.Lambda):
+                return self._visit_lambda(node)
+            if isinstance(
+                node,
+                (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp),
+            ):
+                return self._visit_comprehension(node)
+            if isinstance(node, ast.Name) and node.id not in self.shadowed:
+                self.free_names.add(node.id)
+        return self.generic_visit(node)
+
+    def _visit_string_template(self, node):
+        # literal segments are not expressions; only interpolated values are
+        for part in node.values:
+            if isinstance(part, _INTERPOLATIONS):
+                changed, self.changed = self.changed, False
+                part.value = self.visit(part.value)
+                if self.changed and hasattr(part, "str"):
+                    # 3.14 unparses an Interpolation from its source text
+                    part.str = ast_unparse(part.value)
+                self.changed = self.changed or changed
+                if part.format_spec is not None:
+                    self._visit_string_template(part.format_spec)
+        return node
+
+    def _visit_lambda(self, node):
+        args = node.args
+        args.defaults = [self.visit(d) for d in args.defaults]
+        args.kw_defaults = [
+            d if d is None else self.visit(d) for d in args.kw_defaults
+        ]
+        bound = [
+            arg.arg
+            for arg in getattr(args, "posonlyargs", [])
+            + args.args
+            + args.kwonlyargs
+        ]
+        bound.extend(arg.arg for arg in (args.vararg, args.kwarg) if arg)
+        outer = self.shadowed
+        self.shadowed = outer.union(bound)
+        node.body = self.visit(node.body)
+        self.shadowed = outer
+        return node
+
+    def _visit_comprehension(self, node):
+        generators = node.generators
+        # only the first iter is evaluated in the enclosing scope
+        generators[0].iter = self.visit(generators[0].iter)
+        outer = self.shadowed
+        self.shadowed = outer.union(
+            name.id
+            for gen in generators
+            for name in ast.walk(gen.target)
+            if isinstance(name, ast.Name) and isinstance(name.ctx, ast.Store)
+        )
+        for i, gen in enumerate(generators):
+            gen.target = self.visit(gen.target)
+            if i:
+                gen.iter = self.visit(gen.iter)
+            gen.ifs = [self.visit(if_) for if_ in gen.ifs]
+        if isinstance(node, ast.DictComp):
+            node.key = self.visit(node.key)
+            node.value = self.visit(node.value)
+        else:
+            node.elt = self.visit(node.elt)
+        self.shadowed = outer
+        return node
+
+
+def _free_names(tree):
+    collector = _ReplaceKeys()
+    collector.visit(tree)
+    return frozenset(collector.free_names)
 
 
 class ReduceManager:
@@ -154,9 +298,13 @@ class ReduceManager:
             self._emit_scope(code, child, plan, with_init)
             code.incr_indent_level(-1)
 
-    def gen_group_by_code(self, var_signature_to_agg_data, code_signature):
+    def gen_group_by_code(
+        self, var_signature_to_agg_data, code_signature, signature_tree
+    ):
         root = build_guard_tree(self.records)
-        plan = _analyze_or_unshared(root, self.records, True, code_signature)
+        plan = _analyze_or_unshared(
+            root, self.records, True, code_signature, signature_tree
+        )
         code = Code()
         code.add_line("for {} in data_:".format(self.var_row), 1)
 
@@ -254,7 +402,7 @@ class GroupBy:
     Current optimizations:
      * piping like ``c.group_by(...).aggregate().pipe(...)`` won't run
        the aggregation twice
-     * using the same reducer twicewon't result in double calculation
+     * using the same reducer twice won't result in double calculation
     """
 
     def __init__(self, *by):
@@ -423,35 +571,47 @@ class Grouper(BaseConversion):
                     reduce_manager.accepts_reducers = False
 
                 by_is_single = len(self.by) == 1
-                code_signatures = []
-                for index, by_ in enumerate(self.by):
-                    code_by = by_.gen_code_and_update_ctx(var_row, ctx)
-                    code_signatures.append(code_by)
-                    code_agg_result = self.replace_word(
-                        code_agg_result,
-                        code_by,
-                        (
-                            var_signature
-                            if by_is_single
-                            else f"{var_signature}[{index}]"
-                        ),
-                    )
-
+                code_signatures = [
+                    by_.gen_code_and_update_ctx(var_row, ctx)
+                    for by_ in self.by
+                ]
                 code_signature = (
                     code_signatures[0]
                     if by_is_single
                     else f"({', '.join(code_signatures)})"
                 )
 
-                if any(
-                    isinstance(node, ast.Name) and node.id == var_row
-                    for node in ast.walk(
-                        ast.parse(code_agg_result, mode="eval")
+                key_trees = [
+                    ast.parse(code_by, mode="eval").body
+                    for code_by in code_signatures
+                ]
+                result_tree = ast.parse(code_agg_result, mode="eval").body
+                intern: dict = {}
+                key_to_index: dict = {}
+                for index, key_tree in enumerate(key_trees):
+                    key_to_index.setdefault(
+                        _structural_keys(key_tree, intern)[id(key_tree)][0],
+                        index,
                     )
-                ):
+                replacer = _ReplaceKeys(
+                    _structural_keys(result_tree, intern),
+                    key_to_index,
+                    [_free_names(key_tree) for key_tree in key_trees],
+                    var_signature,
+                )
+                result_tree = replacer.visit(result_tree)
+
+                if var_row in replacer.free_names:
                     raise ConversionException(
                         "something other than group_by keys and reducers have been used",
-                        code_agg_result,
+                        _fmt_expr(result_tree),
+                    )
+                if replacer.changed:
+                    # display atoms splice safely without outer parentheses
+                    code_agg_result = (
+                        ast_unparse(result_tree)
+                        if isinstance(result_tree, _DISPLAY_ATOMS)
+                        else _fmt_expr(result_tree)
                     )
 
                 with NamespaceCtx(
@@ -501,6 +661,11 @@ class Grouper(BaseConversion):
                         code_group_by=reduce_manager.gen_group_by_code(
                             var_signature_to_agg_data=var_signature_to_agg_data,
                             code_signature=code_signature,
+                            signature_tree=(
+                                key_trees[0]
+                                if by_is_single
+                                else ast.Tuple(elts=key_trees, ctx=ast.Load())
+                            ),
                         ).to_string(base_indent_level=1),
                         **agg_template_kwargs,
                     )

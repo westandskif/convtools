@@ -1,6 +1,7 @@
 import math
 import random
 import statistics
+import sys
 import warnings
 from collections import Counter
 from datetime import date, datetime, timedelta
@@ -1627,3 +1628,122 @@ def test_custom_reduce_does_not_rewrite_sentinel_literals():
         ).execute([1, 2])
         == 5
     )
+
+
+def test_group_by_key_not_substituted_inside_string_literals():
+    class Row(tuple):
+        def __getitem__(self, k):
+            return {"row_": 1, "signature_": 2}[k]
+
+    assert c.group_by(c.this).aggregate({"v": c.item("row_")}).execute(
+        [Row()]
+    ) == [{"v": 1}]
+
+
+def test_group_by_key_not_substituted_inside_fstring_literals():
+    assert c.group_by("hello").aggregate(
+        c.inline_expr('f"hello{{1}}"')
+    ).execute([0]) == ["hello1"]
+    assert c.group_by(".2f").aggregate(
+        c.inline_expr('f"{{1.5:.2f}}"')
+    ).execute([0]) == ["1.50"]
+    assert c.group_by(c.item("a")).aggregate(
+        c.inline_expr('f"x{{{k}}}"').pass_args(k=c.item("a"))
+    ).execute([{"a": 1}]) == ["x1"]
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 14), reason="t-strings need Python 3.14+"
+)
+def test_group_by_key_substituted_inside_tstring_interpolations():
+    assert c.group_by(c.item("a")).aggregate(
+        c.inline_expr(
+            "(lambda i: (i.value, i.expression))"
+            "(t'{{{x} + 1!r:>3}}'.interpolations[0])"
+        ).pass_args(x=c.item("a"))
+    ).execute([{"a": 1}, {"a": 2}]) == [
+        (2, "signature_ + 1"),
+        (3, "signature_ + 1"),
+    ]
+
+
+def test_group_by_key_substitution_ast_shapes():
+    # the rewritten result keeps its parentheses when spliced downstream
+    assert c.group_by(c.item("a")).aggregate(c.item("a") + 1).iter(
+        c.this * 2
+    ).as_type(list).execute([{"a": 1}]) == [4]
+
+    # keys are substituted inside comprehension interiors too
+    assert c.group_by(c.item("a")).aggregate(
+        {
+            "xs": c.inline_expr("[{v} for _ in range(2)]").pass_args(
+                v=c.item("a")
+            )
+        }
+    ).execute([{"a": 1}]) == [{"xs": [1, 1]}]
+
+    # overlapping keys, in both orders
+    data = [{"a": "x1"}, {"a": "x2"}, {"a": "x1"}]
+    for by in [
+        (c.item("a"), c.item("a", 1)),
+        (c.item("a", 1), c.item("a")),
+    ]:
+        assert c.group_by(*by).aggregate(
+            {"b": c.item("a", 1), "n": c.ReduceFuncs.Count()}
+        ).execute(data) == [{"b": "1", "n": 2}, {"b": "2", "n": 1}]
+
+
+def test_group_by_key_substitution_respects_binder_scopes():
+    # a binder that rebinds the row / a name a key reads hides that key
+    assert c.group_by(c.this).aggregate(
+        c.inline_expr("(lambda {v}: {v} + 1)(10)").pass_args(v=c.this)
+    ).execute([1]) == [11]
+    assert c.group_by(c.this).aggregate(
+        c.inline_expr("[{v} for {v} in range(2)]").pass_args(v=c.this)
+    ).execute([1]) == [[0, 1]]
+    assert c.group_by(c.item("a")).aggregate(
+        c.inline_expr("(lambda {x}: {x}['a'])({y})").pass_args(
+            x=c.this, y=c.naive({"a": 5})
+        )
+    ).execute([{"a": 1}]) == [5]
+    assert c.group_by(c.item("a")).aggregate(
+        c.inline_expr("[{x}['a'] for {x} in {y}]").pass_args(
+            x=c.this, y=c.naive([{"a": 5}])
+        )
+    ).execute([{"a": 1}]) == [[5]]
+
+    # every target binds across the whole comprehension but its first iter
+    assert c.group_by(c.this).aggregate(
+        c.inline_expr(
+            "[f() for _ in [0] for f in [lambda: {v}] for {v} in range(2)]"
+        ).pass_args(v=c.this)
+    ).execute([7]) == [[0, 1]]
+    # a subscript target binds nothing; its index still reads the key
+    assert c.group_by(c.this).aggregate(
+        c.inline_expr("[a[:] for a in [[0, 0]] for a[{v}] in [9]]").pass_args(
+            v=c.this
+        )
+    ).execute([0, 1]) == [[[9, 0]], [[0, 9]]]
+    # names a key binds itself do not hide it under an outer binder
+    key = c.inline_expr("(lambda x: {v} + x)(1)").pass_args(v=c.this)
+    assert c.group_by(key).aggregate(
+        c.inline_expr("(lambda x: {k})(10)").pass_args(k=key)
+    ).execute([1]) == [2]
+    key = c.inline_expr("tuple([x for x in {r}])").pass_args(r=c.item("a"))
+    assert c.group_by(key).aggregate(
+        c.inline_expr("[{k} for x in [0]]").pass_args(k=key)
+    ).execute([{"a": [1]}]) == [[(1,)]]
+
+    # lambda defaults and the first iterable are evaluated outside
+    assert c.group_by(c.item("a")).aggregate(
+        c.inline_expr("[{x} for {x} in [{k}]]").pass_args(
+            x=c.this, k=c.item("a")
+        )
+    ).execute([{"a": 1}]) == [[1]]
+    with pytest.raises(
+        c.ConversionException,
+        match="something other than group_by keys and reducers",
+    ):
+        c.group_by(c.item("a")).aggregate(
+            c.inline_expr("(lambda z={x}: z)()").pass_args(x=c.this)
+        ).gen_converter()
