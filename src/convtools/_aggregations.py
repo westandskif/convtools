@@ -2,6 +2,7 @@
 
 import ast
 from collections import defaultdict
+from contextlib import contextmanager
 from typing import FrozenSet, Union
 
 from ._base import (
@@ -198,8 +199,8 @@ class ReduceManager:
         "dedup",
         "label_writes",
         "label_external_reads",
-        "reducer_label_writes",
-        "reducer_label_reads",
+        "scope_label_writes",
+        "scope_label_reads",
         "accepts_reducers",
     ]
 
@@ -211,17 +212,44 @@ class ReduceManager:
         self.dedup = {}
         self.label_writes = set()
         self.label_external_reads = set()
-        self.reducer_label_writes = None
-        self.reducer_label_reads = None
+        self.scope_label_writes = None
+        self.scope_label_reads = None
         self.accepts_reducers = False
 
     def note_label_read(self, name):
-        if self.reducer_label_reads is not None:
-            self.reducer_label_reads.add(name)
+        if self.scope_label_reads is None:
+            self.label_external_reads.add(name)
+        else:
+            self.scope_label_reads.add(name)
 
     def note_label_write(self, name):
-        if self.reducer_label_writes is not None:
-            self.reducer_label_writes.add(name)
+        if self.scope_label_writes is not None:
+            self.scope_label_writes.add(name)
+
+    @contextmanager
+    def label_scope(self):
+        """Track labels of one reducer argument (where/value/initial/default).
+
+        Labels written inside are visible only within this scope.
+        """
+        assert self.scope_label_reads is None
+        reads = self.scope_label_reads = set()
+        writes = self.scope_label_writes = set()
+        try:
+            yield
+        finally:
+            self.scope_label_reads = self.scope_label_writes = None
+        self.label_writes |= writes
+        self.label_external_reads |= reads - writes
+
+    def check_labels(self):
+        conflict = self.label_external_reads & self.label_writes
+        if conflict:
+            raise ConversionException(
+                "a label written inside a reducer argument can only be read "
+                "within that same argument",
+                sorted(conflict),
+            )
 
     def gen_agg_data_value(self):
         return self.fmt_agg_data_value(len(self.records))
@@ -629,6 +657,7 @@ class Grouper(BaseConversion):
                             f"{var_signature_to_agg_data}.items()", ctx
                         )
                     )
+                reduce_manager.check_labels()
                 agg_template_kwargs = {
                     "code_args": function_ctx.get_def_all_args_code(),
                     "code_result": f"    return {code_final_result}",

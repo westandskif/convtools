@@ -91,11 +91,11 @@ def test_label_names_with_quotes_and_escapes(name):
     )
 
 
-def test_sibling_reducer_label_dependencies():
+def test_reducer_label_scope():
     R = c.ReduceFuncs
-    sibling_msg = "sibling reducers of the same aggregate"
+    scope_msg = "can only be read within that same argument"
 
-    with pytest.raises(c.ConversionException, match=sibling_msg) as exc_info:
+    with pytest.raises(c.ConversionException, match=scope_msg) as exc_info:
         c.aggregate(
             {
                 "s": R.Sum(c.item("a").pipe(c.this, label_output="lbl")),
@@ -104,7 +104,7 @@ def test_sibling_reducer_label_dependencies():
         ).gen_converter()
     assert "lbl" in str(exc_info.value)
 
-    with pytest.raises(c.ConversionException, match=sibling_msg):
+    with pytest.raises(c.ConversionException, match=scope_msg):
         c.aggregate(
             {
                 "s": R.Sum(c.item("a").pipe(c.this, label_input="lbl")),
@@ -112,7 +112,7 @@ def test_sibling_reducer_label_dependencies():
             }
         ).gen_converter()
 
-    with pytest.raises(c.ConversionException, match=sibling_msg):
+    with pytest.raises(c.ConversionException, match=scope_msg):
         c.aggregate(
             {
                 "s": R.Sum(c.item("a").pipe(c.this, label_output="lbl")),
@@ -120,7 +120,7 @@ def test_sibling_reducer_label_dependencies():
             }
         ).gen_converter()
 
-    with pytest.raises(c.ConversionException, match=sibling_msg):
+    with pytest.raises(c.ConversionException, match=scope_msg):
         c.aggregate(
             {
                 "s": R.Sum(c.item("a").pipe(c.this, label_output="lbl")),
@@ -128,7 +128,7 @@ def test_sibling_reducer_label_dependencies():
             }
         ).gen_converter()
 
-    with pytest.raises(c.ConversionException, match=sibling_msg):
+    with pytest.raises(c.ConversionException, match=scope_msg):
         c.aggregate(
             {
                 "a": R.Sum(
@@ -140,7 +140,7 @@ def test_sibling_reducer_label_dependencies():
             }
         ).gen_converter()
 
-    with pytest.raises(c.ConversionException, match=sibling_msg):
+    with pytest.raises(c.ConversionException, match=scope_msg):
         c.aggregate(
             {
                 "a": R.Sum(c.this.cumulative_reset("lbl")),
@@ -148,13 +148,70 @@ def test_sibling_reducer_label_dependencies():
             }
         ).gen_converter()
 
-    with pytest.raises(c.ConversionException, match=sibling_msg):
+    with pytest.raises(c.ConversionException, match=scope_msg):
         c.aggregate(
             {
                 "a": R.Array(c.this.pipe(c.this, label_output="x")),
                 "b": R.Sum(c.this, initial=c.label("x")),
             }
         ).gen_converter()
+
+    leaking_convs = [
+        # group_by output reads a reducer-written label
+        c.group_by(c.item("k")).aggregate(
+            {
+                "k": c.item("k"),
+                "sum": R.Sum(c.item("v").add_label("x")),
+                "leaked": c.label("x"),
+            }
+        ),
+        # output read compiled before the writing reducer
+        c.aggregate(
+            {"leaked": c.label("x"), "sum": R.Sum(c.this.add_label("x"))}
+        ),
+        c.aggregate(R.Sum(c.this.add_label("x"), default=c.label("x"))),
+        # reads from a different argument of the same reducer
+        c.aggregate(R.Dict(c.this.add_label("x"), c.label("x"))),
+        c.aggregate(R.Sum(c.label("x"), where=c.this.add_label("x") > 1)),
+        # name-only: the output re-labels x before reading it
+        c.aggregate(
+            (
+                R.Sum(c.this.add_label("x")),
+                c.naive(99).add_label("x").pipe(c.label("x")),
+            )
+        ),
+        c.group_by(c.item("k"))
+        .aggregate({"s": R.Sum(c.item("v").add_label("x"))})
+        .iter({"s": c.item("s"), "x": c.label("x")}),
+        # user arguments compiled by option callables
+        c.aggregate(
+            {
+                "a": R.ArraySorted(
+                    c.this, key=c.naive(abs).pipe(c.this, label_output="x")
+                ),
+                "leaked": c.label("x"),
+            }
+        ),
+        c.aggregate(
+            R.ArraySorted(
+                c.this.add_label("x"), key=c.naive(abs).pipe(c.label("x"))
+            )
+        ),
+    ]
+    for conv in leaking_convs:
+        with pytest.raises(c.ConversionException, match=scope_msg) as exc_info:
+            conv.gen_converter()
+        assert "'x'" in str(exc_info.value)
+
+    assert (
+        c.aggregate(
+            R.Sum(
+                c.this,
+                initial=c.naive(1).add_label("i").pipe(c.label("i") + 1),
+            )
+        ).execute([1, 2])
+        == 5
+    )
 
     assert (
         c.aggregate(

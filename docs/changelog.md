@@ -1,3 +1,17 @@
+## Unreleased
+
+**Changed**
+
+- a label written inside a reducer argument (`where`, a value expression,
+  `initial`, `default`) can now only be read within that same argument;
+  other reads raise `ConversionException` at compile time, naming the label.
+  Newly rejected: reads from the aggregate / group_by output, a reducer
+  `default=` or group_by keys (group_by output used to get the last row of
+  the whole dataset, an empty `c.aggregate` raised `KeyError`), and reads
+  from another argument of the same reducer, `where` -> value included
+  (`Dict(key.add_label("k"), c.label("k"))` used to pair keys with the
+  previous row's value). For a last value use `c.ReduceFuncs.Last`
+
 ## 1.17.4 (2026-09-23)
 
 **Bugfix**

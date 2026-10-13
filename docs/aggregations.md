@@ -33,13 +33,16 @@ shortcuts like `c.item(...)` refer to the row currently being reduced. See
 for the broader context-reference rules.
 
 Repeated eager reducer `where`/value expressions are shared via temporaries
-(see the Unreleased changelog notes). A label written by one reducer's
-expressions (`label_input`, `label_output`, or `c.cumulative` /
-`c.cumulative_reset`) is not visible to sibling reducers of the same
-aggregate; that raises `ConversionException` at compile time. Use one
-reducer, or label outside the aggregate. The check is per aggregate: a
-nested aggregate reading a label written by a sibling reducer of the outer
-aggregate is not detected.
+(see the Unreleased changelog notes). A label written inside a reducer
+argument (`where`, a value expression, `initial`, `default`; via
+`add_label`, `label_input`, `label_output`, or `c.cumulative` /
+`c.cumulative_reset`) is visible only within that same argument. Reading it
+from another argument of the reducer, a sibling reducer, the aggregate
+output, or group_by keys raises `ConversionException` at compile time. For
+a last value use `c.ReduceFuncs.Last`; to reuse an expensive value, rely on
+shared temporaries or compute it within one argument. The check is per
+aggregate: reads inside a nested aggregate, and reads after the aggregate
+via `.pipe(...)` or an enclosing expression, are not detected.
 
 
 ## c.group_by

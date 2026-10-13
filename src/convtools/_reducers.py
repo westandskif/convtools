@@ -198,66 +198,48 @@ class BaseReducer(BaseConversion):
             )
         reduce_manager: "ReduceManager" = managers[-1]
 
-        reduce_manager.reducer_label_writes = set()
-        reduce_manager.reducer_label_reads = set()
-        try:
-            where_code = None
-            if not isinstance(self.where, _None):
+        # each reducer argument is its own label scope (user arguments
+        # compiled by option callables, e.g. ArraySorted key, open their
+        # own); anything else compiled here reads as outer
+        where_code = None
+        if not isinstance(self.where, _None):
+            with reduce_manager.label_scope():
                 where_code = self.where.gen_code_and_update_ctx(
                     code_input, ctx
                 )
 
-            works_with_not_none_only = self.get_option(
-                "works_with_not_none_only", ctx
-            )
-            value_codes = []
-            not_none_flags = []
-            for index, expression in enumerate(self.expressions):
+        works_with_not_none_only = self.get_option(
+            "works_with_not_none_only", ctx
+        )
+        value_codes = []
+        not_none_flags = []
+        for index, expression in enumerate(self.expressions):
+            with reduce_manager.label_scope():
                 expression_code = expression.gen_code_and_update_ctx(
                     code_input, ctx
                 )
-                value_codes.append(expression_code)
-                not_none_flags.append(
-                    bool(works_with_not_none_only[index])
-                    and not expression.has_hint(
-                        BaseConversion.OutputHints.NOT_NONE
-                    )
+            value_codes.append(expression_code)
+            not_none_flags.append(
+                bool(works_with_not_none_only[index])
+                and not expression.has_hint(
+                    BaseConversion.OutputHints.NOT_NONE
                 )
+            )
 
-            reduce_lines = tuple(self.get_option("reduce_lines", ctx) or ())
-            if (
-                not isinstance(self.initial, _None)
-                and self.internals_are_public
-            ):
+        reduce_lines = tuple(self.get_option("reduce_lines", ctx) or ())
+        if not isinstance(self.initial, _None) and self.internals_are_public:
+            with reduce_manager.label_scope():
                 initial_code = self.initial.gen_code_and_update_ctx(
                     code_input, ctx
                 )
-                prepare_first_lines = (
-                    "%(result)s = {}".format(initial_code.replace("%", "%%")),
-                    *reduce_lines,
-                )
-            else:
-                prepare_first_lines = tuple(
-                    self.get_option("prepare_first_lines", ctx) or ()
-                )
-
-            writes = reduce_manager.reducer_label_writes
-            reads = reduce_manager.reducer_label_reads
-            external = reads - writes
-            conflict = (external & reduce_manager.label_writes) | (
-                writes & reduce_manager.label_external_reads
+            prepare_first_lines = (
+                "%(result)s = {}".format(initial_code.replace("%", "%%")),
+                *reduce_lines,
             )
-            if conflict:
-                raise ConversionException(
-                    "reducers cannot depend on labels written by sibling "
-                    "reducers of the same aggregate",
-                    sorted(conflict),
-                )
-            reduce_manager.label_writes |= writes
-            reduce_manager.label_external_reads |= external
-        finally:
-            reduce_manager.reducer_label_writes = None
-            reduce_manager.reducer_label_reads = None
+        else:
+            prepare_first_lines = tuple(
+                self.get_option("prepare_first_lines", ctx) or ()
+            )
 
         record = ReducerRecord(
             where_code=where_code,
@@ -270,9 +252,10 @@ class BaseReducer(BaseConversion):
         new_code_input = reduce_manager.add_reducer_code(record)
 
         post_conversion = self.get_option("post_conversion", ctx, None)
-        default_code = cast(
-            BaseConversion, self.default
-        ).gen_code_and_update_ctx(reduce_manager.var_row, ctx)
+        with reduce_manager.label_scope():
+            default_code = cast(
+                BaseConversion, self.default
+            ).gen_code_and_update_ctx(reduce_manager.var_row, ctx)
         return If(
             This.is_(EscapedString("_none")),
             EscapedString(default_code),
@@ -689,8 +672,13 @@ class ArraySortedReducer(SingleExpressionReducer):
         self.reverse = self.ensure_conversion(reverse)
 
     def prepare_first_lines(self, ctx):
-        key_code = self.key.gen_code_and_update_ctx("%(value0)s", ctx)
-        reverse_code = self.reverse.gen_code_and_update_ctx("%(value0)s", ctx)
+        reduce_manager = ctx["current_reduce_manager"][-1]
+        with reduce_manager.label_scope():
+            key_code = self.key.gen_code_and_update_ctx("%(value0)s", ctx)
+        with reduce_manager.label_scope():
+            reverse_code = self.reverse.gen_code_and_update_ctx(
+                "%(value0)s", ctx
+            )
         return (
             "%(result)s = ListSortedOnceWrapper("
             f"[%(value0)s], {key_code}, {reverse_code})",
