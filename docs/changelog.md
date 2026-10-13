@@ -12,6 +12,13 @@
   (`Dict(key.add_label("k"), c.label("k"))` used to pair keys with the
   previous row's value). For a last value use `c.ReduceFuncs.Last`
 
+**Bugfix**
+
+- a `BaseReducer` subclass with no `prepare_first_lines` now raises
+  `ConversionException` at compile time, naming the class; under `group_by`
+  it used to raise `IndentationError` or silently return wrong values for it
+  and its sibling reducers
+
 ## 1.17.4 (2026-09-23)
 
 **Bugfix**

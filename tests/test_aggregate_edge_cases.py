@@ -14,6 +14,7 @@ from typing import List, Tuple
 import pytest
 
 from convtools import conversion as c
+from convtools._reducers import SingleExpressionReducer
 from convtools._utils import CODE_FORMATTING_AVAILABLE, format_code
 
 from .utils import get_code_str
@@ -1746,4 +1747,26 @@ def test_group_by_key_substitution_respects_binder_scopes():
     ):
         c.group_by(c.item("a")).aggregate(
             c.inline_expr("(lambda z={x}: z)()").pass_args(x=c.this)
+        ).gen_converter()
+
+
+class NoInitLinesReducer(SingleExpressionReducer):
+    default = c.naive(None)
+    internals_are_public = False
+    works_with_not_none_only = (False,)
+    prepare_first_lines = ()
+    reduce_lines = ("%(result)s = %(value0)s",)
+
+
+@pytest.mark.parametrize(
+    "agg",
+    [c.aggregate, lambda r: c.group_by(c.item("k")).aggregate(r)],
+)
+def test_reducer_without_init_lines_raises(agg):
+    with pytest.raises(c.ConversionException, match="NoInitLinesReducer"):
+        agg(
+            (
+                c.ReduceFuncs.Sum(c.item("v")),
+                c.reduce(NoInitLinesReducer, c.item("v")),
+            )
         ).gen_converter()

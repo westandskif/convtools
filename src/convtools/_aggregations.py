@@ -661,7 +661,6 @@ class Grouper(BaseConversion):
                 agg_template_kwargs = {
                     "code_args": function_ctx.get_def_all_args_code(),
                     "code_result": f"    return {code_final_result}",
-                    "var_row": var_row,
                 }
 
                 if self.aggregate_mode:
@@ -685,8 +684,6 @@ class Grouper(BaseConversion):
                         converter_name=converter_name,
                         var_signature_to_agg_data=var_signature_to_agg_data,
                         var_agg_data_cls=var_agg_data_cls,
-                        var_agg_data=var_agg_data,
-                        code_signature=code_signature,
                         code_group_by=reduce_manager.gen_group_by_code(
                             var_signature_to_agg_data=var_signature_to_agg_data,
                             code_signature=code_signature,

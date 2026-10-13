@@ -240,6 +240,12 @@ class BaseReducer(BaseConversion):
             prepare_first_lines = tuple(
                 self.get_option("prepare_first_lines", ctx) or ()
             )
+            if not prepare_first_lines:
+                raise ConversionException(
+                    f"{type(self).__name__} defines no first-row init lines "
+                    "(prepare_first_lines); every reducer must initialize "
+                    "its result on the first row"
+                )
 
         record = ReducerRecord(
             where_code=where_code,
