@@ -174,6 +174,27 @@ static PyMethodDef cext_methods[] = {
 
     {NULL, NULL, 0, NULL} /* Sentinel */
 };
+#ifdef Py_TARGET_ABI3T
+PyABIInfo_VAR(abi_info);
+static PySlot cext_slots[] = {
+    PySlot_STATIC_DATA(Py_mod_abi, &abi_info),
+    PySlot_STATIC_DATA(Py_mod_name, "_cext"),
+    PySlot_STATIC_DATA(Py_mod_methods, cext_methods),
+    PySlot_DATA(Py_mod_gil, Py_MOD_GIL_NOT_USED),
+    PySlot_END,
+};
+
+PyMODEXPORT_FUNC PyModExport__cext(void) { return cext_slots; }
+
+// setuptools always exports PyInit__cext (MSVC /EXPORT fails without it);
+// CPython 3.15+ prefers PyModExport__cext, so this is never called.
+PyMODINIT_FUNC PyInit__cext(void) {
+    PyErr_SetString(PyExc_ImportError,
+                    "convtools._cext targets abi3t and requires the "
+                    "PyModExport hook of CPython 3.15+");
+    return NULL;
+}
+#else
 static struct PyModuleDef cext_module = {
     PyModuleDef_HEAD_INIT,
     "_cext", /* name of module */
@@ -193,4 +214,5 @@ PyMODINIT_FUNC PyInit__cext(void) {
 #endif
     return module;
 };
+#endif
 // PySys_WriteStdout(PyUnicode_AsUTF8AndSize(PyObject_Repr(config), NULL));

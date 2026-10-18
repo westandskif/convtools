@@ -11,7 +11,10 @@ ext_kwargs = {}
 is_free_threading = sysconfig.get_config_var("Py_GIL_DISABLED") == 1
 strict = os.environ.get("CONVTOOLS_CEXT_STRICT") == "1"
 
-if not is_free_threading:
+if is_free_threading and sys.version_info[:2] >= (3, 15):
+    ext_kwargs["py_limited_api"] = True
+    ext_kwargs["define_macros"] = [("Py_TARGET_ABI3T", 0x030F0000)]
+elif not is_free_threading:
     ext_kwargs["py_limited_api"] = True
     ext_kwargs["define_macros"] = [("Py_LIMITED_API", 0x030A0000)]
     opts = setup_kwargs.setdefault("options", {})

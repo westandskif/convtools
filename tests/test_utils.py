@@ -112,14 +112,19 @@ def test_options_ctx_asyncio_isolation():
 
 def test_options_ctx_thread_isolation():
     seen = []
+    options_set = threading.Event()
 
     def other():
+        options_set.wait()
         seen.append(ConverterOptionsCtx.get_option_value("debug"))
 
+    # started before the options are set: free-threaded builds copy the
+    # parent's context into new threads (sys.flags.thread_inherit_context)
+    thread = threading.Thread(target=other)
+    thread.start()
     with ConverterOptionsCtx() as options:
         options.debug = True
-        thread = threading.Thread(target=other)
-        thread.start()
+        options_set.set()
         thread.join()
         assert ConverterOptionsCtx.get_option_value("debug") is True
     assert seen == [False]

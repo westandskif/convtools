@@ -22,6 +22,8 @@ jobs:
           - [ubuntu-24.04, "3.12", "CONVTOOLS_CEXT_DISABLED=1"]
           - [ubuntu-24.04, "3.13", "CONVTOOLS_CEXT_DISABLED=1"]
           - [ubuntu-24.04, "3.14", "CONVTOOLS_CEXT_DISABLED=1"]
+          - [ubuntu-24.04, "3.15", "CONVTOOLS_CEXT_DISABLED=1"]
+          - [ubuntu-24.04, "3.15t", "CONVTOOLS_CEXT_DISABLED=0 CONVTOOLS_CEXT_STRICT=1"]
           - [ubuntu-24.04, "3.10", "CONVTOOLS_CEXT_DISABLED=0"]
     runs-on: ${{ matrix.os-python-env[0] }}
     steps:
@@ -35,9 +37,15 @@ jobs:
       - name: run tests
         if: ${{ matrix.os-python-env[1] != '3.10' }}
         run: |
-          pip install -r ci-requirements/requirements${{ matrix.os-python-env[1] }}.out
+          py_ver=${{ matrix.os-python-env[1] }}
+          pip install -r ci-requirements/requirements${py_ver%t}.out
           ${{ matrix.os-python-env[2] }} pip install -e .
           pytest --benchmark-skip --no-cov
+
+      - name: check abi3t extension is in use
+        if: ${{ matrix.os-python-env[1] == '3.15t' }}
+        run: |
+          python -c "import sys, convtools._cext as m, convtools._base as b; assert '.abi3t' in m.__file__, m.__file__; assert not sys._is_gil_enabled(); assert b.get_attr_deep_default_simple is not None"
 
       - name: run tests & lint
         if: ${{ matrix.os-python-env[1] == '3.10' }}
@@ -101,15 +109,37 @@ jobs:
         py_ver_info:
           - ["310", "~=3.10"]
           - ["314t", "~=3.14"]
+          - ["315t", "~=3.15"]
     runs-on: ${{ matrix.buildplat[0] }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.2.1
+        uses: pypa/cibuildwheel@v4.3.1
         env:
           CIBW_BUILD: cp${{ matrix.py_ver_info[0] }}-${{ matrix.buildplat[1] }}
           CIBW_PROJECT_REQUIRES_PYTHON: ${{ matrix.py_ver_info[1] }}
+          CIBW_ENVIRONMENT: CONVTOOLS_CEXT_STRICT=1
+          CIBW_TEST_COMMAND: ${{ matrix.py_ver_info[0] == '315t' && 'python -c "import sys, convtools._cext; assert not sys._is_gil_enabled()"' || '' }}
+
+      # setuptools cannot tag abi3t wheels yet: the extension is built as
+      # abi3t (setup.py), so only the wheel tag needs fixing
+      - name: Retag cp315t wheels as abi3t
+        if: matrix.py_ver_info[0] == '315t'
+        shell: bash
+        run: |
+          shopt -s failglob
+          for whl in wheelhouse/*-cp315-cp315t-*.whl; do
+            rm -rf unpacked
+            pipx run wheel==0.48.0 unpack -d unpacked "$whl"
+            if ! compgen -G 'unpacked/*/convtools/_cext.abi3t*.so' >/dev/null \
+                && ! compgen -G 'unpacked/*/convtools/_cext*.pyd' >/dev/null; then
+              echo "::error::$whl contains no abi3t convtools._cext"
+              exit 1
+            fi
+            pipx run wheel==0.48.0 tags --python-tag cp315 --abi-tag abi3t --remove "$whl"
+          done
+          rm -rf unpacked
 
       - uses: actions/upload-artifact@v4
         with:
