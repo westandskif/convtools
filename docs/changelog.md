@@ -1,4 +1,11 @@
-## Unreleased
+## 1.18.0 (2026-10-18)
+
+**Features**
+
+- Python 3.15 support; free-threaded CPython 3.15+ now gets a binary wheel
+  with the C extension built for the free-threaded stable ABI (`abi3t`,
+  PEP 803), so one wheel per platform covers 3.15t and later. GIL builds keep
+  the `cp310-abi3` wheel and 3.14t keeps its `cp314t` wheel
 
 **Changed**
 

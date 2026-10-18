@@ -33,7 +33,7 @@ shortcuts like `c.item(...)` refer to the row currently being reduced. See
 for the broader context-reference rules.
 
 Repeated eager reducer `where`/value expressions are shared via temporaries
-(see the Unreleased changelog notes). A label written inside a reducer
+(see the 1.17.3 changelog notes). A label written inside a reducer
 argument (`where`, a value expression, `initial`, `default`; via
 `add_label`, `label_input`, `label_output`, or `c.cumulative` /
 `c.cumulative_reset`) is visible only within that same argument. Reading it
