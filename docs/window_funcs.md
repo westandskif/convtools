@@ -42,7 +42,7 @@ want SQL-style one-based numbering.
 `PeerGroupFirstRowIndex() + 1` is equivalent to `rank()`, and
 `PeerGroupIndex() + 1` is equivalent to `dense_rank()`.
 
-{!examples-md/api__window_funcs_ranking.md!}
+--8<-- "docs/examples-md/api__window_funcs_ranking.md"
 
 ### Aggregate over a window
 
@@ -50,7 +50,7 @@ Reducers inside `window(...)` behave like aggregate window functions. This
 example is equivalent to `sum(amount) over (order by day rows between 1
 preceding and current row)`.
 
-{!examples-md/api__window_funcs_rolling_sum.md!}
+--8<-- "docs/examples-md/api__window_funcs_rolling_sum.md"
 
 ### Lag and lead
 
@@ -59,7 +59,7 @@ preceding and current row)`.
 direction (`RowFollowing(-n)` is `RowPreceding(n)`, as `lead(x, -n)` =
 `lag(x, n)`). Out-of-range rows yield `default` in both directions.
 
-{!examples-md/api__window_funcs_lag_lead.md!}
+--8<-- "docs/examples-md/api__window_funcs_lag_lead.md"
 
 ## `c.WindowFuncs`
 
@@ -126,11 +126,11 @@ For available reducers, see [`c.ReduceFuncs`](./aggregations.md#creducefuncs).
 ## Frame mode examples
 
 /// tab | RANGE mode
-{!examples-md/api__window_funcs_range.md!}
+--8<-- "docs/examples-md/api__window_funcs_range.md"
 ///
 /// tab | ROWS mode
-{!examples-md/api__window_funcs_rows.md!}
+--8<-- "docs/examples-md/api__window_funcs_rows.md"
 ///
 /// tab | GROUPS mode
-{!examples-md/api__window_funcs_groups.md!}
+--8<-- "docs/examples-md/api__window_funcs_groups.md"
 ///

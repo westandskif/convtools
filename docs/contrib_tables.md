@@ -1,5 +1,12 @@
 # Contrib / Tables
 
+/// admonition | Prerequisites
+    type: info
+
+Start with [Basics](./basics.md) for conversion fundamentals used inside
+`Table.update`, `Table.filter`, `Table.join`, and `Table.pivot`.
+///
+
 `Table` is a streaming helper for tabular data. It builds a pipeline of
 convtools conversions so you can reshape, enrich, filter, and combine rows
 while keeping row-wise work incremental where possible.
@@ -24,12 +31,15 @@ pipeline is consumed once, but some operations must retain state:
 Materialize a result yourself only when it needs to be reused. Otherwise, pass
 the iterator returned by `into_iter_rows` onward or write directly to a file.
 
+Inspect a table's current column names at any point with `table.columns` (or
+`table.get_columns()`), which returns a `list[str]`.
+
 ## End-to-end pipeline
 
 This example reads tabular inputs, transforms and filters one side, joins the
 tables, rearranges the result columns, and returns a row iterator:
 
-{!examples-md/welcome__tables.md!}
+--8<-- "docs/examples-md/welcome__tables.md"
 
 ## Header handling and duplicate columns
 
@@ -68,13 +78,9 @@ Arguments:
 
 * `rows` - iterable of `dict`, `tuple`, or `list` is treated as a multi-column
   table; any other type is treated as a single-column table.
-* `header` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
-* `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
-* `skip_rows` - number of rows to skip before header handling; default is 0.
-
-When the first row already has the requested `into_iter_rows` type and no
-column changes are pending, rows pass through unchanged, so the output row
-type is guaranteed only for homogeneous input.
+* `header` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns); default is `None`.
+* `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns); default is `"raise"`.
+* `skip_rows` - number of rows to skip before header handling; default is `0`.
 
 ----
 
@@ -84,14 +90,15 @@ Return processed rows as an iterator.
 
 Arguments:
 
-* `type_` - must be `dict`, `tuple`, or `list`.
-* `include_header` - when `True`, prepend a header row (ignored for `dict`).
+* `type_` - `tuple` (default), `dict`, or `list`.
+* `include_header` - when `True`, prepend a header row (ignored for `dict`;
+  default is `None`).
 
 When the first row already has the requested type and no column changes are
 pending, rows pass through unchanged, so the output row type is guaranteed
 only for homogeneous input.
 
-{!examples-md/contrib_tables_read_rows.md!}
+--8<-- "docs/examples-md/contrib_tables_read_rows.md"
 
 ## Read CSV-like
 
@@ -102,8 +109,8 @@ Initialize a table from a CSV-like file.
 Arguments:
 
 * `filepath_or_buffer` - a filepath or a buffer acceptable by `csv.reader`.
-* `header` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
-* `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
+* `header` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns); default is `None`.
+* `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns); default is `"mangle"`.
 * `skip_rows` - number of non-empty records to skip before header handling;
   default is 0. Empty lines are skipped and do not count. A whitespace-only
   line is a one-column record: it counts toward `skip_rows`, and once past
@@ -111,9 +118,12 @@ Arguments:
   fixed width is not 1. The first record kept after skipping fixes the row
   width; a later record of a different width raises `ValueError` with the
   1-based physical line number.
-* `dialect` - a dialect acceptable by `csv.reader`. Use
-  `Table.csv_dialect(delimiter="\t")` for tab-separated files.
-* `encoding` - default is `utf-8`.
+* `dialect` - a dialect name or object acceptable by `csv.reader` (default is
+  `"excel"`). Use `Table.csv_dialect(...)` to customize dialect options without
+  defining a `csv.Dialect` subclass; it accepts `delimiter`, `quotechar`,
+  `escapechar`, `doublequote`, `skipinitialspace`, `lineterminator`, and
+  `quoting` (all defaulting to `csv.excel`).
+* `encoding` - default is `"utf-8"`.
 
 ----
 
@@ -128,11 +138,11 @@ Arguments:
 
 * `filepath_or_buffer` - a filepath or something `csv.writer` can write to.
 * `include_header` - whether to emit the header; default is `True`.
-* `dialect` - a dialect acceptable by `csv.writer`. Use
-  `Table.csv_dialect(delimiter="\t")` for tab-separated files.
-* `encoding` - default is `utf-8`.
+* `dialect` - a dialect name or object acceptable by `csv.writer` (default is
+  `"excel"`), including `Table.csv_dialect(...)`.
+* `encoding` - default is `"utf-8"`.
 
-{!examples-md/contrib_tables_read_csv.md!}
+--8<-- "docs/examples-md/contrib_tables_read_csv.md"
 
 ## Read JSONL
 
@@ -144,11 +154,11 @@ JSON object or array. Empty lines are silently skipped.
 Arguments:
 
 * `filepath_or_buffer` - a filepath or a text buffer to read from.
-* `header` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
-* `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns).
+* `header` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns); default is `None`.
+* `duplicate_columns` - see [Header handling and duplicate columns](./contrib_tables.md#header-handling-and-duplicate-columns); default is `"mangle"`.
 * `skip_rows` - number of non-empty records to skip before header handling;
   blank and whitespace-only lines are skipped and do not count; default is 0.
-* `encoding` - default is `utf-8`.
+* `encoding` - default is `"utf-8"`.
 
 ----
 
@@ -162,12 +172,14 @@ to the target, and returns `None`.
 Arguments:
 
 * `filepath_or_buffer` - a filepath or a text buffer to write to.
-* `encoding` - default is `utf-8`.
+* `encoding` - default is `"utf-8"`.
 
-{!examples-md/contrib_tables_read_jsonl.md!}
+--8<-- "docs/examples-md/contrib_tables_read_jsonl.md"
 
 ## Rename, take / rearrange, drop columns
 
+* `table.columns` (property) / `table.get_columns()` returns the current list
+  of column names (`list[str]`).
 * `rename(columns)` renames columns:
   * `tuple` / `list` define new column names (length must match the current
     number of columns).
@@ -177,7 +189,7 @@ Arguments:
     reordering easy: `table.take("c", "d", ...)`.
 * `drop(*column_names)` drops specified columns, keeping the rest as-is.
 
-{!examples-md/contrib_tables_rename_take_rearrange_drop.md!}
+--8<-- "docs/examples-md/contrib_tables_rename_take_rearrange_drop.md"
 
 ## Add, update columns
 
@@ -187,11 +199,12 @@ to every existing column.
 * `update(**column_to_conversion)` takes keyword arguments where keys are
   column names and values are conversions applied row-wise.
 * `update_all(*conversions)` composes conversions and applies them to each
-  value in each column.
+  value in each column (`c.this` refers to the current cell value, while
+  `c.col("...")` reads another column from the same row).
 
 Use `c.col("column name")` to reference column values.
 
-{!examples-md/contrib_tables_add_update.md!}
+--8<-- "docs/examples-md/contrib_tables_add_update.md"
 
 ## Filter rows
 
@@ -200,22 +213,25 @@ the conversion returns a truthy value.
 
 Use `c.col("column name")` to reference column values.
 
-{!examples-md/contrib_tables_filter.md!}
+--8<-- "docs/examples-md/contrib_tables_filter.md"
 
 ## Join tables
 
-Use `join` to combine two tables. Arguments:
+Use `join(table, on, how, suffixes=("_LEFT", "_RIGHT"))` to combine two tables.
+Arguments:
 
 * `table` - another table to join with.
 * `on` - either:
-  * a join conversion like `c.LEFT.col("a") == c.RIGHT.col("A")`, or
+  * a join conversion like `c.LEFT.col("a") == c.RIGHT.col("A")`,
+  * a single column name (`str`), or
   * an iterable of column names to join on.
-* `how` - one of `"inner"`, `"left"`, `"right"`, `"full"`.
-* `suffixes` - a tuple of two strings (left and right) to be concatenated with
-  conflicting column names. Default is `("_LEFT", "_RIGHT")`. Columns listed in
-  `on` (when `on` is an iterable of names) are not suffixed.
+* `how` (required; no default) - one of `"inner"`, `"left"`, `"right"`,
+  `"full"` (`"outer"` is accepted as an alias for `"full"`).
+* `suffixes` - a tuple of two strings (left and right) concatenated with
+  conflicting column names; default is `("_LEFT", "_RIGHT")`. Columns named in
+  `on` (when `on` is a column name or iterable of names) are not suffixed.
 
-{!examples-md/contrib_tables_join.md!}
+--8<-- "docs/examples-md/contrib_tables_join.md"
 
 ## Chain tables
 
@@ -231,7 +247,7 @@ Tables with duplicate names (`duplicate_columns="keep"`) keep them only on
 the identical-schema fast path; otherwise columns align by name using the
 first column of each name.
 
-{!examples-md/contrib_tables_chain.md!}
+--8<-- "docs/examples-md/contrib_tables_chain.md"
 
 ## Zip tables
 
@@ -252,7 +268,7 @@ Arguments:
   `dict` will keep only the first occurrence.
 ///
 
-{!examples-md/contrib_tables_zip.md!}
+--8<-- "docs/examples-md/contrib_tables_zip.md"
 
 ## Explode table
 
@@ -270,7 +286,7 @@ When multiple columns are provided, they are exploded together using
 `zip_longest` semantics (like PostgreSQL's multiple `unnest` in the same
 `SELECT`). Shorter arrays are padded with `fill_value`.
 
-{!examples-md/contrib_tables_explode.md!}
+--8<-- "docs/examples-md/contrib_tables_explode.md"
 
 ## Wide to long
 
@@ -279,13 +295,17 @@ into multiple rows with fewer columns.
 
 Arguments:
 
-* `col_for_names` - name of the column with names of processed columns.
-* `col_for_values` - name of the column with values of processed columns.
-* `prepare_name` - callable or conversion to prepare a name.
-* `prepare_value` - callable or conversion to prepare a value.
-* `keep_cols` - column names to keep as-is.
+* `col_for_names` - name of the column receiving collapsed column names;
+  default is `"name"`.
+* `col_for_values` - name of the column receiving collapsed column values;
+  default is `"value"`.
+* `prepare_name` - optional callable or conversion to prepare each column name;
+  default is `None`.
+* `prepare_value` - optional callable or conversion to prepare each value;
+  default is `None`.
+* `keep_cols` - sequence of column names to keep as-is; default is `()`.
 
-{!examples-md/contrib_tables_wide_to_long.md!}
+--8<-- "docs/examples-md/contrib_tables_wide_to_long.md"
 
 ## Pivot
 
@@ -302,7 +322,7 @@ Arguments:
   part to `str`; for example, `columns=["currency"]` and a `"sum"` reducer can
   produce `"USD - sum"`.
 
-{!examples-md/contrib_tables_pivot.md!}
+--8<-- "docs/examples-md/contrib_tables_pivot.md"
 
 ## Using tables inside conversions
 
@@ -311,7 +331,7 @@ introduce a second code-generation layer.
 
 You can still use piping to callables:
 
-{!examples-md/contrib_tables_pipe.md!}
+--8<-- "docs/examples-md/contrib_tables_pipe.md"
 
 /// admonition
     type: note

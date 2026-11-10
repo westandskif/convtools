@@ -1,16 +1,23 @@
 # Conditions and Pipes
 
-**Please, make sure you've covered [Basics](./basics.md) first.**
+/// admonition | Prerequisites
+    type: info
+
+Start with [Basics](./basics.md) for conversion fundamentals.
+///
 
 ## Conditions
 
 There are 2 conversions which let you define conditions:
 
-1. `c.if_(condition, if_true, if_false)` for a single condition
+1. `c.if_(condition=True, if_true=..., if_false=...)` for a single condition.
+   When `condition` is `True`, the input itself is tested for truthiness;
+   omitting `if_true` or `if_false` returns the input unchanged for that branch
+   (so `c.if_()` returns the input unchanged).
 1. `c.if_multiple(*condition_to_value_pairs, else_=...)` for multiple
-   conditions; `else_` is passed as a keyword argument
+   conditions; `else_` is passed as a keyword argument.
 
-{!examples-md/api__if.md!}
+--8<-- "docs/examples-md/api__if.md"
 
 
 ## Check and raise
@@ -24,24 +31,25 @@ returns input as is or raises `c.ExpectException` otherwise:
 
 When `error_msg` is a string, it is passed to `c.ExpectException` directly.
 When it is a conversion, it is evaluated against the failing input and its
-result becomes the exception message. If `error_msg` is omitted or falsey, the
-default message is `"condition is not met"`.
+result becomes the exception message. If `error_msg` is omitted or `None`, the
+default message is `"condition is not met"`; other falsy values (such as `""`
+or `0`) are passed to `c.ExpectException` as-is.
 
-{!examples-md/api__expect.md!}
+--8<-- "docs/examples-md/api__expect.md"
 
 ## Pipes
 
 Pipe is the most important conversion which allows to pass results of one
 conversion to another. The syntax is simple: `first.pipe(second)`.
 
-{!examples-md/api__pipe.md!}
+--8<-- "docs/examples-md/api__pipe.md"
 
 You can also pipe to callables, have a look at its signature:
 `pipe(next_conversion, *args, label_input=None, label_output=None, **kwargs)`.
 It accepts `*args` and `**kwargs`, which are passed to a callable after pipe
 input:
 
-{!examples-md/api__pipe_callable.md!}
+--8<-- "docs/examples-md/api__pipe_callable.md"
 
 #### and_then
 
@@ -50,7 +58,7 @@ condition is true (_by default condition is standard python's truth check_)
 otherwise returns the original value unchanged. `condition` accepts both
 conversions and callables.
 
-{!examples-md/api__and_then.md!}
+--8<-- "docs/examples-md/api__and_then.md"
 
 #### Labels
 
@@ -67,17 +75,18 @@ There are two ways to label data for further use:
    `label_output` (_applies to the end result_) keyword arguments, each of them
    is either:
     * `str` - label name
-	* `dict` - label names to conversion map. Labels are put on results of
-	  conversions.
-1. `add_label(label_input)` - shortcut to
-   `pipe(c.this, label_input=label_input)`. Like `label_input`, it accepts
-   either a string label name or a mapping of label names to conversions.
+    * `dict` - label names to conversion map. Labels are put on results of
+      conversions.
+1. `add_label(label_name)` - shortcut to
+   `pipe(c.this, label_input=label_name)`. Like `label_input`, `label_name`
+   accepts either a string label name or a mapping of label names to
+   conversions.
 
 To reference previously labeled data use `c.label("label_name")`.
 Labels are one of several context-specific references covered in
 [Placeholders & Special References](./basics.md#placeholders-special-references).
 
-{!examples-md/api__pipe_labels.md!}
+--8<-- "docs/examples-md/api__pipe_labels.md"
 
 ## Dispatch
 
@@ -85,11 +94,12 @@ There are performance critical cases where it's desired to replace `c.if_` and
 `c.if_multiple` with dict lookups. However it limits what can be used as keys
 as these need to be hashable.
 
-Interface: `c.this.dispatch(key, key_to_conv, default)`
+Interface: `c.this.dispatch(key, key_to_conv, default=...)`
 
 1. `key` defines a conversion, which gets a key
 1. `key_to_conv` is a dict which maps keys to conversions
-1. `default` is an optional default conversion, when the dict doesn't contain
-   the key
+1. `default` is an optional default conversion when `key_to_conv` doesn't
+   contain the key; if `default` is omitted and the key is missing, `KeyError`
+   is raised
 
-{!examples-md/api__dispatch.md!}
+--8<-- "docs/examples-md/api__dispatch.md"

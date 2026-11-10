@@ -32,26 +32,14 @@ shortcuts like `c.item(...)` refer to the row currently being reduced. See
 [Placeholders & Special References](./basics.md#placeholders-special-references)
 for the broader context-reference rules.
 
-Repeated eager reducer `where`/value expressions are shared via temporaries
-(see the 1.17.3 changelog notes). A label written inside a reducer
-argument (`where`, a value expression, `initial`, `default`; via
-`add_label`, `label_input`, `label_output`, or `c.cumulative` /
-`c.cumulative_reset`) is visible only within that same argument. Reading it
-from another argument of the reducer, a sibling reducer, the aggregate
-output, or group_by keys raises `ConversionException` at compile time. For
-a last value use `c.ReduceFuncs.Last`; to reuse an expensive value, rely on
-shared temporaries or compute it within one argument. The check is per
-aggregate: reads inside a nested aggregate, and reads after the aggregate
-via `.pipe(...)` or an enclosing expression, are not detected.
-
 
 ## c.group_by
 
-{!examples-md/welcome__group_by.md!}
+--8<-- "docs/examples-md/welcome__group_by.md"
 
 ## c.aggregate
 
-{!examples-md/welcome__aggregations.md!}
+--8<-- "docs/examples-md/welcome__aggregations.md"
 
 
 ## c.ReduceFuncs
@@ -105,7 +93,7 @@ The public reducer inventory is generated from `c.ReduceFuncs`:
 | `DictLastN` | `DictLastN(n, key, value)`: builds a dict whose values are the last `n` encountered values per key. |
 | `DictMax` | Builds a dict whose values are max values per key, skipping `None`. |
 | `DictMin` | Builds a dict whose values are min values per key, skipping `None`. |
-| `DictSum` | Builds a dict whose values are sums per key, treating `None` as `0`. Summing lists/tuples per key uses `result[k] = result[k] + value` and is O(n^2); `initial=` is ignored (use `DictArray` to collect lists per key). |
+| `DictSum` | Builds a dict whose values are sums per key, treating `None` as `0`. Summing lists/tuples per key uses `result[k] = result[k] + value` and is O(n^2); `DictSum` does not support `initial=` (use `DictArray` to collect lists per key). |
 | `DictSumOrNone` | Builds a dict whose values are sums per key; any `None` makes that key's result `None`. |
 
 Dict reducers aggregate into dictionaries whose values are reduced per key. See [Reducers API](#reducers-api) below for argument counts, defaults, `None` handling, `initial=` support, and edge-case notes.
@@ -209,9 +197,9 @@ Notes:
    `result = result + value` (never mutates the first row's object) and is
    O(n^2); pass `initial=list` for linear in-place list accumulation, e.g.
    `c.ReduceFuncs.Sum(c.item("tags"), initial=list)` (`Sum` still treats
-   empty lists as `0`, which then raises). `DictSum` ignores `initial=`.
-   To sum `timedelta`s (or other types where a zero value is falsy) use
-   `c.reduce(lambda a, b: a + b, c.item("d"), initial=timedelta())`.
+   empty lists as `0`, which then raises). `DictSum` does not support
+   `initial=`. To sum `timedelta`s (or other types where a zero value is falsy)
+   use `c.reduce(lambda a, b: a + b, c.item("d"), initial=timedelta())`.
 
 Special parameters:
 
@@ -222,3 +210,25 @@ Statistical reducers follow the usual sample/population edge cases after
 `where` and `None` filtering: `Variance` and `StdDev` return `None` for empty
 input or fewer than two reduced values; `PopulationVariance` and
 `PopulationStdDev` return `None` for empty input and `0` for one reduced value.
+
+
+## Advanced: expression sharing and label scoping
+
+* **Shared row temporaries:** `c.aggregate` and `c.group_by` share repeated
+  eager `where` and value sub-expressions (including function calls) across
+  reducers via per-row temporaries. `where` and value expressions are treated
+  as deterministic and side-effect-free on the row, a value shared between
+  reducers is the same object (so custom reducer callables must not mutate
+  received values), and `initial=` expressions are never shared. Within a row,
+  unguarded reducers run before `where=`-guarded ones; evaluation order across
+  reducers is otherwise unspecified.
+* **Label scoping inside reducers:** A label written inside a reducer argument
+  (`where`, a value expression, `initial`, or `default`; via `add_label`,
+  `label_input`, `label_output`, or `c.cumulative` / `c.cumulative_reset`) is
+  visible only within that same argument. Reading it from another argument of
+  the reducer, a sibling reducer, the aggregate output, or `group_by` keys
+  raises `ConversionException` at compile time. For a last value use
+  `c.ReduceFuncs.Last`; to reuse an expensive row calculation across reducers,
+  rely on shared temporaries or compute it within one argument. (This check is
+  per aggregate: reads inside a nested aggregate, or after the aggregate via
+  `.pipe(...)` or an enclosing expression, are not checked.)

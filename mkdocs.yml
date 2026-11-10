@@ -43,8 +43,6 @@ markdown_extensions:
   - toc:
       permalink: true
   - tables
-  - markdown_include.include:
-      base_path: docs
   - pymdownx.blocks.tab:
       alternate_style: true
   - pymdownx.blocks.admonition:
@@ -55,6 +53,7 @@ markdown_extensions:
   - pymdownx.snippets:
       base_path: .
       dedent_subsections: true
+      check_paths: true
   - attr_list
 
 exclude_docs: |
@@ -151,11 +150,10 @@ plugins:
     sections:
       Getting started:
         - README.md: "Overview, installation, short examples, and when to use convtools."
-        - basics.md: "Core conversion model, placeholders, `c.naive`, `c.input_arg`, and generated-code debugging."
+        - basics.md: "Core conversion model, placeholders, `c.naive`, `c.input_arg`, operators, and generated-code debugging helpers."
         - collections.md: "Iteration, filtering, comprehensions, sorting, chunking, uniqueness, windows over iterables, and cumulative transforms."
-        - conditions_n_pipes.md: "Conditional expressions, boolean logic, pipes, labels, expectations, and debugging helpers."
       Core concepts:
-        - conditions_n_pipes.md: "Flow control and reusable pipeline composition."
+        - conditions_n_pipes.md: "Conditional expressions, boolean logic, pipes, labels, expectations, and dispatch."
         - aggregations.md: "`c.aggregate`, `c.group_by`, reducers, reducer defaults, `None` handling, and custom `c.reduce`."
         - joins.md: "Sequence joins, `c.LEFT` / `c.RIGHT`, join types, multi-key and non-equi joins, duplicate behavior, and performance notes."
       Advanced:

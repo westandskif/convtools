@@ -55,14 +55,14 @@ are strings, so the condition casts them with `.as_type(int)` before comparing.
 It also keeps only right-side rows where `age >= 18`.
 
 
-{!examples-md/welcome__join.md!}
+--8<-- "docs/examples-md/welcome__join.md"
 
 ## Multi-key joins
 
 Use `c.and_(...)` with multiple equality conditions to join on more than one
 key. Equi-joinable conditions are used to build the right-side hash map.
 
-{!examples-md/api__join_multikey.md!}
+--8<-- "docs/examples-md/api__join_multikey.md"
 
 ## Non-equi joins
 
@@ -70,7 +70,7 @@ Conditions do not have to be equality checks. For range matching and other
 non-equi joins, write the condition directly with operators on `c.LEFT` and
 `c.RIGHT`.
 
-{!examples-md/api__join_non_equi.md!}
+--8<-- "docs/examples-md/api__join_non_equi.md"
 
 ## Duplicate matches
 
@@ -78,7 +78,7 @@ non-equi joins, write the condition directly with operators on `c.LEFT` and
 same join key, the result contains four pairs for that key. This is the same
 many-to-many behavior as a relational join.
 
-{!examples-md/api__join_duplicates.md!}
+--8<-- "docs/examples-md/api__join_duplicates.md"
 
 ## Memory and performance
 

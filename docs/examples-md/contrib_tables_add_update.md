@@ -9,4 +9,10 @@ assert list(
     .into_iter_rows(dict)
 ) == [{"a": 1, "b": -2, "c": 1}, {"a": 2, "b": -3, "c": 1}]
 
+assert list(
+    Table.from_rows([("a", "b"), ("xy", "zw")], header=True)
+    .update_all(c.this + c.col("b"))
+    .into_iter_rows(dict)
+) == [{"a": "xyzw", "b": "zwzw"}]
+
 ```

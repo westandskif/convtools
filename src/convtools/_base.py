@@ -1525,7 +1525,7 @@ class BaseConversion(Generic[CT]):
             result = result.add_hint(self.OutputHints.ORDERING_NONE_FIRST)
         return result.add_hint(self.OutputHints.ORDERING_ASC)
 
-    def desc(self, none_last=None, none_first=None):
+    def desc(self, *, none_last=None, none_first=None):
         """Sets descending ordering hint, to be used by conversion sort method.
 
         Args:

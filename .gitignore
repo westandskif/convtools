@@ -40,7 +40,6 @@ coverage.xml
 build/*
 dist/*
 sdist/*
-docs/examples-md/.last_build.csv
 cover/*
 pip-wheel-metadata/
 MANIFEST

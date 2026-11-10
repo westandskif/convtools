@@ -10,7 +10,6 @@ ruff
 
 build
 
-markdown-include
 mdx-truly-sane-lists
 mkdocs
 mkdocs-exclude

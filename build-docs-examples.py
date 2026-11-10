@@ -1,17 +1,14 @@
 import os
-from glob import glob
 import subprocess
-from hashlib import sha256
-
-from convtools.contrib.tables import Table
-from convtools import conversion as c
+import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from glob import glob
 
 DOCS_ROOT = "./docs"
 
 RAW_EXAMPLES_DIR = os.path.join(DOCS_ROOT, "examples-raw")
 MD_EXAMPLES_DIRNAME = os.path.join(DOCS_ROOT, "examples-md")
-
-LAST_BUILD_LOG = os.path.join(MD_EXAMPLES_DIRNAME, ".last_build.csv")
 
 _ensured_dirs = set()
 
@@ -30,11 +27,9 @@ def get_md_path_to_include(file_path):
 
 
 def get_raw_examples():
-    yield from glob(os.path.join(RAW_EXAMPLES_DIR, "**/*.py"), recursive=True)
-
-
-def indent_lines(s, indent):
-    return "\n".join(f"{indent}{line}" for line in s.splitlines())
+    return sorted(
+        glob(os.path.join(RAW_EXAMPLES_DIR, "**/*.py"), recursive=True)
+    )
 
 
 def get_md_example_path(raw_example_path):
@@ -50,72 +45,81 @@ def is_llms_example(path):
     return os.path.basename(path).startswith("llms__")
 
 
-def write_md_example(raw_example_path, output):
-    md_example_path = get_md_example_path(raw_example_path)
-    with open(raw_example_path, "r") as f_in:
-        new_content = f"""```python
-{f_in.read()}
+def format_md_example(raw_source, output):
+    content = f"""```python
+{raw_source}
 ```
 """
+    rendered_output = output.strip()
+    if rendered_output:
+        content += f"""
+Printed output:
 
+```python
+{rendered_output}
+```
+"""
+    return content
+
+
+def run_raw_example(path):
+    abs_path = os.path.abspath(path)
     result = subprocess.run(
-        ["sha256sum", md_example_path], capture_output=True
+        [sys.executable, abs_path],
+        capture_output=True,
+        check=False,
+        cwd=tempfile.gettempdir(),
     )
-    if result.returncode == 0:
-        output = result.stdout.decode("utf-8")
-        if (
-            output
-            and output.split(" ", 1)[0]
-            == sha256(new_content.encode("utf-8")).hexdigest()
-        ):
-            print(
-                f"CHECKED EXAMPLE: {get_md_path_to_include(md_example_path)}"
-            )
-            return
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace")
+        raise AssertionError(f"failed for {path}:\n{stderr}")
+    return path, result.stdout.decode("utf-8")
 
-    with open(ensure_dir(md_example_path), "w") as f_out:
+
+def write_md_example(raw_example_path, output):
+    md_example_path = get_md_example_path(raw_example_path)
+    with open(raw_example_path, "r", encoding="utf-8") as f_in:
+        new_content = format_md_example(f_in.read(), output)
+
+    if os.path.exists(md_example_path):
+        with open(md_example_path, "r", encoding="utf-8") as f_existing:
+            if f_existing.read() == new_content:
+                print(
+                    f"CHECKED EXAMPLE: {get_md_path_to_include(md_example_path)}"
+                )
+                return
+
+    with open(ensure_dir(md_example_path), "w", encoding="utf-8") as f_out:
         f_out.write(new_content)
     print(f"BUILT EXAMPLE  : {get_md_path_to_include(md_example_path)}")
 
 
-def build_example(path):
-    result = subprocess.run(["python", path], capture_output=True)
-    if result.returncode != 0:
-        raise AssertionError(f"failed for {path}")
-    if is_llms_example(path):
-        print(f"CHECKED LLMS EXAMPLE (no md): {path}")
-        return
-    write_md_example(
-        raw_example_path=path, output=result.stdout.decode("utf-8")
-    )
+def prune_orphaned_md_examples(expected_md_paths):
+    for md_path in sorted(
+        glob(os.path.join(MD_EXAMPLES_DIRNAME, "**/*.md"), recursive=True)
+    ):
+        if os.path.normpath(md_path) not in expected_md_paths:
+            os.remove(md_path)
+            print(f"REMOVED ORPHAN : {get_md_path_to_include(md_path)}")
 
 
 def build_examples():
-    if os.path.exists(LAST_BUILD_LOG):
-        path_to_last_build_time = {
-            row["path"]: row["mtime"]
-            for row in Table.from_csv(LAST_BUILD_LOG, header=True)
-            .update(mtime=c.col("mtime").as_type(float))
-            .into_iter_rows(dict)
-        }
-    else:
-        path_to_last_build_time = {}
-
-    logs = []
-    for path in get_raw_examples():
-        mtime = os.path.getmtime(path)
-        logs.append({"path": path, "mtime": mtime})
-        md_path = get_md_example_path(path)
-        if (
-            path in path_to_last_build_time
-            and mtime <= path_to_last_build_time[path]
-            and (is_llms_example(path) or os.path.exists(md_path))
-        ):
-            print(f"UP TO DATE: {path}")
+    raw_paths = get_raw_examples()
+    with ThreadPoolExecutor() as pool:
+        results = list(pool.map(run_raw_example, raw_paths))
+    for path, stdout in results:
+        if is_llms_example(path):
+            print(f"CHECKED LLMS EXAMPLE (no md): {path}")
             continue
-        build_example(path)
+        write_md_example(raw_example_path=path, output=stdout)
 
-    Table.from_rows(logs).into_csv(ensure_dir(LAST_BUILD_LOG))
+    prune_orphaned_md_examples(
+        {
+            os.path.normpath(get_md_example_path(path))
+            for path in raw_paths
+            if not is_llms_example(path)
+        }
+    )
 
 
 if __name__ == "__main__":

@@ -26,12 +26,12 @@ So the steps of getting a converter function are:
    implementing that specification.
 1. Reuse the resulting **converter** function with as many inputs as needed.
 
-{!examples-md/getting_started__this.md!}
+--8<-- "docs/examples-md/getting_started__this.md"
 
 If a converter is needed only once, `.execute(data)` is a shortcut for
 generating it and immediately calling it:
 
-{!examples-md/getting_started__this_execute.md!}
+--8<-- "docs/examples-md/getting_started__this_execute.md"
 
 
 ## c.item
@@ -55,21 +55,21 @@ There are two ways to do it:
 1. `c.item(1)` - same, but shorter
 
 
-{!examples-md/getting_started__item.md!}
+--8<-- "docs/examples-md/getting_started__item.md"
 
 #### With default
 
 Should you need to suppress `KeyError`, `IndexError` and `TypeError` to achieve
 `dict.get(key, default)`-like behavior but for arbitrary data:
 
-{!examples-md/getting_started__item_default.md!}
+--8<-- "docs/examples-md/getting_started__item_default.md"
 
 
 #### Multiple indexes / keys
 
 Sometimes you may need to perform multiple subsequent index/key lookups:
 
-{!examples-md/getting_started__item_multi.md!}
+--8<-- "docs/examples-md/getting_started__item_multi.md"
 
 
 ## c.attr
@@ -88,7 +88,7 @@ Should you need to suppress `AttributeError`, pass the `default` argument.
 
 Here is all-in one example:
 
-{!examples-md/getting_started__attr.md!}
+--8<-- "docs/examples-md/getting_started__attr.md"
 
 
 ## c.naive
@@ -102,7 +102,7 @@ A good example is when we need to achieve something like the following:
 ```python
 VALUE_TO_VERBOSE = {
     1: "ACTIVE",
-	2: "INACTIVE",
+    2: "INACTIVE",
 }
 def f(data):
     return VALUE_TO_VERBOSE[data]
@@ -110,7 +110,7 @@ def f(data):
 here we made `VALUE_TO_VERBOSE` available to the function. To build an
 equivalent conversion wrap an object to be exposed into `c.naive`:
 
-{!examples-md/getting_started__naive.md!}
+--8<-- "docs/examples-md/getting_started__naive.md"
 
 _And yes, you can pass conversions as arguments to other conversions (notice
 `.item(c.this)` part)._
@@ -143,7 +143,7 @@ def f(data, *, increment):
 To build a conversion like this use `c.input_arg("increment")` to reference the
 keyword argument to be passed:
 
-{!examples-md/getting_started__input_arg.md!}
+--8<-- "docs/examples-md/getting_started__input_arg.md"
 
 #### When to use c.naive vs c.input_arg
 
@@ -166,9 +166,11 @@ Some conversions change what "current input" means. For example, inside
 | `c.naive(value)` | Anywhere | A value or function known when the converter is built and exposed to generated code. |
 | `c.input_arg("name")` | Anywhere | A runtime argument of the generated converter. By default these become keyword-only arguments unless `signature=` is customized. |
 | `c.label("name")` | After labeling data with `add_label`, `label_input`, or `label_output` | The previously saved value for that label. |
-| `c.LEFT` / `c.RIGHT` | `c.join(...)` conditions and table joins | The current left and right rows being compared. |
+| `c.LEFT` / `c.RIGHT` | `c.join(...)` conditions and `Table.join(...)` conditions | The current left and right rows being compared. |
+| `c.col("name")` | `Table` row conversions (`update`, `update_all`, `filter`, `pivot`) and `c.LEFT.col(...)` / `c.RIGHT.col(...)` in `Table.join` | The named column's value in the current table row. |
 | `c.CHUNK` | `c.chunk_by_condition(...)` | The current accumulated chunk while deciding whether the next item belongs to it. |
 | `c.PREV` | `c.cumulative(...)` reduce expressions | The previous cumulative value. |
+| `c.EXCEPTION` | `c.try_(...).except_(...)` `value` and `re_raise_if` expressions | The caught exception instance. |
 
 Reducers and window expressions also use context-specific inputs. Reducer
 arguments such as `c.ReduceFuncs.Sum(c.item("amount"))` are evaluated against
@@ -194,7 +196,7 @@ We can either:
 1. use `call_method` on `datetime`
 1. expose `datetime.strptime` via `c.naive` and then call it
 
-{!examples-md/getting_started__call.md!}
+--8<-- "docs/examples-md/getting_started__call.md"
 
 /// admonition
     type: tip
@@ -220,12 +222,23 @@ are:
 1. `apply_method`
 1. `apply`
 
-{!examples-md/getting_started__apply.md!}
+--8<-- "docs/examples-md/getting_started__apply.md"
 
 
 ## Operators
 
-{!examples-md/api__operators.md!}
+Conversions overload standard Python arithmetic and comparison operators, plus
+helper functions and methods where Python syntax cannot be overloaded (`is_`,
+`is_not`, `in_`, `not_in`, `and_`, `or_`, `not_`, `eq`).
+
+Note that `|`, `&`, and `~` compile to Python's short-circuit logical `or`,
+`and`, and `not` (same as `c.or_`, `c.and_`, and `c.not_`), **not** bitwise
+operators. `c.and_(*args, default=None)`, `c.or_(*args, default=None)`, and
+`c.eq(*args, default=None)` chain two or more expressions (and when `args` is
+empty, return `bool(default)` if `default` is not `None`, or raise
+`ValueError`).
+
+--8<-- "docs/examples-md/api__operators.md"
 
 ## Converter signature
 
@@ -247,7 +260,7 @@ raises an error before compiling the function. Parameter names may shadow
 builtins (the converter isolates its body); names starting with convtools-internal
 prefixes (`__none__`, `_none`, `_labels`, `__convtools__...`) are rejected.
 
-{!examples-md/getting_started__signature.md!}
+--8<-- "docs/examples-md/getting_started__signature.md"
 
 
 ## Debug
@@ -259,8 +272,8 @@ Python code. There are 2 ways:
 1. set `options.debug = True` inside `c.OptionsCtx()` for a scoped block of
    converter builds
 
-`c.OptionsCtx` is thread-local and restores the previous options when the
-`with` block exits. It currently supports one option:
+`c.OptionsCtx` is context-local (`contextvars`) and restores the previous
+options when the `with` block exits. It currently supports one option:
 
 | Option | Default | Meaning |
 | ------ | ------- | ------- |
@@ -276,30 +289,15 @@ Generated source files are written to the directory from
 directory when the environment variable is not set. Sources are also dumped if
 generated code raises an exception, so tracebacks can point to readable files.
 
-{!examples-md/getting_started__debug.md!}
-
-Here is a small example of the kind of code `debug=True` prints:
-
-```python
-def _converter(data_):
-    try:
-        return [
-            {
-                "id": _i["id"],
-                "total": (_i["qty"] * _i["price"]),
-            }
-            for _i in data_["orders"]
-        ]
-    except __exceptions_to_dump_sources:
-        __convtools__code_storage.dump_sources()
-        raise
-```
+--8<-- "docs/examples-md/getting_started__debug.md"
 
 For interactive debugging, use the `breakpoint` conversion:
 
 ```python
 c({"a": c.breakpoint()}).gen_converter(debug=True)
-# same
+# same: stops on the whole input
+c({"a": c.this.breakpoint()}).gen_converter(debug=True)
+# stops on data[0] instead of the whole input
 c({"a": c.item(0).breakpoint()}).gen_converter(debug=True)
 ```
 
@@ -334,7 +332,7 @@ There are two ways to pass custom code expression as a string:
 1. `c.inline_expr`
 
 
-{!examples-md/api__inline_n_escaped.md!}
+--8<-- "docs/examples-md/api__inline_n_escaped.md"
 
 
 **Now that we know the basics and how the thing works, we are ready to go over

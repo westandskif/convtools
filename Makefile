@@ -15,14 +15,11 @@ dynamic_docs_performance:
 dynamic_docs_reducers:
 	python build-docs-reducers.py
 
-docs_drop_dynamic_md:
-	rm docs/examples-md/.last_build.csv || true
-
 docs:
 	mkdocs serve --livereload
 
 spellcheck:
-	find . \( -name "*.rst" -o -name "*.py" \) -not -path "./build/*" -not -path "./tests/*" -exec aspell/aspell {} \;
+	find README.md docs src -type f \( -name "*.md" -o -name "*.py" \) -not -path "docs/examples-md/*" -not -path "docs/performance-md/*" -exec aspell/aspell {} \;
 
 checks:
 	black src tests

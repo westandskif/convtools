@@ -1,6 +1,10 @@
 # Collections
 
-**Please, make sure you've covered [Basics](./basics.md) first.**
+/// admonition | Prerequisites
+    type: info
+
+Start with [Basics](./basics.md) for conversion fundamentals.
+///
 
 ## Collections and `c()` wrapper
 
@@ -9,7 +13,7 @@ The syntax to create a conversion, which builds a `dict`, `list`, `tuple` or a
 
 Let's build a dict from a tuple of two integers:
 
-{!examples-md/api__collections.md!}
+--8<-- "docs/examples-md/api__collections.md"
 
 **So to summarize on `c()` wrapper, it:**
 
@@ -22,7 +26,7 @@ Let's build a dict from a tuple of two integers:
 It's possible to mark a particular item as optional, so it disappears from a
 `dict`/`list`/`tuple`/`set` in certain cases:
 
-{!examples-md/api__collections_optional.md!}
+--8<-- "docs/examples-md/api__collections_optional.md"
 
 #### Spread (dict unpacking)
 
@@ -30,7 +34,7 @@ It's possible to mark a particular item as optional, so it disappears from a
 `**` operator or JavaScript's spread syntax. This is useful for merging nested
 dicts into a parent dict.
 
-{!examples-md/api__spread.md!}
+--8<-- "docs/examples-md/api__spread.md"
 
 /// admonition
     type: note
@@ -44,7 +48,7 @@ dicts into a parent dict.
 
 To cast to a type use a naive conversion method `as_type`:
 
-{!examples-md/api__as_type.md!}
+--8<-- "docs/examples-md/api__as_type.md"
 
 /// admonition
     type: note
@@ -64,7 +68,7 @@ a concrete container immediately:
 | Operation | Result | Use it when |
 | --------- | ------ | ----------- |
 | `c.iter(element, where=...)` | Lazy iterator | Each input item needs to be transformed, optionally with a filter. |
-| `c.filter(condition)` | Lazy iterator | Input items should be kept unchanged when they match. |
+| `c.filter(condition, cast=None)` | Lazy iterator by default; preserves container type when chained on a concrete comprehension, or casts with `cast` | Input items should be kept unchanged when they match. |
 | `c.generator_comp(element, where=...)` | Lazy iterator | Generator-comprehension syntax is preferable to `c.iter`. |
 | `c.list_comp(...)`, `c.tuple_comp(...)`, `c.set_comp(...)` | Concrete container | The complete result is needed immediately in that container type. |
 | `c.dict_comp(key, value, where=...)` | Concrete dictionary | Input items should become key/value pairs. |
@@ -72,7 +76,8 @@ a concrete container immediately:
 
 Lazy conversions are still executed only when the compiled converter is
 called. If the caller needs a list, make the materialization visible with
-`.as_type(list)` rather than relying on the caller to consume the iterator.
+`.as_type(list)` (or `cast=list` on `filter`) rather than relying on the caller
+to consume the iterator.
 
 #### Process
 
@@ -88,7 +93,7 @@ Each of them accepts `where` argument to support conditions like:
 `[x for x in items if x > 10]`.
 
 A few examples:
-{!examples-md/api__comp.md!}
+--8<-- "docs/examples-md/api__comp.md"
 
 /// admonition
     type: note
@@ -100,9 +105,18 @@ collection. This is one of the input-switching conversions.
 
 #### filter
 
-To filter an input use `c.filter` or `filter` conversion method:
+`c.filter(condition_conv, cast=None)` and `.filter(condition_conv, cast=None)`
+keep elements for which `condition_conv` evaluates to true:
 
-{!examples-md/api__filter.md!}
+* By default (`cast=None`), `c.filter(...)` returns a lazy generator.
+* Pass `cast=` (for example `cast=list`) to wrap the filtered generator in that
+  callable.
+* Calling `.filter(...)` on `list_comp`, `tuple_comp`, `set_comp`, or
+  `dict_comp` preserves that comprehension's container type unless `cast`
+  overrides it (for `dict_comp`, `condition_conv` receives `(key, value)`
+  pairs).
+
+--8<-- "docs/examples-md/api__filter.md"
 
 
 #### sort
@@ -114,9 +128,9 @@ none_first/none_last configuration:
 
     --8<-- "src/convtools/_ordering.py:sort_args_docs"
 
-`c.this.asc(none_last=None, none_first=None)`
+`c.this.asc(*, none_last=None, none_first=None)`
 
-`c.this.desc(none_last=None, none_first=None)`
+`c.this.desc(*, none_last=None, none_first=None)`
 
 The last `asc()` / `desc()` wins and resets `none_first` / `none_last`.
 
@@ -127,13 +141,13 @@ several stable `list.sort` passes (later keys first), so every key must be
 comparable across all elements — not only within ties of the preceding keys —
 and keys are evaluated per pass.
 
-{!examples-md/api__sort.md!}
+--8<-- "docs/examples-md/api__sort.md"
 
 ##### sorting_key
 
 `c.sorting_key(*keys)` returns a callable, which can be passed to `sorted` as:
 
-{!examples-md/api__sorting_key.md!}
+--8<-- "docs/examples-md/api__sorting_key.md"
 
 
 #### zip, repeat, flatten
@@ -145,19 +159,19 @@ to have these shortcuts/helpers:
 1. `c.repeat`
 1. `flatten` method
 
-{!examples-md/api__zip_repeat_flatten.md!}
+--8<-- "docs/examples-md/api__zip_repeat_flatten.md"
 
 `c.zip` supports keyword arguments to build dicts:
 
-{!examples-md/api__zip_to_dict.md!}
+--8<-- "docs/examples-md/api__zip_to_dict.md"
 
 `c.zip_longest` works like `c.zip`, but pads shorter iterables with a `fill_value` (default: `None`):
 
-{!examples-md/api__zip_longest.md!}
+--8<-- "docs/examples-md/api__zip_longest.md"
 
 `c.zip_longest` also supports keyword arguments to build dicts:
 
-{!examples-md/api__zip_longest_to_dict.md!}
+--8<-- "docs/examples-md/api__zip_longest_to_dict.md"
 
 
 #### len, min, max
@@ -178,12 +192,12 @@ combination of them. Here are two conversions to achieve this:
    [Placeholders & Special References](./basics.md#placeholders-special-references)
    for more context-specific references.
 
-{!examples-md/api__chunk.md!}
+--8<-- "docs/examples-md/api__chunk.md"
 
 We'll cover aggregations later, but bear with me -- chunk conversions have
 `aggregate` method:
 
-{!examples-md/api__chunk_aggregate.md!}
+--8<-- "docs/examples-md/api__chunk_aggregate.md"
 
 #### unordered_chunk_by
 
@@ -199,7 +213,7 @@ c.unordered_chunk_by(
     --8<-- "src/convtools/_chunks.py:unordered_chunk_by_args_docs"
 
 
-{!examples-md/api__unordered_chunk.md!}
+--8<-- "docs/examples-md/api__unordered_chunk.md"
 
 
 #### take_while, drop_while
@@ -210,7 +224,7 @@ c.unordered_chunk_by(
    condition evaluates to true, then yields from the first one where it
    evaluates to false
 
-{!examples-md/api__take_drop_while.md!}
+--8<-- "docs/examples-md/api__take_drop_while.md"
 
 
 #### iter_unique
@@ -223,7 +237,7 @@ of the provided condition:
  * if `element_conv` is `None`, it assumes `c.this`
  * if `by_` is None, it assumes `element_conv`
 
-{!examples-md/api__iter_unique.md!}
+--8<-- "docs/examples-md/api__iter_unique.md"
 
 
 #### iter_windows
@@ -235,7 +249,7 @@ A window of `width` slides one position at a time from before the first
 element to past the last; partial windows appear at both ends. `width` and
 `step` must be positive ints.
 
-{!examples-md/api__iter_windows.md!}
+--8<-- "docs/examples-md/api__iter_windows.md"
 
 #### cumulative
 
@@ -247,7 +261,7 @@ define cumulative conversions.
  * `c.PREV` references the previous cumulative value; see
    [Placeholders & Special References](./basics.md#placeholders-special-references)
 
-{!examples-md/api__cumulative.md!}
+--8<-- "docs/examples-md/api__cumulative.md"
 
 In cases where the value in accumulator needs to be cleared, usually it happens
 in nested iterators, take 2 steps:
@@ -255,4 +269,4 @@ in nested iterators, take 2 steps:
 1. label your cumulative
 1. use `c.cumulative_reset` to reset where necessary
 
-{!examples-md/api__cumulative_2.md!}
+--8<-- "docs/examples-md/api__cumulative_2.md"

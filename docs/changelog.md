@@ -1,3 +1,10 @@
+## 1.18.1 (2026-11-10)
+
+**Changed**
+
+- `c.this.desc(*, none_last=None, none_first=None)` now accepts keyword
+  arguments only, matching `c.this.asc(*, none_last=None, none_first=None)`
+
 ## 1.18.0 (2026-10-18)
 
 **Features**
@@ -550,7 +557,7 @@ changes as it used to break completely_)
 - contrib ones are left as is:
 
     * `from convtools.contrib.tables import Table`
-	* `from convtools.contrib.fs import split_buffer`
+    * `from convtools.contrib.fs import split_buffer`
 
 ## 0.42.4 (2023-03-22)
 
@@ -1290,10 +1297,10 @@ c.generator_comp(c.item("a"), where=c.item("b") == "bar")
 
 ```python
 c.aggregate(
-	c.ReduceFuncs.DictSum(
-		c.item("name"),
-		c.item("value")
-	)
+    c.ReduceFuncs.DictSum(
+        c.item("name"),
+        c.item("value")
+    )
 )
 ```
 
@@ -1301,10 +1308,10 @@ c.aggregate(
 
 ```python
 c.aggregate(
-	c.reduce(
-		c.ReduceFuncs.DictSum,
-		(c.item("name"), c.item("value")),
-	)
+    c.reduce(
+        c.ReduceFuncs.DictSum,
+        (c.item("name"), c.item("value")),
+    )
 )
 ```
 
@@ -1312,9 +1319,9 @@ c.aggregate(
 
 ```python
 c.aggregate(
-	c.item("value").pipe(
-		c.ReduceFuncs.Sum(c.this()).pipe(c.this() + 1)
-	)
+    c.item("value").pipe(
+        c.ReduceFuncs.Sum(c.this()).pipe(c.this() + 1)
+    )
 ).gen_converter(debug=True)
 ```
 

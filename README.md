@@ -1,3 +1,4 @@
+<!-- --8<-- [start:intro] -->
 # convtools — write transformations as expressions, run them as Python
 
 **convtools** lets you declare data transformations in plain Python, then
@@ -29,13 +30,14 @@ container required.
   code‑generation layer. Use it when you want lean, composable transforms over
   native Python data.
 
-____
+## Installation
 
-### Installation
-
-```
+```bash
 pip install convtools
 ```
+
+Requires Python 3.6+ (CI tests CPython 3.8–3.15, including free-threaded 3.15t).
+<!-- --8<-- [end:intro] -->
 
 ## Documentation
 
@@ -78,10 +80,9 @@ conv = (
 
 assert conv(input_data) == {
     'b_values': ['foo', 'bar'],
-    'mode_a_first': 10,
+    'mode_a_first': 5,
     'median_a_max': 15.0
 }
-
 ```
 
 ##### Built-in reducers like `c.ReduceFuncs.First`
@@ -99,8 +100,8 @@ You can also define custom reducers with `c.reduce` by passing any two-argument 
 
 ---
 
-
-### When should I reach for convtools?
+<!-- --8<-- [start:when_to_use] -->
+## When should I reach for convtools?
 
 * You need **composable transforms** over native Python data
 (lists/dicts/generators/CSV), not a DataFrame.
@@ -108,10 +109,12 @@ You can also define custom reducers with `c.reduce` by passing any two-argument 
 readable Python functions.
 * You need **aggregations/joins/pipes** that you can **reuse** across scripts
 and services.
+<!-- --8<-- [end:when_to_use] -->
 
 ---
 
-### Contributing
+<!-- --8<-- [start:contributing] -->
+## Contributing
 
 * Star the repo and share use‑cases in Discussions -- it really helps.
 
@@ -121,3 +124,4 @@ request](https://github.com/westandskif/convtools/pulls).
 
 * **Reporting a Security Vulnerability**: see the [security
 policy](https://github.com/westandskif/convtools/security/policy).
+<!-- --8<-- [end:contributing] -->

@@ -1,7 +1,10 @@
 # Mutations
 
-**Please, make sure you've covered [Basics](./basics.md) first.**
+/// admonition | Prerequisites
+    type: info
 
+Start with [Basics](./basics.md) for conversion fundamentals.
+///
 
 Mutations are conversions which update the data in-place. Here is the list of
 supported mutations:
@@ -28,10 +31,10 @@ These mutations can only be used inside the methods below.
 `c.iter_mut(*mutations)` mutates each element of a sequence and returns an
 iterator of mutated objects.
 
-{!examples-md/api__iter_mut.md!}
+--8<-- "docs/examples-md/api__iter_mut.md"
 
 ## c.tap
 
 `c.tap(*mutations)` and `tap` conversion method mutate a single object.
 
-{!examples-md/api__tap.md!}
+--8<-- "docs/examples-md/api__tap.md"

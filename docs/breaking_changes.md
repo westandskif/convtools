@@ -1,39 +1,120 @@
-## if v2 happens one day, it will:
+# Breaking changes
 
-- make the following reducers raise `ValueError` if `initial` is passed:
-```
-   * ArrayDistinct
-   * ArraySorted
-   * Correlation
-   * CountDistinct
-   * Covariance
-   * Dict
-   * DictArray
-   * DictArrayDistinct
-   * DictCount
-   * DictCountDistinct
-   * DictFirst
-   * DictFirstN
-   * DictLast
-   * DictLastN
-   * DictMax
-   * DictMin
-   * DictSum
-   * DictSumOrNone
-   * First
-   * Last
-   * LastN
-   * MaxRow
-   * Median
-   * MinRow
-   * Mode
-   * Percentile
-   * PopulationStdDev
-   * PopulationVariance
-   * StdDev
-   * TopK
-   * Variance
-```
+## Planned for 2.0
+
+If `v2` happens one day, passing `initial` to the following reducers (whose
+internal accumulators are private) will raise `ValueError` instead of emitting
+`DeprecationWarning`:
+
+* `ArrayDistinct`
+* `ArraySorted`
+* `Correlation`
+* `CountDistinct`
+* `Covariance`
+* `Dict`
+* `DictArray`
+* `DictArrayDistinct`
+* `DictCount`
+* `DictCountDistinct`
+* `DictFirst`
+* `DictFirstN`
+* `DictLast`
+* `DictLastN`
+* `DictMax`
+* `DictMin`
+* `DictSum`
+* `DictSumOrNone`
+* `First`
+* `FirstN`
+* `Last`
+* `LastN`
+* `MaxRow`
+* `MinRow`
+* `Median`
+* `Mode`
+* `Percentile`
+* `PopulationStdDev`
+* `PopulationVariance`
+* `StdDev`
+* `TopK`
+* `Variance`
+
+
+## 1.18.1 (2026-11-10)
+
+- `c.this.desc(*, none_last=None, none_first=None)` now accepts keyword
+  arguments only, matching `c.this.asc(*, none_last=None, none_first=None)`.
+
+
+## 1.18.0 (2026-10-18)
+
+- Labels written inside a reducer argument (`where`, a value expression,
+  `initial`, or `default`) can now only be read within that same argument;
+  reading them from another argument of the reducer, a sibling reducer, the
+  aggregate / `group_by` output, or `group_by` keys raises
+  `ConversionException` at compile time. Use `c.ReduceFuncs.Last` for a last
+  value.
+- A custom `BaseReducer` subclass with empty `prepare_first_lines` now raises
+  `ConversionException` at compile time.
+
+
+## 1.17.4 (2026-09-23)
+
+- Removed the undocumented `BaseConversion.replace_word` helper.
+
+
+## 1.17.3 (2026-09-13)
+
+- `c.if_` no longer accepts the `no_input_caching` parameter.
+- `split_buffer` and `split_buffer_n_decode` no longer close the passed buffer;
+  the caller owns and closes it.
+- `c.input_arg("self")` and `c.input_arg("cls")` now raise at `gen_converter`
+  unless `method=True` / `class_method=True` (or a custom `signature=` includes
+  the name).
+- `FirstN(..., initial=...)` no longer seeds the collected list; like `LastN`,
+  `initial=` is deprecated and only serves as the empty-input result.
+- `DictComp.filter(..., cast=None)` returns a `dict` (same as omitting `cast`)
+  instead of a generator of `(key, value)` pairs.
+- `sort(key=...)`, `over(order_by=...)`, and `over(partition_by=...)` treat a
+  `list` as a sequence of keys (same as `tuple`); plain callables inside key
+  sequences raise `TypeError` (wrap as `c.call_func(f, c.this)`).
+
+
+## 1.17.2 (2026-09-06)
+
+- Join condition terms referencing `c.LEFT` or `c.RIGHT` can no longer read the
+  outer join input (`c.this`); they raise `ConversionException` at
+  `gen_converter()`. Pass outer values via `c.input_arg(...)` or `c.label(...)`,
+  or attach the expression to `c.LEFT` / `c.RIGHT` with `.pipe(...)`.
+- `c.expect(..., error_msg=...)` only uses `"condition is not met"` when
+  `error_msg` is `None`; falsy values such as `""` or `0` are preserved.
+- `c.input_arg` rejects reserved and invalid parameter names (`data_`, `_none`,
+  Python keywords, non-identifiers).
+- Reducer `default=` conversions that depend on row inputs now raise at compile
+  time.
+
+
+## 1.14.6 (2025-08-10)
+
+- `Average`, `Percentile`, `TopK`, `CountDistinct`, and `DictCountDistinct` now
+  skip `None` values, matching `Min` and `Max`.
+
+
+## 1.14.5 (2025-07-31)
+
+- `c.item(..., default=...)` suppresses only `(TypeError, KeyError, IndexError)`
+  and `c.attr(..., default=...)` suppresses only `AttributeError`, rather than
+  catching arbitrary `Exception` subclasses.
+
+
+## 1.2.0 (2023-04-10)
+
+- `c.ReduceFuncs.Mode` and `TopK` sort by frequency only instead of `(count,
+  value)` pairs, so `Mode` breaks ties by first-encountered order (and works on
+  mutually unorderable values).
+- Passing `initial=` to reducers whose internal accumulators are private was
+  deprecated (`DeprecationWarning`, raising `ValueError` in 2.0).
+
 
 ## 1.0.0 (2023-03-23)
 
@@ -46,7 +127,7 @@
 - contrib ones are left as is:
 
     * `from convtools.contrib.tables import Table`
-	* `from convtools.contrib.fs import split_buffer`
+    * `from convtools.contrib.fs import split_buffer`
 
 
 ## 0.37.0 (2022-09-29)
@@ -107,7 +188,7 @@ c.ReduceFuncs.Array(c.item("a"), where=c.item("b") == "bar")
 # if the condition is to be applied before the aggregation
 # or leave as is if you want to filter the resulting array
 ```
-  
+
 
 - ``c.generator_comp(...).filter(condition)`` no longer pushes condition inside
   the comprehension, the filtering works on resulting generator
@@ -138,4 +219,3 @@ c.generator_comp(c.item("a"), where=c.item("b") == "bar")
 
 - fixed ``GroupBy.filter`` method to return generator by default, instead of
   list
-

@@ -8,9 +8,9 @@
 * functional approach (_pipes, "everything is an expression"_) lifts the
   obligation to name variables at each step, lowering the chance of confusing
   them
-* `convtools` test coverage is 100% and its development is test-driven, so
-  whenever a bug is found, we'll do our best to make sure it never occurs
-  again.
+* `convtools` test coverage is 100% (enforced in CI across both the pure-Python
+  and C-extension paths) and its development is test-driven, so whenever a bug
+  is found, we'll do our best to make sure it never occurs again.
 
 ## DRY
 
@@ -34,7 +34,7 @@ functionality like group_by, joins, pipes, etc.
 
 ## Performance
 
-/// admonition | 'The Art of Computer Programming' book by Donald Knuth:
+/// admonition | Donald Knuth, "Computer Programming as an Art" (1974):
     type: note
 
 _The real problem is that programmers have spent far too much time worrying
@@ -43,12 +43,32 @@ optimization is the root of all evil (or at least most of it) in programming._
 ///
 
 `convtools` worries about code efficiency, so you can put more effort into
-other parts of your code. The below table provides the speed-up of
-convtools-based solutions over the naive ones. 
+other parts of your code. The table below reports relative speed vs. a
+hand-written Python baseline (`(baseline_time / convtools_time - 1) * 100%`):
+positive numbers mean `convtools` is faster, while negative numbers mean the
+generated converter was slightly slower than a specialized hand-written loop on
+that Python version.
 
 /// tab | Speedups by python version
-{! performance-md/perf-benchmarks.md !}
+--8<-- "docs/performance-md/perf-benchmarks.md"
 ///
 
-In cases where there are multiple speed test results, the worst is
-taken. See [benchmarks on Github](https://github.com/westandskif/convtools/blob/master/run_benchmarks.py) for source code.
+Benchmark families (when multiple runs exist, the worst result is shown; see
+[`run_benchmarks.py`](https://github.com/westandskif/convtools/blob/master/run_benchmarks.py)
+and
+[`benchmarks/benchmarks.py`](https://github.com/westandskif/convtools/blob/master/benchmarks/benchmarks.py)
+for full definitions):
+
+* `GetDefaultPositive` / `GetDefaultNegative`: `c.item(..., default=...)` on a
+  present vs. missing key compared with `try / except`.
+* `Aggregate1`: single-pass `c.aggregate` (`Sum`, `Min`, `Max`) vs. a manual
+  `for` loop.
+* `GroupBy1 - FEW_GROUPS` / `MANY_GROUPS`: `c.group_by(...).aggregate(...)`
+  with few vs. many distinct keys compared with a `defaultdict` loop.
+* `IterOfIter1`: chained iterable transforms (`list_comp` + `iter`) vs. chained
+  generators.
+* `TableDictReader`: `Table.from_csv(..., header=True).into_iter_rows(dict)`
+  vs. `csv.DictReader`.
+* `DateParse*` / `DatetimeParse*` / `DateFormat*` / `DatetimeFormat*`:
+  `c.date_parse`, `c.datetime_parse`, and `c.format_dt` on common date/datetime
+  formats vs. `datetime.strptime` and `datetime.strftime`.

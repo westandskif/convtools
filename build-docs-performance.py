@@ -6,7 +6,6 @@ from hashlib import sha256
 from convtools import conversion as c
 from convtools.contrib.tables import Table
 
-
 DOCS_ROOT = "./docs"
 MD_DIR = os.path.join(DOCS_ROOT, "performance-md")
 _ensured_dirs = set()
@@ -29,7 +28,7 @@ from tabulate import tabulate
 import convtools
 
 
-def gen_md(results: List[BenchmarkResult], indent="    "):
+def gen_md(results: List[BenchmarkResult], indent=""):
     c_version_to_tuple = (
         c.this.call_method("split", ".")
         .iter(c.this.as_type(int))

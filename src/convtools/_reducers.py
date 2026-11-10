@@ -1378,8 +1378,8 @@ class ReduceFuncs:
     DictArrayDistinct = DictArrayDistinctReducer
     #: Builds a dict whose values are sums per key, treating `None` as
     #: `0`. Summing lists/tuples per key uses `result[k] = result[k] +
-    #: value` and is O(n^2); `initial=` is ignored (use `DictArray` to
-    #: collect lists per key).
+    #: value` and is O(n^2); `DictSum` does not support `initial=` (use
+    #: `DictArray` to collect lists per key).
     DictSum = DictSumReducer
     #: Builds a dict whose values are sums per key; any `None` makes that
     #: key's result `None`.

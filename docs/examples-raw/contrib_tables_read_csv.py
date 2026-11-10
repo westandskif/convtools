@@ -1,12 +1,13 @@
+import io
+
 from convtools.contrib.tables import Table
 
-# READING CSV
-# file content:
-#   a,b
-#   1,2
-#   2,3
+# READING CSV (file path or buffer)
 assert list(
-    Table.from_csv("tests/csvs/ab.csv", header=True).into_iter_rows(dict)
+    Table.from_csv(
+        io.StringIO("a,b\n1,2\n2,3\n"),  # or "ab.csv"
+        header=True,
+    ).into_iter_rows(dict)
     # .into_csv("output.csv")  # TO WRITE TO A FILE
 ) == [
     {"a": "1", "b": "2"},
@@ -14,13 +15,9 @@ assert list(
 ]
 
 # READING TSV
-# file content:
-#   a\tc
-#   2\t4
-#   1\t3
 assert list(
     Table.from_csv(
-        "tests/csvs/ac.csv",
+        io.StringIO("a\tc\n2\t4\n1\t3\n"),
         header=True,
         dialect=Table.csv_dialect(delimiter="\t"),
     ).into_iter_rows(dict)
@@ -30,13 +27,9 @@ assert list(
 ]
 
 # READ TSV + SKIP EXISTING HEADER + REMAP COLUMNS
-# file content:
-#   a\tc
-#   2\t4
-#   1\t3
 assert list(
     Table.from_csv(
-        "tests/csvs/ac.csv",
+        io.StringIO("a\tc\n2\t4\n1\t3\n"),
         header={"a": 1, "c": 0},
         skip_rows=1,
         dialect=Table.csv_dialect(delimiter="\t"),

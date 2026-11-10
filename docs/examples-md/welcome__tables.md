@@ -1,14 +1,18 @@
 ```python
-from convtools.contrib.tables import Table
+import io
+
 from convtools import conversion as c
+from convtools.contrib.tables import Table
+
+tsv_buffer = io.StringIO("a\tc\n0\t-2\n2\t4\n1\t3\n")
 
 # reads Iterable of rows
 iterable_of_rows = (
     Table.from_rows([(0, -1), (1, 2)], header=["a", "b"]).join(
         Table
-        # reads tab-separated CSV file
+        # reads tab-separated CSV file or buffer
         .from_csv(
-            "tests/csvs/ac.csv",
+            tsv_buffer,  # or "ac.csv"
             header=True,
             dialect=Table.csv_dialect(delimiter="\t"),
         )

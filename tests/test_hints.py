@@ -63,6 +63,11 @@ def test_pipe_ordering_does_not_mask_not_none():
             "x": [1]
         }
 
+    with pytest.raises(TypeError):
+        c.this.asc(True)  # type: ignore[misc]
+    with pytest.raises(TypeError):
+        c.this.desc(True)  # type: ignore[misc]
+
 
 @pytest.mark.parametrize(
     [

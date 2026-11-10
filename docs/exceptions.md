@@ -1,5 +1,11 @@
 # Exception handling
 
+/// admonition | Prerequisites
+    type: info
+
+Start with [Basics](./basics.md) for conversion fundamentals.
+///
+
 **Avoid exception handling in conversions as long as possible, because it
 reduces clarity and can hide issues in the code.**
 
@@ -26,4 +32,20 @@ escape the handler. Materialize inside the wrapper:
 c.try_(c.iter(c.item("a")).as_type(list)).except_(KeyError, [])
 ```
 
-{!examples-md/api__try.md!}
+--8<-- "docs/examples-md/api__try.md"
+
+
+## c.try_multiple
+
+`c.try_multiple(*conversion_exc_pairs, default=...)` runs candidate conversions
+in order until one succeeds:
+
+* `conversion_exc_pairs`: one or more `(conversion, exc_def)` pairs, where
+  `exc_def` is an exception class or tuple of exception classes to catch for
+  that candidate (at least one pair is required)
+* `default` (optional): fallback value or conversion returned when every
+  candidate fails. When `default` is omitted, the last pair's exception is not
+  caught and propagates; when `default` is provided (including `default=None`),
+  the last pair's `exc_def` is caught as well.
+
+--8<-- "docs/examples-md/api__try_multiple.md"

@@ -1,10 +1,16 @@
 #!/bin/bash
 
+MODE_ARGS=()
+case "$1" in
+	*.md) MODE_ARGS=(--mode=markdown) ;;
+esac
+
 aspell \
 	-d en_US \
-	-p ${PWD}/aspell/.aspell.en_US.pws \
+	-p "${PWD}/aspell/.aspell.en_US.pws" \
+	"${MODE_ARGS[@]}" \
 	--ignore=2 \
 	--run-together \
 	--run-together-limit=10 \
 	--run-together-min=3 \
-	check $@
+	check "$@"

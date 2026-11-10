@@ -1,6 +1,10 @@
 # Dates
 
-**Please, make sure you've covered [Basics](./basics.md) first.**
+/// admonition | Prerequisites
+    type: info
+
+Start with [Basics](./basics.md) for conversion fundamentals.
+///
 
 ## Formatting dates
 
@@ -24,7 +28,7 @@ are captured the first time any of them is used in the process; a later
 `c.format_dt(fmt)` accepts same format codes as
 [datetime.strftime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes) does.
 
-{!examples-md/api__dates_format.md!}
+--8<-- "docs/examples-md/api__dates_format.md"
 
 ## Parsing dates
 
@@ -40,20 +44,24 @@ See the locale-names note under Formatting dates: parsing `%p` uses the
 same first-use snapshot.
 
 
-1. `c.date_parse(main_format, *other_formats, default=_none)` and `date_parse`
+1. `c.date_parse(main_format, *other_formats, default=...)` and `date_parse`
    method parse dates
-1. `c.datetime_parse(main_format, *other_formats, default=_none)` and
+1. `c.datetime_parse(main_format, *other_formats, default=...)` and
    `datetime_parse` method parse datetimes
 
 
-Both accept one or more formats, supported by [datetime.strptime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes).
+Both accept one or more formats supported by
+[datetime.strptime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes).
+When `default` is omitted, `ValueError` propagates if none of the formats
+match; when `default` is provided (including `default=None`), it is returned
+instead.
 
-{!examples-md/api__dates_parse.md!}
+--8<-- "docs/examples-md/api__dates_parse.md"
 
 Let's use `default`, so it is returned in cases where neither of provided
 formats fit:
 
-{!examples-md/api__dates_parse__default.md!}
+--8<-- "docs/examples-md/api__dates_parse__default.md"
 
 
 ## Date/Time Step
@@ -93,17 +101,17 @@ defined by `step` and `offset`.
 
 The methods above have the parameters:
 
-* `step` (step) defines the period of date/datetime grid to be used when
-  truncating
-* `offset` (optional step) defines the offset of the date/datetime grid to be
-  applied
+* `step` (date/time step) defines the period of date/datetime grid to be used
+  when truncating
+* `offset` (optional date/time step) defines the offset of the date/datetime
+  grid to be applied
 * `mode` (default is `"start"`) defines which part of a date/datetime grid
   period is to be returned
     * `"start"` returns the beginning of a grid period
-	* `"end_inclusive"` returns the inclusive end of a grid period (_e.g. for a
-	  monthly grid for Jan: it's Jan 31st_)
-	* `"end"` returns the exclusive end of a grid period (_e.g. for a monthly
-	  grid for Jan: it's Feb 1st_)
+    * `"end_inclusive"` returns the inclusive end of a grid period (_e.g. for a
+      monthly grid for Jan: it's Jan 31st_)
+    * `"end"` returns the exclusive end of a grid period (_e.g. for a monthly
+      grid for Jan: it's Feb 1st_)
 
 /// admonition
     type: warning
@@ -116,7 +124,7 @@ The methods above have the parameters:
   only be used with offsets defined by deterministic units too
 ///
 
-{!examples-md/api__dates_trunc.md!}
+--8<-- "docs/examples-md/api__dates_trunc.md"
 
 
 ## Date grids
@@ -141,14 +149,16 @@ risk missing the very first period.
 
 Arguments are:
 
-* `step` (step) defines grid period length (see how STEP-STRING is defined above)
-* `offset` (optional step) defines the offset of the date/datetime grid
+* `step` (date/time step) defines grid period length (see
+  [Date/Time Step](#datetime-step) above)
+* `offset` (optional date/time step) defines the offset of the date/datetime
+  grid
 * `mode` (default is `"start"`) defines which part of a date/datetime grid
   period is to be returned
     * `"start"` returns the beginning of a grid period
-	* `"end_inclusive"` returns the inclusive end of a grid period (_e.g. for a
-	  monthly grid for Jan: it's Jan 31st_)
-	* `"end"` returns the exclusive end of a grid period (_e.g. for a monthly
-	  grid for Jan: it's Feb 1st_)
+    * `"end_inclusive"` returns the inclusive end of a grid period (_e.g. for a
+      monthly grid for Jan: it's Jan 31st_)
+    * `"end"` returns the exclusive end of a grid period (_e.g. for a monthly
+      grid for Jan: it's Feb 1st_)
 
-{!examples-md/api__dates_grid.md!}
+--8<-- "docs/examples-md/api__dates_grid.md"
